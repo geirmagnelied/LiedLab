@@ -1,0 +1,469 @@
+import { useState, useRef, useEffect } from 'react'
+import { Tag, X, Trash2, Calendar, Pencil, Check, PenLine } from 'lucide-react'
+import { nextFriday, fmt } from './dateUtils'
+import SketchPad from './SketchPad'
+
+const TAGS = [
+  { key:'møte',    color:'#1565C0' }, { key:'oppgåve', color:'#5E35B1' },
+  { key:'frist',   color:'#B45309' }, { key:'idé',     color:'#166534' },
+]
+const COLORS = ['#B91C1C','#B45309','#166534','#1565C0','#5E35B1','#9D174D','#1B4332']
+
+const fi = {
+  background:'var(--bg3)', border:'1px solid var(--border)',
+  borderRadius:'var(--r)', color:'var(--text)',
+  fontFamily:'var(--font)', fontSize:13,
+  padding:'7px 10px', outline:'none', width:'100%',
+}
+
+function fmtHours(h) {
+  if (h === undefined || h === null || h === '') return '0.5t'
+  const n = parseFloat(h)
+  if (isNaN(n)) return '0.5t'
+  return n % 1 === 0 ? `${n}t` : `${n}t`
+}
+
+function TaskRow({ task, onUpdate, onDelete }) {
+  const [editing,    setEditing]    = useState(false)
+  const [editText,   setEditText]   = useState(task.text)
+  const [editStart,  setEditStart]  = useState(task.startDate || '')
+  const [editDate,   setEditDate]   = useState(task.date || '')
+  const [editHours,  setEditHours]  = useState(task.hours !== undefined ? String(task.hours) : '0.5')
+  const textRef = useRef(null)
+
+  useEffect(() => { if (editing && textRef.current) textRef.current.focus() }, [editing])
+
+  const commit = () => {
+    const t     = editText.trim() || task.text
+    const d     = editDate  || task.date  || nextFriday()
+    const hours = editHours !== '' ? parseFloat(editHours) : 0.5
+    onUpdate(task.id, { text: t, startDate: editStart || null, date: d, hours })
+    setEditing(false)
+  }
+
+  const di = task.date ? fmt(task.date) : null
+  const hours = task.hours !== undefined ? task.hours : 0.5
+
+  if (editing) return (
+    <div style={{ display:'flex', gap:6, padding:'6px 8px', background:'var(--bg4)',
+      borderRadius:'var(--r)', border:'1.5px solid var(--brand3)', marginBottom:5,
+      flexWrap:'wrap', alignItems:'center' }}>
+      <input ref={textRef} value={editText} onChange={e => setEditText(e.target.value)}
+        onKeyDown={e => { if (e.key==='Enter') commit(); if (e.key==='Escape') setEditing(false) }}
+        style={{ ...fi, flex:1, minWidth:140, padding:'4px 8px', background:'var(--bg2)', fontSize:13 }}/>
+      <input type="date" value={editStart} onChange={e => setEditStart(e.target.value)}
+        title="Startdato" style={{ ...fi, width:130, padding:'4px 8px', background:'var(--bg2)', fontSize:12 }}/>
+      <input type="number" value={editHours} onChange={e => setEditHours(e.target.value)}
+        min="0.5" max="999" step="0.5" title="Timeverk"
+        style={{ ...fi, width:64, padding:'4px 8px', background:'var(--bg2)', fontSize:13, textAlign:'center' }}/>
+      <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+        title="Frist" style={{ ...fi, width:130, padding:'4px 8px', background:'var(--bg2)', fontSize:12 }}/>
+      <button onClick={commit}
+        style={{ padding:'4px 10px', background:'var(--brand)', border:'none',
+          borderRadius:'var(--r)', color:'#fff', cursor:'pointer',
+          display:'flex', alignItems:'center', gap:4, fontSize:12, fontWeight:700 }}>
+        <Check size={12}/> OK
+      </button>
+      <button onClick={() => setEditing(false)}
+        style={{ padding:'4px 7px', background:'none', border:'1px solid var(--border)',
+          borderRadius:'var(--r)', color:'var(--text3)', cursor:'pointer' }}>
+        <X size={12}/>
+      </button>
+    </div>
+  )
+
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:0, padding:'6px 8px',
+      background: task.done ? 'transparent' : 'var(--bg3)',
+      borderRadius:'var(--r)', border:`1px solid ${di?.overdue ? 'rgba(185,28,28,.3)' : 'var(--border)'}`,
+      marginBottom:5 }}>
+      <button onClick={() => onUpdate(task.id, { done: !task.done })}
+        style={{ width:16, height:16, borderRadius:4, marginRight:8,
+          border:`2px solid ${task.done ? 'var(--success)' : 'var(--border2)'}`,
+          background: task.done ? 'var(--success)' : 'transparent',
+          flexShrink:0, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        {task.done && <Check size={9} color="#fff" strokeWidth={3}/>}
+      </button>
+      {/* Task text */}
+      <span style={{ flex:1, fontSize:13, color:'var(--text)',
+        textDecoration: task.done ? 'line-through' : 'none', opacity: task.done ? .55 : 1,
+        whiteSpace:'pre-wrap', lineHeight:1.4, paddingRight:8 }}>
+        {task.text}
+      </span>
+      {/* Startdato */}
+      <span style={{ width:88, fontSize:11, color:'var(--text3)', flexShrink:0,
+        display:'flex', alignItems:'center', gap:3 }}>
+        {task.startDate
+          ? (() => { const sd = fmt(task.startDate); return <><Calendar size={9}/>{sd.lbl}</> })()
+          : <span style={{ opacity:.35 }}>–</span>}
+      </span>
+      {/* Timeverk */}
+      <span style={{ width:52, fontSize:12, fontWeight:600, flexShrink:0,
+        color:'var(--brand2)', textAlign:'center',
+        background:'var(--brandbg)', borderRadius:5, padding:'1px 4px' }}>
+        {fmtHours(hours)}
+      </span>
+      {/* Frist */}
+      {di ? (
+        <span style={{ width:88, fontSize:11, marginLeft:6,
+          color: di.overdue?'var(--danger)':di.urgent?'var(--warn)':'var(--text3)',
+          fontWeight: di.overdue||di.urgent ? 600 : 400,
+          display:'flex', alignItems:'center', gap:3, flexShrink:0 }}>
+          <Calendar size={9}/>{di.lbl}
+        </span>
+      ) : <span style={{ width:88, marginLeft:6 }}/>}
+      <button onClick={() => setEditing(true)} title="Rediger"
+        style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer',
+          padding:'2px 3px', display:'flex', marginLeft:4 }}
+        onMouseEnter={e=>e.currentTarget.style.color='var(--brand)'}
+        onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
+        <Pencil size={12}/>
+      </button>
+      <button onClick={() => onDelete(task.id)} title="Slett"
+        style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer',
+          padding:'2px 3px', display:'flex' }}
+        onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
+        onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
+        <Trash2 size={12}/>
+      </button>
+    </div>
+  )
+}
+
+export default function NoteInput({ projects, onAdd, defaultProjectId, editNote, onCancelEdit }) {
+  const isEdit = !!editNote
+
+  const [tag,         setTag]         = useState(isEdit ? editNote.tag : null)
+  const [projectVal,  setProjectVal]  = useState(
+    isEdit ? String(editNote.projectId||'') : (defaultProjectId ? String(defaultProjectId) : '')
+  )
+  const [newProjName, setNewProjName] = useState('')
+  const [tasks,       setTasks]       = useState(isEdit ? (editNote.tasks||[]) : [])
+  const [newTaskText,  setNewTaskText]  = useState('')
+  const [newTaskStart, setNewTaskStart] = useState('')
+  const [newTaskDate,  setNewTaskDate]  = useState('')
+  const [newTaskHours, setNewTaskHours] = useState('')
+
+  const titleRef  = useRef(null)
+  const editorRef = useRef(null)
+
+  // Drag state for whole-window drop
+  const [dragActive,    setDragActive]    = useState(false)
+  const [showSketch,    setShowSketch]    = useState(false)
+  const [sketchDataUrl, setSketchDataUrl] = useState(isEdit ? (editNote?.sketchDataUrl || null) : null)
+
+  useEffect(() => {
+    if (titleRef.current)  titleRef.current.value  = isEdit ? (editNote.title||'') : ''
+    if (editorRef.current) editorRef.current.innerHTML = isEdit ? (editNote.html||editNote.text||'') : ''
+    setTasks(isEdit ? (editNote.tasks||[]) : [])
+    setTag(isEdit ? editNote.tag : null)
+    setProjectVal(isEdit ? String(editNote.projectId||'') : (defaultProjectId ? String(defaultProjectId) : ''))
+    setSketchDataUrl(isEdit ? (editNote?.sketchDataUrl || null) : null)
+    if (!isEdit && titleRef.current) setTimeout(() => titleRef.current?.focus(), 50)
+  }, [editNote?.id, defaultProjectId])
+
+  // All projects (no type filter)
+  const allProjects = projects
+
+  const exec = (cmd, val=null) => { editorRef.current?.focus(); document.execCommand(cmd, false, val) }
+
+  // ── Task auto-save ───────────────────────────────────────────────────
+  const commitNewTask = () => {
+    const text = newTaskText.trim()
+    if (!text) return
+    const date  = newTaskDate  || nextFriday()
+    const hours = newTaskHours !== '' ? parseFloat(newTaskHours) : 0.5
+    setTasks(ts => [...ts, { id: Date.now(), text, done:false,
+      startDate: newTaskStart || null, date, hours }])
+    setNewTaskText(''); setNewTaskStart(''); setNewTaskDate(''); setNewTaskHours('')
+  }
+
+  const updateTask = (id, changes) => setTasks(ts => ts.map(t => t.id===id ? {...t,...changes} : t))
+  const deleteTask = (id) => setTasks(ts => ts.filter(t => t.id!==id))
+
+  const handleSave = () => {
+    const html  = editorRef.current?.innerHTML?.trim()
+    const text  = editorRef.current?.innerText?.trim()
+    const title = titleRef.current?.value?.trim() || text?.substring(0,60) || 'Utan tittel'
+    if (!text && tasks.length===0) return
+    let pid = null
+    if (projectVal && projectVal!=='__new__') pid = parseInt(projectVal)
+    onAdd({ title, text:text||'', html:html||'', tasks, tag,
+      projectId:pid, newProjName: projectVal==='__new__' ? newProjName : '', sketchDataUrl })
+    if (!isEdit) {
+      titleRef.current.value = ''; editorRef.current.innerHTML = ''
+      setTag(null); setProjectVal(defaultProjectId?String(defaultProjectId):'')
+      setNewProjName(''); setTasks([]); setNewTaskText(''); setNewTaskDate('')
+    }
+  }
+
+  // ── Whole-window drag & drop for .eml and PDF ────────────────────────
+  const handleDragOver = (e) => { e.preventDefault(); setDragActive(true) }
+  const handleDragLeave = (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragActive(false) }
+
+  const processFile = (file) => {
+    if (!file) return
+    if (file.name.endsWith('.eml') || file.type.includes('message/rfc822') || file.type.includes('message')) {
+      const reader = new FileReader()
+      reader.onload = ev => {
+        const txt = ev.target.result
+        const sm = txt.match(/^Subject:\s*(.+)$/mi)
+        const fm = txt.match(/^From:\s*(.+)$/mi)
+        const bi = txt.indexOf('\n\n')
+        const subject = sm?.[1]?.trim() || file.name.replace('.eml','')
+        const from    = fm?.[1]?.trim() || ''
+        const body    = bi > -1 ? txt.substring(bi+2).trim()
+          .replace(/Content-[^\n]+\n/g,'')
+          .replace(/--[^\n]+\n?/g,'')
+          .substring(0, 600) : ''
+        if (!titleRef.current.value) titleRef.current.value = subject
+        if (editorRef.current) {
+          const fromLine = from ? `<div style="font-size:12px;color:#666;margin-bottom:8px">Frå: ${from}</div>` : ''
+          editorRef.current.innerHTML = `<b>${subject}</b><br>${fromLine}<br>${body.replace(/\n/g,'<br>')}`
+        }
+      }
+      reader.readAsText(file)
+    } else if (file.type === 'application/pdf') {
+      if (!titleRef.current.value) titleRef.current.value = file.name.replace('.pdf','')
+      if (editorRef.current) {
+        editorRef.current.innerHTML = `<b>PDF: ${file.name}</b><br><span style="color:#666;font-size:12px">Vedlegg lagt til frå fil</span>`
+      }
+    }
+    setDragActive(false)
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault(); setDragActive(false)
+    const files = [...e.dataTransfer.files]
+    if (files.length > 0) { processFile(files[0]) }
+  }
+
+  const TBtn = ({ onClick, title, children }) => (
+    <button onClick={onClick} title={title}
+      style={{ padding:'4px 7px', border:'1px solid transparent', background:'none',
+        borderRadius:5, cursor:'pointer', color:'var(--text2)', fontSize:13, lineHeight:1 }}
+      onMouseEnter={e=>{e.currentTarget.style.background='var(--bg4)';e.currentTarget.style.borderColor='var(--border)'}}
+      onMouseLeave={e=>{e.currentTarget.style.background='none';e.currentTarget.style.borderColor='transparent'}}>
+      {children}
+    </button>
+  )
+
+  const Divider = ({label}) => (
+    <div style={{ display:'flex', alignItems:'center', gap:10, margin:'2px 0 8px' }}>
+      <div style={{ flex:1, height:2, background:'var(--brand)', borderRadius:1 }}/>
+      <span style={{ fontSize:11, fontWeight:800, color:'var(--brand)',
+        textTransform:'uppercase', letterSpacing:'.1em', whiteSpace:'nowrap' }}>{label}</span>
+      <div style={{ flex:1, height:2, background:'var(--brand)', borderRadius:1 }}/>
+    </div>
+  )
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{ display:'flex', flexDirection:'column', gap:10, position:'relative',
+        outline: dragActive ? '3px dashed var(--brand3)' : 'none',
+        outlineOffset: 4, borderRadius:'var(--r2)' }}>
+
+      {dragActive && (
+        <div style={{ position:'absolute', inset:0, zIndex:50, borderRadius:'var(--r2)',
+          background:'rgba(27,67,50,.08)', display:'flex', alignItems:'center', justifyContent:'center',
+          pointerEvents:'none' }}>
+          <div style={{ fontSize:15, fontWeight:700, color:'var(--brand)',
+            background:'var(--bg2)', padding:'12px 24px', borderRadius:'var(--r2)',
+            border:'2px dashed var(--brand3)', boxShadow:'var(--shadow)' }}>
+            📎 Slepp e-post eller PDF her
+          </div>
+        </div>
+      )}
+
+      {isEdit && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+          padding:'8px 12px', background:'var(--brandbg2)', border:'1.5px solid var(--brand3)',
+          borderRadius:'var(--r)' }}>
+          <span style={{ fontSize:12, fontWeight:700, color:'var(--brand)' }}>✏️ Redigerer notat</span>
+          <button onClick={onCancelEdit}
+            style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer',
+              display:'flex', alignItems:'center', gap:4, fontSize:12 }}>
+            <X size={13}/>Avbryt
+          </button>
+        </div>
+      )}
+
+      {/* ── Prosjekt ØVST ── */}
+      <div>
+        <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
+          textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Prosjekt</label>
+        <div style={{ display:'flex', gap:8 }}>
+          <select value={projectVal} onChange={e => setProjectVal(e.target.value)}
+            style={{ ...fi, flex:1, fontWeight: projectVal ? 600 : 400 }}>
+            <option value="">— Utan prosjekt —</option>
+            {allProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <option value="__new__">+ Nytt prosjekt…</option>
+          </select>
+          {projectVal==='__new__' && (
+            <input type="text" value={newProjName} onChange={e => setNewProjName(e.target.value)}
+              placeholder="Skriv prosjektnr." style={{ ...fi, flex:1 }}/>
+          )}
+        </div>
+      </div>
+
+      {/* Title */}
+      <input ref={titleRef} type="text" placeholder="Tittel på notatet…"
+        style={{ ...fi, fontSize:16, fontWeight:700, padding:'10px 13px',
+          background:'var(--bg2)', border:'2px solid var(--brand3)',
+          borderRadius:'var(--r2)', letterSpacing:'-0.01em' }}
+        onKeyDown={e => e.key==='Enter' && editorRef.current?.focus()}/>
+
+      {/* ── Beskriving ── */}
+      <Divider label="Beskriving"/>
+
+      <div style={{ border:'2px solid var(--border)', borderRadius:'var(--r2)',
+        overflow:'hidden', boxShadow:'var(--shadow-sm)' }}>
+        <div style={{ display:'flex', gap:2, padding:'5px 8px', borderBottom:'1px solid var(--border)',
+          background:'var(--bg3)', flexWrap:'wrap', alignItems:'center' }}>
+          <TBtn onClick={()=>exec('bold')}          title="Fet">       <b>B</b></TBtn>
+          <TBtn onClick={()=>exec('italic')}        title="Kursiv">    <i>I</i></TBtn>
+          <TBtn onClick={()=>exec('underline')}     title="Understr."> <span style={{textDecoration:'underline'}}>U</span></TBtn>
+          <TBtn onClick={()=>exec('strikeThrough')} title="Gj.strek">  <span style={{textDecoration:'line-through'}}>S</span></TBtn>
+          <div style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }}/>
+          <TBtn onClick={()=>exec('insertUnorderedList')} title="Punktliste">• —</TBtn>
+          <TBtn onClick={()=>exec('insertOrderedList')}   title="Nummerert"> 1.</TBtn>
+          <div style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }}/>
+          {COLORS.map(c => (
+            <div key={c} onClick={() => exec('foreColor',c)} title={c}
+              style={{ width:15, height:15, borderRadius:3, background:c,
+                border:'1.5px solid rgba(0,0,0,.15)', cursor:'pointer', flexShrink:0 }}/>
+          ))}
+          <div style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }}/>
+          <TBtn onClick={()=>exec('removeFormat')} title="Fjern format.">✕</TBtn>
+        </div>
+        <div ref={editorRef} contentEditable suppressContentEditableWarning
+          style={{ minHeight:140, padding:'13px 15px', outline:'none',
+            fontSize:14, lineHeight:1.8, color:'var(--text)', background:'var(--bg2)' }}
+          onKeyDown={e => { if (e.key==='Enter' && (e.ctrlKey||e.metaKey)) handleSave() }}
+          data-placeholder="Skriv notat, eller dra inn e-post / PDF…"/>
+      </div>
+
+      {/* ── Arbeidsoppgåver ── */}
+      <Divider label="Arbeidsoppgåver"/>
+
+      <div>
+        {tasks.map(task => (
+          <TaskRow key={task.id} task={task} onUpdate={updateTask} onDelete={deleteTask}/>
+        ))}
+
+        {/* Column headers */}
+        <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:3, padding:'0 2px' }}>
+          <div style={{ flex:1, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' }}>Oppgåve</div>
+          <div style={{ width:130, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' }}>Startdato</div>
+          <div style={{ width:56, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', textAlign:'center' }}>Timar</div>
+          <div style={{ width:130, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' }}>Frist</div>
+        </div>
+        <div style={{ display:'flex', gap:6, alignItems:'flex-start' }}>
+          <textarea
+            value={newTaskText}
+            onChange={e => setNewTaskText(e.target.value)}
+            onKeyDown={e => {
+              if (e.key==='Enter' && e.altKey) {
+                e.preventDefault()
+                const ta = e.currentTarget
+                const s = ta.selectionStart, end = ta.selectionEnd
+                const val = ta.value
+                const newVal = val.substring(0,s) + '\n' + val.substring(end)
+                setNewTaskText(newVal)
+                setTimeout(() => { ta.selectionStart = ta.selectionEnd = s+1 }, 0)
+              } else if (e.key==='Enter' && !e.altKey) {
+                e.preventDefault()
+                commitNewTask()
+              }
+            }}
+            onBlur={commitNewTask}
+            placeholder="Ny arbeidsoppgåve… (Enter = lagre, Alt+Enter = ny linje)"
+            rows={newTaskText.includes('\n') ? Math.min(5, newTaskText.split('\n').length + 1) : 1}
+            style={{ ...fi, flex:1, resize:'none', lineHeight:1.5,
+              background:'var(--bg2)', border:'1.5px solid var(--border)', minHeight:36 }}/>
+          <input type="date" value={newTaskStart} onChange={e => setNewTaskStart(e.target.value)}
+            title="Startdato"
+            style={{ ...fi, width:130, background:'var(--bg2)' }}/>
+          <input type="number" value={newTaskHours} onChange={e => setNewTaskHours(e.target.value)}
+            placeholder="0.5"
+            min="0.5" max="999" step="0.5"
+            title="Timeverk (standard: 0.5)"
+            style={{ ...fi, width:56, background:'var(--bg2)', textAlign:'center' }}/>
+          <input type="date" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)}
+            title={`Frist (standard: fredag = ${nextFriday()})`}
+            style={{ ...fi, width:130, background:'var(--bg2)' }}/>
+        </div>
+        <div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>
+          Utan frist → fredag denne veka · Utan timar → 0.5t · Alt+Enter for ny linje
+        </div>
+      </div>
+
+      {/* Tags + Save */}
+      {/* Tags row */}
+      <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+        {TAGS.map(t => (
+          <button key={t.key} onClick={() => setTag(tag===t.key?null:t.key)}
+            style={{ padding:'4px 10px', borderRadius:20, border:'1.5px solid',
+              borderColor: tag===t.key ? t.color : 'var(--border)',
+              background:  tag===t.key ? t.color+'18' : 'transparent',
+              color:       tag===t.key ? t.color : 'var(--text3)',
+              fontSize:12, cursor:'pointer', fontWeight: tag===t.key ? 700 : 400,
+              display:'flex', alignItems:'center', gap:4 }}>
+            <Tag size={10}/>{t.key}
+          </button>
+        ))}
+      </div>
+
+      {/* Sketch preview + button */}
+      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <button onClick={() => setShowSketch(true)}
+          style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 18px',
+            background: sketchDataUrl ? 'var(--brandbg2)' : 'var(--bg3)',
+            border: `1.5px solid ${sketchDataUrl ? 'var(--brand3)' : 'var(--border)'}`,
+            borderRadius:'var(--r)', color: sketchDataUrl ? 'var(--brand)' : 'var(--text2)',
+            fontSize:13, fontWeight:600, cursor:'pointer', transition:'all .15s' }}>
+          <PenLine size={15}/>
+          {sketchDataUrl ? 'Rediger skisse' : 'Legg til skisse'}
+        </button>
+        {sketchDataUrl && (
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <img src={sketchDataUrl} alt="Skisse" onClick={() => setShowSketch(true)}
+              style={{ height:48, borderRadius:'var(--r)', border:'1px solid var(--border)',
+                cursor:'pointer', objectFit:'contain', background:'#fff' }}/>
+            <button onClick={() => setSketchDataUrl(null)}
+              style={{ background:'none', border:'none', color:'var(--text3)',
+                cursor:'pointer', padding:2, display:'flex' }}
+              onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
+              onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
+              <X size={13}/>
+            </button>
+          </div>
+        )}
+        <div style={{ flex:1, textAlign:'right', fontSize:11, color:'var(--text3)' }}>
+          {isEdit ? '✓ Endringar lagrast automatisk' : 'Ctrl+Enter for å lagre'}
+        </div>
+        <button onClick={handleSave}
+          style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 22px',
+            background:'var(--brand)', border:'none', borderRadius:'var(--r2)',
+            color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
+            boxShadow:'var(--shadow)', transition:'background .15s' }}
+          onMouseEnter={e=>e.currentTarget.style.background='var(--brand2)'}
+          onMouseLeave={e=>e.currentTarget.style.background='var(--brand)'}>
+          {isEdit ? 'Lagre endringar' : 'Lagre'}
+        </button>
+      </div>
+
+      {/* SketchPad overlay */}
+      {showSketch && (
+        <SketchPad
+          existingDataUrl={sketchDataUrl}
+          onSave={url => { setSketchDataUrl(url); setShowSketch(false) }}
+          onClose={() => setShowSketch(false)}
+        />
+      )}
+    </div>
+  )
+}
