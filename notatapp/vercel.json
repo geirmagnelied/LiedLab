@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/liedlab/notatblokk",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/liedlab/notatblokk/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
