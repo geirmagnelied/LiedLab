@@ -27,10 +27,19 @@ export default function App({ userId, userEmail }) {
   const [tlHeight,          setTlHeight]          = useState(INITIAL_TL_H)
   const [editNote,          setEditNote]          = useState(null)
   const [highlightNoteId,   setHighlightNoteId]   = useState(null)
+  const [isMobile,          setIsMobile]          = useState(window.innerWidth < 768)
+  const [mobileSheet,       setMobileSheet]       = useState(false) // sidebar drawer on mobile
 
   // Expose nextFriday to NoteList via window (simple bridge)
   useEffect(() => {
     import('./dateUtils').then(m => { window._dateUtils = m })
+  }, [])
+
+  // Track mobile breakpoint
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
   }, [])
 
   // Timeline drop handler
@@ -121,6 +130,83 @@ export default function App({ userId, userEmail }) {
     </div>
   )
 
+  // ── Mobile topbar tabs ────────────────────────────────────────────────
+  const MobileTab = ({ v, icon: Icon, label, onClick }) => {
+    const active = view === v
+    return (
+      <button onClick={onClick || (() => { setView(v); setEditNote(null); setMobileSheet(false) })}
+        style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2,
+          padding:'8px 4px', border:'none', background:'none',
+          color: active ? '#fff' : 'rgba(255,255,255,.5)',
+          fontSize:10, fontWeight: active ? 700 : 400, cursor:'pointer' }}>
+        <Icon size={20} strokeWidth={active ? 2.5 : 1.5}/>
+        {label}
+      </button>
+    )
+  }
+
+  if (isMobile) return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh',
+      overflow:'hidden', background:'var(--bg)', position:'relative' }}>
+
+      {/* Mobile topbar */}
+      <div style={{ display:'flex', alignItems:'center', padding:'0 12px',
+        background:'var(--brand)', height:52, flexShrink:0, gap:8 }}>
+        <button onClick={() => setMobileSheet(v=>!v)}
+          style={{ background:'none', border:'none', color:'#fff', cursor:'pointer',
+            display:'flex', alignItems:'center', padding:4 }}>
+          <PanelLeft size={22}/>
+        </button>
+        <div style={{ flex:1, fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em' }}>
+          {selProj ? selProj.name : 'Notatapp'}
+        </div>
+        <button onClick={()=>{ import('./supabase').then(m=>m.supabase.auth.signOut()) }}
+          style={{ background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.2)',
+            borderRadius:'var(--r)', padding:'5px 10px', color:'rgba(255,255,255,.8)',
+            fontSize:11, cursor:'pointer' }}>
+          Logg ut
+        </button>
+      </div>
+
+      {/* Mobile sidebar drawer */}
+      {mobileSheet && (
+        <>
+          <div onClick={() => setMobileSheet(false)}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', zIndex:100 }}/>
+          <div style={{ position:'fixed', left:0, top:0, bottom:0, width:280,
+            zIndex:101, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            <Sidebar projects={projects} notes={notes}
+              onSelectProject={id => { handleSelectProject(id); setMobileSheet(false) }}
+              onSelectNote={id => { handleSelectNote(id); setMobileSheet(false) }}
+              selectedProjectId={selectedProjectId}
+              onDeleteProject={deleteProject}
+              onNewNote={() => { handleNewNote(); setMobileSheet(false) }}
+              onToggleFavorite={toggleFavorite}/>
+          </div>
+        </>
+      )}
+
+      {/* Mobile content */}
+      <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
+        {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit}/>}
+        {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
+        {view==='fristar'  && <DeadlineView notes={visibleNotes} {...listProps}/>}
+        {view==='kalender' && <CalendarView notes={visibleNotes} projects={projects} onDelete={deleteNote} onToggleDone={toggleDone} onEdit={handleEdit}/>}
+      </div>
+
+      {/* Mobile bottom nav */}
+      <div style={{ display:'flex', background:'var(--brand)',
+        borderTop:'1px solid rgba(255,255,255,.1)', flexShrink:0,
+        paddingBottom:'env(safe-area-inset-bottom)' }}>
+        <MobileTab v="new"      icon={Plus}       label="Nytt" onClick={() => { handleNewNote(); setMobileSheet(false) }}/>
+        <MobileTab v="notatar"  icon={LayoutList}  label="Notatar"/>
+        <MobileTab v="fristar"  icon={AlertCircle} label="Fristar"/>
+        <MobileTab v="kalender" icon={Calendar}    label="Kalender"/>
+      </div>
+    </div>
+  )
+
+  // ── Desktop layout ──────────────────────────────────────────────────
   return (
     /* Outer wrapper with deep green border frame */
     <div style={{ display:'flex', height:'100vh', overflow:'hidden',

@@ -74,3 +74,31 @@ button { cursor: pointer; }
 .sidebar-brand {
   background: linear-gradient(160deg, var(--brand) 0%, var(--brand2) 100%);
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 767px) {
+  /* Bigger touch targets */
+  button { min-height: 36px; }
+
+  /* Task rows stack better */
+  .task-row { flex-wrap: wrap; }
+
+  /* Note cards full width */
+  .note-card { margin-bottom: 10px; }
+
+  /* Editor smaller on mobile */
+  [contenteditable] { min-height: 120px !important; font-size: 16px !important; }
+
+  /* Fields stack vertically */
+  .fields-grid { grid-template-columns: 1fr !important; }
+
+  /* Timeline hidden on mobile (too complex) */
+  .timeline-wrap { display: none; }
+
+  /* Sketch fullscreen already works */
+}
+
+/* Safe area for iPhone notch */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .mobile-nav { padding-bottom: env(safe-area-inset-bottom); }
+}
