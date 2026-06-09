@@ -6,21 +6,16 @@ import { fmt } from './dateUtils'
 const TAG_COLORS = { 'møte':'#1565C0','oppgåve':'#5E35B1','frist':'#B45309','idé':'#166534' }
 
 function TaskList({ tasks, noteId, onUpdateTask, onDeleteTask, onAddTask }) {
-  const [newText,  setNewText]  = useState('')
-  const [newStart, setNewStart] = useState('')
-  const [newHours, setNewHours] = useState('')
-  const [newDate,  setNewDate]  = useState('')
-  // nextFriday via window bridge set in App.jsx
+  const [newText, setNewText] = useState('')
+  const [newDate, setNewDate] = useState('')
+  const { nextFriday } = require ? (() => { try { return require('./dateUtils') } catch { return { nextFriday: () => '' } } })() : { nextFriday: () => '' }
 
   const addIt = () => {
-    const text = newText.trim()
-    if (!text) return
+    if (!newText.trim()) return
     const { nextFriday: nf } = window._dateUtils || {}
-    const date  = newDate  || (typeof nf === 'function' ? nf() : null)
-    const hours = newHours !== '' ? parseFloat(newHours) : 0.5
-    // Use addTask with extended signature via a wrapper
-    onAddTask(noteId, text, date, newStart || null, hours)
-    setNewText(''); setNewStart(''); setNewHours(''); setNewDate('')
+    const date = newDate || (typeof nf === 'function' ? nf() : '')
+    onAddTask(noteId, newText.trim(), date || null)
+    setNewText(''); setNewDate('')
   }
 
   const fi = { background:'var(--bg)', border:'1px solid var(--border)', borderRadius:6,
@@ -83,33 +78,16 @@ function TaskList({ tasks, noteId, onUpdateTask, onDeleteTask, onAddTask }) {
           </div>
         )
       })}
-      {/* Column headers */}
-      <div style={{ display:'flex', gap:5, marginTop:8, marginBottom:3 }}>
-        <div style={{ flex:1, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.04em' }}>Oppgåve</div>
-        <div style={{ width:110, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.04em' }}>Startdato</div>
-        <div style={{ width:48, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.04em', textAlign:'center' }}>t</div>
-        <div style={{ width:110, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.04em' }}>Frist</div>
-        <div style={{ width:32 }}></div>
-      </div>
-      <div style={{ display:'flex', gap:5, alignItems:'center' }}>
+      <div style={{ display:'flex', gap:5, marginTop:5 }}>
         <input value={newText} onChange={e=>setNewText(e.target.value)}
-          onKeyDown={e=>{ if(e.key==='Enter'&&!e.altKey){e.preventDefault();addIt()} }}
-          onBlur={addIt}
-          placeholder="Ny oppgåve… (Enter)"
-          style={{ ...fi, flex:1, fontSize:13 }}/>
-        <input type="date" value={newStart||''} onChange={e=>setNewStart(e.target.value)}
-          title="Startdato" style={{ ...fi, width:110 }}/>
-        <input type="number" value={newHours} onChange={e=>setNewHours(e.target.value)}
-          placeholder="0.5" min="0.5" max="999" step="0.5"
-          title="Timeverk (standard: 0.5)"
-          style={{ ...fi, width:48, textAlign:'center' }}/>
+          onKeyDown={e=>e.key==='Enter'&&addIt()} placeholder="Ny oppgåve…"
+          style={{ ...fi, flex:1 }}/>
         <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)}
-          title="Frist" style={{ ...fi, width:110 }}/>
+          title="Frist" style={{ ...fi, width:120 }}/>
         <button onClick={addIt}
-          style={{ padding:'5px 9px', width:32, background:'var(--brand)', border:'none',
-            borderRadius:6, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center',
-            justifyContent:'center', flexShrink:0 }}>
-          <Plus size={13}/>
+          style={{ padding:'5px 9px',background:'var(--bg3)',border:'1px solid var(--border)',
+            borderRadius:6,color:'var(--text2)',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12,flexShrink:0 }}>
+          <Plus size={12}/>
         </button>
       </div>
     </div>
@@ -123,7 +101,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
   const doneCnt = tasks.filter(t=>t.done).length
   const urgentTask = tasks.filter(t=>!t.done&&t.date).sort((a,b)=>new Date(a.date)-new Date(b.date))[0]
   const utDi = urgentTask ? fmt(urgentTask.date) : null
-  const hasBody = (note.html && note.text) || note.isMeeting
+  const hasBody = note.html && note.text
 
   return (
     <div draggable
@@ -146,7 +124,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
 
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-            <span style={{ fontSize:15, fontWeight:700, color:'var(--text)',
+            <span style={{ fontSize:14, fontWeight:700, color:'var(--text)',
               textDecoration:note.done?'line-through':'none', opacity:note.done?.6:1 }}>
               {note.title||note.text?.substring(0,60)||'Utan tittel'}
             </span>
@@ -165,7 +143,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
             )}
           </div>
           <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center', marginTop:4 }}>
-            {proj&&<span style={{ fontSize:12,color:'var(--text2)',display:'flex',alignItems:'center',gap:3 }}><FolderOpen size={10}/>{proj.name}</span>}
+            {proj&&<span style={{ fontSize:11,color:'var(--text2)',display:'flex',alignItems:'center',gap:3 }}><FolderOpen size={10}/>{proj.name}</span>}
             {note.tag&&<span style={{ fontSize:11,padding:'1px 7px',borderRadius:10,
               background:`${TAG_COLORS[note.tag]}18`,color:TAG_COLORS[note.tag],fontWeight:500 }}>{note.tag}</span>}
             {note.isEmail&&<span style={{ fontSize:11,padding:'1px 7px',borderRadius:10,
@@ -173,18 +151,6 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
               <Mail size={9}/>e-post</span>}
             {note.sketchDataUrl&&<span style={{ fontSize:11,padding:'1px 7px',borderRadius:10,
               background:'var(--brandbg)',color:'var(--brand)',fontWeight:500 }}>✏️ skisse</span>}
-            {note.isMeeting&&(
-              <span style={{ fontSize:11,padding:'1px 7px',borderRadius:10,
-                background:'rgba(21,101,192,.1)',color:'#1565C0',fontWeight:600,
-                display:'flex',alignItems:'center',gap:3 }}>
-                📋 møte {note.meetingTime ? new Date(note.meetingTime).toLocaleString('no-NO',{dateStyle:'short',timeStyle:'short'}) : ''}
-              </span>
-            )}
-            {note.isMeeting && note.attendees?.length>0 && (
-              <span style={{ fontSize:11,color:'var(--text3)' }}>
-                👥 {note.attendees.slice(0,3).join(', ')}{note.attendees.length>3?` +${note.attendees.length-3}`:''}
-              </span>
-            )}
           </div>
         </div>
 
@@ -213,16 +179,6 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
 
       {expanded&&(
         <div style={{ padding:'0 13px 13px', borderTop:'1px solid var(--border)', paddingTop:12 }}>
-          {note.isMeeting && (
-            <div style={{ background:'var(--bg3)', border:'1px solid var(--border)',
-              borderRadius:'var(--r)', padding:'10px 14px', marginBottom:10,
-              display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-              {note.meetingTime && <div><span style={{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.04em'}}>Tidspunkt</span><br/><span style={{fontSize:13,color:'var(--text)'}}>{new Date(note.meetingTime).toLocaleString('no-NO',{dateStyle:'long',timeStyle:'short'})}</span></div>}
-              {note.meetingDuration && <div><span style={{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.04em'}}>Varigheit</span><br/><span style={{fontSize:13,color:'var(--text)'}}>{note.meetingDuration} min</span></div>}
-              {note.meetingLocation && <div style={{gridColumn:'1/-1'}}><span style={{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.04em'}}>Stad</span><br/><span style={{fontSize:13,color:'var(--text)'}}>{note.meetingLocation}</span></div>}
-              {note.attendees?.length>0 && <div style={{gridColumn:'1/-1'}}><span style={{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.04em'}}>Deltakarar</span><br/><div style={{display:'flex',flexWrap:'wrap',gap:4,marginTop:4}}>{note.attendees.map((a,i)=><span key={i} style={{fontSize:12,padding:'2px 8px',background:'var(--bg4)',border:'1px solid var(--border)',borderRadius:20,color:'var(--text2)'}}>{a}</span>)}</div></div>}
-            </div>
-          )}
           {hasBody&&(
             <div style={{ fontSize:13,color:'var(--text)',lineHeight:1.7,marginBottom:4,opacity:note.done?.6:1 }}
               dangerouslySetInnerHTML={{__html:note.html}}/>

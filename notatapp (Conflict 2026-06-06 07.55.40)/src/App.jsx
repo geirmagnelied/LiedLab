@@ -27,7 +27,6 @@ export default function App({ userId, userEmail }) {
   const [tlHeight,          setTlHeight]          = useState(INITIAL_TL_H)
   const [editNote,          setEditNote]          = useState(null)
   const [highlightNoteId,   setHighlightNoteId]   = useState(null)
-  const [isMeeting,         setIsMeeting]         = useState(false)
   const [isMobile,          setIsMobile]          = useState(window.innerWidth < 768)
   const [mobileSheet,       setMobileSheet]       = useState(false) // sidebar drawer on mobile
 
@@ -56,34 +55,6 @@ export default function App({ userId, userEmail }) {
     window.addEventListener('timeline-drop', handler)
     return () => window.removeEventListener('timeline-drop', handler)
   }, [notes, updateTask, addTask])
-
-  // Sidebar context menu handler
-  useEffect(() => {
-    const handler = (e) => {
-      const { action, projectId } = e.detail
-      setSelectedProjectId(projectId)
-      if (action === 'new-meeting') handleNewNote(true)
-      else handleNewNote(false)
-    }
-    window.addEventListener('sidebar-ctx', handler)
-    return () => window.removeEventListener('sidebar-ctx', handler)
-  }, [])
-
-  // Timeline context menu handler
-  useEffect(() => {
-    const handler = (e) => {
-      const { action, date } = e.detail
-      if (action === 'new-note') {
-        handleNewNote(false)
-      } else if (action === 'new-meeting') {
-        handleNewNote(true)
-      } else if (action === 'new-task') {
-        handleNewNote(false)
-      }
-    }
-    window.addEventListener('timeline-ctx', handler)
-    return () => window.removeEventListener('timeline-ctx', handler)
-  }, [])
 
   // Column resize
   const dragging   = useRef(null)
@@ -217,7 +188,7 @@ export default function App({ userId, userEmail }) {
 
       {/* Mobile content */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
-        {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote}/>}
+        {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit}/>}
         {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
         {view==='fristar'  && <DeadlineView notes={visibleNotes} {...listProps}/>}
         {view==='kalender' && <CalendarView notes={visibleNotes} projects={projects} onDelete={deleteNote} onToggleDone={toggleDone} onEdit={handleEdit}/>}
@@ -227,7 +198,7 @@ export default function App({ userId, userEmail }) {
       <div style={{ display:'flex', background:'var(--brand)',
         borderTop:'1px solid rgba(255,255,255,.1)', flexShrink:0,
         paddingBottom:'env(safe-area-inset-bottom)' }}>
-        <MobileTab v="new"      icon={Plus}       label="Nytt" onClick={() => { handleNewNote(false); setMobileSheet(false) }}/>
+        <MobileTab v="new"      icon={Plus}       label="Nytt" onClick={() => { handleNewNote(); setMobileSheet(false) }}/>
         <MobileTab v="notatar"  icon={LayoutList}  label="Notatar"/>
         <MobileTab v="fristar"  icon={AlertCircle} label="Fristar"/>
         <MobileTab v="kalender" icon={Calendar}    label="Kalender"/>
@@ -268,14 +239,7 @@ export default function App({ userId, userEmail }) {
               height:50,flexShrink:0 }}>
               <IcoBtn onClick={()=>setSbCollapsed(v=>!v)} active={sbCollapsed} title="Meny"><PanelLeft size={16}/></IcoBtn>
               <div style={{width:4}}/>
-              <Tab v="new"      icon={Plus}       label="Nytt notat" onClick={()=>handleNewNote(false)}/>
-              <button onClick={()=>handleNewNote(true)}
-                style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px',
-                  border:'1.5px solid rgba(255,255,255,.3)', background:'rgba(255,255,255,.08)',
-                  borderRadius:'var(--r)', color:'rgba(255,255,255,.75)',
-                  fontSize:13, cursor:'pointer', fontWeight:400, transition:'all .15s', whiteSpace:'nowrap' }}>
-                📋 Møtenotat
-              </button>
+              <Tab v="new"      icon={Plus}       label="Nytt notat" onClick={handleNewNote}/>
               <Tab v="notatar"  icon={LayoutList}  label="Notatar"/>
               <Tab v="fristar"  icon={AlertCircle} label="Fristar"/>
               <Tab v="kalender" icon={Calendar}    label="Kalender"/>
@@ -299,7 +263,7 @@ export default function App({ userId, userEmail }) {
             </div>
 
             <div style={{ flex:1,overflowY:'auto',padding:'22px 26px' }}>
-              {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote}/>}
+              {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit}/>}
               {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
               {view==='fristar'  && <DeadlineView notes={visibleNotes} {...listProps}/>}
               {view==='kalender' && <CalendarView notes={visibleNotes} projects={projects} onDelete={deleteNote} onToggleDone={toggleDone} onEdit={handleEdit}/>}
@@ -319,7 +283,7 @@ export default function App({ userId, userEmail }) {
 
         {/* Timeline */}
         {!tlCollapsed&&(
-          <div style={{ height:tlHeight,minHeight:90,maxHeight:600,flexShrink:0 }}>
+          <div style={{ height:tlHeight,minHeight:90,maxHeight:400,flexShrink:0 }}>
             <Timeline notes={notes} projects={projects} height={tlHeight} onResize={setTlHeight}/>
           </div>
         )}

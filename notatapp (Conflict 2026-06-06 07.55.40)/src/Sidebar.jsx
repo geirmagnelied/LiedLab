@@ -5,9 +5,8 @@ import { ChevronDown, ChevronRight, FolderOpen, Trash2, AlertCircle,
 export default function Sidebar({ projects, notes, onSelectProject, onSelectNote,
                                    selectedProjectId, onDeleteProject, onNewNote,
                                    onToggleFavorite }) {
-  const [projsOpen,  setProjsOpen]  = useState(true)
-  const [openProjs,  setOpenProjs]  = useState({})
-  const [ctxMenu,    setCtxMenu]    = useState(null)  // {x,y,projectId,name}
+  const [projsOpen, setProjsOpen] = useState(true)
+  const [openProjs, setOpenProjs] = useState({})
 
   const notesFor    = id => notes.filter(n => n.projectId === id && !n.done)
   const unprojected = notes.filter(n => !n.projectId && !n.done)
@@ -49,8 +48,7 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
             background: ac ? 'rgba(255,255,255,.15)' : 'transparent',
             borderLeft: `3px solid ${ac ? 'rgba(255,255,255,.85)' : 'transparent'}`,
             cursor:'pointer' }}
-          onClick={() => onSelectProject(ac ? null : p.id)}
-          onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({x:e.clientX, y:e.clientY, projectId:p.id, name:p.name}) }}>
+          onClick={() => onSelectProject(ac ? null : p.id)}>
 
           {/* Expand arrow */}
           <button onClick={e => toggleProjOpen(p.id, e)}
@@ -233,53 +231,6 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
         fontSize:11, color:'rgba(255,255,255,.3)' }}>
         {notes.filter(n=>!n.done).length} aktive notatar
       </div>
-
-      {/* Project context menu */}
-      {ctxMenu && (
-        <>
-          <div onClick={() => setCtxMenu(null)}
-            style={{ position:'fixed', inset:0, zIndex:200 }}/>
-          <div style={{ position:'fixed', left:ctxMenu.x, top:ctxMenu.y, zIndex:201,
-            background:'var(--bg2)', border:'1.5px solid var(--brand3)',
-            borderRadius:'var(--r2)', padding:'4px 0',
-            boxShadow:'0 8px 24px rgba(0,0,0,.18)', minWidth:210 }}>
-            <div style={{ padding:'4px 12px 6px', fontSize:11, fontWeight:700,
-              color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.06em',
-              borderBottom:'1px solid var(--border)', marginBottom:4 }}>
-              📁 {ctxMenu.name}
-            </div>
-            {[
-              { label:'📝 Nytt notat', action:'new-note' },
-              { label:'📋 Nytt møtenotat', action:'new-meeting' },
-            ].map(item => (
-              <button key={item.action}
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('sidebar-ctx', {
-                    detail:{ action:item.action, projectId:ctxMenu.projectId }
-                  }))
-                  setCtxMenu(null)
-                }}
-                style={{ width:'100%', textAlign:'left', padding:'8px 14px',
-                  background:'none', border:'none', cursor:'pointer',
-                  fontSize:13, color:'var(--text)', fontFamily:'var(--font)', display:'block' }}
-                onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
-                onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                {item.label}
-              </button>
-            ))}
-            <div style={{ height:1, background:'var(--border)', margin:'4px 0' }}/>
-            <button
-              onClick={() => { onDeleteProject(ctxMenu.projectId); setCtxMenu(null) }}
-              style={{ width:'100%', textAlign:'left', padding:'8px 14px',
-                background:'none', border:'none', cursor:'pointer',
-                fontSize:13, color:'var(--danger)', fontFamily:'var(--font)', display:'block' }}
-              onMouseEnter={e=>e.currentTarget.style.background='rgba(185,28,28,.06)'}
-              onMouseLeave={e=>e.currentTarget.style.background='none'}>
-              🗑 Slett prosjekt
-            </button>
-          </div>
-        </>
-      )}
     </div>
   )
 }

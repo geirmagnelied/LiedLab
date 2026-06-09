@@ -77,9 +77,6 @@ export function useStore(userId) {
       id: n.id, title: n.title, text: n.text, html: n.html,
       tasks: n.tasks || [], tag: n.tag, projectId: n.project_id,
       isEmail: n.is_email, sketchDataUrl: n.sketch_data_url,
-      isMeeting: n.is_meeting, meetingTime: n.meeting_time,
-      meetingDuration: n.meeting_duration, meetingLocation: n.meeting_location,
-      attendees: n.attendees || [],
       done: n.done, createdAt: n.created_at,
     })))
     setLoading(false)
@@ -95,13 +92,8 @@ export function useStore(userId) {
       title: n.title || '', text: n.text || '', html: n.html || '',
       tasks: n.tasks || [], tag: n.tag || null,
       project_id: n.projectId || null,
-      is_email:         n.isEmail         || false,
-      sketch_data_url:  n.sketchDataUrl   || null,
-      is_meeting:       n.isMeeting       || false,
-      meeting_time:     n.meetingTime     || null,
-      meeting_duration: n.meetingDuration || null,
-      meeting_location: n.meetingLocation || null,
-      attendees:        n.attendees       || [],
+      is_email: n.isEmail || false,
+      sketch_data_url: n.sketchDataUrl || null,
       done: false, created_at: new Date().toISOString(),
     }
     const { error } = await supabase.from('notes').insert(row)
@@ -136,15 +128,10 @@ export function useStore(userId) {
   }
 
   // ── Tasks ─────────────────────────────────────────────────────────────
-  const addTask = async (noteId, taskText, taskDate, taskStart, taskHours) => {
+  const addTask = async (noteId, taskText, taskDate) => {
     const note = notes.find(n => n.id === noteId)
     if (!note) return
-    const task = {
-      id: Date.now(), text: taskText, done: false,
-      date:      taskDate  || null,
-      startDate: taskStart || null,
-      hours:     taskHours !== undefined ? taskHours : 0.5,
-    }
+    const task = { id: Date.now(), text: taskText, done: false, date: taskDate || null, hours: 0.5 }
     await updateNote(noteId, { tasks: [...(note.tasks || []), task] })
   }
 

@@ -19,7 +19,6 @@ export default function Timeline({ notes, projects, height, onResize }) {
   const [tooltip,     setTooltip]     = useState(null)
   const [dragOver,    setDragOver]    = useState(null)
   const scrollRef = useRef(null)
-  const [ctxMenu, setCtxMenu] = useState(null)  // { x, y, dateStr }
 
   const projIdx  = Object.fromEntries(projects.map((p,i) => [p.id, i]))
   const getColor = pid => pid != null ? pc(projIdx[pid] ?? 0) : '#888'
@@ -101,7 +100,6 @@ export default function Timeline({ notes, projects, height, onResize }) {
       <div onDragOver={e=>{e.preventDefault();setDragOver(dateStr)}}
         onDragLeave={()=>setDragOver(null)}
         onDrop={e=>onDrop(e,dateStr)}
-        onContextMenu={e=>{e.preventDefault();setCtxMenu({x:e.clientX,y:e.clientY,dateStr})}}
         style={{
           ...(flex ? {flex:1} : {width:w,minWidth:w}),
           height:'100%', borderRight:'1px solid var(--border)',
@@ -403,40 +401,6 @@ export default function Timeline({ notes, projects, height, onResize }) {
         {mode==='day'&&renderDay()}
       </div>
 
-      {/* Context menu */}
-      {ctxMenu && (
-        <>
-          <div style={{position:'fixed',inset:0,zIndex:299}} onClick={()=>setCtxMenu(null)}/>
-          <div style={{position:'fixed',left:ctxMenu.x,top:ctxMenu.y,zIndex:300,
-            background:'var(--bg2)',border:'1.5px solid var(--brand3)',
-            borderRadius:'var(--r2)',padding:'4px 0',
-            boxShadow:'var(--shadow-lg)',minWidth:200}}>
-            <div style={{padding:'4px 10px 6px',fontSize:11,fontWeight:700,
-              color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.06em',
-              borderBottom:'1px solid var(--border)',marginBottom:4}}>
-              {ctxMenu.dateStr}
-            </div>
-            {[
-              {label:'📝 Nytt notat her',   action:'new-note'},
-              {label:'📋 Nytt møtenotat',   action:'new-meeting'},
-              {label:'✅ Ny arbeidsoppgåve', action:'new-task'},
-            ].map(item => (
-              <button key={item.action}
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('timeline-ctx', {detail:{action:item.action, date:ctxMenu.dateStr}}))
-                  setCtxMenu(null)
-                }}
-                style={{width:'100%',textAlign:'left',padding:'7px 14px',
-                  background:'none',border:'none',cursor:'pointer',
-                  fontSize:13,color:'var(--text)',fontFamily:'var(--font)',display:'block'}}
-                onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
-                onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
       {tooltip&&<div style={{position:'fixed',inset:0,zIndex:299}} onClick={()=>setTooltip(null)}/>}
     </div>
   )
