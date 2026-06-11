@@ -71,12 +71,14 @@ export function useStore(userId) {
 
     setProjects((pData || []).map(p => ({
       id: p.id, name: p.name, favorite: p.favorite,
+      type: p.type || 'work',
       createdAt: p.created_at,
     })))
     setNotes((nData || []).map(n => ({
       id: n.id, title: n.title, text: n.text, html: n.html,
       tasks: n.tasks || [], tag: n.tag, projectId: n.project_id,
       isEmail: n.is_email, sketchDataUrl: n.sketch_data_url,
+      attachments: n.attachments || [],
       isMeeting: n.is_meeting, meetingTime: n.meeting_time,
       meetingDuration: n.meeting_duration, meetingLocation: n.meeting_location,
       attendees: n.attendees || [],
@@ -97,6 +99,7 @@ export function useStore(userId) {
       project_id: n.projectId || null,
       is_email:         n.isEmail         || false,
       sketch_data_url:  n.sketchDataUrl   || null,
+      attachments:      n.attachments     || [],
       is_meeting:       n.isMeeting       || false,
       meeting_time:     n.meetingTime     || null,
       meeting_duration: n.meetingDuration || null,
@@ -162,16 +165,21 @@ export function useStore(userId) {
   }
 
   // ── Projects ──────────────────────────────────────────────────────────
-  const addProject = async (name) => {
+  const addProject = async (name, type='work') => {
     const ex = projects.find(p => p.name.toLowerCase() === name.toLowerCase())
     if (ex) return ex
     const id = Date.now()
     const { error } = await supabase.from('projects').insert({
-      id, user_id: userId, name, favorite: false,
+      id, user_id: userId, name, favorite: false, type,
       created_at: new Date().toISOString(),
     })
     if (!error) await loadAll()
     return { id, name, favorite: false }
+  }
+
+  const updateProject = async (id, changes) => {
+    await supabase.from('projects').update(changes).eq('id', id).eq('user_id', userId)
+    setProjects(ps => ps.map(p => p.id === id ? { ...p, ...changes } : p))
   }
 
   const deleteProject = async (id) => {
@@ -192,6 +200,6 @@ export function useStore(userId) {
     notes, projects, loading,
     addNote, updateNote, deleteNote, toggleDone,
     addTask, updateTask, deleteTask,
-    addProject, deleteProject, toggleFavorite,
+    addProject, updateProject, deleteProject, toggleFavorite,
   }
 }

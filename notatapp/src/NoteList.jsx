@@ -116,8 +116,11 @@ function TaskList({ tasks, noteId, onUpdateTask, onDeleteTask, onAddTask }) {
   )
 }
 
-function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask, onDeleteTask, onAddTask }) {
-  const [expanded, setExpanded] = useState(false)
+function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask, onDeleteTask, onAddTask, onMoveToProject, onRenameNote }) {
+  const [expanded,  setExpanded]  = useState(false)
+  const [ctxMenu,   setCtxMenu]   = useState(null)
+  const [renaming,  setRenaming]  = useState(false)
+  const [renameVal, setRenameVal] = useState(note.title || '')
   const proj   = note.projectId ? projects.find(p=>p.id===note.projectId) : null
   const tasks  = note.tasks||[]
   const doneCnt = tasks.filter(t=>t.done).length
@@ -127,11 +130,57 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
 
   return (
     <div draggable
-      onDragStart={e=>{e.dataTransfer.setData('noteId',String(note.id));e.dataTransfer.effectAllowed='move'}}
+      onDragStart={e=>{
+        e.dataTransfer.setData('noteId',String(note.id))
+        e.dataTransfer.setData('text/plain',String(note.id))
+        e.dataTransfer.effectAllowed='move'
+      }}
+      onContextMenu={e=>{ e.preventDefault(); setCtxMenu({x:e.clientX,y:e.clientY}) }}
       style={{ background:'var(--bg2)', border:'1px solid var(--border)',
-        borderLeft:`3px solid ${note.isEmail?'#1565C0':'var(--brand3)'}`,
+        borderLeft:`3px solid ${note.isMeeting?'#1565C0':note.isEmail?'#B45309':'var(--brand3)'}`,
         borderRadius:'var(--r2)', marginBottom:8, boxShadow:'var(--shadow-sm)',
-        overflow:'hidden', cursor:'grab' }}>
+        overflow:'hidden', cursor:'grab', position:'relative' }}>
+
+      {/* Note context menu */}
+      {ctxMenu && (
+        <>
+          <div onClick={()=>setCtxMenu(null)} style={{position:'fixed',inset:0,zIndex:200}}/>
+          <div style={{position:'fixed',left:ctxMenu.x,top:ctxMenu.y,zIndex:201,
+            background:'var(--bg2)',border:'1.5px solid var(--brand3)',
+            borderRadius:'var(--r2)',padding:'4px 0',
+            boxShadow:'0 8px 24px rgba(0,0,0,.18)',minWidth:200}}>
+            <button onClick={()=>{setRenaming(true);setRenameVal(note.title||'');setCtxMenu(null)}}
+              style={{width:'100%',textAlign:'left',padding:'8px 14px',background:'none',border:'none',
+                cursor:'pointer',fontSize:13,color:'var(--text)',fontFamily:'var(--font)',display:'block'}}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
+              onMouseLeave={e=>e.currentTarget.style.background='none'}>
+              ✏️ Endre tittel
+            </button>
+            {projects.length>0 && (
+              <div>
+                <div style={{padding:'4px 14px 2px',fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.05em'}}>Flytt til prosjekt</div>
+                {projects.map(p=>(
+                  <button key={p.id} onClick={()=>{onMoveToProject&&onMoveToProject(note.id,p.id);setCtxMenu(null)}}
+                    style={{width:'100%',textAlign:'left',padding:'6px 14px 6px 22px',background:'none',border:'none',
+                      cursor:'pointer',fontSize:12,color:'var(--text2)',fontFamily:'var(--font)',display:'block'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                    📁 {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div style={{height:1,background:'var(--border)',margin:'4px 0'}}/>
+            <button onClick={()=>{onDelete(note.id);setCtxMenu(null)}}
+              style={{width:'100%',textAlign:'left',padding:'8px 14px',background:'none',border:'none',
+                cursor:'pointer',fontSize:13,color:'var(--danger)',fontFamily:'var(--font)',display:'block'}}
+              onMouseEnter={e=>e.currentTarget.style.background='rgba(185,28,28,.06)'}
+              onMouseLeave={e=>e.currentTarget.style.background='none'}>
+              🗑 Slett notat
+            </button>
+          </div>
+        </>
+      )}
 
       <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 13px' }}
         onClick={() => setExpanded(v=>!v)}>
@@ -146,10 +195,23 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
 
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-            <span style={{ fontSize:15, fontWeight:700, color:'var(--text)',
-              textDecoration:note.done?'line-through':'none', opacity:note.done?.6:1 }}>
-              {note.title||note.text?.substring(0,60)||'Utan tittel'}
-            </span>
+            {renaming ? (
+              <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
+                onClick={e=>e.stopPropagation()}
+                onKeyDown={e=>{
+                  if(e.key==='Enter'){onRenameNote&&onRenameNote(note.id,renameVal);setRenaming(false)}
+                  if(e.key==='Escape')setRenaming(false)
+                }}
+                onBlur={()=>{onRenameNote&&onRenameNote(note.id,renameVal);setRenaming(false)}}
+                style={{flex:1,fontSize:15,fontWeight:700,background:'var(--bg3)',
+                  border:'2px solid var(--brand3)',borderRadius:'var(--r)',
+                  padding:'2px 8px',outline:'none',fontFamily:'var(--font)',color:'var(--text)'}}/>
+            ) : (
+              <span style={{ fontSize:15, fontWeight:700, color:'var(--text)',
+                textDecoration:note.done?'line-through':'none', opacity:note.done?.6:1 }}>
+                {note.title||note.text?.substring(0,60)||'Utan tittel'}
+              </span>
+            )}
             {tasks.length>0&&(
               <span style={{ fontSize:11, padding:'1px 7px', borderRadius:10, fontWeight:700,
                 background:doneCnt===tasks.length?'rgba(22,101,52,.12)':'rgba(27,67,50,.1)',
@@ -173,6 +235,8 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
               <Mail size={9}/>e-post</span>}
             {note.sketchDataUrl&&<span style={{ fontSize:11,padding:'1px 7px',borderRadius:10,
               background:'var(--brandbg)',color:'var(--brand)',fontWeight:500 }}>✏️ skisse</span>}
+            {note.attachments?.length>0&&<span style={{fontSize:11,padding:'1px 7px',borderRadius:10,
+              background:'rgba(180,83,9,.08)',color:'var(--warn)',fontWeight:500}}>📎 {note.attachments.length}</span>}
             {note.isMeeting&&(
               <span style={{ fontSize:11,padding:'1px 7px',borderRadius:10,
                 background:'rgba(21,101,192,.1)',color:'#1565C0',fontWeight:600,
@@ -227,6 +291,24 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
             <div style={{ fontSize:13,color:'var(--text)',lineHeight:1.7,marginBottom:4,opacity:note.done?.6:1 }}
               dangerouslySetInnerHTML={{__html:note.html}}/>
           )}
+          {note.attachments?.length > 0 && (
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:10,fontWeight:700,color:'var(--brand)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:5 }}>📎 Vedlegg</div>
+              {note.attachments.map((att, i) => (
+                <div key={i} style={{ display:'flex',alignItems:'center',gap:8,
+                  padding:'6px 10px',background:'var(--bg3)',borderRadius:'var(--r)',
+                  border:'1px solid var(--border)',marginBottom:4 }}>
+                  <span style={{fontSize:15}}>{att.type?.includes('pdf')?'📄':'📧'}</span>
+                  <a href={att.url} target="_blank" rel="noreferrer"
+                    style={{flex:1,fontSize:13,color:'var(--brand)',fontWeight:500,
+                      textDecoration:'none',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {att.name}
+                  </a>
+                  <span style={{fontSize:11,color:'var(--text3)'}}>{(att.size/1024).toFixed(0)} KB</span>
+                </div>
+              ))}
+            </div>
+          )}
           {note.sketchDataUrl&&(
             <div style={{ marginBottom:8 }}>
               <div style={{ fontSize:10,fontWeight:700,color:'var(--brand)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4 }}>Skisse</div>
@@ -244,7 +326,8 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
   )
 }
 
-export default function NoteList({ notes, projects, onDelete, onToggleDone, onEdit, onUpdateTask, onDeleteTask, onAddTask, highlightNoteId }) {
+export default function NoteList({ notes, projects, onDelete, onToggleDone, onEdit,
+  onUpdateTask, onDeleteTask, onAddTask, highlightNoteId, onMoveToProject, onRenameNote }) {
   if (!notes.length) return (
     <div style={{ textAlign:'center',color:'var(--text3)',padding:'50px 0',fontSize:13 }}>
       Ingen notatar enno
@@ -255,7 +338,8 @@ export default function NoteList({ notes, projects, onDelete, onToggleDone, onEd
       {notes.map(note => (
         <NoteCard key={note.id} note={note} projects={projects}
           onDelete={onDelete} onToggleDone={onToggleDone} onEdit={onEdit}
-          onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} onAddTask={onAddTask}/>
+          onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} onAddTask={onAddTask}
+          onMoveToProject={onMoveToProject} onRenameNote={onRenameNote}/>
       ))}
     </div>
   )

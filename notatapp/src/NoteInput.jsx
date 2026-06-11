@@ -200,6 +200,7 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
     if (projectVal && projectVal!=='__new__') pid = parseInt(projectVal)
     onAdd({ title, text:text||'', html:html||'', tasks, tag,
       projectId:pid, newProjName: projectVal==='__new__' ? newProjName : '', sketchDataUrl,
+      attachments,
       isMeeting: isMeeting || false,
       meetingTime: isMeeting ? meetingTime : null,
       meetingDuration: isMeeting ? meetingDuration : null,
@@ -217,35 +218,64 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
   const handleDragOver = (e) => { e.preventDefault(); setDragActive(true) }
   const handleDragLeave = (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragActive(false) }
 
-  const processFile = (file) => {
+  const [attachments, setAttachments] = useState([])
+  const [uploading,   setUploading]   = useState(false)
+
+  const uploadToSupabase = async (file) => {
+    try {
+      const { supabase } = await import('./supabase')
+      const path = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`
+      const { data, error } = await supabase.storage.from('Vedlegg').upload(path, file)
+      if (error) throw error
+      const { data: urlData } = supabase.storage.from('Vedlegg').getPublicUrl(path)
+      return { name: file.name, path, url: urlData.publicUrl, size: file.size, type: file.type }
+    } catch (e) {
+      console.error('Upload feila:', e)
+      return null
+    }
+  }
+
+  const processFile = async (file) => {
     if (!file) return
-    if (file.name.endsWith('.eml') || file.type.includes('message/rfc822') || file.type.includes('message')) {
+    setUploading(true)
+    setDragActive(false)
+
+    if (file.name.endsWith('.eml') || file.type.includes('message')) {
       const reader = new FileReader()
-      reader.onload = ev => {
-        const txt = ev.target.result
-        const sm = txt.match(/^Subject:\s*(.+)$/mi)
-        const fm = txt.match(/^From:\s*(.+)$/mi)
-        const bi = txt.indexOf('\n\n')
+      reader.onload = async ev => {
+        const txt  = ev.target.result
+        const sm   = txt.match(/^Subject:\s*(.+)$/mi)
+        const fm   = txt.match(/^From:\s*(.+)$/mi)
+        const bi   = txt.indexOf('\n\n')
         const subject = sm?.[1]?.trim() || file.name.replace('.eml','')
         const from    = fm?.[1]?.trim() || ''
         const body    = bi > -1 ? txt.substring(bi+2).trim()
-          .replace(/Content-[^\n]+\n/g,'')
-          .replace(/--[^\n]+\n?/g,'')
-          .substring(0, 600) : ''
+          .replace(/Content-[^\n]+\n/g,'').replace(/--[^\n]+\n?/g,'').substring(0,600) : ''
         if (!titleRef.current.value) titleRef.current.value = subject
         if (editorRef.current) {
-          const fromLine = from ? `<div style="font-size:12px;color:#666;margin-bottom:8px">Frå: ${from}</div>` : ''
+          const fromLine = from ? `<div style="font-size:12px;color:#888;margin-bottom:8px">Frå: ${from}</div>` : ''
           editorRef.current.innerHTML = `<b>${subject}</b><br>${fromLine}<br>${body.replace(/\n/g,'<br>')}`
         }
+        // Upload file
+        const att = await uploadToSupabase(file)
+        if (att) setAttachments(prev => [...prev, att])
+        setUploading(false)
       }
       reader.readAsText(file)
-    } else if (file.type === 'application/pdf') {
+    } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
       if (!titleRef.current.value) titleRef.current.value = file.name.replace('.pdf','')
       if (editorRef.current) {
-        editorRef.current.innerHTML = `<b>PDF: ${file.name}</b><br><span style="color:#666;font-size:12px">Vedlegg lagt til frå fil</span>`
+        editorRef.current.innerHTML = `<b>📎 ${file.name}</b>`
       }
+      const att = await uploadToSupabase(file)
+      if (att) setAttachments(prev => [...prev, att])
+      setUploading(false)
+    } else {
+      // Generic file
+      const att = await uploadToSupabase(file)
+      if (att) setAttachments(prev => [...prev, att])
+      setUploading(false)
     }
-    setDragActive(false)
   }
 
   const handleDrop = (e) => {
@@ -311,16 +341,21 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
       <div>
         <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
           textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Prosjekt</label>
-        <div style={{ display:'flex', gap:8 }}>
-          <select value={projectVal} onChange={e => setProjectVal(e.target.value)}
-            style={{ ...fi, flex:1, fontWeight: projectVal ? 600 : 400 }}>
+        <div>
+          <select value={projectVal==='__new__' ? '__new__' : projectVal}
+            onChange={e => setProjectVal(e.target.value)}
+            style={{ ...fi, fontWeight: projectVal && projectVal!=='__new__' ? 600 : 400 }}>
             <option value="">— Utan prosjekt —</option>
             {allProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            <option value="__new__">+ Nytt prosjekt…</option>
+            <option value="__new__">＋ Nytt prosjekt…</option>
           </select>
           {projectVal==='__new__' && (
             <input type="text" value={newProjName} onChange={e => setNewProjName(e.target.value)}
-              placeholder="Skriv prosjektnr." style={{ ...fi, flex:1 }}/>
+              placeholder="Skriv prosjektnummer / namn"
+              autoFocus
+              onKeyDown={e => e.key==='Escape' && setProjectVal('')}
+              style={{ ...fi, marginTop:6, background:'var(--bg2)',
+                border:'2px solid var(--brand3)', fontWeight:600 }}/>
           )}
         </div>
       </div>
@@ -489,6 +524,39 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
           </button>
         ))}
       </div>
+
+      {/* Attachments */}
+      {(attachments.length > 0 || uploading) && (
+        <div style={{ background:'var(--bg3)', border:'1px solid var(--border)',
+          borderRadius:'var(--r)', padding:'10px 12px' }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)',
+            textTransform:'uppercase', letterSpacing:'.05em', marginBottom:8 }}>
+            📎 Vedlegg {uploading && <span style={{ color:'var(--brand3)' }}>— lastar opp…</span>}
+          </div>
+          {attachments.map((att, i) => (
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:8,
+              padding:'6px 8px', background:'var(--bg2)', borderRadius:'var(--r)',
+              border:'1px solid var(--border)', marginBottom:5 }}>
+              <span style={{ fontSize:16 }}>{att.type?.includes('pdf') ? '📄' : '📧'}</span>
+              <a href={att.url} target="_blank" rel="noreferrer"
+                style={{ flex:1, fontSize:13, color:'var(--brand)', fontWeight:500,
+                  textDecoration:'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {att.name}
+              </a>
+              <span style={{ fontSize:11, color:'var(--text3)' }}>
+                {(att.size/1024).toFixed(0)} KB
+              </span>
+              <button onClick={() => setAttachments(prev => prev.filter((_,j)=>j!==i))}
+                style={{ background:'none', border:'none', color:'var(--text3)',
+                  cursor:'pointer', padding:2, display:'flex' }}
+                onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
+                onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
+                <X size={13}/>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Sketch preview + button */}
       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
