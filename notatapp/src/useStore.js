@@ -135,7 +135,21 @@ export function useStore(userId) {
   const toggleDone = async (id) => {
     const note = notes.find(n => n.id === id)
     if (!note) return
-    await updateNote(id, { done: !note.done })
+    const newDone = !note.done
+    // Optimistic update — no screen reload
+    setNotes(ns => ns.map(n => n.id === id ? { ...n, done: newDone } : n))
+    await supabase.from('notes').update({ done: newDone, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('user_id', userId)
+  }
+
+  // Optimistic task update — no full reload
+  const updateTask = async (noteId, taskId, changes) => {
+    const note = notes.find(n => n.id === noteId)
+    if (!note) return
+    const newTasks = (note.tasks || []).map(t => t.id === taskId ? { ...t, ...changes } : t)
+    setNotes(ns => ns.map(n => n.id === noteId ? { ...n, tasks: newTasks } : n))
+    await supabase.from('notes').update({ tasks: newTasks, updated_at: new Date().toISOString() })
+      .eq('id', noteId).eq('user_id', userId)
   }
 
   // ── Tasks ─────────────────────────────────────────────────────────────
@@ -151,17 +165,15 @@ export function useStore(userId) {
     await updateNote(noteId, { tasks: [...(note.tasks || []), task] })
   }
 
-  const updateTask = async (noteId, taskId, changes) => {
-    const note = notes.find(n => n.id === noteId)
-    if (!note) return
-    const tasks = (note.tasks || []).map(t => t.id === taskId ? { ...t, ...changes } : t)
-    await updateNote(noteId, { tasks })
-  }
+
 
   const deleteTask = async (noteId, taskId) => {
     const note = notes.find(n => n.id === noteId)
     if (!note) return
-    await updateNote(noteId, { tasks: (note.tasks || []).filter(t => t.id !== taskId) })
+    const newTasks = (note.tasks || []).filter(t => t.id !== taskId)
+    setNotes(ns => ns.map(n => n.id === noteId ? { ...n, tasks: newTasks } : n))
+    await supabase.from('notes').update({ tasks: newTasks, updated_at: new Date().toISOString() })
+      .eq('id', noteId).eq('user_id', userId)
   }
 
   // ── Projects ──────────────────────────────────────────────────────────

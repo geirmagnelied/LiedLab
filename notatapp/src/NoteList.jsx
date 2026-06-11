@@ -74,7 +74,10 @@ function TaskList({ tasks, noteId, onUpdateTask, onDeleteTask, onAddTask }) {
                 <Calendar size={9}/>{di.lbl}
               </span>
             )}
-            <button onClick={()=>onDeleteTask(noteId,task.id)}
+            <button onClick={()=>{
+                if (window.confirm(`Slette oppgåva «${task.text}»?`)) onDeleteTask(noteId,task.id)
+              }}
+              title="Slett oppgåve"
               style={{ background:'none',border:'none',color:'var(--text3)',cursor:'pointer',padding:2,display:'flex',flexShrink:0 }}
               onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
               onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
@@ -171,7 +174,11 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
               </div>
             )}
             <div style={{height:1,background:'var(--border)',margin:'4px 0'}}/>
-            <button onClick={()=>{onDelete(note.id);setCtxMenu(null)}}
+            <button onClick={()=>{
+              if (window.confirm(`Sikker på at du vil slette notatet «${note.title || 'Utan tittel'}»?\n\nDenne handlinga kan ikkje angrast.`)) {
+                onDelete(note.id); setCtxMenu(null)
+              } else { setCtxMenu(null) }
+            }}
               style={{width:'100%',textAlign:'left',padding:'8px 14px',background:'none',border:'none',
                 cursor:'pointer',fontSize:13,color:'var(--danger)',fontFamily:'var(--font)',display:'block'}}
               onMouseEnter={e=>e.currentTarget.style.background='rgba(185,28,28,.06)'}
@@ -185,12 +192,20 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
       <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 13px' }}
         onClick={() => setExpanded(v=>!v)}>
         <button onClick={e=>{e.stopPropagation();onToggleDone(note.id)}}
-          style={{ width:18,height:18,borderRadius:5,
+          title={note.done ? 'Hent ut av arkivet' : 'Arkiver notatet'}
+          style={{ width:24,height:24,borderRadius:6,
             border:`2px solid ${note.done?'var(--success)':'var(--border2)'}`,
             background:note.done?'var(--success)':'transparent',
             display:'flex',alignItems:'center',justifyContent:'center',
-            flexShrink:0,cursor:'pointer',transition:'all .15s' }}>
-          {note.done&&<Check size={11} color="#fff" strokeWidth={3}/>}
+            flexShrink:0,cursor:'pointer',transition:'all .15s',
+            fontSize:11 }}
+          onMouseEnter={e=>{
+            if(!note.done){e.currentTarget.style.borderColor='var(--brand3)';e.currentTarget.style.background='var(--brandbg)'}
+          }}
+          onMouseLeave={e=>{
+            if(!note.done){e.currentTarget.style.borderColor='var(--border2)';e.currentTarget.style.background='transparent'}
+          }}>
+          {note.done ? <Check size={13} color="#fff" strokeWidth={3}/> : <span style={{fontSize:11,color:'var(--text3)'}}>📥</span>}
         </button>
 
         <div style={{ flex:1, minWidth:0 }}>
@@ -262,9 +277,14 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
               <Pencil size={13}/>
             </button>
           )}
-          <button onClick={e=>{e.stopPropagation();onDelete(note.id)}}
+          <button onClick={e=>{
+              e.stopPropagation()
+              if (window.confirm(`Sikker på at du vil slette notatet «${note.title || 'Utan tittel'}»?\n\nDenne handlinga kan ikkje angrast.`)) {
+                onDelete(note.id)
+              }
+            }}
             style={{ background:'none',border:'1px solid transparent',color:'var(--text3)',padding:'3px 5px',cursor:'pointer',borderRadius:5,display:'flex' }}
-            title="Slett"
+            title="Slett notat"
             onMouseEnter={e=>{e.currentTarget.style.color='var(--danger)';e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--bg3)'}}
             onMouseLeave={e=>{e.currentTarget.style.color='var(--text3)';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.background='none'}}>
             <Trash2 size={13}/>
@@ -328,19 +348,50 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
 
 export default function NoteList({ notes, projects, onDelete, onToggleDone, onEdit,
   onUpdateTask, onDeleteTask, onAddTask, highlightNoteId, onMoveToProject, onRenameNote }) {
-  if (!notes.length) return (
+  const [showArchived, setShowArchived] = useState(false)
+  const activeNotes   = notes.filter(n => !n.done)
+  const archivedNotes = notes.filter(n => n.done)
+  const visible = showArchived ? archivedNotes : activeNotes
+
+  if (notes.length === 0) return (
     <div style={{ textAlign:'center',color:'var(--text3)',padding:'50px 0',fontSize:13 }}>
       Ingen notatar enno
     </div>
   )
   return (
     <div>
-      {notes.map(note => (
-        <NoteCard key={note.id} note={note} projects={projects}
-          onDelete={onDelete} onToggleDone={onToggleDone} onEdit={onEdit}
-          onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} onAddTask={onAddTask}
-          onMoveToProject={onMoveToProject} onRenameNote={onRenameNote}/>
-      ))}
+      {archivedNotes.length > 0 && (
+        <div style={{ display:'flex', gap:6, marginBottom:14 }}>
+          <button onClick={() => setShowArchived(false)}
+            style={{ padding:'5px 12px', borderRadius:6, fontSize:12, fontWeight:600,
+              border:'1.5px solid', cursor:'pointer',
+              borderColor: !showArchived ? 'var(--brand3)' : 'var(--border)',
+              background:  !showArchived ? 'var(--brandbg)' : 'transparent',
+              color:       !showArchived ? 'var(--brand)' : 'var(--text3)' }}>
+            📂 Aktive ({activeNotes.length})
+          </button>
+          <button onClick={() => setShowArchived(true)}
+            style={{ padding:'5px 12px', borderRadius:6, fontSize:12, fontWeight:600,
+              border:'1.5px solid', cursor:'pointer',
+              borderColor: showArchived ? 'var(--text3)' : 'var(--border)',
+              background:  showArchived ? 'var(--bg3)' : 'transparent',
+              color:       showArchived ? 'var(--text2)' : 'var(--text3)' }}>
+            📥 Arkivet ({archivedNotes.length})
+          </button>
+        </div>
+      )}
+      {visible.length === 0 ? (
+        <div style={{ textAlign:'center',color:'var(--text3)',padding:'30px 0',fontSize:13 }}>
+          {showArchived ? 'Ingen arkiverte notatar' : 'Ingen aktive notatar'}
+        </div>
+      ) : (
+        visible.map(note => (
+          <NoteCard key={note.id} note={note} projects={projects}
+            onDelete={onDelete} onToggleDone={onToggleDone} onEdit={onEdit}
+            onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} onAddTask={onAddTask}
+            onMoveToProject={onMoveToProject} onRenameNote={onRenameNote}/>
+        ))
+      )}
     </div>
   )
 }

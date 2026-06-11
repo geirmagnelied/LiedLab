@@ -70,6 +70,10 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
             borderLeft: `3px solid ${ac ? 'rgba(255,255,255,.85)' : 'transparent'}`,
             cursor:'pointer' }}
           onClick={() => onSelectProject(ac ? null : p.id)}
+          onDoubleClick={e => {
+            e.stopPropagation()
+            setOpenProjs(prev => ({ ...prev, [p.id]: !prev[p.id] }))
+          }}
           onContextMenu={e => { e.preventDefault(); e.stopPropagation()
             setCtxMenu({ x:e.clientX, y:e.clientY, projectId:p.id, name:p.name }) }}>
 
@@ -116,8 +120,14 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
               color={p.favorite ? 'rgba(255,220,50,.9)' : 'rgba(255,255,255,.5)'}/>
           </button>
 
-          <button onClick={e => { e.stopPropagation(); onDeleteProject(p.id) }}
+          <button onClick={e => {
+              e.stopPropagation()
+              if (window.confirm(`Sikker på at du vil slette prosjektet «${p.name}»?\n\nNotata blir IKKJE sletta, men mister prosjekt-tilknytinga.`)) {
+                onDeleteProject(p.id)
+              }
+            }}
             className="del-proj"
+            title="Slett prosjekt"
             style={{ background:'none', border:'none', color:'rgba(255,255,255,.35)',
               padding:2, display:'flex', opacity:0, transition:'opacity .15s', flexShrink:0 }}>
             <Trash2 size={10}/>
@@ -297,7 +307,12 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
               </button>
             ))}
             <div style={{ height:1, background:'var(--border)', margin:'4px 0' }}/>
-            <button onClick={() => { onDeleteProject(ctxMenu.projectId); setCtxMenu(null) }}
+            <button onClick={() => {
+              if (window.confirm(`Sikker på at du vil slette prosjektet «${ctxMenu.name}»?\n\nNotata i prosjektet blir IKKJE sletta, men mister prosjekt-tilknytinga. Denne handlinga kan ikkje angrast.`)) {
+                onDeleteProject(ctxMenu.projectId)
+              }
+              setCtxMenu(null)
+            }}
               style={{ width:'100%', textAlign:'left', padding:'8px 14px',
                 background:'none', border:'none', cursor:'pointer',
                 fontSize:13, color:'var(--danger)', fontFamily:'var(--font)', display:'block' }}
