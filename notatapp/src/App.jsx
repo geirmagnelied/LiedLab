@@ -4,9 +4,11 @@ import Sidebar from './Sidebar'
 import NoteInput from './NoteInput'
 import NoteList from './NoteList'
 import DeadlineView from './DeadlineView'
+import OverdueView from './OverdueView'
+import TimeTracker from './TimeTracker'
 import CalendarView from './CalendarView'
 import Timeline from './Timeline'
-import { LayoutList, AlertCircle, Calendar, PanelLeft, CalendarDays, Plus } from 'lucide-react'
+import { LayoutList, AlertCircle, Calendar, PanelLeft, CalendarDays, Plus, Clock } from 'lucide-react'
 
 const INITIAL_SB_W  = 260
 const INITIAL_CAL_W = 260
@@ -28,6 +30,8 @@ export default function App({ userId, userEmail }) {
   const [editNote,          setEditNote]          = useState(null)
   const [highlightNoteId,   setHighlightNoteId]   = useState(null)
   const [isMeeting,         setIsMeeting]         = useState(false)
+  const [isTaskOnly,        setIsTaskOnly]        = useState(false)
+  const [pendingEditId,     setPendingEditId]     = useState(null)
   const [isMobile,          setIsMobile]          = useState(window.innerWidth < 768)
   const [mobileSheet,       setMobileSheet]       = useState(false)
   const [mode,              setMode]              = useState('work')  // 'work' | 'private'
@@ -36,6 +40,32 @@ export default function App({ userId, userEmail }) {
   useEffect(() => {
     import('./dateUtils').then(m => { window._dateUtils = m })
   }, [])
+
+  // Auto-promote: when a freshly-created note appears in `notes`, set it as editNote
+  useEffect(() => {
+    if (pendingEditId && view === 'new') {
+      const note = notes.find(n => n.id === pendingEditId)
+      if (note) {
+        setEditNote(note)
+        setPendingEditId(null)
+      }
+    }
+  }, [notes, pendingEditId, view])
+
+  // Handle ?note=XXX URL parameter (from email links)
+  useEffect(() => {
+    const params  = new URLSearchParams(window.location.search)
+    const noteId  = params.get('note')
+    if (noteId && notes.length > 0) {
+      const id = parseInt(noteId)
+      const note = notes.find(n => n.id === id)
+      if (note) {
+        handleSelectNote(id)
+        // Clean up URL
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+    }
+  }, [notes.length])
 
   // Track mobile breakpoint
   useEffect(() => {
@@ -72,8 +102,9 @@ export default function App({ userId, userEmail }) {
     const handler = (e) => {
       const { action, projectId } = e.detail
       setSelectedProjectId(projectId)
-      if (action === 'new-meeting') handleNewNote(true)
-      else handleNewNote(false)
+      if (action === 'new-meeting') handleNewNote('meeting')
+      else if (action === 'new-task') handleNewNote('task')
+      else handleNewNote('regular')
     }
     window.addEventListener('sidebar-ctx', handler)
     return () => window.removeEventListener('sidebar-ctx', handler)
@@ -83,13 +114,9 @@ export default function App({ userId, userEmail }) {
   useEffect(() => {
     const handler = (e) => {
       const { action, date } = e.detail
-      if (action === 'new-note') {
-        handleNewNote(false)
-      } else if (action === 'new-meeting') {
-        handleNewNote(true)
-      } else if (action === 'new-task') {
-        handleNewNote(false)
-      }
+      if (action === 'new-note')         handleNewNote('regular')
+      else if (action === 'new-meeting') handleNewNote('meeting')
+      else if (action === 'new-task')    handleNewNote('task')
     }
     window.addEventListener('timeline-ctx', handler)
     return () => window.removeEventListener('timeline-ctx', handler)
@@ -114,12 +141,48 @@ export default function App({ userId, userEmail }) {
     window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp)
   }, [sbWidth, calWidth])
 
-  const handleAdd = ({ title, text, html, tasks, tag, projectId, newProjName, sketchDataUrl }) => {
+  // Full save / done — used by task-only and explicit save
+  const handleAdd = async (data) => {
+    const { title, text, html, tasks, tag, projectId, newProjName, sketchDataUrl,
+            attachments, isMeeting: noteIsMeeting,
+            meetingTime, meetingDuration, meetingLocation, attendees } = data
     let pid = projectId
-    if (newProjName && !projectId) { const p = addProject(newProjName); pid = p.id }
-    if (editNote) { updateNote(editNote.id, { title, text, html, tasks, tag, projectId: pid, sketchDataUrl }); setEditNote(null) }
-    else addNote({ title, text, html, tasks, tag, projectId: pid, sketchDataUrl })
+    if (newProjName && !projectId) {
+      const p = await addProject(newProjName, mode)
+      pid = p.id
+    }
+    const noteData = { title, text, html, tasks, tag, projectId: pid,
+      sketchDataUrl, attachments, isMeeting: noteIsMeeting,
+      meetingTime, meetingDuration, meetingLocation, attendees }
+    if (editNote) { await updateNote(editNote.id, noteData); setEditNote(null) }
+    else await addNote(noteData)
+    if (pid) setSelectedProjectId(pid)
     setView('notatar')
+    setIsMeeting(false); setIsTaskOnly(false)
+  }
+
+  // Autosave — debounced upsert from NoteInput
+  const handleAutoSave = async (data) => {
+    const { title, text, html, tasks, tag, projectId, newProjName, sketchDataUrl,
+            attachments, isMeeting: noteIsMeeting,
+            meetingTime, meetingDuration, meetingLocation, attendees } = data
+    let pid = projectId
+    if (newProjName && !projectId) {
+      const p = await addProject(newProjName, mode)
+      pid = p.id
+    }
+    const noteData = { title, text, html, tasks, tag, projectId: pid,
+      sketchDataUrl, attachments, isMeeting: noteIsMeeting,
+      meetingTime, meetingDuration, meetingLocation, attendees }
+    if (editNote) {
+      await updateNote(editNote.id, noteData)
+      return editNote.id
+    } else {
+      const result = await addNote(noteData)
+      // Transition from "new" to "edit" mode by finding the just-created note
+      // We can't easily setEditNote here without race conditions, so return the id
+      return result?.id
+    }
   }
 
   const handleEdit        = note => { setEditNote(note); setView('new') }
@@ -128,7 +191,7 @@ export default function App({ userId, userEmail }) {
   const handleMoveToProject  = (noteId, projId) => updateNote(noteId, { projectId: projId })
   const handleCancelEdit  = ()   => { setEditNote(null); setView('notatar') }
   const handleSelectProject = id => { setSelectedProjectId(id); setView('notatar') }
-  const handleNewNote     = ()   => { setEditNote(null); setView('new') }
+  // (handleNewNote is defined above with meeting parameter)
   const handleSelectNote  = id  => {
     setSelectedProjectId(null); setView('notatar')
     setHighlightNoteId(id); setTimeout(()=>setHighlightNoteId(null),2000)
@@ -228,7 +291,7 @@ export default function App({ userId, userEmail }) {
               onSelectNote={id => { handleSelectNote(id); setMobileSheet(false) }}
               selectedProjectId={selectedProjectId}
               onDeleteProject={deleteProject}
-              onNewNote={() => { handleNewNote(); setMobileSheet(false) }}
+              onNewNote={() => { handleNewNote('regular'); setMobileSheet(false) }}
               onToggleFavorite={toggleFavorite}/>
           </div>
         </>
@@ -236,7 +299,7 @@ export default function App({ userId, userEmail }) {
 
       {/* Mobile content */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
-        {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote}/>}
+        {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote} isTaskOnly={isTaskOnly && !editNote}/>}
         {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
         {view==='fristar'  && <DeadlineView notes={visibleNotes} {...listProps}/>}
         {view==='kalender' && <CalendarView notes={visibleNotes} projects={projects} onDelete={deleteNote} onToggleDone={toggleDone} onEdit={handleEdit}/>}
@@ -246,7 +309,7 @@ export default function App({ userId, userEmail }) {
       <div style={{ display:'flex', background:'var(--brand)',
         borderTop:'1px solid rgba(255,255,255,.1)', flexShrink:0,
         paddingBottom:'env(safe-area-inset-bottom)' }}>
-        <MobileTab v="new"      icon={Plus}       label="Nytt" onClick={() => { handleNewNote(false); setMobileSheet(false) }}/>
+        <MobileTab v="new"      icon={Plus}       label="Nytt" onClick={() => { handleNewNote('regular'); setMobileSheet(false) }}/>
         <MobileTab v="notatar"  icon={LayoutList}  label="Notatar"/>
         <MobileTab v="fristar"  icon={AlertCircle} label="Fristar"/>
         <MobileTab v="kalender" icon={Calendar}    label="Kalender"/>
@@ -298,15 +361,24 @@ export default function App({ userId, userEmail }) {
                 {mode==='work' ? '💼 Jobb' : '🏠 Privat'}
               </button>
               <div style={{width:4}}/>
-              <Tab v="new"      icon={Plus}       label="Nytt notat" onClick={()=>handleNewNote(false)}/>
-              <button onClick={()=>handleNewNote(true)}
+              <Tab v="new"      icon={Plus}       label="Nytt notat" onClick={()=>handleNewNote('regular')}/>
+              <button onClick={()=>handleNewNote('meeting')}
                 style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px',
                   border:'1.5px solid rgba(255,255,255,.3)', background:'rgba(255,255,255,.08)',
                   borderRadius:'var(--r)', color:'rgba(255,255,255,.75)',
                   fontSize:13, cursor:'pointer', fontWeight:400, transition:'all .15s', whiteSpace:'nowrap' }}>
                 📋 Møtenotat
               </button>
+              <button onClick={()=>handleNewNote('task')}
+                style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px',
+                  border:'1.5px solid rgba(255,255,255,.3)', background:'rgba(255,255,255,.08)',
+                  borderRadius:'var(--r)', color:'rgba(255,255,255,.75)',
+                  fontSize:13, cursor:'pointer', fontWeight:400, transition:'all .15s', whiteSpace:'nowrap' }}>
+                ✅ Ny oppgåve
+              </button>
               <Tab v="notatar"  icon={LayoutList}  label="Notatar"/>
+              <Tab v="timar"    icon={Clock}       label="Timar"/>
+              <Tab v="overskride" icon={AlertCircle} label="Overskride"/>
               <Tab v="fristar"  icon={AlertCircle} label="Fristar"/>
               <Tab v="kalender" icon={Calendar}    label="Kalender"/>
               <div style={{flex:1}}/>
@@ -329,10 +401,13 @@ export default function App({ userId, userEmail }) {
             </div>
 
             <div style={{ flex:1,overflowY:'auto',padding:'22px 26px' }}>
-              {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote}/>}
-              {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
-              {view==='fristar'  && <DeadlineView notes={visibleNotes} {...listProps}/>}
-              {view==='kalender' && <CalendarView notes={visibleNotes} projects={projects} onDelete={deleteNote} onToggleDone={toggleDone} onEdit={handleEdit}/>}
+              {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote} isTaskOnly={isTaskOnly && !editNote}/>}
+              {view==='notatar'    && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
+              {view==='timar'      && <TimeTracker userId={userId} projects={projects} addProject={addProject} mode={mode}/>}
+              {view==='timar'      && <TimeTracker userId={userId} projects={projects} addProject={addProject} mode={mode}/>}
+        {view==='overskride' && <OverdueView notes={modeNotes} projects={projects} {...listProps}/>}
+              {view==='fristar'    && <DeadlineView notes={visibleNotes} {...listProps}/>}
+              {view==='kalender'   && <CalendarView notes={visibleNotes} projects={projects} onDelete={deleteNote} onToggleDone={toggleDone} onEdit={handleEdit}/>}
             </div>
           </main>
 

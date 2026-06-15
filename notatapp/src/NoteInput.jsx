@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Tag, X, Trash2, Calendar, Pencil, Check, PenLine } from 'lucide-react'
+import { Tag, X, Trash2, Calendar, Pencil, Check, PenLine, Undo2 } from 'lucide-react'
 import { nextFriday, fmt } from './dateUtils'
 import SketchPad from './SketchPad'
 
@@ -130,7 +130,7 @@ function TaskRow({ task, onUpdate, onDelete }) {
   )
 }
 
-export default function NoteInput({ projects, onAdd, defaultProjectId, editNote, onCancelEdit, isMeeting }) {
+export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, defaultProjectId, editNote, onCancelEdit, isMeeting, isTaskOnly }) {
   const isEdit = !!editNote
 
   const [tag,         setTag]         = useState(isEdit ? editNote.tag : null)
@@ -220,6 +220,104 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
 
   const [attachments, setAttachments] = useState([])
   const [uploading,   setUploading]   = useState(false)
+  const [undoStack,   setUndoStack]   = useState([])
+  const [saveStatus,  setSaveStatus]  = useState('idle')   // 'idle' | 'saving' | 'saved'
+  const [createdId,   setCreatedId]   = useState(null)
+  const saveTimerRef   = useRef(null)
+  const editorContentRef = useRef('')
+  const editorTitleRef   = useRef('')
+
+  // Snapshot the editable state so we can revert
+  const pushUndoState = () => {
+    const snap = {
+      title:       titleRef.current?.value || '',
+      html:        editorRef.current?.innerHTML || '',
+      attachments: [...attachments],
+      tasks:       [...tasks],
+    }
+    setUndoStack(s => [...s.slice(-9), snap])
+  }
+
+  const handleUndo = () => {
+    if (undoStack.length === 0) return
+    const prev = undoStack[undoStack.length - 1]
+    if (titleRef.current)  titleRef.current.value  = prev.title
+    if (editorRef.current) editorRef.current.innerHTML = prev.html
+    setAttachments(prev.attachments)
+    setTasks(prev.tasks)
+    setUndoStack(s => s.slice(0, -1))
+  }
+
+  // Ctrl+Z to undo
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = (e.target?.tagName || '').toLowerCase()
+      if (e.target?.isContentEditable) return
+      if (['input','textarea'].includes(tag)) return
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        handleUndo()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [undoStack])
+
+  // ── Autosave ────────────────────────────────────────────────────────
+  // Trigger autosave debounce on any meaningful state change
+  const triggerAutoSave = () => {
+    if (isTaskOnly) return  // task-only has its own explicit save
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    setSaveStatus('saving')
+    saveTimerRef.current = setTimeout(async () => {
+      const html  = editorRef.current?.innerHTML?.trim() || ''
+      const text  = editorRef.current?.innerText?.trim() || ''
+      const title = titleRef.current?.value?.trim() || ''
+      const hasContent = title || text || tasks.length > 0 || sketchDataUrl || attachments.length > 0 ||
+                         (isMeeting && (meetingLocation || attendees.length > 0))
+      if (!hasContent) { setSaveStatus('idle'); return }
+      let pid = null
+      if (projectVal && projectVal !== '__new__') pid = parseInt(projectVal)
+      const finalTitle = title || text?.substring(0,60) || 'Utan tittel'
+      const newProjVal = (projectVal === '__new__' && newProjName.trim()) ? newProjName.trim() : ''
+      const id = await onAutoSave({
+        title: finalTitle, text, html, tasks, tag,
+        projectId: pid, newProjName: newProjVal,
+        sketchDataUrl, attachments,
+        isMeeting: isMeeting || false,
+        meetingTime: isMeeting ? meetingTime : null,
+        meetingDuration: isMeeting ? meetingDuration : null,
+        meetingLocation: isMeeting ? meetingLocation : null,
+        attendees: isMeeting ? attendees : [],
+      })
+      // After first save in "new" mode, switch to edit mode for subsequent saves
+      if (!editNote && id && !createdId) {
+        setCreatedId(id)
+        // Schedule editNote transition via parent
+        setTimeout(() => {
+          // Find the freshly created note and set it as editNote
+          if (onSetEditNote) {
+            // We need the actual note object - parent will resolve from id
+            onSetEditNote({ id, _autoCreated: true })
+          }
+        }, 100)
+      }
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 1500)
+    }, 800)  // 800ms debounce
+  }
+
+  // Trigger autosave when relevant state changes
+  useEffect(() => { triggerAutoSave() },
+    [tasks, tag, projectVal, newProjName, sketchDataUrl, attachments,
+     meetingTime, meetingDuration, meetingLocation, attendees])
+
+  // Editor / title onInput handlers
+  const handleEditorInput  = () => triggerAutoSave()
+  const handleTitleInput   = () => triggerAutoSave()
+
+  // Cleanup on unmount
+  useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }, [])
 
   const uploadToSupabase = async (file) => {
     try {
@@ -240,6 +338,9 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
     setUploading(true)
     setDragActive(false)
 
+    // Push current editor + title state to undo stack BEFORE any changes
+    pushUndoState()
+
     if (file.name.endsWith('.eml') || file.type.includes('message')) {
       const reader = new FileReader()
       reader.onload = async ev => {
@@ -251,22 +352,26 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
         const from    = fm?.[1]?.trim() || ''
         const body    = bi > -1 ? txt.substring(bi+2).trim()
           .replace(/Content-[^\n]+\n/g,'').replace(/--[^\n]+\n?/g,'').substring(0,600) : ''
+        // Only set title if empty
         if (!titleRef.current.value) titleRef.current.value = subject
+        // APPEND to existing editor content — do NOT overwrite
         if (editorRef.current) {
           const fromLine = from ? `<div style="font-size:12px;color:#888;margin-bottom:8px">Frå: ${from}</div>` : ''
-          editorRef.current.innerHTML = `<b>${subject}</b><br>${fromLine}<br>${body.replace(/\n/g,'<br>')}`
+          const emailBlock = `<div style="margin-top:12px;padding:10px 12px;background:rgba(21,101,192,.06);border-left:3px solid #1565C0;border-radius:6px"><b>📧 ${subject}</b>${fromLine}<br>${body.replace(/\n/g,'<br>')}</div>`
+          const existing = editorRef.current.innerHTML.trim()
+          editorRef.current.innerHTML = existing
+            ? existing + '<br>' + emailBlock
+            : emailBlock
         }
-        // Upload file
         const att = await uploadToSupabase(file)
         if (att) setAttachments(prev => [...prev, att])
         setUploading(false)
       }
       reader.readAsText(file)
     } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      // Only set title if empty — do NOT overwrite
       if (!titleRef.current.value) titleRef.current.value = file.name.replace('.pdf','')
-      if (editorRef.current) {
-        editorRef.current.innerHTML = `<b>📎 ${file.name}</b>`
-      }
+      // PDF: do not modify editor content — file appears in attachments below
       const att = await uploadToSupabase(file)
       if (att) setAttachments(prev => [...prev, att])
       setUploading(false)
@@ -303,6 +408,109 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
     </div>
   )
 
+  // Simplified task-only mode
+  if (isTaskOnly) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:14, maxWidth:680 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px',
+          background:'var(--brandbg)', border:'1.5px solid var(--brand3)',
+          borderRadius:'var(--r2)' }}>
+          <span style={{ fontSize:18 }}>✅</span>
+          <span style={{ fontSize:14, fontWeight:700, color:'var(--brand)' }}>
+            Ny arbeidsoppgåve (utan notat)
+          </span>
+        </div>
+
+        {/* Project */}
+        <div>
+          <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
+            textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Prosjekt</label>
+          <select value={projectVal} onChange={e => setProjectVal(e.target.value)}
+            style={{ ...fi, fontWeight: projectVal ? 600 : 400 }}>
+            <option value="">— Utan prosjekt —</option>
+            {allProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <option value="__new__">＋ Nytt prosjekt…</option>
+          </select>
+          {projectVal==='__new__' && (
+            <input type="text" value={newProjName} onChange={e => setNewProjName(e.target.value)}
+              placeholder="Skriv prosjektnummer / namn"
+              autoFocus
+              style={{ ...fi, marginTop:6, background:'var(--bg2)',
+                border:'2px solid var(--brand3)', fontWeight:600 }}/>
+          )}
+        </div>
+
+        {/* Task title */}
+        <div>
+          <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
+            textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Oppgåve</label>
+          <input ref={titleRef} type="text" placeholder="Kva skal gjerast?"
+            autoFocus
+            style={{ ...fi, fontSize:16, fontWeight:600, padding:'10px 13px',
+              background:'var(--bg2)', border:'2px solid var(--brand3)' }}
+            onKeyDown={e => e.key==='Enter' && handleSave()}/>
+        </div>
+
+        {/* Dates and hours */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+          <div>
+            <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
+              textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Startdato</label>
+            <input type="date" value={newTaskStart} onChange={e => setNewTaskStart(e.target.value)}
+              style={fi}/>
+          </div>
+          <div>
+            <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
+              textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Timar</label>
+            <input type="number" value={newTaskHours} onChange={e => setNewTaskHours(e.target.value)}
+              placeholder="0.5" min="0.5" max="999" step="0.5"
+              style={{ ...fi, textAlign:'center' }}/>
+          </div>
+          <div>
+            <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
+              textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Frist</label>
+            <input type="date" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)}
+              style={fi}/>
+          </div>
+        </div>
+        <div style={{ fontSize:11, color:'var(--text3)' }}>
+          Utan frist → fredag denne veka · Utan timar → 0.5t
+        </div>
+
+        {/* Save */}
+        <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:8 }}>
+          <button onClick={() => onCancelEdit && onCancelEdit()}
+            style={{ padding:'10px 18px', background:'var(--bg3)',
+              border:'1px solid var(--border)', borderRadius:'var(--r2)',
+              color:'var(--text2)', fontSize:13, cursor:'pointer' }}>
+            Avbryt
+          </button>
+          <button onClick={() => {
+              const taskText = titleRef.current?.value?.trim()
+              if (!taskText) return
+              const date  = newTaskDate  || nextFriday()
+              const hours = newTaskHours !== '' ? parseFloat(newTaskHours) : 0.5
+              const task  = { id: Date.now(), text: taskText, done: false,
+                startDate: newTaskStart || null, date, hours }
+              let pid = null
+              if (projectVal && projectVal !== '__new__') pid = parseInt(projectVal)
+              onAdd({ title: `Oppgåve: ${taskText.substring(0, 50)}`,
+                text: '', html: '', tasks: [task], tag: 'oppgåve',
+                projectId: pid, newProjName: projectVal === '__new__' ? newProjName : '',
+                sketchDataUrl: null, attachments: [],
+                isMeeting: false })
+            }}
+            style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 24px',
+              background:'var(--brand)', border:'none', borderRadius:'var(--r2)',
+              color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
+              boxShadow:'var(--shadow)' }}>
+            ✅ Lagre oppgåve
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -321,6 +529,24 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
             border:'2px dashed var(--brand3)', boxShadow:'var(--shadow)' }}>
             📎 Slepp e-post eller PDF her
           </div>
+        </div>
+      )}
+
+      {/* Undo button - shown when undo stack has items */}
+      {undoStack.length > 0 && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+          padding:'8px 12px', background:'rgba(180,83,9,.08)', border:'1.5px solid rgba(180,83,9,.25)',
+          borderRadius:'var(--r)' }}>
+          <span style={{ fontSize:12, color:'var(--warn)', display:'flex', alignItems:'center', gap:6 }}>
+            <Undo2 size={13}/>
+            {undoStack.length} {undoStack.length === 1 ? 'handling' : 'handlingar'} kan angrast
+          </span>
+          <button onClick={handleUndo}
+            style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 10px',
+              background:'var(--warn)', color:'#fff', border:'none', borderRadius:5,
+              fontSize:12, fontWeight:600, cursor:'pointer' }}>
+            <Undo2 size={12}/> Angre (Ctrl+Z)
+          </button>
         </div>
       )}
 
@@ -365,6 +591,7 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
         style={{ ...fi, fontSize:16, fontWeight:700, padding:'10px 13px',
           background:'var(--bg2)', border:'2px solid var(--brand3)',
           borderRadius:'var(--r2)', letterSpacing:'-0.01em' }}
+        onInput={handleTitleInput}
         onKeyDown={e => e.key==='Enter' && editorRef.current?.focus()}/>
 
       {/* ── Møtedetaljar (berre for møtenotat) ── */}
@@ -450,6 +677,7 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
         <div ref={editorRef} contentEditable suppressContentEditableWarning
           style={{ minHeight:140, padding:'13px 15px', outline:'none',
             fontSize:14, lineHeight:1.8, color:'var(--text)', background:'var(--bg2)' }}
+          onInput={handleEditorInput}
           onKeyDown={e => { if (e.key==='Enter' && (e.ctrlKey||e.metaKey)) handleSave() }}
           data-placeholder="Skriv notat, eller dra inn e-post / PDF…"/>
       </div>
@@ -487,7 +715,6 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
                 commitNewTask()
               }
             }}
-            onBlur={commitNewTask}
             placeholder="Ny arbeidsoppgåve… (Enter = lagre, Alt+Enter = ny linje)"
             rows={newTaskText.includes('\n') ? Math.min(5, newTaskText.split('\n').length + 1) : 1}
             style={{ ...fi, flex:1, resize:'none', lineHeight:1.5,
@@ -546,7 +773,7 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
               <span style={{ fontSize:11, color:'var(--text3)' }}>
                 {(att.size/1024).toFixed(0)} KB
               </span>
-              <button onClick={() => setAttachments(prev => prev.filter((_,j)=>j!==i))}
+              <button onClick={() => { pushUndoState(); setAttachments(prev => prev.filter((_,j)=>j!==i)) }}
                 style={{ background:'none', border:'none', color:'var(--text3)',
                   cursor:'pointer', padding:2, display:'flex' }}
                 onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
@@ -569,6 +796,11 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
           <PenLine size={15}/>
           {sketchDataUrl ? 'Rediger skisse' : 'Legg til skisse'}
         </button>
+        <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--text3)' }}>
+          {saveStatus === 'saving' && <><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:'var(--warn)',animation:'pulse 1s infinite'}}/>Lagrar…</>}
+          {saveStatus === 'saved'  && <><Check size={13} color="var(--success)"/><span style={{color:'var(--success)',fontWeight:600}}>Lagra</span></>}
+          {saveStatus === 'idle'   && (editNote || createdId) && <span style={{opacity:.6}}>✓ Alle endringar er lagra</span>}
+        </div>
         {sketchDataUrl && (
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
             <img src={sketchDataUrl} alt="Skisse" onClick={() => setShowSketch(true)}
@@ -583,17 +815,19 @@ export default function NoteInput({ projects, onAdd, defaultProjectId, editNote,
             </button>
           </div>
         )}
-        <div style={{ flex:1, textAlign:'right', fontSize:11, color:'var(--text3)' }}>
-          {isEdit ? '✓ Endringar lagrast automatisk' : 'Ctrl+Enter for å lagre'}
-        </div>
-        <button onClick={handleSave}
+        <div style={{ flex:1 }}/>
+        <button onClick={() => {
+            // Force final save and navigate away
+            if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null }
+            handleSave()
+          }}
           style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 22px',
             background:'var(--brand)', border:'none', borderRadius:'var(--r2)',
             color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
             boxShadow:'var(--shadow)', transition:'background .15s' }}
           onMouseEnter={e=>e.currentTarget.style.background='var(--brand2)'}
           onMouseLeave={e=>e.currentTarget.style.background='var(--brand)'}>
-          {isEdit ? 'Lagre endringar' : 'Lagre'}
+          <Check size={15}/>Ferdig
         </button>
       </div>
 

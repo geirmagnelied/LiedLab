@@ -109,6 +109,7 @@ export function useStore(userId) {
     }
     const { error } = await supabase.from('notes').insert(row)
     if (!error) await loadAll()
+    return { id }
   }
 
   const updateNote = async (id, changes) => {

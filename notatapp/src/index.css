@@ -114,3 +114,10 @@ button { cursor: pointer; }
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .mobile-nav { padding-bottom: env(safe-area-inset-bottom); }
 }
+
+
+/* Auto-save indicator */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(1.2); }
+}

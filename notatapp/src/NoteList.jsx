@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Trash2, Check, Calendar, FolderOpen, Mail, Pencil,
          ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import { fmt } from './dateUtils'
@@ -124,6 +124,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
   const [ctxMenu,   setCtxMenu]   = useState(null)
   const [renaming,  setRenaming]  = useState(false)
   const [renameVal, setRenameVal] = useState(note.title || '')
+  const clickTimer = useRef(null)
   const proj   = note.projectId ? projects.find(p=>p.id===note.projectId) : null
   const tasks  = note.tasks||[]
   const doneCnt = tasks.filter(t=>t.done).length
@@ -190,7 +191,22 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
       )}
 
       <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 13px' }}
-        onClick={() => setExpanded(v=>!v)}>
+        onClick={e => {
+          // Delay single-click slightly so double-click can preempt it
+          if (clickTimer.current) {
+            clearTimeout(clickTimer.current); clickTimer.current = null
+            return  // Double-click handler will fire instead
+          }
+          clickTimer.current = setTimeout(() => {
+            setExpanded(v => !v)
+            clickTimer.current = null
+          }, 220)
+        }}
+        onDoubleClick={e => {
+          if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null }
+          e.stopPropagation()
+          if (!note.done) onEdit(note)
+        }}>
         <button onClick={e=>{e.stopPropagation();onToggleDone(note.id)}}
           title={note.done ? 'Hent ut av arkivet' : 'Arkiver notatet'}
           style={{ width:24,height:24,borderRadius:6,
