@@ -191,7 +191,12 @@ export default function App({ userId, userEmail }) {
   const handleMoveToProject  = (noteId, projId) => updateNote(noteId, { projectId: projId })
   const handleCancelEdit  = ()   => { setEditNote(null); setView('notatar') }
   const handleSelectProject = id => { setSelectedProjectId(id); setView('notatar') }
-  // (handleNewNote is defined above with meeting parameter)
+  const handleNewNote = (type='regular') => {
+    setEditNote(null)
+    setIsMeeting(type === 'meeting')
+    setIsTaskOnly(type === 'task')
+    setView('new')
+  }
   const handleSelectNote  = id  => {
     setSelectedProjectId(null); setView('notatar')
     setHighlightNoteId(id); setTimeout(()=>setHighlightNoteId(null),2000)
@@ -403,7 +408,6 @@ export default function App({ userId, userEmail }) {
             <div style={{ flex:1,overflowY:'auto',padding:'22px 26px' }}>
               {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote} isTaskOnly={isTaskOnly && !editNote}/>}
               {view==='notatar'    && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
-              {view==='timar'      && <TimeTracker userId={userId} projects={projects} addProject={addProject} mode={mode}/>}
               {view==='timar'      && <TimeTracker userId={userId} projects={projects} addProject={addProject} mode={mode}/>}
         {view==='overskride' && <OverdueView notes={modeNotes} projects={projects} {...listProps}/>}
               {view==='fristar'    && <DeadlineView notes={visibleNotes} {...listProps}/>}
