@@ -3,13 +3,10 @@ import { supabase } from './supabase'
 import { Plus, Trash2, Calendar, Check, ChevronLeft, ChevronRight, Download, Clock } from 'lucide-react'
 
 // ── Time parsing ──────────────────────────────────────────────────────────
-// Accepts: "09.30-10", "9-10:30", "9.30-10.45", "2,5", "2,5t", "2,5 timar",
-//          "2.5h", "1:30", "1t30min", "0,5"
 export function parseTimeInput(raw) {
   if (!raw) return { hours: 0, startTime: null, endTime: null, error: null }
   const s = String(raw).trim().toLowerCase()
 
-  // Range format: "09.30-10" or "9:30-10:45" or "9-10"
   const rangeMatch = s.match(/^(\d{1,2})[.:]?(\d{0,2})\s*[-–—]\s*(\d{1,2})[.:]?(\d{0,2})$/)
   if (rangeMatch) {
     const sh = parseInt(rangeMatch[1])
@@ -21,33 +18,27 @@ export function parseTimeInput(raw) {
     }
     const startMin = sh * 60 + sm
     let endMin     = eh * 60 + em
-    if (endMin <= startMin) endMin += 24 * 60  // assume next day if needed
+    if (endMin <= startMin) endMin += 24 * 60
     const hours    = (endMin - startMin) / 60
     const fmt = (h,m) => `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`
     return {
       hours: Math.round(hours * 100) / 100,
-      startTime: fmt(sh, sm),
-      endTime:   fmt(eh, em),
-      error: null,
+      startTime: fmt(sh, sm), endTime: fmt(eh, em), error: null,
     }
   }
 
-  // Hours format: "2,5t", "2.5", "2,5 timar", "1t30min", "1:30"
-  // First try "1t30min" / "1t 30min"
   const tMinMatch = s.match(/^(\d+)\s*t(?:imar?)?\s*(\d+)\s*m(?:in)?$/)
   if (tMinMatch) {
     const h = parseInt(tMinMatch[1]) + parseInt(tMinMatch[2])/60
     return { hours: Math.round(h*100)/100, error: null }
   }
 
-  // "1:30" colon = h:min
   const colonMatch = s.match(/^(\d+):(\d{2})$/)
   if (colonMatch) {
     const h = parseInt(colonMatch[1]) + parseInt(colonMatch[2])/60
     return { hours: Math.round(h*100)/100, error: null }
   }
 
-  // Plain number "2.5" "2,5" optionally followed by t / time / timar / h
   const numMatch = s.match(/^([\d,.]+)\s*(t|timar?|time|h|hr|hour|hours)?$/)
   if (numMatch) {
     const n = parseFloat(numMatch[1].replace(',', '.'))
@@ -58,7 +49,6 @@ export function parseTimeInput(raw) {
   return { hours: 0, error: 'Forstår ikkje formatet' }
 }
 
-// ── Date helpers ─────────────────────────────────────────────────────────
 function ymd(d) { return d.toISOString().slice(0,10) }
 function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate()+n); return r }
 function dayName(d) {
@@ -71,15 +61,25 @@ function fmtDate(d) {
   return `${dayName(d)} ${d.getDate()}. ${months[d.getMonth()]}`
 }
 
-// ── Component ────────────────────────────────────────────────────────────
 export default function TimeTracker({ userId, projects, addProject, mode }) {
   const [date,       setDate]       = useState(new Date())
   const [entries,    setEntries]    = useState([])
   const [loading,    setLoading]    = useState(true)
   const [saveStatus, setSaveStatus] = useState('idle')
   const debounceRef = useRef({})
+  // CRITICAL FIX: keep a live ref mirror of entries so debounced saves
+  // always read the LATEST state, not a stale closure
+  const entriesRef = useRef([])
+  useEffect(() => { entriesRef.current = entries }, [entries])
 
-  // Load entries for current date
+  const emptyRow = () => ({
+    id: Date.now() + Math.random(),
+    projectId: null, newProjName: '',
+    rawInput: '', hours: 0,
+    startTime: null, endTime: null,
+    description: '', isPersisted: false,
+  })
+
   useEffect(() => {
     if (!userId) return
     let cancelled = false
@@ -90,8 +90,9 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
       .eq('date', ymd(date))
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return
+        if (error) { console.error('Klarte ikkje laste timeoppføringar:', error) }
         const rows = (data || []).map(r => ({
           id:          r.id,
           projectId:   r.project_id,
@@ -103,7 +104,6 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
           description: r.description || '',
           isPersisted: true,
         }))
-        // Always have an empty row at the bottom
         rows.push(emptyRow())
         setEntries(rows)
         setLoading(false)
@@ -111,19 +111,9 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
     return () => { cancelled = true }
   }, [date, userId])
 
-  const emptyRow = () => ({
-    id: Date.now() + Math.random(),
-    projectId: null, newProjName: '',
-    rawInput: '', hours: 0,
-    startTime: null, endTime: null,
-    description: '', isPersisted: false,
-  })
-
-  // Update one cell, recompute hours if rawInput changed, and persist (debounced)
   const updateRow = (rowId, changes) => {
     setEntries(prev => {
       const updated = prev.map(r => r.id === rowId ? { ...r, ...changes } : r)
-      // If rawInput changed, recompute hours/start/end
       if ('rawInput' in changes) {
         const target = updated.find(r => r.id === rowId)
         const { hours, startTime, endTime } = parseTimeInput(changes.rawInput)
@@ -131,11 +121,10 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
         target.startTime = startTime
         target.endTime   = endTime
       }
-      // If user typed in last empty row, add a new empty row below
       const idx = updated.findIndex(r => r.id === rowId)
       const isLast = idx === updated.length - 1
       const row = updated[idx]
-      const hasContent = row.rawInput || row.description || row.projectId || row.newProjName
+      const hasContent = row.rawInput || row.description || row.projectId || row.newProjName?.trim()
       if (isLast && hasContent) {
         updated.push(emptyRow())
       }
@@ -144,31 +133,34 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
     queueSave(rowId)
   }
 
-  // Debounced save per row
   const queueSave = (rowId) => {
     if (debounceRef.current[rowId]) clearTimeout(debounceRef.current[rowId])
     setSaveStatus('saving')
-    debounceRef.current[rowId] = setTimeout(() => persistRow(rowId), 700)
+    debounceRef.current[rowId] = setTimeout(() => {
+      persistRow(rowId)
+    }, 700)
   }
 
+  // FIXED: read from entriesRef.current (always fresh) instead of a stale closure
   const persistRow = async (rowId) => {
-    // Re-read latest state via functional setter
-    let row = null
-    setEntries(prev => {
-      row = prev.find(r => r.id === rowId)
-      return prev
-    })
-    if (!row) return
-    const hasContent = row.rawInput || row.description || row.projectId || row.newProjName
+    const row = entriesRef.current.find(r => r.id === rowId)
+    if (!row) {
+      console.warn('persistRow: fann ikkje rad', rowId)
+      setSaveStatus('idle')
+      return
+    }
+    const hasContent = row.rawInput || row.description || row.projectId || row.newProjName?.trim()
     if (!hasContent) { setSaveStatus('idle'); return }
 
-    // Resolve new project name → real project
     let pid = row.projectId
-    if (row.newProjName && !pid) {
-      const p = await addProject(row.newProjName, mode || 'work')
-      pid = p?.id || null
-      // Update row with new pid and clear newProjName
-      setEntries(prev => prev.map(r => r.id === rowId ? { ...r, projectId: pid, newProjName: '' } : r))
+    if (row.newProjName?.trim() && !pid) {
+      try {
+        const p = await addProject(row.newProjName.trim(), mode || 'work')
+        pid = p?.id || null
+        setEntries(prev => prev.map(r => r.id === rowId ? { ...r, projectId: pid, newProjName: '' } : r))
+      } catch (err) {
+        console.error('Klarte ikkje lage nytt prosjekt:', err)
+      }
     }
 
     const payload = {
@@ -184,19 +176,28 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
       updated_at:  new Date().toISOString(),
     }
 
-    if (row.isPersisted) {
-      await supabase.from('time_entries').update(payload).eq('id', row.id).eq('user_id', userId)
-    } else {
-      const { data, error } = await supabase.from('time_entries').insert(payload).select().single()
-      if (!error && data) {
-        // Mark as persisted with the actual DB id
-        setEntries(prev => prev.map(r => r.id === rowId
-          ? { ...r, id: data.id, isPersisted: true }
-          : r))
+    try {
+      if (row.isPersisted) {
+        const { error } = await supabase.from('time_entries')
+          .update(payload).eq('id', row.id).eq('user_id', userId)
+        if (error) throw error
+      } else {
+        const { data, error } = await supabase.from('time_entries')
+          .insert(payload).select().single()
+        if (error) throw error
+        if (data) {
+          setEntries(prev => prev.map(r => r.id === rowId
+            ? { ...r, id: data.id, isPersisted: true }
+            : r))
+        }
       }
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 1500)
+    } catch (err) {
+      console.error('Klarte ikkje lagre timeoppføring:', err)
+      setSaveStatus('idle')
+      alert('Klarte ikkje lagre: ' + (err.message || err))
     }
-    setSaveStatus('saved')
-    setTimeout(() => setSaveStatus('idle'), 1500)
   }
 
   const deleteRow = async (rowId) => {
@@ -215,12 +216,9 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
     })
   }
 
-  // ── Grouping for totals per project ─────────────────────────────────
   const projectMap = Object.fromEntries((projects || []).map(p => [p.id, p]))
   const realEntries = entries.filter(e => e.isPersisted || e.rawInput || e.description)
 
-  // Group consecutive same-project rows for summary
-  // Simpler: compute total per project at the bottom
   const totalsByProject = {}
   let grandTotal = 0
   for (const e of realEntries) {
@@ -231,10 +229,8 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
     }
   }
 
-  // Filter projects by mode
   const modeProjects = (projects || []).filter(p => (p.type || 'work') === (mode || 'work'))
 
-  // ── Render ────────────────────────────────────────────────────────────
   const cellInput = {
     width: '100%', border: 'none', background: 'transparent',
     fontFamily: 'var(--font)', fontSize: 13, padding: '8px 10px',
@@ -243,7 +239,6 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Date nav */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <button onClick={() => setDate(addDays(date, -1))}
           style={{ padding: '6px 10px', background: 'var(--bg3)', border: '1px solid var(--border)',
@@ -279,17 +274,14 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
         </div>
       </div>
 
-      {/* Tip box */}
       <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 14px',
         marginBottom: 14, fontSize: 12, color: 'var(--text2)' }}>
         💡 Tidsbruk-formatet er fleksibelt: <b>09.30-10</b> · <b>2,5</b> · <b>2,5t</b> · <b>1:30</b> · <b>2t30min</b>
       </div>
 
-      {/* Table */}
       <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--border)',
         borderRadius: 'var(--r2)', background: 'var(--bg2)' }}>
 
-        {/* Header row */}
         <div style={{ display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 40px',
           background: 'var(--bg3)', borderBottom: '2px solid var(--border)',
           position: 'sticky', top: 0, zIndex: 5 }}>
@@ -304,26 +296,24 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
           <div></div>
         </div>
 
-        {/* Entry rows */}
-        {entries.map((row, idx) => {
+        {entries.map((row) => {
           const proj = row.projectId ? projectMap[row.projectId] : null
-          const isEmpty = !row.rawInput && !row.description && !row.projectId && !row.newProjName
+          const isEmpty = !row.rawInput && !row.description && !row.projectId && !row.newProjName?.trim()
 
           return (
             <div key={row.id}
               style={{ display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 40px',
                 borderBottom: '1px solid var(--border)',
-                background: isEmpty ? 'var(--bg2)' : 'var(--bg2)',
+                background: 'var(--bg2)',
                 opacity: isEmpty ? 0.7 : 1 }}>
 
-              {/* Project column */}
               <div style={{ borderRight: '1px solid var(--border)', position: 'relative' }}>
-                {row.newProjName === '' || row.projectId ? (
+                {!row.newProjName ? (
                   <select value={row.projectId || ''}
                     onChange={e => {
                       const v = e.target.value
                       if (v === '__new__') {
-                        updateRow(row.id, { projectId: null, newProjName: ' ' })  // space triggers input
+                        updateRow(row.id, { projectId: null, newProjName: ' ' })
                       } else {
                         updateRow(row.id, { projectId: v ? parseInt(v) : null, newProjName: '' })
                       }
@@ -356,7 +346,6 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
                 )}
               </div>
 
-              {/* Tidsbruk input */}
               <div style={{ borderRight: '1px solid var(--border)', position: 'relative' }}>
                 <input type="text" value={row.rawInput}
                   onChange={e => updateRow(row.id, { rawInput: e.target.value })}
@@ -364,7 +353,6 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
                   style={{ ...cellInput, fontFamily: 'var(--mono)' }}/>
               </div>
 
-              {/* Description */}
               <div style={{ borderRight: '1px solid var(--border)' }}>
                 <input type="text" value={row.description}
                   onChange={e => updateRow(row.id, { description: e.target.value })}
@@ -372,7 +360,6 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
                   style={cellInput}/>
               </div>
 
-              {/* Calculated hours */}
               <div style={{ borderRight: '1px solid var(--border)',
                 padding: '8px 12px', textAlign: 'right',
                 fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600,
@@ -380,7 +367,6 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
                 {row.hours > 0 ? row.hours.toFixed(2) + 't' : '–'}
               </div>
 
-              {/* Delete */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {!isEmpty && (
                   <button onClick={() => deleteRow(row.id)}
@@ -396,7 +382,6 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
           )
         })}
 
-        {/* Totals per project */}
         {Object.keys(totalsByProject).length > 1 && (
           <div style={{ borderTop: '2px solid var(--brand3)', background: 'var(--bg3)' }}>
             <div style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700,
@@ -425,7 +410,6 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
           </div>
         )}
 
-        {/* Grand total */}
         <div style={{ background: 'var(--brand)', color: '#fff',
           display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 40px' }}>
           <div style={{ padding: '12px 14px', fontWeight: 700,
