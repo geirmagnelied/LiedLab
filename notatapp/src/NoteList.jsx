@@ -1,7 +1,18 @@
 import { useState, useRef } from 'react'
-import { Trash2, Check, Calendar, FolderOpen, Mail, Pencil,
-         ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import { fmt } from './dateUtils'
+
+// Letter-badge in place of icons — clearer and more legible than small glyphs
+function LetterIcon({ letter, size = 22, color, bg, title }) {
+  return (
+    <span title={title} style={{
+      display:'inline-flex', alignItems:'center', justifyContent:'center',
+      width:size, height:size, borderRadius: size > 18 ? 7 : 5,
+      background: bg || 'var(--brandbg)', color: color || 'var(--brand)',
+      fontWeight:800, fontSize: Math.round(size*0.52), fontFamily:'var(--font)',
+      flexShrink:0, lineHeight:1,
+    }}>{letter}</span>
+  )
+}
 
 const TAG_COLORS = { 'møte':'#1565C0','oppgåve':'#5E35B1','frist':'#B45309','idé':'#166534' }
 
@@ -55,7 +66,7 @@ function TaskList({ tasks, noteId, onUpdateTask, onDeleteTask, onAddTask }) {
                 border:`2px solid ${task.done?'var(--success)':'var(--border2)'}`,
                 background:task.done?'var(--success)':'transparent',
                 flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
-              {task.done&&<Check size={9} color="#fff" strokeWidth={3}/>}
+              {task.done && <span style={{color:'#fff', fontWeight:900, fontSize:11, lineHeight:1}}>✓</span>}
             </button>
             <span style={{ flex:1,fontSize:13,color:'var(--text)',whiteSpace:'pre-wrap',
               textDecoration:task.done?'line-through':'none',opacity:task.done?.55:1,lineHeight:1.4 }}>
@@ -71,7 +82,7 @@ function TaskList({ tasks, noteId, onUpdateTask, onDeleteTask, onAddTask }) {
               <span style={{ fontSize:11,display:'flex',alignItems:'center',gap:3,flexShrink:0,
                 color:di.overdue?'var(--danger)':di.urgent?'var(--warn)':'var(--text3)',
                 fontWeight:di.overdue||di.urgent?600:400 }}>
-                <Calendar size={9}/>{di.lbl}
+                <LetterIcon letter="F" size={15} title="Frist"/>{di.lbl}
               </span>
             )}
             <button onClick={()=>{
@@ -81,7 +92,7 @@ function TaskList({ tasks, noteId, onUpdateTask, onDeleteTask, onAddTask }) {
               style={{ background:'none',border:'none',color:'var(--text3)',cursor:'pointer',padding:2,display:'flex',flexShrink:0 }}
               onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
               onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
-              <Trash2 size={11}/>
+              <LetterIcon letter="S" size={17} color="var(--text3)" bg="transparent" title="Slett oppgåve"/>
             </button>
           </div>
         )
@@ -97,7 +108,6 @@ function TaskList({ tasks, noteId, onUpdateTask, onDeleteTask, onAddTask }) {
       <div style={{ display:'flex', gap:5, alignItems:'center' }}>
         <input value={newText} onChange={e=>setNewText(e.target.value)}
           onKeyDown={e=>{ if(e.key==='Enter'&&!e.altKey){e.preventDefault();addIt()} }}
-          onBlur={addIt}
           placeholder="Ny oppgåve… (Enter)"
           style={{ ...fi, flex:1, fontSize:13 }}/>
         <input type="date" value={newStart||''} onChange={e=>setNewStart(e.target.value)}
@@ -112,7 +122,7 @@ function TaskList({ tasks, noteId, onUpdateTask, onDeleteTask, onAddTask }) {
           style={{ padding:'5px 9px', width:32, background:'var(--brand)', border:'none',
             borderRadius:6, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center',
             justifyContent:'center', flexShrink:0 }}>
-          <Plus size={13}/>
+          <LetterIcon letter="+" size={20} color="#fff" bg="transparent"/>
         </button>
       </div>
     </div>
@@ -158,7 +168,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
                 cursor:'pointer',fontSize:13,color:'var(--text)',fontFamily:'var(--font)',display:'block'}}
               onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
               onMouseLeave={e=>e.currentTarget.style.background='none'}>
-              ✏️ Endre tittel
+              Endre tittel
             </button>
             {projects.length>0 && (
               <div>
@@ -169,7 +179,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
                       cursor:'pointer',fontSize:12,color:'var(--text2)',fontFamily:'var(--font)',display:'block'}}
                     onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
                     onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                    📁 {p.name}
+                    {p.name}
                   </button>
                 ))}
               </div>
@@ -184,7 +194,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
                 cursor:'pointer',fontSize:13,color:'var(--danger)',fontFamily:'var(--font)',display:'block'}}
               onMouseEnter={e=>e.currentTarget.style.background='rgba(185,28,28,.06)'}
               onMouseLeave={e=>e.currentTarget.style.background='none'}>
-              🗑 Slett notat
+              Slett notat
             </button>
           </div>
         </>
@@ -221,7 +231,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
           onMouseLeave={e=>{
             if(!note.done){e.currentTarget.style.borderColor='var(--border2)';e.currentTarget.style.background='transparent'}
           }}>
-          {note.done ? <Check size={13} color="#fff" strokeWidth={3}/> : <span style={{fontSize:11,color:'var(--text3)'}}>📥</span>}
+          {note.done ? <span style={{color:'#fff', fontWeight:900, fontSize:13}}>✓</span> : <LetterIcon letter="A" size={15} bg="transparent" color="var(--text3)" title="Arkiver"/>}
         </button>
 
         <div style={{ flex:1, minWidth:0 }}>
@@ -253,31 +263,30 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
             {utDi&&(
               <span style={{ fontSize:11,display:'flex',alignItems:'center',gap:3,
                 color:utDi.overdue?'var(--danger)':utDi.urgent?'var(--warn)':'var(--text3)',fontWeight:600 }}>
-                <Calendar size={10}/>{utDi.lbl}
+                <LetterIcon letter="F" size={16} title="Frist"/>{utDi.lbl}
               </span>
             )}
           </div>
           <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center', marginTop:4 }}>
-            {proj&&<span style={{ fontSize:12,color:'var(--text2)',display:'flex',alignItems:'center',gap:3 }}><FolderOpen size={10}/>{proj.name}</span>}
+            {proj&&<span style={{ fontSize:13,color:'var(--text2)',display:'flex',alignItems:'center',gap:4 }}><LetterIcon letter="P" size={16} title="Prosjekt"/>{proj.name}</span>}
             {note.tag&&<span style={{ fontSize:11,padding:'1px 7px',borderRadius:10,
               background:`${TAG_COLORS[note.tag]}18`,color:TAG_COLORS[note.tag],fontWeight:500 }}>{note.tag}</span>}
-            {note.isEmail&&<span style={{ fontSize:11,padding:'1px 7px',borderRadius:10,
-              background:'rgba(21,101,192,.1)',color:'var(--info)',display:'flex',alignItems:'center',gap:3 }}>
-              <Mail size={9}/>e-post</span>}
-            {note.sketchDataUrl&&<span style={{ fontSize:11,padding:'1px 7px',borderRadius:10,
-              background:'var(--brandbg)',color:'var(--brand)',fontWeight:500 }}>✏️ skisse</span>}
-            {note.attachments?.length>0&&<span style={{fontSize:11,padding:'1px 7px',borderRadius:10,
-              background:'rgba(180,83,9,.08)',color:'var(--warn)',fontWeight:500}}>📎 {note.attachments.length}</span>}
+            {note.isEmail&&<span style={{ fontSize:12,padding:'2px 9px',borderRadius:10,
+              background:'rgba(21,101,192,.1)',color:'var(--info)',fontWeight:600 }}>
+              E-post</span>}
+            {note.sketchDataUrl&&<span style={{ fontSize:12,padding:'2px 9px',borderRadius:10,
+              background:'var(--brandbg)',color:'var(--brand)',fontWeight:600 }}>Skisse</span>}
+            {note.attachments?.length>0&&<span style={{fontSize:12,padding:'2px 9px',borderRadius:10,
+              background:'rgba(180,83,9,.08)',color:'var(--warn)',fontWeight:600}}>Vedlegg ({note.attachments.length})</span>}
             {note.isMeeting&&(
-              <span style={{ fontSize:11,padding:'1px 7px',borderRadius:10,
-                background:'rgba(21,101,192,.1)',color:'#1565C0',fontWeight:600,
-                display:'flex',alignItems:'center',gap:3 }}>
-                📋 møte {note.meetingTime ? new Date(note.meetingTime).toLocaleString('no-NO',{dateStyle:'short',timeStyle:'short'}) : ''}
+              <span style={{ fontSize:12,padding:'2px 9px',borderRadius:10,
+                background:'rgba(21,101,192,.1)',color:'#1565C0',fontWeight:700 }}>
+                Møte {note.meetingTime ? new Date(note.meetingTime).toLocaleString('no-NO',{dateStyle:'short',timeStyle:'short'}) : ''}
               </span>
             )}
             {note.isMeeting && note.attendees?.length>0 && (
-              <span style={{ fontSize:11,color:'var(--text3)' }}>
-                👥 {note.attendees.slice(0,3).join(', ')}{note.attendees.length>3?` +${note.attendees.length-3}`:''}
+              <span style={{ fontSize:12,color:'var(--text2)',fontWeight:500 }}>
+                Deltakarar: {note.attendees.slice(0,3).join(', ')}{note.attendees.length>3?` +${note.attendees.length-3}`:''}
               </span>
             )}
           </div>
@@ -290,7 +299,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
               title="Rediger"
               onMouseEnter={e=>{e.currentTarget.style.color='var(--brand)';e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--bg3)'}}
               onMouseLeave={e=>{e.currentTarget.style.color='var(--text3)';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.background='none'}}>
-              <Pencil size={13}/>
+              <LetterIcon letter="R" size={20} bg="transparent" color="var(--text3)" title="Rediger"/>
             </button>
           )}
           <button onClick={e=>{
@@ -303,10 +312,10 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
             title="Slett notat"
             onMouseEnter={e=>{e.currentTarget.style.color='var(--danger)';e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--bg3)'}}
             onMouseLeave={e=>{e.currentTarget.style.color='var(--text3)';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.background='none'}}>
-            <Trash2 size={13}/>
+            <LetterIcon letter="S" size={20} bg="transparent" color="var(--text3)" title="Slett"/>
           </button>
-          <span style={{ color:'var(--text3)',display:'flex' }}>
-            {expanded?<ChevronDown size={16}/>:<ChevronRight size={16}/>}
+          <span style={{ color:'var(--text3)', fontWeight:800, fontSize:14, display:'flex', alignItems:'center', padding:'0 4px' }}>
+            {expanded ? '▾' : '▸'}
           </span>
         </div>
       </div>
@@ -329,12 +338,12 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
           )}
           {note.attachments?.length > 0 && (
             <div style={{ marginBottom:10 }}>
-              <div style={{ fontSize:10,fontWeight:700,color:'var(--brand)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:5 }}>📎 Vedlegg</div>
+              <div style={{ fontSize:12,fontWeight:700,color:'var(--brand)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6 }}>Vedlegg</div>
               {note.attachments.map((att, i) => (
                 <div key={i} style={{ display:'flex',alignItems:'center',gap:8,
                   padding:'6px 10px',background:'var(--bg3)',borderRadius:'var(--r)',
                   border:'1px solid var(--border)',marginBottom:4 }}>
-                  <span style={{fontSize:15}}>{att.type?.includes('pdf')?'📄':'📧'}</span>
+                  <LetterIcon letter={att.type?.includes('pdf')?'P':'E'} size={20} title={att.type?.includes('pdf')?'PDF':'E-post'}/>
                   <a href={att.url} target="_blank" rel="noreferrer"
                     style={{flex:1,fontSize:13,color:'var(--brand)',fontWeight:500,
                       textDecoration:'none',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -384,7 +393,7 @@ export default function NoteList({ notes, projects, onDelete, onToggleDone, onEd
               borderColor: !showArchived ? 'var(--brand3)' : 'var(--border)',
               background:  !showArchived ? 'var(--brandbg)' : 'transparent',
               color:       !showArchived ? 'var(--brand)' : 'var(--text3)' }}>
-            📂 Aktive ({activeNotes.length})
+            Aktive ({activeNotes.length})
           </button>
           <button onClick={() => setShowArchived(true)}
             style={{ padding:'5px 12px', borderRadius:6, fontSize:12, fontWeight:600,
@@ -392,7 +401,7 @@ export default function NoteList({ notes, projects, onDelete, onToggleDone, onEd
               borderColor: showArchived ? 'var(--text3)' : 'var(--border)',
               background:  showArchived ? 'var(--bg3)' : 'transparent',
               color:       showArchived ? 'var(--text2)' : 'var(--text3)' }}>
-            📥 Arkivet ({archivedNotes.length})
+            Arkivet ({archivedNotes.length})
           </button>
         </div>
       )}

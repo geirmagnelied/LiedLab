@@ -121,7 +121,13 @@ export function useStore(userId) {
       ...(changes.tag       !== undefined && { tag:             changes.tag }),
       ...(changes.projectId !== undefined && { project_id:      changes.projectId }),
       ...(changes.done      !== undefined && { done:            changes.done }),
-      ...(changes.sketchDataUrl !== undefined && { sketch_data_url: changes.sketchDataUrl }),
+      ...(changes.sketchDataUrl     !== undefined && { sketch_data_url:  changes.sketchDataUrl }),
+      ...(changes.attachments       !== undefined && { attachments:      changes.attachments }),
+      ...(changes.isMeeting         !== undefined && { is_meeting:       changes.isMeeting }),
+      ...(changes.meetingTime       !== undefined && { meeting_time:     changes.meetingTime }),
+      ...(changes.meetingDuration   !== undefined && { meeting_duration: changes.meetingDuration }),
+      ...(changes.meetingLocation   !== undefined && { meeting_location: changes.meetingLocation }),
+      ...(changes.attendees         !== undefined && { attendees:        changes.attendees }),
       updated_at: new Date().toISOString(),
     }
     await supabase.from('notes').update(row).eq('id', id).eq('user_id', userId)

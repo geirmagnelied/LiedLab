@@ -1,10 +1,8 @@
 import { useState, useRef } from 'react'
-import { ChevronDown, ChevronRight, FolderOpen, Trash2, AlertCircle,
-         FileText, Plus, Star, Briefcase, Home, Pencil } from 'lucide-react'
 
 export default function Sidebar({ projects, notes, onSelectProject, onSelectNote,
                                    selectedProjectId, onDeleteProject, onNewNote,
-                                   onToggleFavorite, onRenameProject, mode }) {
+                                   onToggleFavorite, onRenameProject, mode, onSetMode }) {
   const [projsOpen, setProjsOpen] = useState(true)
   const [openProjs, setOpenProjs] = useState({})
   const [ctxMenu,   setCtxMenu]   = useState(null)
@@ -80,10 +78,10 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
           <button onClick={e => toggleProjOpen(p.id, e)}
             style={{ background:'none', border:'none', color:'rgba(255,255,255,.45)',
               cursor:'pointer', padding:0, display:'flex', flexShrink:0 }}>
-            {expanded ? <ChevronDown size={10}/> : <ChevronRight size={10}/>}
+            <span style={{fontWeight:800,fontSize:10}}>{expanded ? '▾' : '▸'}</span>
           </button>
 
-          <FolderOpen size={11} color={ac ? '#fff' : 'rgba(255,255,255,.55)'}/>
+          <span style={{width:16,height:16,borderRadius:4,background:ac?'rgba(255,255,255,.25)':'rgba(255,255,255,.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:800,color:ac?'#fff':'rgba(255,255,255,.55)',flexShrink:0}}>P</span>
 
           {renaming === p.id ? (
             <input ref={renameRef}
@@ -116,8 +114,7 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
             className="fav-btn" title={p.favorite ? 'Fjern favoritt' : 'Favoritt'}
             style={{ background:'none', border:'none', cursor:'pointer', padding:'1px 2px',
               display:'flex', flexShrink:0, opacity: p.favorite ? 1 : 0, transition:'opacity .15s' }}>
-            <Star size={11} fill={p.favorite ? 'rgba(255,220,50,.9)' : 'none'}
-              color={p.favorite ? 'rgba(255,220,50,.9)' : 'rgba(255,255,255,.5)'}/>
+            <span style={{fontSize:13, color: p.favorite ? 'rgba(255,220,50,.95)' : 'rgba(255,255,255,.4)', fontWeight:800}}>★</span>
           </button>
 
           <button onClick={e => {
@@ -130,7 +127,7 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
             title="Slett prosjekt"
             style={{ background:'none', border:'none', color:'rgba(255,255,255,.35)',
               padding:2, display:'flex', opacity:0, transition:'opacity .15s', flexShrink:0 }}>
-            <Trash2 size={10}/>
+            <span style={{fontSize:10,fontWeight:800}}>S</span>
           </button>
         </div>
 
@@ -145,7 +142,7 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
                       onClick={() => onSelectNote && onSelectNote(n.id)}
                       style={{ display:'flex', alignItems:'center', gap:5,
                         padding:'3px 6px', borderRadius:5, cursor:'pointer', marginBottom:1 }}>
-                      <FileText size={10} color="rgba(255,255,255,.38)" style={{ flexShrink:0 }}/>
+                      <span style={{width:14,height:14,borderRadius:3,background:'rgba(255,255,255,.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,fontWeight:800,color:'rgba(255,255,255,.45)',flexShrink:0}}>N</span>
                       <span style={{ flex:1, fontSize:11, color:'rgba(255,255,255,.65)',
                         overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                         {n.isMeeting ? '📋 ' : ''}{n.title || n.text?.substring(0,40) || 'Utan tittel'}
@@ -169,40 +166,46 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
         .note-link:hover           { background:rgba(255,255,255,.1) }
       `}</style>
 
-      {/* Logo */}
+      {/* Logo + mode toggle */}
       <div style={{ padding:'18px 16px 14px', borderBottom:'1px solid rgba(255,255,255,.12)' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
           <div style={{ width:32, height:32, borderRadius:9,
             background:'rgba(255,255,255,.15)', display:'flex', alignItems:'center',
             justifyContent:'center', fontSize:16, fontWeight:800, color:'#fff',
             flexShrink:0, border:'1.5px solid rgba(255,255,255,.25)' }}>N</div>
           <div>
-            <div style={{ fontWeight:700, fontSize:15, color:'#fff', letterSpacing:'-0.02em' }}>Notatapp</div>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,.45)', fontWeight:500 }}>
+            <div style={{ fontWeight:700, fontSize:16, color:'#fff', letterSpacing:'-0.02em' }}>Notatapp</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,.55)', fontWeight:500 }}>
               {modeProjects.length} prosjekt · {notes.filter(n=>!n.done).length} aktive
             </div>
           </div>
         </div>
-      </div>
 
-      {/* New note */}
-      <div style={{ padding:'12px 12px 8px' }}>
-        <button onClick={onNewNote}
-          style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,.15)',
-            border:'1.5px solid rgba(255,255,255,.25)', borderRadius:'var(--r2)',
-            color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
-            display:'flex', alignItems:'center', gap:8, transition:'all .15s' }}
-          onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,.25)'}
-          onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,.15)'}>
-          <Plus size={15}/> Nytt notat
-        </button>
+        {/* Mode toggle: Jobb / Privat */}
+        <div style={{ display:'flex', background:'rgba(255,255,255,.1)', borderRadius:'var(--r2)',
+          padding:3, border:'1.5px solid rgba(255,255,255,.18)' }}>
+          <button onClick={() => onSetMode && onSetMode('work')}
+            style={{ flex:1, padding:'8px 10px', border:'none', borderRadius:'var(--r)',
+              background: mode==='work' ? 'rgba(255,255,255,.92)' : 'transparent',
+              color: mode==='work' ? 'var(--brand)' : 'rgba(255,255,255,.65)',
+              fontSize:13, fontWeight:700, cursor:'pointer', transition:'all .15s' }}>
+            Jobb
+          </button>
+          <button onClick={() => onSetMode && onSetMode('private')}
+            style={{ flex:1, padding:'8px 10px', border:'none', borderRadius:'var(--r)',
+              background: mode==='private' ? 'rgba(255,255,255,.92)' : 'transparent',
+              color: mode==='private' ? 'var(--brand)' : 'rgba(255,255,255,.65)',
+              fontSize:13, fontWeight:700, cursor:'pointer', transition:'all .15s' }}>
+            Privat
+          </button>
+        </div>
       </div>
 
       {urgentCount > 0 && (
         <div style={{ margin:'0 12px 8px', padding:'6px 10px', borderRadius:'var(--r)',
           background:'rgba(255,255,255,.12)', border:'1px solid rgba(255,255,255,.2)',
           fontSize:11, color:'rgba(255,255,255,.85)', display:'flex', alignItems:'center', gap:6 }}>
-          <AlertCircle size={12}/>{urgentCount} oppgåver med frist snart
+          <span style={{width:16,height:16,borderRadius:8,background:'rgba(255,220,50,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,flexShrink:0}}>!</span>{urgentCount} oppgåver med frist snart
         </div>
       )}
 
@@ -214,7 +217,7 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
             <div style={{ padding:'5px 14px 3px', fontSize:10, fontWeight:700,
               color:'rgba(255,220,50,.7)', letterSpacing:'.08em', textTransform:'uppercase',
               display:'flex', alignItems:'center', gap:5 }}>
-              <Star size={9} fill="rgba(255,220,50,.7)" color="rgba(255,220,50,.7)"/>
+              <span style={{fontSize:11, color:'rgba(255,220,50,.85)', fontWeight:800}}>★</span>
               Favoritt
             </div>
             {favoriteProjects.map(p => <ProjItem key={p.id} p={p}/>)}
@@ -227,7 +230,7 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
             padding:'5px 14px', background:'none', border:'none',
             color:'rgba(255,255,255,.5)', fontSize:10, fontWeight:700,
             letterSpacing:'.1em', textTransform:'uppercase', cursor:'pointer' }}>
-          {projsOpen ? <ChevronDown size={11}/> : <ChevronRight size={11}/>}
+          <span style={{fontWeight:800,fontSize:11}}>{projsOpen ? '▾' : '▸'}</span>
           {mode === 'work' ? 'Jobb-prosjekt' : 'Private prosjekt'}
           <span style={{ marginLeft:'auto', fontSize:10, opacity:.5 }}>{modeProjects.length}</span>
         </button>
@@ -252,7 +255,7 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
                     onClick={() => onSelectNote && onSelectNote(n.id)}
                     style={{ display:'flex', alignItems:'center', gap:5,
                       padding:'3px 10px 3px 22px', borderRadius:5, cursor:'pointer', marginBottom:1 }}>
-                    <FileText size={10} color="rgba(255,255,255,.3)" style={{ flexShrink:0 }}/>
+                    <span style={{width:14,height:14,borderRadius:3,background:'rgba(255,255,255,.1)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,fontWeight:800,color:'rgba(255,255,255,.35)',flexShrink:0}}>N</span>
                     <span style={{ flex:1, fontSize:11, color:'rgba(255,255,255,.5)',
                       overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                       {n.title || n.text?.substring(0,40) || 'Utan tittel'}

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
-import { Plus, Trash2, Calendar, Check, ChevronLeft, ChevronRight, Download, Clock } from 'lucide-react'
 
 // ── Time parsing ──────────────────────────────────────────────────────────
 export function parseTimeInput(raw) {
@@ -66,6 +65,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
   const [entries,    setEntries]    = useState([])
   const [loading,    setLoading]    = useState(true)
   const [saveStatus, setSaveStatus] = useState('idle')
+  const [errorMsg,   setErrorMsg]   = useState(null)
   const debounceRef = useRef({})
   // CRITICAL FIX: keep a live ref mirror of entries so debounced saves
   // always read the LATEST state, not a stale closure
@@ -92,7 +92,13 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
       .order('created_at', { ascending: true })
       .then(({ data, error }) => {
         if (cancelled) return
-        if (error) { console.error('Klarte ikkje laste timeoppføringar:', error) }
+        if (error) {
+          console.error('Klarte ikkje laste timeoppføringar:', error)
+          setErrorMsg(`Feil ved lasting: ${error.message} (${error.code || 'ukjent kode'})`)
+          setLoading(false)
+          return
+        }
+        setErrorMsg(null)
         const rows = (data || []).map(r => ({
           id:          r.id,
           projectId:   r.project_id,
@@ -191,12 +197,13 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
             : r))
         }
       }
+      setErrorMsg(null)
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 1500)
     } catch (err) {
       console.error('Klarte ikkje lagre timeoppføring:', err)
       setSaveStatus('idle')
-      alert('Klarte ikkje lagre: ' + (err.message || err))
+      setErrorMsg(`Lagring feila: ${err.message || err} ${err.code ? '(' + err.code + ')' : ''} ${err.hint ? '— ' + err.hint : ''}`)
     }
   }
 
@@ -239,11 +246,18 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {errorMsg && (
+        <div style={{ background: 'rgba(185,28,28,.08)', border: '1.5px solid var(--danger)',
+          borderRadius: 'var(--r)', padding: '12px 16px', marginBottom: 14,
+          fontSize: 14, color: 'var(--danger)', fontWeight: 600 }}>
+          Feil: {errorMsg}
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <button onClick={() => setDate(addDays(date, -1))}
           style={{ padding: '6px 10px', background: 'var(--bg3)', border: '1px solid var(--border)',
             borderRadius: 'var(--r)', cursor: 'pointer', color: 'var(--text2)', display:'flex' }}>
-          <ChevronLeft size={16}/>
+          <span style={{fontWeight:800,fontSize:15}}>‹</span>
         </button>
         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
           {fmtDate(date)}
@@ -251,7 +265,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
         <button onClick={() => setDate(addDays(date, 1))}
           style={{ padding: '6px 10px', background: 'var(--bg3)', border: '1px solid var(--border)',
             borderRadius: 'var(--r)', cursor: 'pointer', color: 'var(--text2)', display:'flex' }}>
-          <ChevronRight size={16}/>
+          <span style={{fontWeight:800,fontSize:15}}>›</span>
         </button>
         <button onClick={() => setDate(new Date())}
           style={{ padding: '6px 12px', background: 'var(--brand)', border: 'none',
@@ -265,18 +279,18 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
         <div style={{ flex: 1 }}/>
         <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>
           {saveStatus === 'saving' && <><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:'var(--warn)',animation:'pulse 1s infinite'}}/>Lagrar…</>}
-          {saveStatus === 'saved' && <><Check size={13} color="var(--success)"/><span style={{color:'var(--success)',fontWeight:600}}>Lagra</span></>}
+          {saveStatus === 'saved' && <><span style={{color:'var(--success)',fontWeight:600}}>Lagra</span></>}
         </div>
         <div style={{ padding: '6px 14px', background: 'var(--brandbg2)', border: '1.5px solid var(--brand3)',
           borderRadius: 'var(--r)', fontWeight: 700, color: 'var(--brand)', fontSize: 14 }}>
-          <Clock size={13} style={{ marginRight: 5, verticalAlign:'middle' }}/>
+          
           {grandTotal.toFixed(2)}t
         </div>
       </div>
 
       <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 14px',
         marginBottom: 14, fontSize: 12, color: 'var(--text2)' }}>
-        💡 Tidsbruk-formatet er fleksibelt: <b>09.30-10</b> · <b>2,5</b> · <b>2,5t</b> · <b>1:30</b> · <b>2t30min</b>
+        Tidsbruk-formatet er fleksibelt: <b>09.30-10</b> · <b>2,5</b> · <b>2,5t</b> · <b>1:30</b> · <b>2t30min</b>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--border)',
@@ -374,7 +388,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
                       cursor: 'pointer', padding: 4, display: 'flex' }}
                     onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
                     onMouseLeave={e => e.currentTarget.style.color = 'var(--text3)'}>
-                    <Trash2 size={13}/>
+                    <span style={{fontWeight:800,fontSize:12}}>S</span>
                   </button>
                 )}
               </div>

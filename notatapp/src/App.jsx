@@ -4,11 +4,9 @@ import Sidebar from './Sidebar'
 import NoteInput from './NoteInput'
 import NoteList from './NoteList'
 import DeadlineView from './DeadlineView'
-import OverdueView from './OverdueView'
 import TimeTracker from './TimeTracker'
 import CalendarView from './CalendarView'
 import Timeline from './Timeline'
-import { LayoutList, AlertCircle, Calendar, PanelLeft, CalendarDays, Plus, Clock } from 'lucide-react'
 
 const INITIAL_SB_W  = 260
 const INITIAL_CAL_W = 260
@@ -30,6 +28,8 @@ export default function App({ userId, userEmail }) {
   const [editNote,          setEditNote]          = useState(null)
   const [highlightNoteId,   setHighlightNoteId]   = useState(null)
   const [isMeeting,         setIsMeeting]         = useState(false)
+  const [newNoteMenuOpen,   setNewNoteMenuOpen]   = useState(false)
+  const newNoteMenuRef = useRef(null)
   const [isTaskOnly,        setIsTaskOnly]        = useState(false)
   const [pendingEditId,     setPendingEditId]     = useState(null)
   const [isMobile,          setIsMobile]          = useState(window.innerWidth < 768)
@@ -40,6 +40,18 @@ export default function App({ userId, userEmail }) {
   useEffect(() => {
     import('./dateUtils').then(m => { window._dateUtils = m })
   }, [])
+
+  // Close "Nytt notat" dropdown when clicking outside
+  useEffect(() => {
+    if (!newNoteMenuOpen) return
+    const handler = (e) => {
+      if (newNoteMenuRef.current && !newNoteMenuRef.current.contains(e.target)) {
+        setNewNoteMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [newNoteMenuOpen])
 
   // Auto-promote: when a freshly-created note appears in `notes`, set it as editNote
   useEffect(() => {
@@ -225,17 +237,22 @@ export default function App({ userId, userEmail }) {
     </button>
   )
 
-  const Tab = ({ v, icon:Icon, label, onClick }) => {
+  const Tab = ({ v, letter, label, onClick }) => {
     const active = view===v
     return (
       <button onClick={onClick||(() => { setView(v); if (v!=='new') setEditNote(null) })}
-        style={{ display:'flex',alignItems:'center',gap:5,padding:'6px 13px',
+        style={{ display:'flex',alignItems:'center',gap:7,padding:'7px 14px',
           border:'1.5px solid',
           borderColor:active?'rgba(255,255,255,.6)':'transparent',
           background:active?'rgba(255,255,255,.18)':'transparent',
-          borderRadius:'var(--r)',color:active?'#fff':'rgba(255,255,255,.65)',
-          fontSize:13,cursor:'pointer',fontWeight:active?700:400,transition:'all .15s' }}>
-        <Icon size={14}/>{label}
+          borderRadius:'var(--r)',color:active?'#fff':'rgba(255,255,255,.7)',
+          fontSize:14,cursor:'pointer',fontWeight:active?700:500,transition:'all .15s' }}>
+        {letter && <span style={{ width:20,height:20,borderRadius:5,
+          background: active?'rgba(255,255,255,.92)':'rgba(255,255,255,.18)',
+          color: active?'var(--brand)':'#fff',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          fontSize:11,fontWeight:800,flexShrink:0 }}>{letter}</span>}
+        {label}
       </button>
     )
   }
@@ -247,15 +264,19 @@ export default function App({ userId, userEmail }) {
   )
 
   // ── Mobile topbar tabs ────────────────────────────────────────────────
-  const MobileTab = ({ v, icon: Icon, label, onClick }) => {
+  const MobileTab = ({ v, letter, label, onClick }) => {
     const active = view === v
     return (
       <button onClick={onClick || (() => { setView(v); setEditNote(null); setMobileSheet(false) })}
-        style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2,
+        style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3,
           padding:'8px 4px', border:'none', background:'none',
           color: active ? '#fff' : 'rgba(255,255,255,.5)',
-          fontSize:10, fontWeight: active ? 700 : 400, cursor:'pointer' }}>
-        <Icon size={20} strokeWidth={active ? 2.5 : 1.5}/>
+          fontSize:11, fontWeight: active ? 700 : 500, cursor:'pointer' }}>
+        <span style={{ width:22,height:22,borderRadius:6,
+          background: active?'rgba(255,255,255,.92)':'rgba(255,255,255,.15)',
+          color: active?'var(--brand)':'rgba(255,255,255,.7)',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          fontSize:12,fontWeight:800 }}>{letter}</span>
         {label}
       </button>
     )
@@ -271,7 +292,9 @@ export default function App({ userId, userEmail }) {
         <button onClick={() => setMobileSheet(v=>!v)}
           style={{ background:'none', border:'none', color:'#fff', cursor:'pointer',
             display:'flex', alignItems:'center', padding:4 }}>
-          <PanelLeft size={22}/>
+          <span style={{ width:22,height:22,borderRadius:6,background:'rgba(255,255,255,.15)',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            fontSize:12,fontWeight:800 }}>M</span>
         </button>
         <div style={{ flex:1, fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em' }}>
           {selProj ? selProj.name : 'Notatapp'}
@@ -297,7 +320,8 @@ export default function App({ userId, userEmail }) {
               selectedProjectId={selectedProjectId}
               onDeleteProject={deleteProject}
               onNewNote={() => { handleNewNote('regular'); setMobileSheet(false) }}
-              onToggleFavorite={toggleFavorite}/>
+              onToggleFavorite={toggleFavorite}
+              onRenameProject={handleRenameProject} mode={mode} onSetMode={setMode}/>
           </div>
         </>
       )}
@@ -306,18 +330,18 @@ export default function App({ userId, userEmail }) {
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
         {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote} isTaskOnly={isTaskOnly && !editNote}/>}
         {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
-        {view==='fristar'  && <DeadlineView notes={visibleNotes} {...listProps}/>}
-        {view==='kalender' && <CalendarView notes={visibleNotes} projects={projects} onDelete={deleteNote} onToggleDone={toggleDone} onEdit={handleEdit}/>}
+        {view==='timar'    && <TimeTracker userId={userId} projects={projects} addProject={addProject} mode={mode}/>}
+        {view==='fristar'  && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
       </div>
 
       {/* Mobile bottom nav */}
       <div style={{ display:'flex', background:'var(--brand)',
         borderTop:'1px solid rgba(255,255,255,.1)', flexShrink:0,
         paddingBottom:'env(safe-area-inset-bottom)' }}>
-        <MobileTab v="new"      icon={Plus}       label="Nytt" onClick={() => { handleNewNote('regular'); setMobileSheet(false) }}/>
-        <MobileTab v="notatar"  icon={LayoutList}  label="Notatar"/>
-        <MobileTab v="fristar"  icon={AlertCircle} label="Fristar"/>
-        <MobileTab v="kalender" icon={Calendar}    label="Kalender"/>
+        <MobileTab v="new"      letter="N" label="Nytt" onClick={() => { handleNewNote('regular'); setMobileSheet(false) }}/>
+        <MobileTab v="notatar"  letter="L" label="Notatar"/>
+        <MobileTab v="timar"    letter="T" label="Timar"/>
+        <MobileTab v="fristar"  letter="F" label="Fristar"/>
       </div>
     </div>
   )
@@ -343,7 +367,7 @@ export default function App({ userId, userEmail }) {
                   onSelectProject={handleSelectProject} onSelectNote={handleSelectNote}
                   selectedProjectId={selectedProjectId} onDeleteProject={deleteProject}
                   onNewNote={handleNewNote} onToggleFavorite={toggleFavorite}
-                  onRenameProject={handleRenameProject} mode={mode}/>
+                  onRenameProject={handleRenameProject} mode={mode} onSetMode={setMode}/>
               </aside>
               <div className="resize-handle" onMouseDown={e=>onColMouseDown('sb',e)}/>
             </>
@@ -355,37 +379,63 @@ export default function App({ userId, userEmail }) {
               borderBottom:'1px solid rgba(255,255,255,.1)',background:'var(--brand)',
               height:50,flexShrink:0 }}>
               <IcoBtn onClick={()=>setSbCollapsed(v=>!v)} active={sbCollapsed} title="Meny"><PanelLeft size={16}/></IcoBtn>
-              {/* Mode toggle */}
-              <button onClick={() => setMode(m => m==='work'?'private':'work')}
-                title={mode==='work'?'Byt til privat modus':'Byt til jobb-modus'}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 12px',
-                  border:'1.5px solid rgba(255,255,255,.35)',
-                  background: mode==='private'?'rgba(255,255,255,.25)':'rgba(255,255,255,.1)',
-                  borderRadius:'var(--r)', color:'#fff', fontSize:12, fontWeight:700,
-                  cursor:'pointer', transition:'all .2s', flexShrink:0 }}>
-                {mode==='work' ? '💼 Jobb' : '🏠 Privat'}
-              </button>
-              <div style={{width:4}}/>
-              <Tab v="new"      icon={Plus}       label="Nytt notat" onClick={()=>handleNewNote('regular')}/>
-              <button onClick={()=>handleNewNote('meeting')}
-                style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px',
-                  border:'1.5px solid rgba(255,255,255,.3)', background:'rgba(255,255,255,.08)',
-                  borderRadius:'var(--r)', color:'rgba(255,255,255,.75)',
-                  fontSize:13, cursor:'pointer', fontWeight:400, transition:'all .15s', whiteSpace:'nowrap' }}>
-                📋 Møtenotat
-              </button>
-              <button onClick={()=>handleNewNote('task')}
-                style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px',
-                  border:'1.5px solid rgba(255,255,255,.3)', background:'rgba(255,255,255,.08)',
-                  borderRadius:'var(--r)', color:'rgba(255,255,255,.75)',
-                  fontSize:13, cursor:'pointer', fontWeight:400, transition:'all .15s', whiteSpace:'nowrap' }}>
-                ✅ Ny oppgåve
-              </button>
-              <Tab v="notatar"  icon={LayoutList}  label="Notatar"/>
-              <Tab v="timar"    icon={Clock}       label="Timar"/>
-              <Tab v="overskride" icon={AlertCircle} label="Overskride"/>
-              <Tab v="fristar"  icon={AlertCircle} label="Fristar"/>
-              <Tab v="kalender" icon={Calendar}    label="Kalender"/>
+              <div style={{width:8}}/>
+              {/* Combined "Nytt notat" button with dropdown arrow */}
+              <div style={{ position:'relative' }} ref={newNoteMenuRef}>
+                <div style={{ display:'flex' }}>
+                  <button onClick={()=>handleNewNote('regular')}
+                    style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 16px',
+                      border:'1.5px solid rgba(255,255,255,.4)', borderRight:'none',
+                      borderRadius:'var(--r) 0 0 var(--r)',
+                      background:'rgba(255,255,255,.14)', color:'#fff',
+                      fontSize:14, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                    Nytt notat
+                  </button>
+                  <button onClick={() => setNewNoteMenuOpen(v => !v)}
+                    title="Fler typer notat"
+                    style={{ display:'flex', alignItems:'center', justifyContent:'center',
+                      padding:'7px 10px',
+                      border:'1.5px solid rgba(255,255,255,.4)',
+                      borderRadius:'0 var(--r) var(--r) 0',
+                      background: newNoteMenuOpen ? 'rgba(255,255,255,.28)' : 'rgba(255,255,255,.14)',
+                      color:'#fff', cursor:'pointer',
+                      transition:'background .15s, transform .2s' }}>
+                    <span style={{ fontSize:14, display:'inline-block', transform: newNoteMenuOpen ? 'rotate(180deg)' : 'none', transition:'transform .2s' }}>▾</span>
+                  </button>
+                </div>
+                {newNoteMenuOpen && (
+                  <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:50,
+                    background:'var(--bg2)', border:'1.5px solid var(--brand3)',
+                    borderRadius:'var(--r2)', minWidth:200, overflow:'hidden',
+                    boxShadow:'var(--shadow-lg)',
+                    animation:'dropdownIn .15s ease-out' }}>
+                    <button onClick={()=>{ handleNewNote('meeting'); setNewNoteMenuOpen(false) }}
+                      style={{ width:'100%', textAlign:'left', padding:'12px 16px',
+                        background:'none', border:'none', cursor:'pointer',
+                        fontSize:14, fontWeight:600, color:'var(--text)', fontFamily:'var(--font)',
+                        display:'flex', alignItems:'center', gap:10 }}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                      <span style={{width:26,height:26,borderRadius:7,background:'var(--brandbg)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'var(--brand)',fontSize:13,flexShrink:0}}>M</span>
+                      Nytt møtenotat
+                    </button>
+                    <div style={{height:1,background:'var(--border)'}}/>
+                    <button onClick={()=>{ handleNewNote('task'); setNewNoteMenuOpen(false) }}
+                      style={{ width:'100%', textAlign:'left', padding:'12px 16px',
+                        background:'none', border:'none', cursor:'pointer',
+                        fontSize:14, fontWeight:600, color:'var(--text)', fontFamily:'var(--font)',
+                        display:'flex', alignItems:'center', gap:10 }}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                      <span style={{width:26,height:26,borderRadius:7,background:'var(--brandbg)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'var(--brand)',fontSize:13,flexShrink:0}}>O</span>
+                      Ny oppgåve
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div style={{width:10}}/>
+              <Tab v="timar"    letter="T" label="Timar"/>
+              <Tab v="fristar"  letter="F" label="Fristar"/>
               <div style={{flex:1}}/>
               {selProj&&(
                 <div style={{ display:'flex',alignItems:'center',gap:7,fontSize:12,
@@ -394,7 +444,7 @@ export default function App({ userId, userEmail }) {
                   <span style={{ fontFamily:'var(--mono)',fontWeight:500 }}>{selProj.name}</span>
                 </div>
               )}
-              <IcoBtn onClick={()=>setTlCollapsed(v=>!v)} active={!tlCollapsed} title="Tidslinje"><CalendarDays size={16}/></IcoBtn>
+              <IcoBtn onClick={()=>setTlCollapsed(v=>!v)} active={!tlCollapsed} title="Tidslinje"><span style={{fontWeight:800,fontSize:13}}>T</span></IcoBtn>
               <div style={{width:4}}/>
               <div style={{fontSize:11,color:'rgba(255,255,255,.5)',maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{userEmail}</div>
               <button onClick={()=>{ import('./supabase').then(m=>m.supabase.auth.signOut()) }}
@@ -402,16 +452,14 @@ export default function App({ userId, userEmail }) {
                 Logg ut
               </button>
               <div style={{width:4}}/>
-              <IcoBtn onClick={()=>setCalCollapsed(v=>!v)} active={calCollapsed} title="Kalender"><Calendar size={16}/></IcoBtn>
+              <IcoBtn onClick={()=>setCalCollapsed(v=>!v)} active={calCollapsed} title="Kalender"><span style={{fontWeight:800,fontSize:13}}>K</span></IcoBtn>
             </div>
 
             <div style={{ flex:1,overflowY:'auto',padding:'22px 26px' }}>
               {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote} isTaskOnly={isTaskOnly && !editNote}/>}
               {view==='notatar'    && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
               {view==='timar'      && <TimeTracker userId={userId} projects={projects} addProject={addProject} mode={mode}/>}
-        {view==='overskride' && <OverdueView notes={modeNotes} projects={projects} {...listProps}/>}
-              {view==='fristar'    && <DeadlineView notes={visibleNotes} {...listProps}/>}
-              {view==='kalender'   && <CalendarView notes={visibleNotes} projects={projects} onDelete={deleteNote} onToggleDone={toggleDone} onEdit={handleEdit}/>}
+              {view==='fristar'    && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
             </div>
           </main>
 

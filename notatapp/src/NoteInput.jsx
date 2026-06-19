@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react'
-import { Tag, X, Trash2, Calendar, Pencil, Check, PenLine, Undo2 } from 'lucide-react'
 import { nextFriday, fmt } from './dateUtils'
 import SketchPad from './SketchPad'
 
@@ -62,12 +61,12 @@ function TaskRow({ task, onUpdate, onDelete }) {
         style={{ padding:'4px 10px', background:'var(--brand)', border:'none',
           borderRadius:'var(--r)', color:'#fff', cursor:'pointer',
           display:'flex', alignItems:'center', gap:4, fontSize:12, fontWeight:700 }}>
-        <Check size={12}/> OK
+        OK
       </button>
       <button onClick={() => setEditing(false)}
         style={{ padding:'4px 7px', background:'none', border:'1px solid var(--border)',
           borderRadius:'var(--r)', color:'var(--text3)', cursor:'pointer' }}>
-        <X size={12}/>
+        <span style={{fontWeight:800,fontSize:11}}>×</span>
       </button>
     </div>
   )
@@ -82,7 +81,7 @@ function TaskRow({ task, onUpdate, onDelete }) {
           border:`2px solid ${task.done ? 'var(--success)' : 'var(--border2)'}`,
           background: task.done ? 'var(--success)' : 'transparent',
           flexShrink:0, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-        {task.done && <Check size={9} color="#fff" strokeWidth={3}/>}
+        {task.done && <span style={{color:"#fff",fontWeight:900,fontSize:10}}>✓</span>}
       </button>
       {/* Task text */}
       <span style={{ flex:1, fontSize:13, color:'var(--text)',
@@ -94,7 +93,7 @@ function TaskRow({ task, onUpdate, onDelete }) {
       <span style={{ width:88, fontSize:11, color:'var(--text3)', flexShrink:0,
         display:'flex', alignItems:'center', gap:3 }}>
         {task.startDate
-          ? (() => { const sd = fmt(task.startDate); return <><Calendar size={9}/>{sd.lbl}</> })()
+          ? (() => { const sd = fmt(task.startDate); return <><span style={{fontWeight:800,fontSize:9,marginRight:2}}>S</span>{sd.lbl}</> })()
           : <span style={{ opacity:.35 }}>–</span>}
       </span>
       {/* Timeverk */}
@@ -109,7 +108,7 @@ function TaskRow({ task, onUpdate, onDelete }) {
           color: di.overdue?'var(--danger)':di.urgent?'var(--warn)':'var(--text3)',
           fontWeight: di.overdue||di.urgent ? 600 : 400,
           display:'flex', alignItems:'center', gap:3, flexShrink:0 }}>
-          <Calendar size={9}/>{di.lbl}
+          <span style={{fontWeight:800,fontSize:9,marginRight:2}}>F</span>{di.lbl}
         </span>
       ) : <span style={{ width:88, marginLeft:6 }}/>}
       <button onClick={() => setEditing(true)} title="Rediger"
@@ -117,14 +116,14 @@ function TaskRow({ task, onUpdate, onDelete }) {
           padding:'2px 3px', display:'flex', marginLeft:4 }}
         onMouseEnter={e=>e.currentTarget.style.color='var(--brand)'}
         onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
-        <Pencil size={12}/>
+        <span style={{fontWeight:800,fontSize:11}}>R</span>
       </button>
       <button onClick={() => onDelete(task.id)} title="Slett"
         style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer',
           padding:'2px 3px', display:'flex' }}
         onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
         onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
-        <Trash2 size={12}/>
+        <span style={{fontWeight:800,fontSize:11}}>S</span>
       </button>
     </div>
   )
@@ -357,7 +356,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
         // APPEND to existing editor content — do NOT overwrite
         if (editorRef.current) {
           const fromLine = from ? `<div style="font-size:12px;color:#888;margin-bottom:8px">Frå: ${from}</div>` : ''
-          const emailBlock = `<div style="margin-top:12px;padding:10px 12px;background:rgba(21,101,192,.06);border-left:3px solid #1565C0;border-radius:6px"><b>📧 ${subject}</b>${fromLine}<br>${body.replace(/\n/g,'<br>')}</div>`
+          const emailBlock = `<div style="margin-top:12px;padding:10px 12px;background:rgba(21,101,192,.06);border-left:3px solid #1565C0;border-radius:6px"><b>E-post: ${subject}</b>${fromLine}<br>${body.replace(/\n/g,'<br>')}</div>`
           const existing = editorRef.current.innerHTML.trim()
           editorRef.current.innerHTML = existing
             ? existing + '<br>' + emailBlock
@@ -527,7 +526,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
           <div style={{ fontSize:15, fontWeight:700, color:'var(--brand)',
             background:'var(--bg2)', padding:'12px 24px', borderRadius:'var(--r2)',
             border:'2px dashed var(--brand3)', boxShadow:'var(--shadow)' }}>
-            📎 Slepp e-post eller PDF her
+            Slepp e-post eller PDF her
           </div>
         </div>
       )}
@@ -538,14 +537,14 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
           padding:'8px 12px', background:'rgba(180,83,9,.08)', border:'1.5px solid rgba(180,83,9,.25)',
           borderRadius:'var(--r)' }}>
           <span style={{ fontSize:12, color:'var(--warn)', display:'flex', alignItems:'center', gap:6 }}>
-            <Undo2 size={13}/>
+            <span style={{fontWeight:800,fontSize:12}}>A</span>
             {undoStack.length} {undoStack.length === 1 ? 'handling' : 'handlingar'} kan angrast
           </span>
           <button onClick={handleUndo}
             style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 10px',
               background:'var(--warn)', color:'#fff', border:'none', borderRadius:5,
               fontSize:12, fontWeight:600, cursor:'pointer' }}>
-            <Undo2 size={12}/> Angre (Ctrl+Z)
+            Angre (Ctrl+Z)
           </button>
         </div>
       )}
@@ -554,11 +553,11 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
           padding:'8px 12px', background:'var(--brandbg2)', border:'1.5px solid var(--brand3)',
           borderRadius:'var(--r)' }}>
-          <span style={{ fontSize:12, fontWeight:700, color:'var(--brand)' }}>✏️ Redigerer notat</span>
+          <span style={{ fontSize:12, fontWeight:700, color:'var(--brand)' }}>Redigerer notat</span>
           <button onClick={onCancelEdit}
             style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer',
               display:'flex', alignItems:'center', gap:4, fontSize:12 }}>
-            <X size={13}/>Avbryt
+            Avbryt
           </button>
         </div>
       )}
@@ -600,12 +599,12 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
           <Divider label="Møtedetaljar"/>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
             <div>
-              <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>📅 Møtetidspunkt</label>
+              <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Møtetidspunkt</label>
               <input type="datetime-local" value={meetingTime} onChange={e=>setMeetingTime(e.target.value)}
                 style={{ ...fi, background:'var(--bg2)', border:'2px solid var(--border)' }}/>
             </div>
             <div>
-              <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>⏱ Varigheit</label>
+              <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Varigheit</label>
               <select value={meetingDuration} onChange={e=>setMeetingDuration(e.target.value)}
                 style={{ ...fi, background:'var(--bg2)' }}>
                 <option value="30">30 minutt</option>
@@ -618,7 +617,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
             </div>
           </div>
           <div style={{ marginBottom:10 }}>
-            <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>📍 Stad / møtelenke</label>
+            <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Stad / møtelenke</label>
             <input type="text" value={meetingLocation} onChange={e=>setMeetingLocation(e.target.value)}
               placeholder="Møterom 2, eller https://teams.microsoft.com/…"
               style={{ ...fi, background:'var(--bg2)' }}/>
@@ -747,7 +746,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
               color:       tag===t.key ? t.color : 'var(--text3)',
               fontSize:12, cursor:'pointer', fontWeight: tag===t.key ? 700 : 400,
               display:'flex', alignItems:'center', gap:4 }}>
-            <Tag size={10}/>{t.key}
+            {t.key}
           </button>
         ))}
       </div>
@@ -758,13 +757,14 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
           borderRadius:'var(--r)', padding:'10px 12px' }}>
           <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)',
             textTransform:'uppercase', letterSpacing:'.05em', marginBottom:8 }}>
-            📎 Vedlegg {uploading && <span style={{ color:'var(--brand3)' }}>— lastar opp…</span>}
+            Vedlegg {uploading && <span style={{ color:'var(--brand3)' }}>— lastar opp…</span>}
           </div>
           {attachments.map((att, i) => (
             <div key={i} style={{ display:'flex', alignItems:'center', gap:8,
               padding:'6px 8px', background:'var(--bg2)', borderRadius:'var(--r)',
               border:'1px solid var(--border)', marginBottom:5 }}>
-              <span style={{ fontSize:16 }}>{att.type?.includes('pdf') ? '📄' : '📧'}</span>
+              <span style={{ fontSize:11, fontWeight:700, padding:'2px 7px', borderRadius:5,
+                background:'var(--brandbg)', color:'var(--brand)', flexShrink:0 }}>{att.type?.includes('pdf') ? 'PDF' : 'E-post'}</span>
               <a href={att.url} target="_blank" rel="noreferrer"
                 style={{ flex:1, fontSize:13, color:'var(--brand)', fontWeight:500,
                   textDecoration:'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -778,7 +778,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
                   cursor:'pointer', padding:2, display:'flex' }}
                 onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
                 onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
-                <X size={13}/>
+                <span style={{fontWeight:800,fontSize:13}}>×</span>
               </button>
             </div>
           ))}
@@ -793,12 +793,12 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
             border: `1.5px solid ${sketchDataUrl ? 'var(--brand3)' : 'var(--border)'}`,
             borderRadius:'var(--r)', color: sketchDataUrl ? 'var(--brand)' : 'var(--text2)',
             fontSize:13, fontWeight:600, cursor:'pointer', transition:'all .15s' }}>
-          <PenLine size={15}/>
+          
           {sketchDataUrl ? 'Rediger skisse' : 'Legg til skisse'}
         </button>
         <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--text3)' }}>
           {saveStatus === 'saving' && <><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:'var(--warn)',animation:'pulse 1s infinite'}}/>Lagrar…</>}
-          {saveStatus === 'saved'  && <><Check size={13} color="var(--success)"/><span style={{color:'var(--success)',fontWeight:600}}>Lagra</span></>}
+          {saveStatus === 'saved'  && <><span style={{color:'var(--success)',fontWeight:600}}>Lagra</span></>}
           {saveStatus === 'idle'   && (editNote || createdId) && <span style={{opacity:.6}}>✓ Alle endringar er lagra</span>}
         </div>
         {sketchDataUrl && (
@@ -811,7 +811,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
                 cursor:'pointer', padding:2, display:'flex' }}
               onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
               onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
-              <X size={13}/>
+              <span style={{fontWeight:800,fontSize:13}}>×</span>
             </button>
           </div>
         )}
@@ -827,7 +827,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
             boxShadow:'var(--shadow)', transition:'background .15s' }}
           onMouseEnter={e=>e.currentTarget.style.background='var(--brand2)'}
           onMouseLeave={e=>e.currentTarget.style.background='var(--brand)'}>
-          <Check size={15}/>Ferdig
+          Ferdig
         </button>
       </div>
 
