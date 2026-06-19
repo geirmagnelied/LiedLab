@@ -378,7 +378,7 @@ export default function App({ userId, userEmail }) {
             <div style={{ display:'flex',alignItems:'center',gap:4,padding:'0 12px',
               borderBottom:'1px solid rgba(255,255,255,.1)',background:'var(--brand)',
               height:50,flexShrink:0 }}>
-              <IcoBtn onClick={()=>setSbCollapsed(v=>!v)} active={sbCollapsed} title="Meny"><PanelLeft size={16}/></IcoBtn>
+              <IcoBtn onClick={()=>setSbCollapsed(v=>!v)} active={sbCollapsed} title="Meny"><span style={{fontWeight:800,fontSize:13}}>M</span></IcoBtn>
               <div style={{width:8}}/>
               {/* Combined "Nytt notat" button with dropdown arrow */}
               <div style={{ position:'relative' }} ref={newNoteMenuRef}>
