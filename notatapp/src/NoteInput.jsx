@@ -161,7 +161,15 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
   const [showSketch,    setShowSketch]    = useState(false)
   const [sketchDataUrl, setSketchDataUrl] = useState(isEdit ? (editNote?.sketchDataUrl || null) : null)
 
+  // Track whether this editNote arrived via auto-create-transition (skip re-init)
+  // vs. an explicit "open for editing" action (do re-init).
+  const skipNextInitRef = useRef(false)
+
   useEffect(() => {
+    if (skipNextInitRef.current) {
+      skipNextInitRef.current = false
+      return
+    }
     if (titleRef.current)  titleRef.current.value  = isEdit ? (editNote.title||'') : ''
     if (editorRef.current) editorRef.current.innerHTML = isEdit ? (editNote.html||editNote.text||'') : ''
     setTasks(isEdit ? (editNote.tasks||[]) : [])
@@ -292,6 +300,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
       // After first save in "new" mode, switch to edit mode for subsequent saves
       if (!editNote && id && !createdId) {
         setCreatedId(id)
+        skipNextInitRef.current = true  // don't let the init-effect clobber what's being typed
         // Schedule editNote transition via parent
         setTimeout(() => {
           // Find the freshly created note and set it as editNote
@@ -414,9 +423,11 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px',
           background:'var(--brandbg)', border:'1.5px solid var(--brand3)',
           borderRadius:'var(--r2)' }}>
-          <span style={{ fontSize:18 }}>✅</span>
+          <span style={{ width:24, height:24, borderRadius:6, background:'var(--brand)',
+            color:'#fff', display:'flex', alignItems:'center', justifyContent:'center',
+            fontWeight:800, fontSize:13, flexShrink:0 }}>O</span>
           <span style={{ fontSize:14, fontWeight:700, color:'var(--brand)' }}>
-            Ny arbeidsoppgåve (utan notat)
+            Nye arbeidsoppgåver (utan notat)
           </span>
         </div>
 
@@ -439,44 +450,57 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
           )}
         </div>
 
-        {/* Task title */}
+        {/* Already-added tasks list */}
+        {tasks.length > 0 && (
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {tasks.map(t => (
+              <div key={t.id} style={{ display:'flex', alignItems:'center', gap:10,
+                padding:'9px 12px', background:'var(--bg2)', border:'1px solid var(--border)',
+                borderRadius:'var(--r)' }}>
+                <span style={{ flex:1, fontSize:14, color:'var(--text)', fontWeight:500 }}>{t.text}</span>
+                {t.startDate && <span style={{ fontSize:12, color:'var(--text3)' }}>Start: {t.startDate}</span>}
+                <span style={{ fontSize:12, fontWeight:700, color:'var(--brand)',
+                  background:'var(--brandbg)', borderRadius:5, padding:'2px 8px' }}>{t.hours}t</span>
+                {t.date && <span style={{ fontSize:12, color:'var(--text3)' }}>Frist: {t.date}</span>}
+                <button onClick={() => deleteTask(t.id)}
+                  style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer',
+                    fontWeight:800, fontSize:13, padding:'2px 6px' }}
+                  onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
+                  onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* New task input row */}
         <div>
           <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
-            textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Oppgåve</label>
-          <input ref={titleRef} type="text" placeholder="Kva skal gjerast?"
-            autoFocus
-            style={{ ...fi, fontSize:16, fontWeight:600, padding:'10px 13px',
-              background:'var(--bg2)', border:'2px solid var(--brand3)' }}
-            onKeyDown={e => e.key==='Enter' && handleSave()}/>
-        </div>
-
-        {/* Dates and hours */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
-          <div>
-            <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
-              textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Startdato</label>
+            textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>
+            {tasks.length > 0 ? 'Legg til ei oppgåve til' : 'Oppgåve'}
+          </label>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 80px 1fr', gap:10 }}>
+            <input type="text" placeholder="Kva skal gjerast? (Enter for å legge til)"
+              value={newTaskText} onChange={e => setNewTaskText(e.target.value)}
+              autoFocus
+              style={{ ...fi, fontSize:15, fontWeight:600, padding:'10px 13px',
+                background:'var(--bg2)', border:'2px solid var(--brand3)' }}
+              onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); commitNewTask() } }}/>
             <input type="date" value={newTaskStart} onChange={e => setNewTaskStart(e.target.value)}
-              style={fi}/>
-          </div>
-          <div>
-            <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
-              textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Timar</label>
+              title="Startdato" style={fi}/>
             <input type="number" value={newTaskHours} onChange={e => setNewTaskHours(e.target.value)}
               placeholder="0.5" min="0.5" max="999" step="0.5"
-              style={{ ...fi, textAlign:'center' }}/>
-          </div>
-          <div>
-            <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
-              textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Frist</label>
+              title="Timar" style={{ ...fi, textAlign:'center' }}/>
             <input type="date" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)}
-              style={fi}/>
+              title="Frist" style={fi}/>
           </div>
-        </div>
-        <div style={{ fontSize:11, color:'var(--text3)' }}>
-          Utan frist → fredag denne veka · Utan timar → 0.5t
+          <div style={{ fontSize:11, color:'var(--text3)', marginTop:6 }}>
+            Trykk Enter for å legge til oppgåva og starte på neste · Utan frist → fredag denne veka · Utan timar → 0.5t
+          </div>
         </div>
 
-        {/* Save */}
+        {/* Save all */}
         <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:8 }}>
           <button onClick={() => onCancelEdit && onCancelEdit()}
             style={{ padding:'10px 18px', background:'var(--bg3)',
@@ -485,25 +509,32 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
             Avbryt
           </button>
           <button onClick={() => {
-              const taskText = titleRef.current?.value?.trim()
-              if (!taskText) return
-              const date  = newTaskDate  || nextFriday()
-              const hours = newTaskHours !== '' ? parseFloat(newTaskHours) : 0.5
-              const task  = { id: Date.now(), text: taskText, done: false,
-                startDate: newTaskStart || null, date, hours }
-              let pid = null
-              if (projectVal && projectVal !== '__new__') pid = parseInt(projectVal)
-              onAdd({ title: `Oppgåve: ${taskText.substring(0, 50)}`,
-                text: '', html: '', tasks: [task], tag: 'oppgåve',
-                projectId: pid, newProjName: projectVal === '__new__' ? newProjName : '',
-                sketchDataUrl: null, attachments: [],
-                isMeeting: false })
+              // Commit any text still sitting in the input field
+              if (newTaskText.trim()) commitNewTask()
+              setTimeout(() => {
+                let pid = null
+                if (projectVal && projectVal !== '__new__') pid = parseInt(projectVal)
+                const finalTasks = newTaskText.trim()
+                  ? [...tasks, { id: Date.now(), text: newTaskText.trim(), done:false,
+                      startDate: newTaskStart || null, date: newTaskDate || nextFriday(),
+                      hours: newTaskHours !== '' ? parseFloat(newTaskHours) : 0.5 }]
+                  : tasks
+                if (finalTasks.length === 0) return
+                const titleSummary = finalTasks.length === 1
+                  ? `Oppgåve: ${finalTasks[0].text.substring(0, 50)}`
+                  : `${finalTasks.length} arbeidsoppgåver`
+                onAdd({ title: titleSummary,
+                  text: '', html: '', tasks: finalTasks, tag: 'oppgåve',
+                  projectId: pid, newProjName: projectVal === '__new__' ? newProjName : '',
+                  sketchDataUrl: null, attachments: [],
+                  isMeeting: false })
+              }, 0)
             }}
             style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 24px',
               background:'var(--brand)', border:'none', borderRadius:'var(--r2)',
               color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
               boxShadow:'var(--shadow)' }}>
-            ✅ Lagre oppgåve
+            Lagre {tasks.length > 0 ? `(${tasks.length + (newTaskText.trim() ? 1 : 0)})` : ''} oppgåve{(tasks.length + (newTaskText.trim() ? 1 : 0)) === 1 ? '' : 'r'}
           </button>
         </div>
       </div>

@@ -108,7 +108,19 @@ export function useStore(userId) {
       done: false, created_at: new Date().toISOString(),
     }
     const { error } = await supabase.from('notes').insert(row)
-    if (!error) await loadAll()
+    if (!error) {
+      // Optimistic local append — no full reload, avoids re-render storms
+      setNotes(ns => [{
+        id, title: row.title, text: row.text, html: row.html,
+        tasks: row.tasks, tag: row.tag, projectId: row.project_id,
+        isEmail: row.is_email, sketchDataUrl: row.sketch_data_url,
+        attachments: row.attachments,
+        isMeeting: row.is_meeting, meetingTime: row.meeting_time,
+        meetingDuration: row.meeting_duration, meetingLocation: row.meeting_location,
+        attendees: row.attendees,
+        done: false, createdAt: row.created_at,
+      }, ...ns])
+    }
     return { id }
   }
 
@@ -130,8 +142,10 @@ export function useStore(userId) {
       ...(changes.attendees         !== undefined && { attendees:        changes.attendees }),
       updated_at: new Date().toISOString(),
     }
+    // Optimistic local update — avoids re-fetching the whole notes list (and the
+    // resulting re-render storm) on every autosave tick while the user is typing.
+    setNotes(ns => ns.map(n => n.id === id ? { ...n, ...changes } : n))
     await supabase.from('notes').update(row).eq('id', id).eq('user_id', userId)
-    await loadAll()
   }
 
   const deleteNote = async (id) => {
@@ -192,7 +206,10 @@ export function useStore(userId) {
       id, user_id: userId, name, favorite: false, type,
       created_at: new Date().toISOString(),
     })
-    if (!error) await loadAll()
+    if (!error) {
+      setProjects(ps => [...ps, { id, name, favorite: false, type, createdAt: new Date().toISOString() }]
+        .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || a.name.localeCompare(b.name)))
+    }
     return { id, name, favorite: false }
   }
 
