@@ -5,6 +5,7 @@ import NoteInput from './NoteInput'
 import NoteList from './NoteList'
 import DeadlineView from './DeadlineView'
 import TimeTracker from './TimeTracker'
+import ForecastView from './ForecastView'
 import CalendarView from './CalendarView'
 import Timeline from './Timeline'
 
@@ -197,11 +198,11 @@ export default function App({ userId, userEmail }) {
     }
   }
 
-  const handleEdit        = note => { setEditNote(note); setView('new') }
+  const handleEdit        = note => { setEditNote(note); setIsMeeting(!!note.isMeeting); setIsTaskOnly(false); setView('new') }
   const handleRenameProject  = (id, name)      => updateProject(id, { name })
   const handleRenameNote     = (id, title)     => updateNote(id, { title })
   const handleMoveToProject  = (noteId, projId) => updateNote(noteId, { projectId: projId })
-  const handleCancelEdit  = ()   => { setEditNote(null); setView('notatar') }
+  const handleCancelEdit  = ()   => { setEditNote(null); setIsMeeting(false); setIsTaskOnly(false); setView('notatar') }
   const handleSelectProject = id => { setSelectedProjectId(id); setView('notatar') }
   const handleNewNote = (type='regular') => {
     setEditNote(null)
@@ -328,9 +329,10 @@ export default function App({ userId, userEmail }) {
 
       {/* Mobile content */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
-        {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote} isTaskOnly={isTaskOnly && !editNote}/>}
+        {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote}/>}
         {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
         {view==='timar'    && <TimeTracker userId={userId} projects={projects} addProject={addProject} mode={mode}/>}
+        {view==='prognose' && <ForecastView userId={userId} projects={projects} mode={mode}/>}
         {view==='fristar'  && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
       </div>
 
@@ -435,6 +437,7 @@ export default function App({ userId, userEmail }) {
               </div>
               <div style={{width:10}}/>
               <Tab v="timar"    letter="T" label="Timar"/>
+              <Tab v="prognose" letter="P" label="Prognose"/>
               <Tab v="fristar"  letter="F" label="Fristar"/>
               <div style={{flex:1}}/>
               {selProj&&(
@@ -456,9 +459,10 @@ export default function App({ userId, userEmail }) {
             </div>
 
             <div style={{ flex:1,overflowY:'auto',padding:'22px 26px' }}>
-              {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting && !editNote} isTaskOnly={isTaskOnly && !editNote}/>}
+              {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote}/>}
               {view==='notatar'    && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
               {view==='timar'      && <TimeTracker userId={userId} projects={projects} addProject={addProject} mode={mode}/>}
+              {view==='prognose'   && <ForecastView userId={userId} projects={projects} mode={mode}/>}
               {view==='fristar'    && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
             </div>
           </main>

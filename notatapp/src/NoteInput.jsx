@@ -129,8 +129,14 @@ function TaskRow({ task, onUpdate, onDelete }) {
   )
 }
 
-export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, defaultProjectId, editNote, onCancelEdit, isMeeting, isTaskOnly }) {
+export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, defaultProjectId, editNote, onCancelEdit, isMeeting: isMeetingProp, isTaskOnly }) {
   const isEdit = !!editNote
+  // Lock in "is this a meeting note" the first time we know it, so the
+  // auto-create→edit transition (which flips the isMeeting PROP off) never
+  // collapses the meeting UI back to a regular note mid-typing.
+  const isMeetingRef = useRef(isMeetingProp || editNote?.isMeeting || false)
+  if (editNote?.isMeeting) isMeetingRef.current = true  // existing note always wins
+  const isMeeting = isMeetingRef.current
 
   const [tag,         setTag]         = useState(isEdit ? editNote.tag : null)
   const [projectVal,  setProjectVal]  = useState(
@@ -419,7 +425,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
   // Simplified task-only mode
   if (isTaskOnly) {
     return (
-      <div style={{ display:'flex', flexDirection:'column', gap:14, maxWidth:680 }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px',
           background:'var(--brandbg)', border:'1.5px solid var(--brand3)',
           borderRadius:'var(--r2)' }}>
