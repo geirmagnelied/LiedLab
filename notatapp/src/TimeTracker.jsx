@@ -77,7 +77,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
     projectId: null, newProjName: '',
     rawInput: '', hours: 0,
     startTime: null, endTime: null,
-    description: '', isPersisted: false,
+    description: '', submitted: false, isPersisted: false,
   })
 
   useEffect(() => {
@@ -108,6 +108,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
           startTime:   r.start_time,
           endTime:     r.end_time,
           description: r.description || '',
+          submitted:   r.submitted || false,
           isPersisted: true,
         }))
         rows.push(emptyRow())
@@ -137,6 +138,26 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
       return updated
     })
     queueSave(rowId)
+  }
+
+  // Mark / unmark a row as "submitted" to an external time-tracking system.
+  // Optimistic + immediate persist (no debounce needed for a simple toggle).
+  const toggleSubmitted = async (rowId) => {
+    const row = entries.find(r => r.id === rowId)
+    if (!row || !row.isPersisted) return  // can't submit an unsaved row
+    const newVal = !row.submitted
+    setEntries(prev => prev.map(r => r.id === rowId ? { ...r, submitted: newVal } : r))
+    try {
+      const { error } = await supabase.from('time_entries')
+        .update({ submitted: newVal, updated_at: new Date().toISOString() })
+        .eq('id', row.id).eq('user_id', userId)
+      if (error) throw error
+    } catch (err) {
+      console.error('Klarte ikkje oppdatere innsendt-status:', err)
+      // Revert on failure
+      setEntries(prev => prev.map(r => r.id === rowId ? { ...r, submitted: !newVal } : r))
+      setErrorMsg(`Klarte ikkje oppdatere status: ${err.message || err}`)
+    }
   }
 
   const queueSave = (rowId) => {
@@ -179,6 +200,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
       start_time:  row.startTime,
       end_time:    row.endTime,
       description: row.description,
+      submitted:   row.submitted || false,
       updated_at:  new Date().toISOString(),
     }
 
@@ -296,7 +318,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
       <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--border)',
         borderRadius: 'var(--r2)', background: 'var(--bg2)' }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 40px',
+        <div style={{ display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 90px 40px',
           background: 'var(--bg3)', borderBottom: '2px solid var(--border)',
           position: 'sticky', top: 0, zIndex: 5 }}>
           <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
@@ -307,23 +329,28 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
             textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Beskriving</div>
           <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
             textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)', textAlign:'right' }}>Timar</div>
+          <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
+            textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)', textAlign:'center' }}>Sendt inn</div>
           <div></div>
         </div>
 
         {entries.map((row) => {
           const proj = row.projectId ? projectMap[row.projectId] : null
           const isEmpty = !row.rawInput && !row.description && !row.projectId && !row.newProjName?.trim()
+          const isSubmitted = row.submitted && row.isPersisted
 
           return (
             <div key={row.id}
-              style={{ display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 40px',
+              style={{ display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 90px 40px',
                 borderBottom: '1px solid var(--border)',
-                background: 'var(--bg2)',
-                opacity: isEmpty ? 0.7 : 1 }}>
+                background: isSubmitted ? 'var(--bg3)' : 'var(--bg2)',
+                opacity: isEmpty ? 0.7 : (isSubmitted ? 0.65 : 1),
+                transition: 'background .15s, opacity .15s' }}>
 
               <div style={{ borderRight: '1px solid var(--border)', position: 'relative' }}>
                 {!row.newProjName ? (
                   <select value={row.projectId || ''}
+                    disabled={isSubmitted}
                     onChange={e => {
                       const v = e.target.value
                       if (v === '__new__') {
@@ -333,7 +360,8 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
                       }
                     }}
                     style={{ ...cellInput, fontWeight: proj ? 600 : 400,
-                      color: proj ? 'var(--text)' : 'var(--text3)', cursor: 'pointer',
+                      color: isSubmitted ? 'var(--text3)' : (proj ? 'var(--text)' : 'var(--text3)'),
+                      cursor: isSubmitted ? 'default' : 'pointer',
                       appearance: 'none', backgroundImage:
                         "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236B9A80' stroke-width='3'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
                       backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
@@ -362,23 +390,45 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
 
               <div style={{ borderRight: '1px solid var(--border)', position: 'relative' }}>
                 <input type="text" value={row.rawInput}
+                  disabled={isSubmitted}
                   onChange={e => updateRow(row.id, { rawInput: e.target.value })}
                   placeholder="t.d. 9.30-10"
-                  style={{ ...cellInput, fontFamily: 'var(--mono)' }}/>
+                  style={{ ...cellInput, fontFamily: 'var(--mono)',
+                    color: isSubmitted ? 'var(--text3)' : 'var(--text)' }}/>
               </div>
 
               <div style={{ borderRight: '1px solid var(--border)' }}>
                 <input type="text" value={row.description}
+                  disabled={isSubmitted}
                   onChange={e => updateRow(row.id, { description: e.target.value })}
                   placeholder="Kva har du jobba med?"
-                  style={cellInput}/>
+                  style={{ ...cellInput, color: isSubmitted ? 'var(--text3)' : 'var(--text)' }}/>
               </div>
 
               <div style={{ borderRight: '1px solid var(--border)',
                 padding: '8px 12px', textAlign: 'right',
                 fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600,
-                color: row.hours > 0 ? 'var(--brand)' : 'var(--text3)' }}>
+                color: isSubmitted ? 'var(--text3)' : (row.hours > 0 ? 'var(--brand)' : 'var(--text3)') }}>
                 {row.hours > 0 ? row.hours.toFixed(2) + 't' : '–'}
+              </div>
+
+              <div style={{ borderRight: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {row.isPersisted && (
+                  <button onClick={() => toggleSubmitted(row.id)}
+                    title={isSubmitted ? 'Marker som ikkje sendt inn' : 'Marker som sendt inn'}
+                    style={{ display: 'flex', alignItems: 'center', gap: 5,
+                      padding: '5px 9px', borderRadius: 6, cursor: 'pointer',
+                      fontSize: 12, fontWeight: 700,
+                      border: `1.5px solid ${isSubmitted ? 'var(--text3)' : 'var(--border2)'}`,
+                      background: isSubmitted ? 'var(--text3)' : 'transparent',
+                      color: isSubmitted ? '#fff' : 'var(--text3)',
+                      transition: 'all .15s' }}
+                    onMouseEnter={e => { if (!isSubmitted) { e.currentTarget.style.borderColor = 'var(--brand3)'; e.currentTarget.style.color = 'var(--brand)' } }}
+                    onMouseLeave={e => { if (!isSubmitted) { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.color = 'var(--text3)' } }}>
+                    {isSubmitted ? '✓ Sendt' : 'Send inn'}
+                  </button>
+                )}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -398,7 +448,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
 
         {Object.keys(totalsByProject).length > 1 && (
           <div style={{ borderTop: '2px solid var(--brand3)', background: 'var(--bg3)' }}>
-            <div style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700,
+            <div style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700,
               color: 'var(--brand)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
               Oppsummering per prosjekt
             </div>
@@ -406,17 +456,18 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
               const proj = key === '__nopr__' ? null : projectMap[parseInt(key)]
               return (
                 <div key={key} style={{ display: 'grid',
-                  gridTemplateColumns: '220px 120px 1fr 80px 40px',
+                  gridTemplateColumns: '220px 120px 1fr 80px 90px 40px',
                   borderTop: '1px solid var(--border)' }}>
-                  <div style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text2)' }}>
+                  <div style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
                     {proj ? `📁 ${proj.name}` : '— Utan prosjekt —'}
                   </div>
                   <div></div>
                   <div></div>
                   <div style={{ padding: '8px 12px', textAlign: 'right',
-                    fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--brand)' }}>
+                    fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--brand)' }}>
                     {total.toFixed(2)}t
                   </div>
+                  <div></div>
                   <div></div>
                 </div>
               )
@@ -425,17 +476,18 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
         )}
 
         <div style={{ background: 'var(--brand)', color: '#fff',
-          display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 40px' }}>
+          display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 90px 40px' }}>
           <div style={{ padding: '12px 14px', fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 12 }}>
+            textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 13 }}>
             Totalt {fmtDate(date)}
           </div>
           <div></div>
           <div></div>
           <div style={{ padding: '12px 12px', textAlign: 'right',
-            fontFamily: 'var(--mono)', fontSize: 16, fontWeight: 700 }}>
+            fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700 }}>
             {grandTotal.toFixed(2)}t
           </div>
+          <div></div>
           <div></div>
         </div>
       </div>
