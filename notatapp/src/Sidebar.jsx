@@ -10,6 +10,9 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
   const [ctxMenu,   setCtxMenu]   = useState(null)
   const [renaming,  setRenaming]  = useState(null)  // projectId being renamed
   const renameRef = useRef(null)
+  const [showNewOffice,  setShowNewOffice]  = useState(false)
+  const [newOfficeName,  setNewOfficeName]  = useState('')
+  const [newOfficeColor, setNewOfficeColor] = useState('#1B4332')
 
   const modeProjects = projects.filter(p => (p.type || 'work') === mode)
   const notesFor     = id => notes.filter(n => n.projectId === id && !n.done)
