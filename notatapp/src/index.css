@@ -46,6 +46,26 @@
   --text3:       #3D6590;
 }
 
+
+/* ── Norconsult theme — peach/warm ── */
+:root.theme-norconsult {
+  --brand:       #C2570A;
+  --brand2:      #D4691A;
+  --brand3:      #E07B30;
+  --brand4:      #EC9A5A;
+  --brandbg:     rgba(194,87,10,.10);
+  --brandbg2:    rgba(194,87,10,.18);
+  --bg:          #FBF5F0;
+  --bg2:         #FFFFFF;
+  --bg3:         #F5E8DC;
+  --bg4:         #EDD4BE;
+  --border:      #DDB897;
+  --border2:     #C89070;
+  --text:        #1E0E00;
+  --text2:       #4A2800;
+  --text3:       #8A5A30;
+}
+
 :root {
 
   --font: 'DM Sans', system-ui, sans-serif;

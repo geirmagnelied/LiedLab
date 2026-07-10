@@ -2,7 +2,9 @@ import { useState, useRef } from 'react'
 
 export default function Sidebar({ projects, notes, onSelectProject, onSelectNote,
                                    selectedProjectId, onDeleteProject, onNewNote,
-                                   onToggleFavorite, onRenameProject, mode, onSetMode }) {
+                                   onToggleFavorite, onRenameProject, mode,
+                                   offices, activeOfficeId, onSetOffice,
+                                   onAddOffice, onUpdateOffice, onDeleteOffice }) {
   const [projsOpen, setProjsOpen] = useState(true)
   const [openProjs, setOpenProjs] = useState({})
   const [ctxMenu,   setCtxMenu]   = useState(null)
@@ -181,23 +183,77 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
           </div>
         </div>
 
-        {/* Mode toggle: Jobb / Privat */}
-        <div style={{ display:'flex', background:'rgba(255,255,255,.1)', borderRadius:'var(--r2)',
-          padding:3, border:'1.5px solid rgba(255,255,255,.18)' }}>
-          <button onClick={() => onSetMode && onSetMode('work')}
-            style={{ flex:1, padding:'8px 10px', border:'none', borderRadius:'var(--r)',
-              background: mode==='work' ? 'rgba(255,255,255,.92)' : 'transparent',
-              color: mode==='work' ? 'var(--brand)' : 'rgba(255,255,255,.65)',
-              fontSize:13, fontWeight:700, cursor:'pointer', transition:'all .15s' }}>
-            Jobb
-          </button>
-          <button onClick={() => onSetMode && onSetMode('private')}
-            style={{ flex:1, padding:'8px 10px', border:'none', borderRadius:'var(--r)',
-              background: mode==='private' ? 'rgba(255,255,255,.92)' : 'transparent',
-              color: mode==='private' ? 'var(--brand)' : 'rgba(255,255,255,.65)',
-              fontSize:13, fontWeight:700, cursor:'pointer', transition:'all .15s' }}>
-            Privat
-          </button>
+        {/* Office switcher */}
+        <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+          {(offices || []).map(office => (
+            <button key={office.id}
+              onClick={() => { onSetOffice(office.id); onSelectProject(null) }}
+              style={{ display:'flex', alignItems:'center', gap:9,
+                padding:'8px 12px', border:'none', borderRadius:'var(--r)',
+                background: activeOfficeId === office.id
+                  ? 'rgba(255,255,255,.92)' : 'rgba(255,255,255,.1)',
+                color: activeOfficeId === office.id ? office.color : 'rgba(255,255,255,.75)',
+                fontSize:13, fontWeight:700, cursor:'pointer', transition:'all .15s',
+                textAlign:'left' }}>
+              <span style={{ width:12, height:12, borderRadius:'50%', background:office.color,
+                flexShrink:0, border:'2px solid rgba(255,255,255,.4)' }}/>
+              {office.name}
+            </button>
+          ))}
+          {/* Add new office */}
+          {showNewOffice ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:5, padding:'8px',
+              background:'rgba(255,255,255,.1)', borderRadius:'var(--r)' }}>
+              <input type="text" value={newOfficeName}
+                onChange={e => setNewOfficeName(e.target.value)}
+                placeholder="Namn på kontor"
+                autoFocus
+                style={{ padding:'5px 8px', borderRadius:5, border:'1px solid rgba(255,255,255,.3)',
+                  background:'rgba(255,255,255,.15)', color:'#fff', fontSize:12,
+                  fontFamily:'var(--font)', outline:'none' }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newOfficeName.trim()) {
+                    onAddOffice(newOfficeName.trim(), newOfficeColor)
+                      .then(o => { onSetOffice(o.id); setShowNewOffice(false); setNewOfficeName('') })
+                  }
+                  if (e.key === 'Escape') { setShowNewOffice(false); setNewOfficeName('') }
+                }}/>
+              <div style={{ display:'flex', gap:5, alignItems:'center' }}>
+                {['#1B4332','#1A56A0','#C2570A','#5E35B1','#B91C1C'].map(c => (
+                  <button key={c} onClick={() => setNewOfficeColor(c)}
+                    style={{ width:18, height:18, borderRadius:'50%', background:c, border:'none',
+                      cursor:'pointer', outline: newOfficeColor===c ? '2px solid #fff' : 'none',
+                      outlineOffset:1 }}/>
+                ))}
+                <span style={{ fontSize:11, color:'rgba(255,255,255,.5)', marginLeft:4 }}>Farge</span>
+              </div>
+              <div style={{ display:'flex', gap:5 }}>
+                <button onClick={() => {
+                    if (newOfficeName.trim()) {
+                      onAddOffice(newOfficeName.trim(), newOfficeColor)
+                        .then(o => { onSetOffice(o.id); setShowNewOffice(false); setNewOfficeName('') })
+                    }
+                  }}
+                  style={{ flex:1, padding:'5px', background:'rgba(255,255,255,.2)',
+                    border:'none', borderRadius:5, color:'#fff', fontSize:12,
+                    fontWeight:700, cursor:'pointer' }}>
+                  Lagre
+                </button>
+                <button onClick={() => { setShowNewOffice(false); setNewOfficeName('') }}
+                  style={{ padding:'5px 8px', background:'none', border:'none',
+                    color:'rgba(255,255,255,.5)', fontSize:12, cursor:'pointer' }}>
+                  Avbryt
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowNewOffice(true)}
+              style={{ padding:'6px 12px', border:'1.5px dashed rgba(255,255,255,.25)',
+                borderRadius:'var(--r)', background:'transparent',
+                color:'rgba(255,255,255,.45)', fontSize:12, cursor:'pointer', textAlign:'left' }}>
+              + Nytt kontor
+            </button>
+          )}
         </div>
       </div>
 

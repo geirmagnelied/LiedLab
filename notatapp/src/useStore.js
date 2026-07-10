@@ -56,6 +56,7 @@ async function migrateLocalStorage(userId) {
 export function useStore(userId) {
   const [notes,    setNotes]    = useState([])
   const [projects, setProjects] = useState([])
+  const [offices,  setOffices]  = useState([])
   const [loading,  setLoading]  = useState(true)
 
   // ── Load from Supabase ────────────────────────────────────────────────
@@ -64,14 +65,19 @@ export function useStore(userId) {
     setLoading(true)
     await migrateLocalStorage(userId)
 
-    const [{ data: pData }, { data: nData }] = await Promise.all([
+    const [{ data: oData }, { data: pData }, { data: nData }] = await Promise.all([
+      supabase.from('offices').select('*').eq('user_id', userId).order('sort_order').order('name'),
       supabase.from('projects').select('*').eq('user_id', userId).order('favorite', { ascending: false }).order('name'),
       supabase.from('notes').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     ])
 
+    setOffices((oData || []).map(o => ({
+      id: o.id, name: o.name, color: o.color || '#1B4332', sortOrder: o.sort_order,
+    })))
     setProjects((pData || []).map(p => ({
       id: p.id, name: p.name, favorite: p.favorite,
       type: p.type || 'work',
+      officeId: p.office_id || null,
       createdAt: p.created_at,
     })))
     setNotes((nData || []).map(n => ({
@@ -198,19 +204,19 @@ export function useStore(userId) {
   }
 
   // ── Projects ──────────────────────────────────────────────────────────
-  const addProject = async (name, type='work') => {
-    const ex = projects.find(p => p.name.toLowerCase() === name.toLowerCase())
+  const addProject = async (name, type='work', officeId=null) => {
+    const ex = projects.find(p => p.name.toLowerCase() === name.toLowerCase() && p.officeId === officeId)
     if (ex) return ex
     const id = Date.now()
     const { error } = await supabase.from('projects').insert({
-      id, user_id: userId, name, favorite: false, type,
+      id, user_id: userId, name, favorite: false, type, office_id: officeId,
       created_at: new Date().toISOString(),
     })
     if (!error) {
-      setProjects(ps => [...ps, { id, name, favorite: false, type, createdAt: new Date().toISOString() }]
+      setProjects(ps => [...ps, { id, name, favorite: false, type, officeId, createdAt: new Date().toISOString() }]
         .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || a.name.localeCompare(b.name)))
     }
-    return { id, name, favorite: false }
+    return { id, name, favorite: false, officeId }
   }
 
   const updateProject = async (id, changes) => {
@@ -224,6 +230,29 @@ export function useStore(userId) {
     await loadAll()
   }
 
+  // ── Offices ───────────────────────────────────────────────────────────
+  const addOffice = async (name, color='#1B4332') => {
+    const id = Date.now()
+    const { error } = await supabase.from('offices').insert({
+      id, user_id: userId, name, color, sort_order: offices.length,
+      created_at: new Date().toISOString(),
+    })
+    if (!error) setOffices(os => [...os, { id, name, color, sortOrder: os.length }])
+    return { id, name, color }
+  }
+
+  const updateOffice = async (id, changes) => {
+    await supabase.from('offices').update(changes).eq('id', id).eq('user_id', userId)
+    setOffices(os => os.map(o => o.id === id ? { ...o, ...changes } : o))
+  }
+
+  const deleteOffice = async (id) => {
+    await supabase.from('offices').delete().eq('id', id).eq('user_id', userId)
+    await supabase.from('projects').update({ office_id: null }).eq('office_id', id).eq('user_id', userId)
+    setOffices(os => os.filter(o => o.id !== id))
+    setProjects(ps => ps.map(p => p.officeId === id ? { ...p, officeId: null } : p))
+  }
+
   const toggleFavorite = async (id) => {
     const proj = projects.find(p => p.id === id)
     if (!proj) return
@@ -233,9 +262,10 @@ export function useStore(userId) {
   }
 
   return {
-    notes, projects, loading,
+    notes, projects, offices, loading,
     addNote, updateNote, deleteNote, toggleDone,
     addTask, updateTask, deleteTask,
     addProject, updateProject, deleteProject, toggleFavorite,
+    addOffice, updateOffice, deleteOffice,
   }
 }

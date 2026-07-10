@@ -16,7 +16,8 @@ const MIN_W = 160, MAX_W = 600
 
 export default function App({ userId, userEmail }) {
   const { notes, projects, loading, addNote, updateNote, deleteNote, toggleDone,
-          addTask, updateTask, deleteTask, addProject, updateProject, deleteProject, toggleFavorite } = useStore(userId)
+          addTask, updateTask, deleteTask, addProject, updateProject, deleteProject, toggleFavorite,
+          offices, addOffice, updateOffice, deleteOffice } = useStore(userId)
 
   const [view,              setView]              = useState('new')
   const [selectedProjectId, setSelectedProjectId] = useState(null)
@@ -35,7 +36,7 @@ export default function App({ userId, userEmail }) {
   const [pendingEditId,     setPendingEditId]     = useState(null)
   const [isMobile,          setIsMobile]          = useState(window.innerWidth < 768)
   const [mobileSheet,       setMobileSheet]       = useState(false)
-  const [mode,              setMode]              = useState('work')  // 'work' | 'private'
+  const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
 
   // Expose nextFriday to NoteList via window (simple bridge)
   useEffect(() => {
@@ -87,14 +88,28 @@ export default function App({ userId, userEmail }) {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  // Apply colour theme
+  // Apply colour theme based on active office
   useEffect(() => {
-    if (mode === 'private') {
-      document.documentElement.classList.add('theme-private')
-    } else {
-      document.documentElement.classList.remove('theme-private')
+    const el = document.documentElement
+    el.classList.remove('theme-private', 'theme-norconsult')
+    const office = offices.find(o => o.id === activeOfficeId)
+    if (!office) return
+    // Map office color to CSS class
+    const color = office.color || ''
+    if (color.startsWith('#C25') || color.startsWith('#D46') || color.startsWith('#E07')) {
+      el.classList.add('theme-norconsult')
+    } else if (color.startsWith('#1A5') || color.startsWith('#1E6') || color.startsWith('#3B8')) {
+      el.classList.add('theme-private')
     }
-  }, [mode])
+    // Default (green) needs no class
+  }, [activeOfficeId, offices])
+
+  // Set initial office when offices load
+  useEffect(() => {
+    if (offices.length > 0 && activeOfficeId === null) {
+      setActiveOfficeId(offices[0].id)
+    }
+  }, [offices.length])
 
   // Timeline drop handler
   useEffect(() => {
@@ -161,7 +176,7 @@ export default function App({ userId, userEmail }) {
             meetingTime, meetingDuration, meetingLocation, attendees } = data
     let pid = projectId
     if (newProjName && !projectId) {
-      const p = await addProject(newProjName, mode)
+      const p = await addProject(newProjName, mode, activeOfficeId)
       pid = p.id
     }
     const noteData = { title, text, html, tasks, tag, projectId: pid,
@@ -181,7 +196,7 @@ export default function App({ userId, userEmail }) {
             meetingTime, meetingDuration, meetingLocation, attendees } = data
     let pid = projectId
     if (newProjName && !projectId) {
-      const p = await addProject(newProjName, mode)
+      const p = await addProject(newProjName, mode, activeOfficeId)
       pid = p.id
     }
     const noteData = { title, text, html, tasks, tag, projectId: pid,
@@ -217,12 +232,18 @@ export default function App({ userId, userEmail }) {
 
   const defaultProjectId = view==='new' && !editNote ? selectedProjectId : undefined
   const selProj          = selectedProjectId ? projects.find(p=>p.id===selectedProjectId) : null
-  // Filter notes by mode (show notes whose project matches current mode, or unassigned)
-  const modeProjectIds   = new Set(projects.filter(p=>(p.type||'work')===mode).map(p=>p.id))
-  const modeNotes        = notes.filter(n => !n.projectId || modeProjectIds.has(n.projectId))
+  // Filter projects and notes by active office
+  const officeProjects   = activeOfficeId
+    ? projects.filter(p => p.officeId === activeOfficeId)
+    : projects
+  const officeProjectIds = new Set(officeProjects.map(p => p.id))
+  const modeNotes        = notes.filter(n => !n.projectId || officeProjectIds.has(n.projectId))
   const visibleNotes     = selectedProjectId
-    ? modeNotes.filter(n=>n.projectId===selectedProjectId)
+    ? modeNotes.filter(n => n.projectId === selectedProjectId)
     : modeNotes
+  // Derive mode from active office for backwards compat (e-post routing etc)
+  const activeOffice     = offices.find(o => o.id === activeOfficeId)
+  const mode             = activeOffice ? (activeOffice.color?.startsWith('#1A5') ? 'private' : 'work') : 'work'
   const listProps = { projects, onDelete:deleteNote, onToggleDone:toggleDone, onEdit:handleEdit,
     onUpdateTask:updateTask, onDeleteTask:deleteTask, onAddTask:addTask,
     onMoveToProject:handleMoveToProject, onRenameNote:handleRenameNote }
@@ -315,14 +336,17 @@ export default function App({ userId, userEmail }) {
             style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', zIndex:100 }}/>
           <div style={{ position:'fixed', left:0, top:0, bottom:0, width:280,
             zIndex:101, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-            <Sidebar projects={projects} notes={notes}
+            <Sidebar projects={officeProjects} notes={modeNotes}
               onSelectProject={id => { handleSelectProject(id); setMobileSheet(false) }}
               onSelectNote={id => { handleSelectNote(id); setMobileSheet(false) }}
               selectedProjectId={selectedProjectId}
               onDeleteProject={deleteProject}
               onNewNote={() => { handleNewNote('regular'); setMobileSheet(false) }}
               onToggleFavorite={toggleFavorite}
-              onRenameProject={handleRenameProject} mode={mode} onSetMode={setMode}/>
+              onRenameProject={handleRenameProject}
+              offices={offices} activeOfficeId={activeOfficeId} onSetOffice={setActiveOfficeId}
+              onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}
+              mode={mode}/>
           </div>
         </>
       )}
@@ -331,8 +355,8 @@ export default function App({ userId, userEmail }) {
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
         {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote}/>}
         {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
-        {view==='timar'    && <TimeTracker userId={userId} projects={projects} addProject={addProject} mode={mode}/>}
-        {view==='prognose' && <ForecastView userId={userId} projects={projects} mode={mode}/>}
+        {view==='timar'    && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
+        {view==='prognose' && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
         {view==='fristar'  && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
       </div>
 
@@ -365,11 +389,14 @@ export default function App({ userId, userEmail }) {
           {!sbCollapsed && (
             <>
               <aside style={{ width:sbWidth,minWidth:sbWidth,overflow:'hidden',flexShrink:0,display:'flex',flexDirection:'column' }}>
-                <Sidebar projects={projects} notes={notes}
+                <Sidebar projects={officeProjects} notes={modeNotes}
                   onSelectProject={handleSelectProject} onSelectNote={handleSelectNote}
                   selectedProjectId={selectedProjectId} onDeleteProject={deleteProject}
                   onNewNote={handleNewNote} onToggleFavorite={toggleFavorite}
-                  onRenameProject={handleRenameProject} mode={mode} onSetMode={setMode}/>
+                  onRenameProject={handleRenameProject}
+                  offices={offices} activeOfficeId={activeOfficeId} onSetOffice={setActiveOfficeId}
+                  onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}
+                  mode={mode}/>
               </aside>
               <div className="resize-handle" onMouseDown={e=>onColMouseDown('sb',e)}/>
             </>
@@ -461,8 +488,8 @@ export default function App({ userId, userEmail }) {
             <div style={{ flex:1,overflowY:'auto',padding:'22px 26px' }}>
               {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote}/>}
               {view==='notatar'    && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
-              {view==='timar'      && <TimeTracker userId={userId} projects={projects} addProject={addProject} mode={mode}/>}
-              {view==='prognose'   && <ForecastView userId={userId} projects={projects} mode={mode}/>}
+              {view==='timar'      && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
+              {view==='prognose'   && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
               {view==='fristar'    && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
             </div>
           </main>
