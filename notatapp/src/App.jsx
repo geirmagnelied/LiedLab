@@ -233,17 +233,26 @@ export default function App({ userId, userEmail }) {
   const defaultProjectId = view==='new' && !editNote ? selectedProjectId : undefined
   const selProj          = selectedProjectId ? projects.find(p=>p.id===selectedProjectId) : null
   // Filter projects and notes by active office
+  const activeOffice     = offices.find(o => o.id === activeOfficeId)
+  const mode             = activeOffice
+    ? (activeOffice.color?.startsWith('#1A5') ? 'private' : 'work') : 'work'
   const officeProjects   = activeOfficeId
     ? projects.filter(p => p.officeId === activeOfficeId)
     : projects
   const officeProjectIds = new Set(officeProjects.map(p => p.id))
-  const modeNotes        = notes.filter(n => !n.projectId || officeProjectIds.has(n.projectId))
+  // All project IDs that belong to OTHER offices (exclude from view)
+  const otherOfficeIds   = new Set(
+    projects.filter(p => p.officeId && p.officeId !== activeOfficeId).map(p => p.id)
+  )
+  const modeNotes        = notes.filter(n => {
+    if (!n.projectId) return true                    // no project → always show
+    if (otherOfficeIds.has(n.projectId)) return false // belongs to another office → hide
+    if (activeOfficeId) return officeProjectIds.has(n.projectId) // must match office
+    return true
+  })
   const visibleNotes     = selectedProjectId
     ? modeNotes.filter(n => n.projectId === selectedProjectId)
     : modeNotes
-  // Derive mode from active office for backwards compat (e-post routing etc)
-  const activeOffice     = offices.find(o => o.id === activeOfficeId)
-  const mode             = activeOffice ? (activeOffice.color?.startsWith('#1A5') ? 'private' : 'work') : 'work'
   const listProps = { projects, onDelete:deleteNote, onToggleDone:toggleDone, onEdit:handleEdit,
     onUpdateTask:updateTask, onDeleteTask:deleteTask, onAddTask:addTask,
     onMoveToProject:handleMoveToProject, onRenameNote:handleRenameNote }
