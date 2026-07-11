@@ -6,6 +6,7 @@ import NoteList from './NoteList'
 import DeadlineView from './DeadlineView'
 import TimeTracker from './TimeTracker'
 import ForecastView from './ForecastView'
+import SettingsPanel from './SettingsPanel'
 import CalendarView from './CalendarView'
 import Timeline from './Timeline'
 
@@ -37,6 +38,7 @@ export default function App({ userId, userEmail }) {
   const [isMobile,          setIsMobile]          = useState(window.innerWidth < 768)
   const [mobileSheet,       setMobileSheet]       = useState(false)
   const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
+  const [showSettings,      setShowSettings]      = useState(false)
 
   // Expose nextFriday to NoteList via window (simple bridge)
   useEffect(() => {
@@ -417,6 +419,15 @@ export default function App({ userId, userEmail }) {
               borderBottom:'1px solid rgba(255,255,255,.1)',background:'var(--brand)',
               height:50,flexShrink:0 }}>
               <IcoBtn onClick={()=>setSbCollapsed(v=>!v)} active={sbCollapsed} title="Meny"><span style={{fontWeight:800,fontSize:13}}>M</span></IcoBtn>
+              <button onClick={() => setShowSettings(true)}
+                title="Innstillingar"
+                style={{ display:'flex', flexDirection:'column', gap:3, padding:'7px 8px',
+                  background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.2)',
+                  borderRadius:'var(--r)', cursor:'pointer', flexShrink:0 }}>
+                <span style={{display:'block',width:16,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
+                <span style={{display:'block',width:16,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
+                <span style={{display:'block',width:16,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
+              </button>
               <div style={{width:8}}/>
               {/* Combined "Nytt notat" button with dropdown arrow */}
               <div style={{ position:'relative' }} ref={newNoteMenuRef}>
@@ -529,6 +540,18 @@ export default function App({ userId, userEmail }) {
       {/* Right green border strip on calendar side */}
       <div style={{ width:6, flexShrink:0, background:'var(--brand)' }}/>
     </div>
+  {showSettings && (
+    <SettingsPanel
+      onClose={() => setShowSettings(false)}
+      offices={offices}
+      activeOfficeId={activeOfficeId}
+      userId={userId}
+      userEmail={userEmail}
+      onAddOffice={addOffice}
+      onUpdateOffice={updateOffice}
+      onDeleteOffice={deleteOffice}
+    />
+  )}
   )
 }
 
@@ -553,5 +576,17 @@ function StatusBar() {
       </span>
       <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v6</span>
     </div>
+  {showSettings && (
+    <SettingsPanel
+      onClose={() => setShowSettings(false)}
+      offices={offices}
+      activeOfficeId={activeOfficeId}
+      userId={userId}
+      userEmail={userEmail}
+      onAddOffice={addOffice}
+      onUpdateOffice={updateOffice}
+      onDeleteOffice={deleteOffice}
+    />
+  )}
   )
 }
