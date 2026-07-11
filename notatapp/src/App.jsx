@@ -332,6 +332,15 @@ export default function App({ userId, userEmail }) {
         <div style={{ flex:1, fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em' }}>
           {selProj ? selProj.name : 'Notatapp'}
         </div>
+        <button onClick={() => setShowSettings(true)}
+          title="Innstillingar"
+          style={{ display:'flex', flexDirection:'column', gap:3, padding:'7px 8px',
+            background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.2)',
+            borderRadius:'var(--r)', cursor:'pointer', flexShrink:0 }}>
+          <span style={{display:'block',width:14,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
+          <span style={{display:'block',width:14,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
+          <span style={{display:'block',width:14,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
+        </button>
         <button onClick={()=>{ import('./supabase').then(m=>m.supabase.auth.signOut()) }}
           style={{ background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.2)',
             borderRadius:'var(--r)', padding:'5px 10px', color:'rgba(255,255,255,.8)',
@@ -380,6 +389,19 @@ export default function App({ userId, userEmail }) {
         <MobileTab v="timar"    letter="T" label="Timar"/>
         <MobileTab v="fristar"  letter="F" label="Fristar"/>
       </div>
+
+      {showSettings && (
+        <SettingsPanel
+          onClose={() => setShowSettings(false)}
+          offices={offices}
+          activeOfficeId={activeOfficeId}
+          userId={userId}
+          userEmail={userEmail}
+          onAddOffice={addOffice}
+          onUpdateOffice={updateOffice}
+          onDeleteOffice={deleteOffice}
+        />
+      )}
     </div>
   )
 
@@ -539,20 +561,21 @@ export default function App({ userId, userEmail }) {
 
       {/* Right green border strip on calendar side */}
       <div style={{ width:6, flexShrink:0, background:'var(--brand)' }}/>
+
+      {showSettings && (
+        <SettingsPanel
+          onClose={() => setShowSettings(false)}
+          offices={offices}
+          activeOfficeId={activeOfficeId}
+          userId={userId}
+          userEmail={userEmail}
+          onAddOffice={addOffice}
+          onUpdateOffice={updateOffice}
+          onDeleteOffice={deleteOffice}
+        />
+      )}
     </div>
-  {showSettings && (
-    <SettingsPanel
-      onClose={() => setShowSettings(false)}
-      offices={offices}
-      activeOfficeId={activeOfficeId}
-      userId={userId}
-      userEmail={userEmail}
-      onAddOffice={addOffice}
-      onUpdateOffice={updateOffice}
-      onDeleteOffice={deleteOffice}
-    />
-  )}
-  )
+)
 }
 
 function StatusBar() {
@@ -576,17 +599,5 @@ function StatusBar() {
       </span>
       <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v6</span>
     </div>
-  {showSettings && (
-    <SettingsPanel
-      onClose={() => setShowSettings(false)}
-      offices={offices}
-      activeOfficeId={activeOfficeId}
-      userId={userId}
-      userEmail={userEmail}
-      onAddOffice={addOffice}
-      onUpdateOffice={updateOffice}
-      onDeleteOffice={deleteOffice}
-    />
-  )}
-  )
+)
 }
