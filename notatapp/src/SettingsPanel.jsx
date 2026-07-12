@@ -23,7 +23,10 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
   const panelRef = useRef(null)
 
   const activeOffice = offices.find(o => o.id === activeOfficeId)
-  const isAdmin = members.some(m => m.user_id === userId && m.role === 'admin' && m.status === 'active')
+  // Admin = aktiv admin-medlem ELLER eigar av kontoret (offices-radene er
+  // lasta per innlogga brukar, så eit aktivt kontor i lista er alltid eigd av deg)
+  const isAdmin = !!activeOffice
+    || members.some(m => m.user_id === userId && m.role === 'admin' && m.status === 'active')
 
   // Load members for active office
   useEffect(() => {

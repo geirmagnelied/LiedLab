@@ -199,6 +199,20 @@ function CaseModal({ caseData, onSave, onDelete, onClose, userId }) {
           {/* Actions */}
           <div style={{ display:'flex', gap:10, justifyContent:'space-between',
             borderTop:'1px solid var(--border)', paddingTop:14 }}>
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={save} disabled={uploading}
+                style={{ padding:'9px 22px', background:'var(--brand)', border:'none',
+                  borderRadius:'var(--r)', color:'#fff', fontSize:13, fontWeight:700,
+                  cursor:'pointer', opacity: uploading ? 0.7 : 1 }}>
+                Lagre sak
+              </button>
+              <button onClick={onClose}
+                style={{ padding:'9px 16px', background:'var(--bg3)',
+                  border:'1px solid var(--border)', borderRadius:'var(--r)',
+                  color:'var(--text2)', fontSize:13, cursor:'pointer' }}>
+                Avbryt
+              </button>
+            </div>
             <div>
               {caseData.id && (
                 <button onClick={() => {
@@ -210,20 +224,6 @@ function CaseModal({ caseData, onSave, onDelete, onClose, userId }) {
                   Slett sak
                 </button>
               )}
-            </div>
-            <div style={{ display:'flex', gap:10 }}>
-              <button onClick={onClose}
-                style={{ padding:'9px 16px', background:'var(--bg3)',
-                  border:'1px solid var(--border)', borderRadius:'var(--r)',
-                  color:'var(--text2)', fontSize:13, cursor:'pointer' }}>
-                Avbryt
-              </button>
-              <button onClick={save} disabled={uploading}
-                style={{ padding:'9px 22px', background:'var(--brand)', border:'none',
-                  borderRadius:'var(--r)', color:'#fff', fontSize:13, fontWeight:700,
-                  cursor:'pointer', opacity: uploading ? 0.7 : 1 }}>
-                Lagre sak
-              </button>
             </div>
           </div>
         </div>
@@ -321,18 +321,17 @@ export default function CaseTable({ noteId, projectId, userId }) {
 
   return (
     <div style={{ marginTop:4 }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-        marginBottom:8 }}>
-        <div style={{ fontSize:12, fontWeight:700, color:'var(--text3)',
-          textTransform:'uppercase', letterSpacing:'.06em' }}>
-          Saksliste {cases.length > 0 && `(${cases.length})`}
-        </div>
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:8 }}>
         <button onClick={() => setModal({ status:'Ny', attachments:[] })}
-          style={{ padding:'6px 14px', background:'var(--brand)', border:'none',
+          style={{ padding:'7px 16px', background:'var(--brand)', border:'none',
             borderRadius:'var(--r)', color:'#fff', fontSize:12, fontWeight:700,
             cursor:'pointer' }}>
           + Ny sak
         </button>
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text3)',
+          textTransform:'uppercase', letterSpacing:'.06em' }}>
+          Saksliste {cases.length > 0 && `(${cases.length})`}
+        </div>
       </div>
 
       {errorMsg && (

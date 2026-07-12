@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { parseISO, format, startOfWeek, endOfWeek, addDays, addWeeks, addMonths,
   startOfMonth, endOfMonth, getISOWeek, isSameDay, isToday, isSameMonth } from 'date-fns'
 import { nb } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Filter, CalendarDays } from 'lucide-react'
 
 const PALETTE = ['#1B4332','#2D6A4F','#40916C','#1565C0','#5E35B1',
                  '#B5296B','#0E7490','#7C3500','#1D4ED8','#6B21A8']
@@ -19,7 +18,48 @@ export default function Timeline({ notes, projects, height, onResize }) {
   const [tooltip,     setTooltip]     = useState(null)
   const [dragOver,    setDragOver]    = useState(null)
   const scrollRef = useRef(null)
+  const headerRef = useRef(null)
   const [ctxMenu, setCtxMenu] = useState(null)  // { x, y, dateStr }
+
+  // Keep the fixed header row (months / weeks) in lock-step with the
+  // scrollable row beneath it.
+  const syncHeaderScroll = () => {
+    if (headerRef.current && scrollRef.current) {
+      headerRef.current.scrollLeft = scrollRef.current.scrollLeft
+    }
+  }
+
+  // Drag-to-pan: hald museknappen nede og dra for å bla i tidslinja
+  const panRef = useRef({ active:false, startX:0, startLeft:0, moved:false })
+  const panDown = (e) => {
+    if (e.button !== 0) return
+    // Ikkje start panorering på interaktive element (oppgåve-drag, knappar)
+    if (e.target.closest && e.target.closest('[draggable="true"], button, a, input, select, textarea')) return
+    const el = scrollRef.current
+    if (!el) return
+    panRef.current = { active:true, startX:e.clientX, startLeft:el.scrollLeft, moved:false }
+    el.style.cursor = 'grabbing'
+    const move = (ev) => {
+      if (!panRef.current.active) return
+      const dx = ev.clientX - panRef.current.startX
+      if (Math.abs(dx) > 4) panRef.current.moved = true
+      el.scrollLeft = panRef.current.startLeft - dx
+      syncHeaderScroll()
+    }
+    const up = () => {
+      panRef.current.active = false
+      if (scrollRef.current) scrollRef.current.style.cursor = 'grab'
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+      setTimeout(() => { panRef.current.moved = false }, 0)
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }
+  // Svelg klikk som eigentleg var slutten på ei panorering
+  const panClickCapture = (e) => {
+    if (panRef.current.moved) { e.stopPropagation(); e.preventDefault() }
+  }
 
   const projIdx  = Object.fromEntries(projects.map((p,i) => [p.id, i]))
   const getColor = pid => pid != null ? pc(projIdx[pid] ?? 0) : '#888'
@@ -170,7 +210,7 @@ export default function Timeline({ notes, projects, height, onResize }) {
     return (
       <div style={{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}}>
         {/* Top: months — width proportional to week count */}
-        <div style={{display:'flex',borderBottom:'2px solid var(--brand)',flexShrink:0,overflowX:'hidden'}}>
+        <div ref={headerRef} style={{display:'flex',borderBottom:'2px solid var(--brand)',flexShrink:0,overflowX:'hidden'}}>
           {months.map((ms,i) => {
             const wks = monthWeekMap.get(format(ms,'yyyy-MM')) || []
             if (!wks.length) return null
@@ -195,7 +235,8 @@ export default function Timeline({ notes, projects, height, onResize }) {
           }).filter(Boolean)}
         </div>
         {/* Bottom: weeks scrollable */}
-        <div ref={scrollRef} style={{flex:1,display:'flex',overflowX:'auto',overflowY:'hidden'}}>
+        <div ref={scrollRef} onScroll={syncHeaderScroll} onMouseDown={panDown} onClickCapture={panClickCapture}
+          style={{flex:1,display:'flex',overflowX:'auto',overflowY:'hidden',cursor:'grab'}}>
           {allWeeks.map((ws,i) => {
             const we = endOfWeek(ws,{weekStartsOn:1})
             const isNow = ws<=today && we>=today
@@ -232,7 +273,7 @@ export default function Timeline({ notes, projects, height, onResize }) {
     return (
       <div style={{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}}>
         {/* Top: weeks */}
-        <div style={{display:'flex',borderBottom:'2px solid var(--brand)',flexShrink:0,overflowX:'hidden'}}>
+        <div ref={headerRef} style={{display:'flex',borderBottom:'2px solid var(--brand)',flexShrink:0,overflowX:'hidden'}}>
           {weeks.map((ws,i) => {
             const we = endOfWeek(ws,{weekStartsOn:1})
             const isNow = ws<=today&&we>=today
@@ -252,7 +293,8 @@ export default function Timeline({ notes, projects, height, onResize }) {
           })}
         </div>
         {/* Bottom: days */}
-        <div ref={scrollRef} style={{flex:1,display:'flex',overflowX:'auto',overflowY:'hidden'}}>
+        <div ref={scrollRef} onScroll={syncHeaderScroll} onMouseDown={panDown} onClickCapture={panClickCapture}
+          style={{flex:1,display:'flex',overflowX:'auto',overflowY:'hidden',cursor:'grab'}}>
           {weeks.flatMap((ws,wi) =>
             Array.from({length:7},(_,di) => {
               const d = addDays(ws,di)
@@ -342,7 +384,7 @@ export default function Timeline({ notes, projects, height, onResize }) {
       <div style={{display:'flex',alignItems:'center',gap:6,padding:'0 14px',
         height:40,borderBottom:'1px solid var(--border)',flexShrink:0,
         background:'var(--brand)',color:'#fff'}}>
-        <CalendarDays size={14} color="rgba(255,255,255,.7)"/>
+        <span style={{fontWeight:800,fontSize:13,color:"rgba(255,255,255,.85)"}}>T</span>
         <span style={{fontSize:11,fontWeight:800,letterSpacing:'.08em',
           textTransform:'uppercase',color:'rgba(255,255,255,.85)'}}>Tidslinje</span>
 
@@ -360,9 +402,9 @@ export default function Timeline({ notes, projects, height, onResize }) {
           ))}
         </div>
 
-        <button onClick={()=>navigate(-1)} style={{background:'none',border:'none',color:'rgba(255,255,255,.7)',cursor:'pointer',padding:'2px 3px',borderRadius:4,display:'flex'}}><ChevronLeft size={15}/></button>
+        <button onClick={()=>navigate(-1)} style={{background:'none',border:'none',color:'rgba(255,255,255,.7)',cursor:'pointer',padding:'2px 3px',borderRadius:4,display:'flex'}}><span style={{fontWeight:800,fontSize:15}}>‹</span></button>
         <button onClick={goToday} style={{padding:'2px 10px',borderRadius:10,border:'1px solid rgba(255,255,255,.3)',background:'rgba(255,255,255,.1)',color:'rgba(255,255,255,.9)',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>I dag</button>
-        <button onClick={()=>navigate(1)} style={{background:'none',border:'none',color:'rgba(255,255,255,.7)',cursor:'pointer',padding:'2px 3px',borderRadius:4,display:'flex'}}><ChevronRight size={15}/></button>
+        <button onClick={()=>navigate(1)} style={{background:'none',border:'none',color:'rgba(255,255,255,.7)',cursor:'pointer',padding:'2px 3px',borderRadius:4,display:'flex'}}><span style={{fontWeight:800,fontSize:15}}>›</span></button>
 
         <div style={{flex:1}}/>
         <span style={{fontSize:10,color:'rgba(255,255,255,.4)',marginRight:4}}>{allTasks.length} oppgåver · dra notat hit</span>
@@ -374,7 +416,7 @@ export default function Timeline({ notes, projects, height, onResize }) {
               border:'1px solid',borderColor:filterProjs.length>0?'#fff':'rgba(255,255,255,.3)',
               background:filterProjs.length>0?'rgba(255,255,255,.25)':'rgba(255,255,255,.1)',
               color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>
-            <Filter size={11}/>
+            <span style={{fontWeight:800,fontSize:11}}>V</span>
             {filterProjs.length>0?`${filterProjs.length} prosjekt`:'Alle'}
           </button>
           {showFilter&&(

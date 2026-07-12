@@ -522,14 +522,8 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
           </div>
         </div>
 
-        {/* Save all */}
-        <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:8 }}>
-          <button onClick={() => onCancelEdit && onCancelEdit()}
-            style={{ padding:'10px 18px', background:'var(--bg3)',
-              border:'1px solid var(--border)', borderRadius:'var(--r2)',
-              color:'var(--text2)', fontSize:13, cursor:'pointer' }}>
-            Avbryt
-          </button>
+        {/* Save all — primærknapp til venstre */}
+        <div style={{ display:'flex', justifyContent:'flex-start', gap:10, marginTop:8 }}>
           <button onClick={() => {
               // Commit any text still sitting in the input field
               if (newTaskText.trim()) commitNewTask()
@@ -557,6 +551,12 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
               color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
               boxShadow:'var(--shadow)' }}>
             Lagre {tasks.length > 0 ? `(${tasks.length + (newTaskText.trim() ? 1 : 0)})` : ''} oppgåve{(tasks.length + (newTaskText.trim() ? 1 : 0)) === 1 ? '' : 'r'}
+          </button>
+          <button onClick={() => onCancelEdit && onCancelEdit()}
+            style={{ padding:'10px 18px', background:'var(--bg3)',
+              border:'1px solid var(--border)', borderRadius:'var(--r2)',
+              color:'var(--text2)', fontSize:13, cursor:'pointer' }}>
+            Avbryt
           </button>
         </div>
       </div>
@@ -615,16 +615,17 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
         </div>
       )}
 
-      {/* ── Prosjekt + Tittel (éi rad i møte-/referatmodus) ── */}
+      {/* ── Prosjekt + Tittel (+ møtefelt på same linje i møte-/referatmodus) ── */}
       <div style={isMeeting
-        ? { display:'grid', gridTemplateColumns:'240px 1fr', gap:10, alignItems:'start' }
+        ? { display:'grid', gridTemplateColumns:'200px 1fr 170px 95px 1fr', gap:8, alignItems:'end' }
         : { display:'flex', flexDirection:'column', gap:10 }}>
         <div>
+          {isMeeting && <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Prosjekt</label>}
           <select value={projectVal==='__new__' ? '__new__' : projectVal}
             onChange={e => setProjectVal(e.target.value)}
             title="Prosjekt"
             style={{ ...fi, fontWeight: projectVal && projectVal!=='__new__' ? 600 : 400,
-              padding:'10px 13px' }}>
+              padding: isMeeting ? '8px 10px' : '10px 13px' }}>
             <option value="">— Utan prosjekt —</option>
             {allProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             <option value="__new__">＋ Nytt prosjekt…</option>
@@ -639,30 +640,29 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
           )}
         </div>
 
-        {/* Title */}
-        <input ref={titleRef} type="text"
-          placeholder={isReferat ? "Tittel på møtereferatet…" : "Tittel på notatet…"}
-          style={{ ...fi, fontSize:16, fontWeight:700, padding:'10px 13px',
-            background:'var(--bg2)', border:'2px solid var(--brand3)',
-            borderRadius:'var(--r2)', letterSpacing:'-0.01em' }}
-          onInput={handleTitleInput}
-          onKeyDown={e => e.key==='Enter' && editorRef.current?.focus()}/>
-      </div>
+        <div>
+          {isMeeting && <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Tittel</label>}
+          <input ref={titleRef} type="text"
+            placeholder={isReferat ? "Tittel på møtereferatet…" : "Tittel på notatet…"}
+            style={{ ...fi, fontSize: isMeeting ? 14 : 16, fontWeight:700,
+              padding: isMeeting ? '8px 10px' : '10px 13px',
+              background:'var(--bg2)', border:'2px solid var(--brand3)',
+              borderRadius:'var(--r2)', letterSpacing:'-0.01em' }}
+            onInput={handleTitleInput}
+            onKeyDown={e => e.key==='Enter' && editorRef.current?.focus()}/>
+        </div>
 
-      {/* ── Kompakt møteinfo (møtenotat + møtereferat) ── */}
-      {isMeeting && (
-        <div style={{ background:'var(--bg3)', border:'1px solid var(--border)',
-          borderRadius:'var(--r2)', padding:'10px 12px' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 110px 1.4fr', gap:8, marginBottom:8 }}>
+        {isMeeting && (
+          <>
             <div>
               <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Tidspunkt</label>
               <input type="datetime-local" value={meetingTime} onChange={e=>setMeetingTime(e.target.value)}
-                style={{ ...fi, background:'var(--bg2)', padding:'5px 8px', fontSize:13 }}/>
+                style={{ ...fi, background:'var(--bg2)', padding:'8px 8px', fontSize:12 }}/>
             </div>
             <div>
               <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Varigheit</label>
               <select value={meetingDuration} onChange={e=>setMeetingDuration(e.target.value)}
-                style={{ ...fi, background:'var(--bg2)', padding:'5px 8px', fontSize:13 }}>
+                style={{ ...fi, background:'var(--bg2)', padding:'8px 8px', fontSize:12 }}>
                 <option value="30">30 min</option>
                 <option value="60">1 t</option>
                 <option value="90">1,5 t</option>
@@ -674,13 +674,20 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
             <div>
               <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Stad / lenke</label>
               <input type="text" value={meetingLocation} onChange={e=>setMeetingLocation(e.target.value)}
-                placeholder="Møterom 2 / Teams-lenke"
-                style={{ ...fi, background:'var(--bg2)', padding:'5px 8px', fontSize:13 }}/>
+                placeholder="Møterom 2 / Teams"
+                style={{ ...fi, background:'var(--bg2)', padding:'8px 8px', fontSize:12 }}/>
             </div>
-          </div>
+          </>
+        )}
+      </div>
 
-          <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:3, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Deltakarar</label>
+      {/* ── Kompakt møteinfo (møtenotat + møtereferat) ── */}
+      {isMeeting && (
+        <div style={{ background:'var(--bg3)', border:'1px solid var(--border)',
+          borderRadius:'var(--r2)', padding:'8px 12px' }}>
           <div style={{ display:'flex', flexWrap:'wrap', gap:5, alignItems:'center' }}>
+            <span style={{ fontSize:10, color:'var(--text3)', textTransform:'uppercase',
+              letterSpacing:'.04em', fontWeight:700, marginRight:4 }}>Deltakarar</span>
             {attendees.map((a,i) => (
               <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:16, fontSize:12, color:'var(--text2)' }}>
                 {a}
@@ -850,8 +857,20 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
         </div>
       )}
 
-      {/* Sketch preview + button */}
+      {/* Bottom bar: Ferdig til venstre, deretter skisse + status */}
       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <button onClick={() => {
+            if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null }
+            handleSave()
+          }}
+          style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 22px',
+            background:'var(--brand)', border:'none', borderRadius:'var(--r2)',
+            color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
+            boxShadow:'var(--shadow)', transition:'background .15s' }}
+          onMouseEnter={e=>e.currentTarget.style.background='var(--brand2)'}
+          onMouseLeave={e=>e.currentTarget.style.background='var(--brand)'}>
+          Ferdig
+        </button>
         <button onClick={() => setShowSketch(true)}
           style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 18px',
             background: sketchDataUrl ? 'var(--brandbg2)' : 'var(--bg3)',
@@ -881,19 +900,6 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
           </div>
         )}
         <div style={{ flex:1 }}/>
-        <button onClick={() => {
-            // Force final save and navigate away
-            if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null }
-            handleSave()
-          }}
-          style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 22px',
-            background:'var(--brand)', border:'none', borderRadius:'var(--r2)',
-            color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
-            boxShadow:'var(--shadow)', transition:'background .15s' }}
-          onMouseEnter={e=>e.currentTarget.style.background='var(--brand2)'}
-          onMouseLeave={e=>e.currentTarget.style.background='var(--brand)'}>
-          Ferdig
-        </button>
       </div>
 
       {/* SketchPad overlay */}

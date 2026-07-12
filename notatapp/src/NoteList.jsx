@@ -217,23 +217,6 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
           e.stopPropagation()
           if (!note.done) onEdit(note)
         }}>
-        <button onClick={e=>{e.stopPropagation();onToggleDone(note.id)}}
-          title={note.done ? 'Hent ut av arkivet' : 'Arkiver notatet'}
-          style={{ width:24,height:24,borderRadius:6,
-            border:`2px solid ${note.done?'var(--success)':'var(--border2)'}`,
-            background:note.done?'var(--success)':'transparent',
-            display:'flex',alignItems:'center',justifyContent:'center',
-            flexShrink:0,cursor:'pointer',transition:'all .15s',
-            fontSize:11 }}
-          onMouseEnter={e=>{
-            if(!note.done){e.currentTarget.style.borderColor='var(--brand3)';e.currentTarget.style.background='var(--brandbg)'}
-          }}
-          onMouseLeave={e=>{
-            if(!note.done){e.currentTarget.style.borderColor='var(--border2)';e.currentTarget.style.background='transparent'}
-          }}>
-          {note.done ? <span style={{color:'#fff', fontWeight:900, fontSize:13}}>✓</span> : <LetterIcon letter="A" size={15} bg="transparent" color="var(--text3)" title="Arkiver"/>}
-        </button>
-
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
             {renaming ? (
@@ -287,7 +270,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
             {note.isMeeting&&(
               <span style={{ fontSize:12,padding:'2px 9px',borderRadius:10,
                 background:'rgba(21,101,192,.1)',color:'#1565C0',fontWeight:700 }}>
-                Møte {note.meetingTime ? new Date(note.meetingTime).toLocaleString('no-NO',{dateStyle:'short',timeStyle:'short'}) : ''}
+                Møte {note.meetingTime ? new Date(note.meetingTime).toLocaleString('no-NO',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) : ''}
               </span>
             )}
             {note.isMeeting && note.attendees?.length>0 && (
@@ -299,6 +282,18 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
         </div>
 
         <div style={{ display:'flex',alignItems:'center',gap:4,flexShrink:0 }}>
+          <button onClick={e=>{e.stopPropagation();onToggleDone(note.id)}}
+            title={note.done ? 'Hent ut av arkivet' : 'Arkiver notatet'}
+            style={{ background:note.done?'var(--success)':'none',
+              border:`1px solid ${note.done?'var(--success)':'transparent'}`,
+              color:note.done?'#fff':'var(--text3)',
+              padding:'3px 5px',cursor:'pointer',borderRadius:5,display:'flex' }}
+            onMouseEnter={e=>{ if(!note.done){e.currentTarget.style.color='var(--brand)';e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--bg3)'} }}
+            onMouseLeave={e=>{ if(!note.done){e.currentTarget.style.color='var(--text3)';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.background='none'} }}>
+            {note.done
+              ? <span style={{fontWeight:900, fontSize:13}}>✓</span>
+              : <LetterIcon letter="A" size={20} bg="transparent" color="var(--text3)" title="Arkiver"/>}
+          </button>
           {!note.done&&(
             <button onClick={e=>{e.stopPropagation();onEdit(note)}}
               style={{ background:'none',border:'1px solid transparent',color:'var(--text3)',padding:'3px 5px',cursor:'pointer',borderRadius:5,display:'flex' }}
@@ -332,7 +327,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
             <div style={{ background:'var(--bg3)', border:'1px solid var(--border)',
               borderRadius:'var(--r)', padding:'10px 14px', marginBottom:10,
               display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-              {note.meetingTime && <div><span style={{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.04em'}}>Tidspunkt</span><br/><span style={{fontSize:13,color:'var(--text)'}}>{new Date(note.meetingTime).toLocaleString('no-NO',{dateStyle:'long',timeStyle:'short'})}</span></div>}
+              {note.meetingTime && <div><span style={{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.04em'}}>Tidspunkt</span><br/><span style={{fontSize:13,color:'var(--text)'}}>{new Date(note.meetingTime).toLocaleString('no-NO',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})}</span></div>}
               {note.meetingDuration && <div><span style={{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.04em'}}>Varigheit</span><br/><span style={{fontSize:13,color:'var(--text)'}}>{note.meetingDuration} min</span></div>}
               {note.meetingLocation && <div style={{gridColumn:'1/-1'}}><span style={{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.04em'}}>Stad</span><br/><span style={{fontSize:13,color:'var(--text)'}}>{note.meetingLocation}</span></div>}
               {note.attendees?.length>0 && <div style={{gridColumn:'1/-1'}}><span style={{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.04em'}}>Deltakarar</span><br/><div style={{display:'flex',flexWrap:'wrap',gap:4,marginTop:4}}>{note.attendees.map((a,i)=><span key={i} style={{fontSize:12,padding:'2px 8px',background:'var(--bg4)',border:'1px solid var(--border)',borderRadius:20,color:'var(--text2)'}}>{a}</span>)}</div></div>}

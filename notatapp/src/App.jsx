@@ -368,6 +368,7 @@ export default function App({ userId, userEmail }) {
               onRenameProject={handleRenameProject}
               offices={offices} activeOfficeId={activeOfficeId} onSetOffice={setActiveOfficeId}
               onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}
+                  onOpenSettings={() => setShowSettings(true)}
               mode={mode}/>
           </div>
         </>
@@ -431,6 +432,7 @@ export default function App({ userId, userEmail }) {
                   onRenameProject={handleRenameProject}
                   offices={offices} activeOfficeId={activeOfficeId} onSetOffice={setActiveOfficeId}
                   onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}
+                  onOpenSettings={() => setShowSettings(true)}
                   mode={mode}/>
               </aside>
               <div className="resize-handle" onMouseDown={e=>onColMouseDown('sb',e)}/>
@@ -443,15 +445,6 @@ export default function App({ userId, userEmail }) {
               borderBottom:'1px solid rgba(255,255,255,.1)',background:'var(--brand)',
               height:50,flexShrink:0 }}>
               <IcoBtn onClick={()=>setSbCollapsed(v=>!v)} active={sbCollapsed} title="Meny"><span style={{fontWeight:800,fontSize:13}}>M</span></IcoBtn>
-              <button onClick={() => setShowSettings(true)}
-                title="Innstillingar"
-                style={{ display:'flex', flexDirection:'column', gap:3, padding:'7px 8px',
-                  background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.2)',
-                  borderRadius:'var(--r)', cursor:'pointer', flexShrink:0 }}>
-                <span style={{display:'block',width:16,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
-                <span style={{display:'block',width:16,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
-                <span style={{display:'block',width:16,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
-              </button>
               <div style={{width:8}}/>
               {/* Combined "Nytt notat" button with dropdown arrow */}
               <div style={{ position:'relative' }} ref={newNoteMenuRef}>
@@ -600,7 +593,7 @@ function StatusBar() {
   const days = ['søn','man','tir','ons','tor','fre','lør']
   const months = ['jan','feb','mar','apr','mai','jun','jul','aug','sep','okt','nov','des']
   const dateStr = `${days[now.getDay()]} ${now.getDate()}. ${months[now.getMonth()]} ${now.getFullYear()}`
-  const timeStr = now.toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit', second:'2-digit' })
+  const timeStr = now.toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false })
   return (
     <div style={{ height:36, flexShrink:0, background:'var(--brand)',
       display:'flex', alignItems:'center', justifyContent:'space-between',

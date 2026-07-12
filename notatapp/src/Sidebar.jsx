@@ -4,7 +4,8 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
                                    selectedProjectId, onDeleteProject, onNewNote,
                                    onToggleFavorite, onRenameProject, mode,
                                    offices, activeOfficeId, onSetOffice,
-                                   onAddOffice, onUpdateOffice, onDeleteOffice }) {
+                                   onAddOffice, onUpdateOffice, onDeleteOffice,
+                                   onOpenSettings }) {
   const [projsOpen, setProjsOpen] = useState(true)
   const [openProjs, setOpenProjs] = useState({})
   const [ctxMenu,   setCtxMenu]   = useState(null)
@@ -86,7 +87,6 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
             <span style={{fontWeight:800,fontSize:10}}>{expanded ? '▾' : '▸'}</span>
           </button>
 
-          <span style={{width:16,height:16,borderRadius:4,background:ac?'rgba(255,255,255,.25)':'rgba(255,255,255,.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:800,color:ac?'#fff':'rgba(255,255,255,.55)',flexShrink:0}}>P</span>
 
           {renaming === p.id ? (
             <input ref={renameRef}
@@ -171,93 +171,103 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
         .note-link:hover           { background:rgba(255,255,255,.1) }
       `}</style>
 
-      {/* Logo + mode toggle */}
+      {/* Logo + settings + office dropdown */}
       <div style={{ padding:'18px 16px 14px', borderBottom:'1px solid rgba(255,255,255,.12)' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
           <div style={{ width:32, height:32, borderRadius:9,
             background:'rgba(255,255,255,.15)', display:'flex', alignItems:'center',
             justifyContent:'center', fontSize:16, fontWeight:800, color:'#fff',
             flexShrink:0, border:'1.5px solid rgba(255,255,255,.25)' }}>N</div>
-          <div>
+          <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontWeight:700, fontSize:16, color:'#fff', letterSpacing:'-0.02em' }}>Notatapp</div>
             <div style={{ fontSize:11, color:'rgba(255,255,255,.55)', fontWeight:500 }}>
               {modeProjects.length} prosjekt · {notes.filter(n=>!n.done).length} aktive
             </div>
           </div>
-        </div>
-
-        {/* Office switcher */}
-        <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-          {(offices || []).map(office => (
-            <button key={office.id}
-              onClick={() => { onSetOffice(office.id); onSelectProject(null) }}
-              style={{ display:'flex', alignItems:'center', gap:9,
-                padding:'8px 12px', border:'none', borderRadius:'var(--r)',
-                background: activeOfficeId === office.id
-                  ? 'rgba(255,255,255,.92)' : 'rgba(255,255,255,.1)',
-                color: activeOfficeId === office.id ? office.color : 'rgba(255,255,255,.75)',
-                fontSize:13, fontWeight:700, cursor:'pointer', transition:'all .15s',
-                textAlign:'left' }}>
-              <span style={{ width:12, height:12, borderRadius:'50%', background:office.color,
-                flexShrink:0, border:'2px solid rgba(255,255,255,.4)' }}/>
-              {office.name}
-            </button>
-          ))}
-          {/* Add new office */}
-          {showNewOffice ? (
-            <div style={{ display:'flex', flexDirection:'column', gap:5, padding:'8px',
-              background:'rgba(255,255,255,.1)', borderRadius:'var(--r)' }}>
-              <input type="text" value={newOfficeName}
-                onChange={e => setNewOfficeName(e.target.value)}
-                placeholder="Namn på kontor"
-                autoFocus
-                style={{ padding:'5px 8px', borderRadius:5, border:'1px solid rgba(255,255,255,.3)',
-                  background:'rgba(255,255,255,.15)', color:'#fff', fontSize:12,
-                  fontFamily:'var(--font)', outline:'none' }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && newOfficeName.trim()) {
-                    onAddOffice(newOfficeName.trim(), newOfficeColor)
-                      .then(o => { onSetOffice(o.id); setShowNewOffice(false); setNewOfficeName('') })
-                  }
-                  if (e.key === 'Escape') { setShowNewOffice(false); setNewOfficeName('') }
-                }}/>
-              <div style={{ display:'flex', gap:5, alignItems:'center' }}>
-                {['#1B4332','#1A56A0','#C2570A','#5E35B1','#B91C1C'].map(c => (
-                  <button key={c} onClick={() => setNewOfficeColor(c)}
-                    style={{ width:18, height:18, borderRadius:'50%', background:c, border:'none',
-                      cursor:'pointer', outline: newOfficeColor===c ? '2px solid #fff' : 'none',
-                      outlineOffset:1 }}/>
-                ))}
-                <span style={{ fontSize:11, color:'rgba(255,255,255,.5)', marginLeft:4 }}>Farge</span>
-              </div>
-              <div style={{ display:'flex', gap:5 }}>
-                <button onClick={() => {
-                    if (newOfficeName.trim()) {
-                      onAddOffice(newOfficeName.trim(), newOfficeColor)
-                        .then(o => { onSetOffice(o.id); setShowNewOffice(false); setNewOfficeName('') })
-                    }
-                  }}
-                  style={{ flex:1, padding:'5px', background:'rgba(255,255,255,.2)',
-                    border:'none', borderRadius:5, color:'#fff', fontSize:12,
-                    fontWeight:700, cursor:'pointer' }}>
-                  Lagre
-                </button>
-                <button onClick={() => { setShowNewOffice(false); setNewOfficeName('') }}
-                  style={{ padding:'5px 8px', background:'none', border:'none',
-                    color:'rgba(255,255,255,.5)', fontSize:12, cursor:'pointer' }}>
-                  Avbryt
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowNewOffice(true)}
-              style={{ padding:'6px 12px', border:'1.5px dashed rgba(255,255,255,.25)',
-                borderRadius:'var(--r)', background:'transparent',
-                color:'rgba(255,255,255,.45)', fontSize:12, cursor:'pointer', textAlign:'left' }}>
-              + Nytt kontor
+          {onOpenSettings && (
+            <button onClick={onOpenSettings}
+              title="Innstillingar"
+              style={{ display:'flex', flexDirection:'column', gap:3, padding:'8px 9px',
+                background:'rgba(255,255,255,.12)', border:'1.5px solid rgba(255,255,255,.22)',
+                borderRadius:'var(--r)', cursor:'pointer', flexShrink:0 }}>
+              <span style={{display:'block',width:15,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
+              <span style={{display:'block',width:15,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
+              <span style={{display:'block',width:15,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
             </button>
           )}
         </div>
+
+        {/* Office dropdown */}
+        <select
+          value={activeOfficeId || ''}
+          onChange={e => {
+            const v = e.target.value
+            if (v === '__new__') { setShowNewOffice(true); return }
+            onSetOffice(v ? parseInt(v) : null)
+            onSelectProject(null)
+          }}
+          style={{ width:'100%', padding:'9px 12px', borderRadius:'var(--r)',
+            border:'1.5px solid rgba(255,255,255,.25)', background:'rgba(255,255,255,.12)',
+            color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
+            fontFamily:'var(--font)', outline:'none',
+            appearance:'none', backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+            backgroundRepeat:'no-repeat', backgroundPosition:'right 12px center' }}>
+          {(offices || []).map(office => (
+            <option key={office.id} value={office.id} style={{ color:'#111' }}>
+              {office.name}
+            </option>
+          ))}
+          <option value="__new__" style={{ color:'#111' }}>＋ Nytt kontor…</option>
+        </select>
+
+        {/* Add new office (inline form, shown when "＋ Nytt kontor…" is chosen) */}
+        {showNewOffice && (
+          <div style={{ display:'flex', flexDirection:'column', gap:5, padding:'8px',
+            background:'rgba(255,255,255,.1)', borderRadius:'var(--r)', marginTop:6 }}>
+            <input type="text" value={newOfficeName}
+              onChange={e => setNewOfficeName(e.target.value)}
+              placeholder="Namn på kontor"
+              autoFocus
+              style={{ padding:'5px 8px', borderRadius:5, border:'1px solid rgba(255,255,255,.3)',
+                background:'rgba(255,255,255,.15)', color:'#fff', fontSize:12,
+                fontFamily:'var(--font)', outline:'none' }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && newOfficeName.trim()) {
+                  onAddOffice(newOfficeName.trim(), newOfficeColor)
+                    .then(o => { onSetOffice(o.id); setShowNewOffice(false); setNewOfficeName('') })
+                }
+                if (e.key === 'Escape') { setShowNewOffice(false); setNewOfficeName('') }
+              }}/>
+            <div style={{ display:'flex', gap:5, alignItems:'center' }}>
+              {['#1B4332','#1A56A0','#C2570A','#5E35B1','#B91C1C'].map(c => (
+                <button key={c} onClick={() => setNewOfficeColor(c)}
+                  style={{ width:18, height:18, borderRadius:'50%', background:c, border:'none',
+                    cursor:'pointer', outline: newOfficeColor===c ? '2px solid #fff' : 'none',
+                    outlineOffset:1 }}/>
+              ))}
+              <span style={{ fontSize:11, color:'rgba(255,255,255,.5)', marginLeft:4 }}>Farge</span>
+            </div>
+            <div style={{ display:'flex', gap:5 }}>
+              <button onClick={() => {
+                  if (newOfficeName.trim()) {
+                    onAddOffice(newOfficeName.trim(), newOfficeColor)
+                      .then(o => { onSetOffice(o.id); setShowNewOffice(false); setNewOfficeName('') })
+                  }
+                }}
+                style={{ flex:1, padding:'5px', background:'rgba(255,255,255,.2)',
+                  border:'none', borderRadius:5, color:'#fff', fontSize:12,
+                  fontWeight:700, cursor:'pointer' }}>
+                Lagre
+              </button>
+              <button onClick={() => { setShowNewOffice(false); setNewOfficeName('') }}
+                style={{ padding:'5px 8px', background:'none', border:'none',
+                  color:'rgba(255,255,255,.5)', fontSize:12, cursor:'pointer' }}>
+                Avbryt
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {urgentCount > 0 && (
