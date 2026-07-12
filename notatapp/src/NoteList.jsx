@@ -278,6 +278,12 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
               background:'var(--brandbg)',color:'var(--brand)',fontWeight:600 }}>Skisse</span>}
             {note.attachments?.length>0&&<span style={{fontSize:12,padding:'2px 9px',borderRadius:10,
               background:'rgba(180,83,9,.08)',color:'var(--warn)',fontWeight:600}}>Vedlegg ({note.attachments.length})</span>}
+            {note.isReferat&&(
+              <span style={{ fontSize:12,padding:'2px 9px',borderRadius:10,
+                background:'var(--brandbg)',color:'var(--brand)',fontWeight:700 }}>
+                Referat
+              </span>
+            )}
             {note.isMeeting&&(
               <span style={{ fontSize:12,padding:'2px 9px',borderRadius:10,
                 background:'rgba(21,101,192,.1)',color:'#1565C0',fontWeight:700 }}>

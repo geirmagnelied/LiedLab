@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { nextFriday, fmt } from './dateUtils'
 import SketchPad from './SketchPad'
+import CaseTable from './CaseTable'
 
 const TAGS = [
   { key:'møte',    color:'#1565C0' }, { key:'oppgåve', color:'#5E35B1' },
@@ -129,14 +130,27 @@ function TaskRow({ task, onUpdate, onDelete }) {
   )
 }
 
-export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, defaultProjectId, editNote, onCancelEdit, isMeeting: isMeetingProp, isTaskOnly }) {
+export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, defaultProjectId, editNote, onCancelEdit, isMeeting: isMeetingProp, isTaskOnly, isReferat: isReferatProp, userId }) {
   const isEdit = !!editNote
-  // Lock in "is this a meeting note" the first time we know it, so the
-  // auto-create→edit transition (which flips the isMeeting PROP off) never
-  // collapses the meeting UI back to a regular note mid-typing.
+  // Lock in "is this a meeting/referat note" so the auto-create→edit transition
+  // (which can flip props mid-typing) never collapses the UI. Re-sync ONLY in a
+  // fresh "new note" state (editNote null) — the case where the user can switch
+  // note type via the dropdown before anything is saved.
+  const isReferatRef = useRef(isReferatProp || editNote?.isReferat || false)
+  if (editNote?.isReferat) {
+    isReferatRef.current = true
+  } else if (!editNote) {
+    isReferatRef.current = !!isReferatProp
+  }
+  const isReferat = isReferatRef.current
+
   const isMeetingRef = useRef(isMeetingProp || editNote?.isMeeting || false)
-  if (editNote?.isMeeting) isMeetingRef.current = true  // existing note always wins
-  const isMeeting = isMeetingRef.current
+  if (editNote?.isMeeting) {
+    isMeetingRef.current = true  // existing note always wins
+  } else if (!editNote) {
+    isMeetingRef.current = !!isMeetingProp || !!isReferatProp  // referat brukar møtefelta
+  }
+  const isMeeting = isMeetingRef.current || isReferat
 
   const [tag,         setTag]         = useState(isEdit ? editNote.tag : null)
   const [projectVal,  setProjectVal]  = useState(
@@ -215,6 +229,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
       projectId:pid, newProjName: projectVal==='__new__' ? newProjName : '', sketchDataUrl,
       attachments,
       isMeeting: isMeeting || false,
+      isReferat: isReferat || false,
       meetingTime: isMeeting ? meetingTime : null,
       meetingDuration: isMeeting ? meetingDuration : null,
       meetingLocation: isMeeting ? meetingLocation : null,
@@ -298,6 +313,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
         projectId: pid, newProjName: newProjVal,
         sketchDataUrl, attachments,
         isMeeting: isMeeting || false,
+      isReferat: isReferat || false,
         meetingTime: isMeeting ? meetingTime : null,
         meetingDuration: isMeeting ? meetingDuration : null,
         meetingLocation: isMeeting ? meetingLocation : null,
@@ -688,7 +704,23 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
       )}
 
       {/* ── Beskriving ── */}
-      <Divider label={isMeeting ? "Agenda / referat" : "Beskriving"}/>
+      {isReferat && (
+        <>
+          <Divider label="Saksliste"/>
+          {editNote?.id ? (
+            <CaseTable noteId={editNote.id}
+              projectId={projectVal && projectVal !== '__new__' ? parseInt(projectVal) : null}
+              userId={userId}/>
+          ) : (
+            <div style={{ border:'1.5px dashed var(--border)', borderRadius:'var(--r2)',
+              padding:'16px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
+              Skriv ein tittel på referatet først — sakslista blir tilgjengeleg når notatet er lagra (automatisk)
+            </div>
+          )}
+        </>
+      )}
+
+      <Divider label={isReferat ? "Notat / kommentarar" : (isMeeting ? "Agenda / referat" : "Beskriving")}/>
 
       <div style={{ border:'2px solid var(--border)', borderRadius:'var(--r2)',
         overflow:'hidden', boxShadow:'var(--shadow-sm)' }}>

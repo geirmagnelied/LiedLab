@@ -34,6 +34,7 @@ export default function App({ userId, userEmail }) {
   const [newNoteMenuOpen,   setNewNoteMenuOpen]   = useState(false)
   const newNoteMenuRef = useRef(null)
   const [isTaskOnly,        setIsTaskOnly]        = useState(false)
+  const [isReferat,         setIsReferat]         = useState(false)
   const [pendingEditId,     setPendingEditId]     = useState(null)
   const [isMobile,          setIsMobile]          = useState(window.innerWidth < 768)
   const [mobileSheet,       setMobileSheet]       = useState(false)
@@ -215,16 +216,17 @@ export default function App({ userId, userEmail }) {
     }
   }
 
-  const handleEdit        = note => { setEditNote(note); setIsMeeting(!!note.isMeeting); setIsTaskOnly(false); setView('new') }
+  const handleEdit        = note => { setEditNote(note); setIsMeeting(!!note.isMeeting); setIsTaskOnly(false); setIsReferat(!!note.isReferat); setView('new') }
   const handleRenameProject  = (id, name)      => updateProject(id, { name })
   const handleRenameNote     = (id, title)     => updateNote(id, { title })
   const handleMoveToProject  = (noteId, projId) => updateNote(noteId, { projectId: projId })
-  const handleCancelEdit  = ()   => { setEditNote(null); setIsMeeting(false); setIsTaskOnly(false); setView('notatar') }
+  const handleCancelEdit  = ()   => { setEditNote(null); setIsMeeting(false); setIsTaskOnly(false); setIsReferat(false); setView('notatar') }
   const handleSelectProject = id => { setSelectedProjectId(id); setView('notatar') }
   const handleNewNote = (type='regular') => {
     setEditNote(null)
     setIsMeeting(type === 'meeting')
     setIsTaskOnly(type === 'task')
+    setIsReferat(type === 'referat')
     setView('new')
   }
   const handleSelectNote  = id  => {
@@ -373,7 +375,7 @@ export default function App({ userId, userEmail }) {
 
       {/* Mobile content */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
-        {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote}/>}
+        {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}/>}
         {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
         {view==='timar'    && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
         {view==='prognose' && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
@@ -491,6 +493,17 @@ export default function App({ userId, userEmail }) {
                       Nytt møtenotat
                     </button>
                     <div style={{height:1,background:'var(--border)'}}/>
+                    <button onClick={()=>{ handleNewNote('referat'); setNewNoteMenuOpen(false) }}
+                      style={{ width:'100%', textAlign:'left', padding:'12px 16px',
+                        background:'none', border:'none', cursor:'pointer',
+                        fontSize:14, fontWeight:600, color:'var(--text)', fontFamily:'var(--font)',
+                        display:'flex', alignItems:'center', gap:10 }}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                      <span style={{width:26,height:26,borderRadius:7,background:'var(--brandbg)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'var(--brand)',fontSize:13,flexShrink:0}}>R</span>
+                      Nytt møtereferat
+                    </button>
+                    <div style={{height:1,background:'var(--border)'}}/>
                     <button onClick={()=>{ handleNewNote('task'); setNewNoteMenuOpen(false) }}
                       style={{ width:'100%', textAlign:'left', padding:'12px 16px',
                         background:'none', border:'none', cursor:'pointer',
@@ -528,7 +541,7 @@ export default function App({ userId, userEmail }) {
             </div>
 
             <div style={{ flex:1,overflowY:'auto',padding:'22px 26px' }}>
-              {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote}/>}
+              {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}/>}
               {view==='notatar'    && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
               {view==='timar'      && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
               {view==='prognose'   && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
