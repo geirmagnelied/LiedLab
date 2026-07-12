@@ -615,14 +615,16 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
         </div>
       )}
 
-      {/* ── Prosjekt ØVST ── */}
-      <div>
-        <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
-          textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Prosjekt</label>
+      {/* ── Prosjekt + Tittel (éi rad i møte-/referatmodus) ── */}
+      <div style={isMeeting
+        ? { display:'grid', gridTemplateColumns:'240px 1fr', gap:10, alignItems:'start' }
+        : { display:'flex', flexDirection:'column', gap:10 }}>
         <div>
           <select value={projectVal==='__new__' ? '__new__' : projectVal}
             onChange={e => setProjectVal(e.target.value)}
-            style={{ ...fi, fontWeight: projectVal && projectVal!=='__new__' ? 600 : 400 }}>
+            title="Prosjekt"
+            style={{ ...fi, fontWeight: projectVal && projectVal!=='__new__' ? 600 : 400,
+              padding:'10px 13px' }}>
             <option value="">— Utan prosjekt —</option>
             {allProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             <option value="__new__">＋ Nytt prosjekt…</option>
@@ -636,71 +638,65 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
                 border:'2px solid var(--brand3)', fontWeight:600 }}/>
           )}
         </div>
+
+        {/* Title */}
+        <input ref={titleRef} type="text"
+          placeholder={isReferat ? "Tittel på møtereferatet…" : "Tittel på notatet…"}
+          style={{ ...fi, fontSize:16, fontWeight:700, padding:'10px 13px',
+            background:'var(--bg2)', border:'2px solid var(--brand3)',
+            borderRadius:'var(--r2)', letterSpacing:'-0.01em' }}
+          onInput={handleTitleInput}
+          onKeyDown={e => e.key==='Enter' && editorRef.current?.focus()}/>
       </div>
 
-      {/* Title */}
-      <input ref={titleRef} type="text" placeholder="Tittel på notatet…"
-        style={{ ...fi, fontSize:16, fontWeight:700, padding:'10px 13px',
-          background:'var(--bg2)', border:'2px solid var(--brand3)',
-          borderRadius:'var(--r2)', letterSpacing:'-0.01em' }}
-        onInput={handleTitleInput}
-        onKeyDown={e => e.key==='Enter' && editorRef.current?.focus()}/>
-
-      {/* ── Møtedetaljar (berre for møtenotat) ── */}
+      {/* ── Kompakt møteinfo (møtenotat + møtereferat) ── */}
       {isMeeting && (
-        <>
-          <Divider label="Møtedetaljar"/>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+        <div style={{ background:'var(--bg3)', border:'1px solid var(--border)',
+          borderRadius:'var(--r2)', padding:'10px 12px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 110px 1.4fr', gap:8, marginBottom:8 }}>
             <div>
-              <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Møtetidspunkt</label>
+              <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Tidspunkt</label>
               <input type="datetime-local" value={meetingTime} onChange={e=>setMeetingTime(e.target.value)}
-                style={{ ...fi, background:'var(--bg2)', border:'2px solid var(--border)' }}/>
+                style={{ ...fi, background:'var(--bg2)', padding:'5px 8px', fontSize:13 }}/>
             </div>
             <div>
-              <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Varigheit</label>
+              <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Varigheit</label>
               <select value={meetingDuration} onChange={e=>setMeetingDuration(e.target.value)}
-                style={{ ...fi, background:'var(--bg2)' }}>
-                <option value="30">30 minutt</option>
-                <option value="60">1 time</option>
-                <option value="90">1,5 time</option>
-                <option value="120">2 timar</option>
-                <option value="180">3 timar</option>
-                <option value="480">Heildagsmøte</option>
+                style={{ ...fi, background:'var(--bg2)', padding:'5px 8px', fontSize:13 }}>
+                <option value="30">30 min</option>
+                <option value="60">1 t</option>
+                <option value="90">1,5 t</option>
+                <option value="120">2 t</option>
+                <option value="180">3 t</option>
+                <option value="480">Heil dag</option>
               </select>
             </div>
-          </div>
-          <div style={{ marginBottom:10 }}>
-            <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Stad / møtelenke</label>
-            <input type="text" value={meetingLocation} onChange={e=>setMeetingLocation(e.target.value)}
-              placeholder="Møterom 2, eller https://teams.microsoft.com/…"
-              style={{ ...fi, background:'var(--bg2)' }}/>
-          </div>
-          <Divider label="I møtet"/>
-          <div style={{ marginBottom:10 }}>
-            <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:6, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>Deltakarar</label>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:8, minHeight:28 }}>
-              {attendees.map((a,i) => (
-                <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 10px', background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:20, fontSize:12, color:'var(--text2)' }}>
-                  {a}
-                  <button onClick={() => setAttendees(prev=>prev.filter((_,j)=>j!==i))}
-                    style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer', fontSize:14, lineHeight:1, padding:'0 2px' }}
-                    onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
-                    onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>×</button>
-                </span>
-              ))}
-            </div>
-            <div style={{ display:'flex', gap:8 }}>
-              <input type="text" value={attendeeInput} onChange={e=>setAttendeeInput(e.target.value)}
-                placeholder="Namn eller e-post — trykk Enter"
-                onKeyDown={e=>{ if(e.key==='Enter'&&attendeeInput.trim()){ setAttendees(prev=>[...prev,attendeeInput.trim()]); setAttendeeInput('') }}}
-                style={{ ...fi, flex:1, background:'var(--bg2)' }}/>
-              <button onClick={() => { if(attendeeInput.trim()){ setAttendees(prev=>[...prev,attendeeInput.trim()]); setAttendeeInput('') }}}
-                style={{ padding:'7px 14px', background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--r)', color:'var(--text2)', cursor:'pointer', fontSize:13, fontWeight:500, flexShrink:0 }}>
-                ＋ Legg til
-              </button>
+            <div>
+              <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Stad / lenke</label>
+              <input type="text" value={meetingLocation} onChange={e=>setMeetingLocation(e.target.value)}
+                placeholder="Møterom 2 / Teams-lenke"
+                style={{ ...fi, background:'var(--bg2)', padding:'5px 8px', fontSize:13 }}/>
             </div>
           </div>
-        </>
+
+          <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:3, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Deltakarar</label>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:5, alignItems:'center' }}>
+            {attendees.map((a,i) => (
+              <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:16, fontSize:12, color:'var(--text2)' }}>
+                {a}
+                <button onClick={() => setAttendees(prev=>prev.filter((_,j)=>j!==i))}
+                  style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer', fontSize:13, lineHeight:1, padding:'0 1px' }}
+                  onMouseEnter={e=>e.currentTarget.style.color='var(--danger)'}
+                  onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'}>×</button>
+              </span>
+            ))}
+            <input type="text" value={attendeeInput} onChange={e=>setAttendeeInput(e.target.value)}
+              placeholder="+ Namn/e-post, Enter"
+              onKeyDown={e=>{ if(e.key==='Enter'&&attendeeInput.trim()){ setAttendees(prev=>[...prev,attendeeInput.trim()]); setAttendeeInput('') }}}
+              style={{ flex:1, minWidth:140, border:'none', background:'transparent',
+                fontSize:12, padding:'3px 4px', outline:'none', color:'var(--text)', fontFamily:'var(--font)' }}/>
+          </div>
+        </div>
       )}
 
       {/* ── Beskriving ── */}
