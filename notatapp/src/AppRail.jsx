@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 const MODULES = [
   { key: 'notatar',  letter: 'N', label: 'Notatar',  color: '#52B788' },
+  { key: 'prosjekt', letter: 'P', label: 'Prosjekt', color: '#85B7EB' },
   { key: 'timar',    letter: 'T', label: 'Timar',    color: '#60A5D4' },
   { key: 'kvalitet', letter: 'K', label: 'Kvalitet', color: '#EC9A5A' },
 ]

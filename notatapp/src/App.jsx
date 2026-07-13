@@ -12,6 +12,7 @@ import CalendarView from './CalendarView'
 import Timeline from './Timeline'
 import TimarModule from './TimarModule'
 import KvalitetModule from './KvalitetModule'
+import ProsjektModule from './ProsjektModule'
 
 const INITIAL_SB_W  = 260
 const INITIAL_CAL_W = 260
@@ -340,7 +341,7 @@ export default function App({ userId, userEmail }) {
         </div>
         {/* Module switcher pills */}
         <div style={{ display:'flex', gap:3, marginRight:4 }}>
-          {[{k:'notatar',l:'N'},{k:'timar',l:'T'},{k:'kvalitet',l:'K'}].map(m => (
+          {[{k:'notatar',l:'N'},{k:'prosjekt',l:'P'},{k:'timar',l:'T'},{k:'kvalitet',l:'K'}].map(m => (
             <button key={m.k} onClick={() => { setActiveModule(m.k); if(m.k!=='notatar') setView('notatar') }}
               style={{ width:24,height:24,borderRadius:6,border:'none',
                 background: activeModule===m.k ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.08)',
@@ -402,6 +403,7 @@ export default function App({ userId, userEmail }) {
           </>
         )}
         {activeModule === 'timar' && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
+        {activeModule === 'prosjekt' && <ProsjektModule userId={userId} projects={officeProjects} offices={offices} activeOfficeId={activeOfficeId} addProject={addProject}/>}
         {activeModule === 'kvalitet' && <KvalitetModule/>}
       </div>
 
@@ -444,7 +446,10 @@ export default function App({ userId, userEmail }) {
       />
 
       {/* Module content area */}
-      {activeModule === 'timar' ? (
+      {activeModule === 'prosjekt' ? (
+        <ProsjektModule userId={userId} projects={officeProjects} offices={offices}
+          activeOfficeId={activeOfficeId} addProject={addProject}/>
+      ) : activeModule === 'timar' ? (
         <TimarModule userId={userId} projects={officeProjects}
           addProject={addProject} mode={mode} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'kvalitet' ? (
