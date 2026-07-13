@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useStore } from './useStore'
+import AppRail from './AppRail'
 import Sidebar from './Sidebar'
 import NoteInput from './NoteInput'
 import NoteList from './NoteList'
@@ -9,6 +10,8 @@ import ForecastView from './ForecastView'
 import SettingsPanel from './SettingsPanel'
 import CalendarView from './CalendarView'
 import Timeline from './Timeline'
+import TimarModule from './TimarModule'
+import KvalitetModule from './KvalitetModule'
 
 const INITIAL_SB_W  = 260
 const INITIAL_CAL_W = 260
@@ -40,6 +43,7 @@ export default function App({ userId, userEmail }) {
   const [mobileSheet,       setMobileSheet]       = useState(false)
   const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
   const [showSettings,      setShowSettings]      = useState(false)
+  const [activeModule,      setActiveModule]      = useState('notatar') // 'notatar' | 'timar' | 'kvalitet'
 
   // Expose nextFriday to NoteList via window (simple bridge)
   useEffect(() => {
@@ -332,7 +336,19 @@ export default function App({ userId, userEmail }) {
             fontSize:12,fontWeight:800 }}>M</span>
         </button>
         <div style={{ flex:1, fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em' }}>
-          {selProj ? selProj.name : 'Notatapp'}
+          {selProj ? selProj.name : (MODULE_LABELS[activeModule] || 'Kontor')}
+        </div>
+        {/* Module switcher pills */}
+        <div style={{ display:'flex', gap:3, marginRight:4 }}>
+          {[{k:'notatar',l:'N'},{k:'timar',l:'T'},{k:'kvalitet',l:'K'}].map(m => (
+            <button key={m.k} onClick={() => { setActiveModule(m.k); if(m.k!=='notatar') setView('notatar') }}
+              style={{ width:24,height:24,borderRadius:6,border:'none',
+                background: activeModule===m.k ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.08)',
+                color: activeModule===m.k ? '#fff' : 'rgba(255,255,255,.45)',
+                fontSize:11,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+              {m.l}
+            </button>
+          ))}
         </div>
         <button onClick={() => setShowSettings(true)}
           title="Innstillingar"
@@ -376,11 +392,17 @@ export default function App({ userId, userEmail }) {
 
       {/* Mobile content */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
-        {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}/>}
-        {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
-        {view==='timar'    && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
-        {view==='prognose' && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
-        {view==='fristar'  && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
+        {activeModule === 'notatar' && (
+          <>
+            {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}/>}
+            {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
+            {view==='timar'    && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
+            {view==='prognose' && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
+            {view==='fristar'  && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
+          </>
+        )}
+        {activeModule === 'timar' && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
+        {activeModule === 'kvalitet' && <KvalitetModule/>}
       </div>
 
       {/* Mobile bottom nav */}
@@ -410,12 +432,25 @@ export default function App({ userId, userEmail }) {
 
   // ── Desktop layout ──────────────────────────────────────────────────
   return (
-    /* Outer wrapper with deep green border frame */
+    /* Outer wrapper with AppRail on the far left */
     <div style={{ display:'flex', height:'100vh', overflow:'hidden',
-      background:'var(--bg)', boxSizing:'border-box',
-      borderLeft:'6px solid var(--brand)' }}>
+      background:'var(--bg)', boxSizing:'border-box' }}>
 
-      {/* Main vertical layout */}
+      {/* App Rail — leftmost vertical navigation */}
+      <AppRail
+        activeModule={activeModule}
+        onModuleChange={setActiveModule}
+        onOpenSettings={() => setShowSettings(true)}
+      />
+
+      {/* Module content area */}
+      {activeModule === 'timar' ? (
+        <TimarModule userId={userId} projects={officeProjects}
+          addProject={addProject} mode={mode} activeOfficeId={activeOfficeId}/>
+      ) : activeModule === 'kvalitet' ? (
+        <KvalitetModule/>
+      ) : (
+      /* ── Notatar module (original layout) ── */
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
         {/* Upper section */}
@@ -562,11 +597,9 @@ export default function App({ userId, userEmail }) {
       </div>
 
       {/* Bottom status bar - ~1cm high, shows date/time */}
-      <StatusBar/>
+      <StatusBar activeModule={activeModule}/>
       </div>
-
-      {/* Right green border strip on calendar side */}
-      <div style={{ width:6, flexShrink:0, background:'var(--brand)' }}/>
+      )} {/* end notatar module ternary */}
 
       {showSettings && (
         <SettingsPanel
@@ -584,7 +617,9 @@ export default function App({ userId, userEmail }) {
 )
 }
 
-function StatusBar() {
+const MODULE_LABELS = { notatar:'Notatar', timar:'Timar', kvalitet:'Kvalitet' }
+
+function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
@@ -598,12 +633,14 @@ function StatusBar() {
     <div style={{ height:36, flexShrink:0, background:'var(--brand)',
       display:'flex', alignItems:'center', justifyContent:'space-between',
       padding:'0 16px', borderTop:'1px solid rgba(255,255,255,.15)' }}>
-      <span style={{ fontSize:12, color:'rgba(255,255,255,.55)', fontWeight:500 }}>Notatapp</span>
+      <span style={{ fontSize:12, color:'rgba(255,255,255,.55)', fontWeight:500 }}>
+        Kontor · {MODULE_LABELS[activeModule] || 'Notatar'}
+      </span>
       <span style={{ fontSize:13, color:'rgba(255,255,255,.9)', fontWeight:600,
         fontFamily:'var(--mono)', letterSpacing:'.03em' }}>
         {dateStr} &nbsp;·&nbsp; {timeStr}
       </span>
-      <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v6</span>
+      <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v7</span>
     </div>
 )
 }
