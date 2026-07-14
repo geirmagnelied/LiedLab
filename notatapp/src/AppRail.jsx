@@ -1,10 +1,11 @@
 import { useState } from 'react'
 
 const MODULES = [
-  { key: 'notatar',  letter: 'N', label: 'Notatar',  color: '#52B788' },
-  { key: 'prosjekt', letter: 'P', label: 'Prosjekt', color: '#85B7EB' },
-  { key: 'timar',    letter: 'T', label: 'Timar',    color: '#60A5D4' },
-  { key: 'kvalitet', letter: 'K', label: 'Kvalitet', color: '#EC9A5A' },
+  { key: 'notatar',  letter: 'N',  label: 'Notatar',        color: '#52B788' },
+  { key: 'prosjekt', letter: 'P',  label: 'Prosjekt',       color: '#85B7EB' },
+  { key: 'kunde',    letter: 'K',  label: 'Kunde',          color: '#D4537E' },
+  { key: 'timar',    letter: 'T',  label: 'Timar',          color: '#60A5D4' },
+  { key: 'kvalitet', letter: 'KS', label: 'Kvalitetssystem', color: '#EC9A5A' },
 ]
 
 export default function AppRail({ activeModule, onModuleChange, onOpenSettings }) {
@@ -84,7 +85,7 @@ export default function AppRail({ activeModule, onModuleChange, onOpenSettings }
               )}
 
               <span style={{
-                fontSize: 15, fontWeight: 800,
+                fontSize: mod.letter.length > 1 ? 11 : 15, fontWeight: 800,
                 color: active ? '#fff' : 'rgba(255,255,255,.45)',
                 fontFamily: 'var(--font)',
                 transition: 'color .15s',
