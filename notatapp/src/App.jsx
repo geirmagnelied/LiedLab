@@ -14,6 +14,8 @@ import TimarModule from './TimarModule'
 import KvalitetModule from './KvalitetModule'
 import ProsjektModule from './ProsjektModule'
 import KundeModule from './KundeModule'
+import OppgaveModule from './OppgaveModule'
+import FargeModule from './FargeModule'
 
 const INITIAL_SB_W  = 260
 const INITIAL_CAL_W = 260
@@ -342,7 +344,7 @@ export default function App({ userId, userEmail }) {
         </div>
         {/* Module switcher pills */}
         <div style={{ display:'flex', gap:3, marginRight:4 }}>
-          {[{k:'notatar',l:'N'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'}].map(m => (
+          {[{k:'notatar',l:'N'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'farge',l:'F'}].map(m => (
             <button key={m.k} onClick={() => { setActiveModule(m.k); if(m.k!=='notatar') setView('notatar') }}
               style={{ width:24,height:24,borderRadius:6,border:'none',
                 background: activeModule===m.k ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.08)',
@@ -406,7 +408,9 @@ export default function App({ userId, userEmail }) {
         {activeModule === 'timar' && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
         {activeModule === 'prosjekt' && <ProsjektModule userId={userId} projects={officeProjects} offices={offices} activeOfficeId={activeOfficeId} addProject={addProject}/>}
         {activeModule === 'kunde' && <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>}
-        {activeModule === 'kvalitet' && <KvalitetModule/>}
+        {activeModule === 'kvalitet' && <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
+        {activeModule === 'oppgaver' && <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
+        {activeModule === 'farge' && <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
       </div>
 
       {/* Mobile bottom nav */}
@@ -453,11 +457,15 @@ export default function App({ userId, userEmail }) {
           activeOfficeId={activeOfficeId} addProject={addProject}/>
       ) : activeModule === 'kunde' ? (
         <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>
+      ) : activeModule === 'oppgaver' ? (
+        <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'timar' ? (
         <TimarModule userId={userId} projects={officeProjects}
           addProject={addProject} mode={mode} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'kvalitet' ? (
-        <KvalitetModule/>
+        <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>
+      ) : activeModule === 'farge' ? (
+        <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>
       ) : (
       /* ── Notatar module (original layout) ── */
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
@@ -626,7 +634,7 @@ export default function App({ userId, userEmail }) {
 )
 }
 
-const MODULE_LABELS = { notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', timar:'Timar', kvalitet:'Kvalitetssystem' }
+const MODULE_LABELS = { notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())
