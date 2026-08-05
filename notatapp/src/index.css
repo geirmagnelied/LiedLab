@@ -16,7 +16,7 @@
   --border2:     #8FBFA8;
   --text:        #0A1810;
   --text2:       #1E3A2C;
-  --text3:       #4A7560;
+  --text3:       #2D5A44;
 
   --accent:   #1B4332;
   --accent2:  #2D6A4F;
@@ -43,7 +43,7 @@
   --border2:     #7AAAD0;
   --text:        #081320;
   --text2:       #15304F;
-  --text3:       #3D6590;
+  --text3:       #264A6E;
 }
 
 
@@ -63,15 +63,21 @@
   --border2:     #C89070;
   --text:        #1E0E00;
   --text2:       #4A2800;
-  --text3:       #8A5A30;
+  --text3:       #6B4420;
 }
 
 :root {
 
-  --font: 'DM Sans', system-ui, sans-serif;
-  --mono: 'DM Mono', monospace;
+  --font: 'Inter', 'DM Sans', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'DM Mono', monospace;
   --r:  7px;
   --r2: 12px;
+
+  /* Typografi-system: 4 storleiker */
+  --fs-xs: 12px;   /* labels, metadata */
+  --fs-sm: 14px;   /* standard tekst, knappar */
+  --fs-md: 16px;   /* hovudtekst, titlar */
+  --fs-lg: 20px;   /* seksjonstitlar */
 
   --shadow-sm: 0 1px 3px rgba(0,0,0,.07);
   --shadow:    0 3px 12px rgba(0,0,0,.10);
@@ -83,11 +89,12 @@ html, body, #root {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 16px;
+  font-size: var(--fs-sm);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv11' 1;
 }
 
 * {

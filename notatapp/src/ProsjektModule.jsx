@@ -231,14 +231,21 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     setDirty(true)
   }
 
-  // ── Status-endring ────────────────────────────────────────────
-  const byttStatus = (nyStatus) => {
+  // ── Status-endring (auto-lagrar) ─────────────────────────────
+  const byttStatus = async (nyStatus) => {
     if (nyStatus === 'sendt' && !form.offerPrice) {
       alert('Du må fylle inn tilbodspris før du kan stemple tilbodet som sendt.')
       return
     }
     set('status', nyStatus)
     if (nyStatus === 'sendt' && !form.sentDate) set('sentDate', new Date().toISOString().slice(0, 10))
+    // Auto-lagre statusendring
+    await supabase.from('projects').update({
+      project_status: nyStatus,
+      updated_at: new Date().toISOString(),
+    }).eq('id', selected).eq('user_id', userId)
+    setDirty(false)
+    await loadProsjekt()
   }
 
   // ── Filter ────────────────────────────────────────────────────

@@ -17,7 +17,7 @@ export default function AppRail({ activeModule, onModuleChange, onOpenSettings }
     <div style={{
       width: 52, minWidth: 52, flexShrink: 0,
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: '#0D2818',
+      background: '#0A0A0A',
       borderRight: '1px solid rgba(255,255,255,.08)',
       paddingTop: 10, paddingBottom: 10,
       userSelect: 'none',
@@ -87,9 +87,10 @@ export default function AppRail({ activeModule, onModuleChange, onOpenSettings }
               )}
 
               <span style={{
-                fontSize: mod.letter.length > 1 ? 11 : 15, fontWeight: 800,
-                color: active ? '#fff' : 'rgba(255,255,255,.45)',
+                fontSize: mod.letter.length > 1 ? 13 : 18, fontWeight: 800,
+                color: active ? '#fff' : 'rgba(255,255,255,.7)',
                 fontFamily: 'var(--font)',
+                letterSpacing: mod.letter.length > 1 ? '-0.5px' : '0',
                 transition: 'color .15s',
               }}>
                 {mod.letter}

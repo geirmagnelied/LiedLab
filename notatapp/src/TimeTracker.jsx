@@ -258,7 +258,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
     }
   }
 
-  const modeProjects = (projects || []).filter(p => (p.type || 'work') === (mode || 'work'))
+  const modeProjects = (projects || [])
 
   const cellInput = {
     width: '100%', border: 'none', background: 'transparent',

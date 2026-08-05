@@ -331,7 +331,7 @@ export default function App({ userId, userEmail }) {
 
       {/* Mobile topbar */}
       <div style={{ display:'flex', alignItems:'center', padding:'0 12px',
-        background:'var(--brand)', height:52, flexShrink:0, gap:8 }}>
+        background:'#0A0A0A', height:52, flexShrink:0, gap:8 }}>
         <button onClick={() => setMobileSheet(v=>!v)}
           style={{ background:'none', border:'none', color:'#fff', cursor:'pointer',
             display:'flex', alignItems:'center', padding:4 }}>
