@@ -218,14 +218,14 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
   const updateTask = (id, changes) => setTasks(ts => ts.map(t => t.id===id ? {...t,...changes} : t))
   const deleteTask = (id) => setTasks(ts => ts.filter(t => t.id!==id))
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const html  = editorRef.current?.innerHTML?.trim()
     const text  = editorRef.current?.innerText?.trim()
     const title = titleRef.current?.value?.trim() || text?.substring(0,60) || 'Utan tittel'
     if (!text && tasks.length===0) return
     let pid = null
     if (projectVal && projectVal!=='__new__') pid = parseInt(projectVal)
-    onAdd({ title, text:text||'', html:html||'', tasks, tag,
+    const payload = { title, text:text||'', html:html||'', tasks, tag,
       projectId:pid, newProjName: projectVal==='__new__' ? newProjName : '', sketchDataUrl,
       attachments,
       isMeeting: isMeeting || false,
@@ -234,8 +234,13 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
       meetingDuration: isMeeting ? meetingDuration : null,
       meetingLocation: isMeeting ? meetingLocation : null,
       attendees: isMeeting ? attendees : [],
-    })
-    if (!isEdit) {
+    }
+    if (isEdit && editNote?.id) {
+      // Lagre eksisterande notat via autosave, deretter lukk
+      await onAutoSave(payload)
+      if (onCancelEdit) onCancelEdit()
+    } else {
+      onAdd(payload)
       titleRef.current.value = ''; editorRef.current.innerHTML = ''
       setTag(null); setProjectVal(defaultProjectId?String(defaultProjectId):'')
       setNewProjName(''); setTasks([]); setNewTaskText(''); setNewTaskDate('')
@@ -710,8 +715,8 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
       {isReferat && (
         <>
           <Divider label="Saksliste"/>
-          {editNote?.id ? (
-            <CaseTable noteId={editNote.id}
+          {(editNote?.id || createdId) ? (
+            <CaseTable noteId={editNote?.id || createdId}
               projectId={projectVal && projectVal !== '__new__' ? parseInt(projectVal) : null}
               userId={userId}/>
           ) : (

@@ -415,7 +415,7 @@ export default function App({ userId, userEmail }) {
       </div>
 
       {/* Mobile bottom nav */}
-      <div style={{ display:'flex', background:'var(--brand)',
+      <div style={{ display:'flex', background:'#0A0A0A',
         borderTop:'1px solid rgba(255,255,255,.1)', flexShrink:0,
         paddingBottom:'env(safe-area-inset-bottom)' }}>
         <MobileTab v="new"      letter="N" label="Nytt" onClick={() => { handleNewNote('regular'); setMobileSheet(false) }}/>
@@ -495,7 +495,7 @@ export default function App({ userId, userEmail }) {
           {/* Main */}
           <main style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0 }}>
             <div style={{ display:'flex',alignItems:'center',gap:4,padding:'0 12px',
-              borderBottom:'1px solid rgba(255,255,255,.1)',background:'var(--brand)',
+              borderBottom:'1px solid rgba(255,255,255,.1)',background:'#0A0A0A',
               height:50,flexShrink:0 }}>
               <IcoBtn onClick={()=>setSbCollapsed(v=>!v)} active={sbCollapsed} title="Meny"><span style={{fontWeight:800,fontSize:13}}>M</span></IcoBtn>
               <div style={{width:8}}/>
