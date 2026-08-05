@@ -115,10 +115,11 @@ export default function App({ userId, userEmail }) {
     // Default (green) needs no class
   }, [activeOfficeId, offices])
 
-  // Set initial office when offices load
+  // Set initial office when offices load — Norconsult som standard
   useEffect(() => {
     if (offices.length > 0 && activeOfficeId === null) {
-      setActiveOfficeId(offices[0].id)
+      const nc = offices.find(o => o.name && o.name.toLowerCase().indexOf('norconsult') >= 0)
+      setActiveOfficeId(nc ? nc.id : offices[0].id)
     }
   }, [offices.length])
 
@@ -340,7 +341,7 @@ export default function App({ userId, userEmail }) {
             fontSize:12,fontWeight:800 }}>M</span>
         </button>
         <div style={{ flex:1, fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em' }}>
-          {selProj ? selProj.name : (MODULE_LABELS[activeModule] || 'Kontor')}
+          {selProj ? selProj.name : (MODULE_LABELS[activeModule] || 'LiedLab')}
         </div>
         {/* Module switcher pills */}
         <div style={{ display:'flex', gap:3, marginRight:4 }}>
@@ -647,17 +648,17 @@ function StatusBar({ activeModule }) {
   const dateStr = `${days[now.getDay()]} ${now.getDate()}. ${months[now.getMonth()]} ${now.getFullYear()}`
   const timeStr = now.toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false })
   return (
-    <div style={{ height:36, flexShrink:0, background:'var(--brand)',
+    <div style={{ height:36, flexShrink:0, background:'#0A0A0A',
       display:'flex', alignItems:'center', justifyContent:'space-between',
-      padding:'0 16px', borderTop:'1px solid rgba(255,255,255,.15)' }}>
+      padding:'0 16px', borderTop:'1px solid rgba(255,255,255,.1)' }}>
       <span style={{ fontSize:12, color:'rgba(255,255,255,.55)', fontWeight:500 }}>
-        Kontor · {MODULE_LABELS[activeModule] || 'Notatar'}
+        LiedLab · {MODULE_LABELS[activeModule] || 'Notatar'}
       </span>
       <span style={{ fontSize:13, color:'rgba(255,255,255,.9)', fontWeight:600,
         fontFamily:'var(--mono)', letterSpacing:'.03em' }}>
         {dateStr} &nbsp;·&nbsp; {timeStr}
       </span>
-      <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v7</span>
+      <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v9</span>
     </div>
 )
 }

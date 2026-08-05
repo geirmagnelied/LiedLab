@@ -15,7 +15,7 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
   const [newOfficeName,  setNewOfficeName]  = useState('')
   const [newOfficeColor, setNewOfficeColor] = useState('#1B4332')
 
-  const modeProjects = projects.filter(p => (p.type || 'work') === mode)
+  const modeProjects = projects
   const notesFor     = id => notes.filter(n => n.projectId === id && !n.done)
   const unprojected  = notes.filter(n => !n.projectId && !n.done)
 

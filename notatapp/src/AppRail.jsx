@@ -26,19 +26,26 @@ export default function AppRail({ activeModule, onModuleChange, onOpenSettings }
 
       {/* ── K logo (Kontor) ── */}
       <div
-        title="Kontor"
+        title="LiedLab"
         style={{
-          width: 36, height: 36, borderRadius: 10,
-          background: 'rgba(255,255,255,.12)',
-          border: '1.5px solid rgba(255,255,255,.18)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 18, fontWeight: 900, color: '#fff',
-          letterSpacing: '-0.03em',
-          fontFamily: 'var(--font)',
-          marginBottom: 20,
-          cursor: 'default',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          marginBottom: 16, cursor: 'default',
         }}>
-        K
+        <div style={{
+          width: 38, height: 38, borderRadius: 10,
+          background: 'rgba(255,255,255,.15)',
+          border: '1.5px solid rgba(255,255,255,.22)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 17, fontWeight: 900, color: '#fff',
+          letterSpacing: '-1px',
+          fontFamily: 'var(--font)',
+        }}>
+          LL
+        </div>
+        <span style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,.45)',
+          marginTop: 3, letterSpacing: '0.06em', fontFamily: 'var(--font)' }}>
+          LIEDLAB
+        </span>
       </div>
 
       {/* ── Separator ── */}
