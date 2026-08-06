@@ -31,11 +31,22 @@ function TaskRow({ task, onUpdate, onDelete }) {
   const [editHours,  setEditHours]  = useState(task.hours !== undefined ? String(task.hours) : '0.5')
   const textRef = useRef(null)
 
+  // Hald redigeringsfelta i synk viss oppgåva vert oppdatert utanfrå
+  // (t.d. via timeline-drag eller ei anna kjelde) medan feltet ikkje er ope for redigering
+  useEffect(() => {
+    if (!editing) {
+      setEditText(task.text)
+      setEditStart(task.startDate || '')
+      setEditDate(task.date || '')
+      setEditHours(task.hours !== undefined ? String(task.hours) : '0.5')
+    }
+  }, [task.text, task.startDate, task.date, task.hours, editing])
+
   useEffect(() => { if (editing && textRef.current) textRef.current.focus() }, [editing])
 
   const commit = () => {
     const t     = editText.trim() || task.text
-    const d     = editDate  || task.date  || nextFriday()
+    const d     = editDate  || nextFriday()
     const hours = editHours !== '' ? parseFloat(editHours) : 0.5
     onUpdate(task.id, { text: t, startDate: editStart || null, date: d, hours })
     setEditing(false)
@@ -219,6 +230,8 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
   const deleteTask = (id) => setTasks(ts => ts.filter(t => t.id!==id))
 
   const handleSave = async () => {
+    // Kanseller ventande auto-lagring — vi lagrar no direkte med fersk state
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null }
     const html  = editorRef.current?.innerHTML?.trim()
     const text  = editorRef.current?.innerText?.trim()
     const title = titleRef.current?.value?.trim() || text?.substring(0,60) || 'Utan tittel'
