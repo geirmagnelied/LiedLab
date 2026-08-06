@@ -400,21 +400,23 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
           </span>
           {form && (
             <>
+              <button onClick={lagreProsjekt}
+                disabled={!dirty}
+                style={{ display:'flex', alignItems:'center', gap:6,
+                  padding:'6px 16px', borderRadius:'var(--r)',
+                  border: dirty ? '1.5px solid rgba(255,255,255,.6)' : '1.5px solid rgba(255,255,255,.2)',
+                  background: dirty ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.06)',
+                  color: dirty ? '#fff' : 'rgba(255,255,255,.4)',
+                  fontSize:13, fontWeight:700, cursor: dirty ? 'pointer' : 'default',
+                  fontFamily:'var(--font)', transition:'all .15s' }}>
+                {dirty ? '● Lagre' : '✓ Lagra'}
+              </button>
               <span style={{ color:'rgba(255,255,255,.3)' }}>·</span>
               <span style={{ fontSize:13, color:'rgba(255,255,255,.7)', fontFamily:'var(--mono)' }}>
                 {form.projectNumber}
               </span>
               <span style={{ fontSize:13, color:'rgba(255,255,255,.7)' }}>{form.name}</span>
               <div style={{ flex:1 }}/>
-              {dirty && (
-                <button onClick={lagreProsjekt}
-                  style={{ padding:'6px 16px', borderRadius:'var(--r)',
-                    border:'1.5px solid rgba(255,255,255,.4)',
-                    background:'rgba(255,255,255,.18)', color:'#fff',
-                    fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
-                  Lagre
-                </button>
-              )}
             </>
           )}
         </div>
@@ -432,7 +434,11 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
               </p>
             </div>
           ) : (
-            <div style={{ maxWidth:780 }}>
+            <div style={{ maxWidth:1180, display:'grid',
+              gridTemplateColumns:'1fr 1fr', gap:'0 32px', alignItems:'start' }}>
+
+              {/* ── Venstre kolonne ── */}
+              <div>
 
               {/* ── Grunndata ── */}
               <Section title="Grunndata">
@@ -526,6 +532,10 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                   </>
                 )}
               </Section>
+
+              </div>
+              {/* ── Høgre kolonne ── */}
+              <div>
 
               {/* ── Eigedom ── */}
               <Section title="Eigedom">
@@ -667,8 +677,9 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                 )}
               </Section>
 
-              {/* ── Lagre-knapp ── */}
-              <div style={{ display:'flex', gap:10, marginTop:12, paddingBottom:40 }}>
+              </div>
+              {/* ── Lagre-knapp (spenner over begge kolonnar) ── */}
+              <div style={{ gridColumn:'1 / -1', display:'flex', gap:10, marginTop:12, paddingBottom:40 }}>
                 <button onClick={lagreProsjekt}
                   disabled={!dirty}
                   style={{ padding:'10px 24px', borderRadius:'var(--r)',

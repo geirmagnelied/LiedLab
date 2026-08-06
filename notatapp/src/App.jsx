@@ -452,7 +452,9 @@ export default function App({ userId, userEmail }) {
         onOpenSettings={() => setShowSettings(true)}
       />
 
-      {/* Module content area */}
+      {/* Module content area — felles kolonne med botn-statuslinje for alle modular */}
+      <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
+      <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
       {activeModule === 'prosjekt' ? (
         <ProsjektModule userId={userId} projects={officeProjects} offices={offices}
           activeOfficeId={activeOfficeId} addProject={addProject}/>
@@ -580,11 +582,12 @@ export default function App({ userId, userEmail }) {
           </div>
         )}
       </div>
-
-      {/* Bottom status bar - ~1cm high, shows date/time */}
+      </div>
+      )} {/* end module ternary */}
+      </div>
+      {/* Felles botn-statuslinje for alle modular */}
       <StatusBar activeModule={activeModule}/>
       </div>
-      )} {/* end notatar module ternary */}
 
       {showSettings && (
         <SettingsPanel
@@ -625,7 +628,7 @@ function StatusBar({ activeModule }) {
         fontFamily:'var(--mono)', letterSpacing:'.03em' }}>
         {dateStr} &nbsp;·&nbsp; {timeStr}
       </span>
-      <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v9</span>
+      <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v9g</span>
     </div>
 )
 }
