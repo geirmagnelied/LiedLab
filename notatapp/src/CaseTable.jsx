@@ -286,7 +286,6 @@ export default function CaseTable({ noteId, projectId, userId }) {
       } else {
         const caseNumber = await nextCaseNumber()
         const row = {
-          id: Date.now(),
           user_id: userId,
           project_id: projectId || null,
           note_id: noteId,
@@ -296,9 +295,9 @@ export default function CaseTable({ noteId, projectId, userId }) {
           attachments: c.attachments, sort_order: cases.length,
           created_at: new Date().toISOString(),
         }
-        const { error } = await supabase.from('project_cases').insert(row)
+        const { data: inserted, error } = await supabase.from('project_cases').insert(row).select()
         if (error) throw error
-        setCases(prev => [...prev, row])
+        setCases(prev => [...prev, inserted && inserted[0] ? inserted[0] : { ...row, id: Date.now() }])
       }
       setModal(null)
     } catch (err) {

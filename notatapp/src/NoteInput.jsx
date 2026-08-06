@@ -622,7 +622,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
 
       {/* ── Prosjekt + Tittel (+ møtefelt på same linje i møte-/referatmodus) ── */}
       <div style={isMeeting
-        ? { display:'grid', gridTemplateColumns:'200px 1fr 170px 95px 1fr', gap:8, alignItems:'end' }
+        ? { display:'grid', gridTemplateColumns:'minmax(200px, 1.5fr) 2fr 170px 95px 1fr', gap:8, alignItems:'end' }
         : { display:'flex', flexDirection:'column', gap:10 }}>
         <div>
           {isMeeting && <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Prosjekt</label>}
@@ -716,7 +716,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
         <>
           <Divider label="Saksliste"/>
           {(editNote?.id || createdId) ? (
-            <CaseTable noteId={editNote?.id || createdId}
+            <CaseTable key={'ct-' + (editNote?.id || createdId)} noteId={editNote?.id || createdId}
               projectId={projectVal && projectVal !== '__new__' ? parseInt(projectVal) : null}
               userId={userId}/>
           ) : (

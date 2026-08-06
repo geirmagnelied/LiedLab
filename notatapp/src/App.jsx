@@ -302,7 +302,7 @@ export default function App({ userId, userEmail }) {
   }
 
   if (loading) return (
-    <div style={{minHeight:'100vh',background:'var(--brand)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+    <div style={{minHeight:'100vh',background:'#0A0A0A',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{color:'rgba(255,255,255,.6)',fontSize:14}}>Lastar notatar…</div>
     </div>
   )
@@ -402,7 +402,7 @@ export default function App({ userId, userEmail }) {
             {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}/>}
             {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
             {view==='timar'    && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
-            {view==='prognose' && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
+// Fjerna - prognose er no i TimarModule:             {view==='prognose' && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
             {view==='fristar'  && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
           </>
         )}
@@ -495,77 +495,45 @@ export default function App({ userId, userEmail }) {
           {/* Main */}
           <main style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0 }}>
             <div style={{ display:'flex',alignItems:'center',gap:4,padding:'0 12px',
-              borderBottom:'1px solid rgba(255,255,255,.1)',background:'#0A0A0A',
+              borderBottom:'1px solid rgba(255,255,255,.1)',background:'var(--brand)',
               height:50,flexShrink:0 }}>
               <IcoBtn onClick={()=>setSbCollapsed(v=>!v)} active={sbCollapsed} title="Meny"><span style={{fontWeight:800,fontSize:13}}>M</span></IcoBtn>
               <div style={{width:8}}/>
-              {/* Combined "Nytt notat" button with dropdown arrow */}
-              <div style={{ position:'relative' }} ref={newNoteMenuRef}>
-                <div style={{ display:'flex' }}>
-                  <button onClick={()=>handleNewNote('regular')}
-                    style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 16px',
-                      border:'1.5px solid rgba(255,255,255,.4)', borderRight:'none',
-                      borderRadius:'var(--r) 0 0 var(--r)',
-                      background:'rgba(255,255,255,.14)', color:'#fff',
-                      fontSize:14, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                    Nytt notat
-                  </button>
-                  <button onClick={() => setNewNoteMenuOpen(v => !v)}
-                    title="Fler typer notat"
-                    style={{ display:'flex', alignItems:'center', justifyContent:'center',
-                      padding:'7px 10px',
-                      border:'1.5px solid rgba(255,255,255,.4)',
-                      borderRadius:'0 var(--r) var(--r) 0',
-                      background: newNoteMenuOpen ? 'rgba(255,255,255,.28)' : 'rgba(255,255,255,.14)',
-                      color:'#fff', cursor:'pointer',
-                      transition:'background .15s, transform .2s' }}>
-                    <span style={{ fontSize:14, display:'inline-block', transform: newNoteMenuOpen ? 'rotate(180deg)' : 'none', transition:'transform .2s' }}>▾</span>
-                  </button>
-                </div>
-                {newNoteMenuOpen && (
-                  <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:50,
-                    background:'var(--bg2)', border:'1.5px solid var(--brand3)',
-                    borderRadius:'var(--r2)', minWidth:200, overflow:'hidden',
-                    boxShadow:'var(--shadow-lg)',
-                    animation:'dropdownIn .15s ease-out' }}>
-                    <button onClick={()=>{ handleNewNote('meeting'); setNewNoteMenuOpen(false) }}
-                      style={{ width:'100%', textAlign:'left', padding:'12px 16px',
-                        background:'none', border:'none', cursor:'pointer',
-                        fontSize:14, fontWeight:600, color:'var(--text)', fontFamily:'var(--font)',
-                        display:'flex', alignItems:'center', gap:10 }}
-                      onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
-                      onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                      <span style={{width:26,height:26,borderRadius:7,background:'var(--brandbg)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'var(--brand)',fontSize:13,flexShrink:0}}>M</span>
-                      Nytt møtenotat
-                    </button>
-                    <div style={{height:1,background:'var(--border)'}}/>
-                    <button onClick={()=>{ handleNewNote('referat'); setNewNoteMenuOpen(false) }}
-                      style={{ width:'100%', textAlign:'left', padding:'12px 16px',
-                        background:'none', border:'none', cursor:'pointer',
-                        fontSize:14, fontWeight:600, color:'var(--text)', fontFamily:'var(--font)',
-                        display:'flex', alignItems:'center', gap:10 }}
-                      onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
-                      onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                      <span style={{width:26,height:26,borderRadius:7,background:'var(--brandbg)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'var(--brand)',fontSize:13,flexShrink:0}}>R</span>
-                      Nytt møtereferat
-                    </button>
-                    <div style={{height:1,background:'var(--border)'}}/>
-                    <button onClick={()=>{ handleNewNote('task'); setNewNoteMenuOpen(false) }}
-                      style={{ width:'100%', textAlign:'left', padding:'12px 16px',
-                        background:'none', border:'none', cursor:'pointer',
-                        fontSize:14, fontWeight:600, color:'var(--text)', fontFamily:'var(--font)',
-                        display:'flex', alignItems:'center', gap:10 }}
-                      onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
-                      onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                      <span style={{width:26,height:26,borderRadius:7,background:'var(--brandbg)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'var(--brand)',fontSize:13,flexShrink:0}}>O</span>
-                      Ny oppgåve
-                    </button>
-                  </div>
-                )}
-              </div>
+              {/* Direkte snarvegar for notattypar */}
+              <button onClick={()=>handleNewNote('regular')}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
+                  border:'1.5px solid rgba(255,255,255,.4)',
+                  borderRadius:'var(--r)',
+                  background:'rgba(255,255,255,.14)', color:'#fff',
+                  fontSize:14, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                + Notat
+              </button>
+              <button onClick={()=>handleNewNote('meeting')}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
+                  border:'1.5px solid rgba(255,255,255,.25)',
+                  borderRadius:'var(--r)',
+                  background:'rgba(255,255,255,.08)', color:'rgba(255,255,255,.85)',
+                  fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+                + Møte
+              </button>
+              <button onClick={()=>handleNewNote('referat')}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
+                  border:'1.5px solid rgba(255,255,255,.25)',
+                  borderRadius:'var(--r)',
+                  background:'rgba(255,255,255,.08)', color:'rgba(255,255,255,.85)',
+                  fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+                + Referat
+              </button>
+              <button onClick={()=>handleNewNote('task')}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
+                  border:'1.5px solid rgba(255,255,255,.25)',
+                  borderRadius:'var(--r)',
+                  background:'rgba(255,255,255,.08)', color:'rgba(255,255,255,.85)',
+                  fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+                + Oppgåve
+              </button>
               <div style={{width:10}}/>
               <Tab v="timar"    letter="T" label="Timar"/>
-              <Tab v="prognose" letter="P" label="Prognose"/>
               <Tab v="fristar"  letter="F" label="Fristar"/>
               <div style={{flex:1}}/>
               {selProj&&(
@@ -590,7 +558,6 @@ export default function App({ userId, userEmail }) {
               {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}/>}
               {view==='notatar'    && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
               {view==='timar'      && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
-              {view==='prognose'   && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
               {view==='fristar'    && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
             </div>
           </main>
