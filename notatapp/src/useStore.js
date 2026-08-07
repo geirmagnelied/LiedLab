@@ -78,6 +78,7 @@ export function useStore(userId) {
       id: p.id, name: p.name, favorite: p.favorite,
       type: p.type || 'work',
       officeId: p.office_id || null,
+      projectNumber: p.project_number || '',
       createdAt: p.created_at,
     })))
     setNotes((nData || []).map(n => ({

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useStore } from './useStore'
 import AppRail from './AppRail'
+import TopBar from './TopBar'
 import Sidebar from './Sidebar'
 import NoteInput from './NoteInput'
 import NoteList from './NoteList'
@@ -253,6 +254,10 @@ export default function App({ userId, userEmail }) {
     ? projects.filter(p => p.officeId === activeOfficeId)
     : projects
   const officeProjectIds = new Set(officeProjects.map(p => p.id))
+  // ── Aktivt prosjekt (valt i TopBar) — filtrerer visninga for modular som opererer på eitt prosjekt om gongen
+  const activeProjectFiltered = selectedProjectId
+    ? officeProjects.filter(p => p.id === selectedProjectId)
+    : officeProjects
   // All project IDs that belong to OTHER offices (exclude from view)
   const otherOfficeIds   = new Set(
     projects.filter(p => p.officeId && p.officeId !== activeOfficeId).map(p => p.id)
@@ -379,7 +384,7 @@ export default function App({ userId, userEmail }) {
             style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', zIndex:100 }}/>
           <div style={{ position:'fixed', left:0, top:0, bottom:0, width:280,
             zIndex:101, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-            <Sidebar projects={officeProjects} notes={modeNotes}
+            <Sidebar projects={activeProjectFiltered} notes={modeNotes}
               onSelectProject={id => { handleSelectProject(id); setMobileSheet(false) }}
               onSelectNote={id => { handleSelectNote(id); setMobileSheet(false) }}
               selectedProjectId={selectedProjectId}
@@ -403,11 +408,11 @@ export default function App({ userId, userEmail }) {
             {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
             {view==='timar'    && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
 // Fjerna - prognose er no i TimarModule:             {view==='prognose' && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
-            {view==='fristar'  && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
+            {view==='fristar'  && <DeadlineView notes={visibleNotes} projects={projects} {...listProps}/>}
           </>
         )}
         {activeModule === 'timar' && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
-        {activeModule === 'prosjekt' && <ProsjektModule userId={userId} projects={officeProjects} offices={offices} activeOfficeId={activeOfficeId} addProject={addProject}/>}
+        {activeModule === 'prosjekt' && <ProsjektModule userId={userId} projects={officeProjects} offices={offices} activeOfficeId={activeOfficeId} addProject={addProject} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
         {activeModule === 'kunde' && <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'kvalitet' && <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'oppgaver' && <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
@@ -441,15 +446,24 @@ export default function App({ userId, userEmail }) {
 
   // ── Desktop layout ──────────────────────────────────────────────────
   return (
-    /* Outer wrapper with AppRail on the far left */
-    <div style={{ display:'flex', height:'100vh', overflow:'hidden',
+    /* Outer column: TopBar spans full width at the very top, AppRail+innhald i rad under */
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden',
       background:'var(--bg)', boxSizing:'border-box' }}>
 
-      {/* App Rail — leftmost vertical navigation */}
+      {/* TopBar — felles for alle modular, uansett kva som er aktivt */}
+      <TopBar
+        projects={officeProjects}
+        activeProjectId={selectedProjectId}
+        onSelectProject={setSelectedProjectId}
+        onOpenSettings={() => setShowSettings(true)}
+      />
+
+      <div style={{ display:'flex', flex:1, overflow:'hidden', minHeight:0 }}>
+
+      {/* App Rail — leftmost vertical navigation, rett under logoen i TopBar */}
       <AppRail
         activeModule={activeModule}
         onModuleChange={setActiveModule}
-        onOpenSettings={() => setShowSettings(true)}
       />
 
       {/* Module content area — felles kolonne med botn-statuslinje for alle modular */}
@@ -457,7 +471,8 @@ export default function App({ userId, userEmail }) {
       <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
       {activeModule === 'prosjekt' ? (
         <ProsjektModule userId={userId} projects={officeProjects} offices={offices}
-          activeOfficeId={activeOfficeId} addProject={addProject}/>
+          activeOfficeId={activeOfficeId} addProject={addProject}
+          activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>
       ) : activeModule === 'kunde' ? (
         <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'oppgaver' ? (
@@ -480,7 +495,7 @@ export default function App({ userId, userEmail }) {
           {!sbCollapsed && (
             <>
               <aside style={{ width:sbWidth,minWidth:sbWidth,overflow:'hidden',flexShrink:0,display:'flex',flexDirection:'column' }}>
-                <Sidebar projects={officeProjects} notes={modeNotes}
+                <Sidebar projects={activeProjectFiltered} notes={modeNotes}
                   onSelectProject={handleSelectProject} onSelectNote={handleSelectNote}
                   selectedProjectId={selectedProjectId} onDeleteProject={deleteProject}
                   onNewNote={handleNewNote} onToggleFavorite={toggleFavorite}
@@ -560,7 +575,7 @@ export default function App({ userId, userEmail }) {
               {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}/>}
               {view==='notatar'    && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
               {view==='timar'      && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
-              {view==='fristar'    && <DeadlineView notes={modeNotes} projects={projects} {...listProps}/>}
+              {view==='fristar'    && <DeadlineView notes={visibleNotes} projects={projects} {...listProps}/>}
             </div>
           </main>
 
@@ -587,6 +602,7 @@ export default function App({ userId, userEmail }) {
       </div>
       {/* Felles botn-statuslinje for alle modular */}
       <StatusBar activeModule={activeModule}/>
+      </div>
       </div>
 
       {showSettings && (
@@ -628,7 +644,7 @@ function StatusBar({ activeModule }) {
         fontFamily:'var(--mono)', letterSpacing:'.03em' }}>
         {dateStr} &nbsp;·&nbsp; {timeStr}
       </span>
-      <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v9g</span>
+      <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v9i</span>
     </div>
 )
 }

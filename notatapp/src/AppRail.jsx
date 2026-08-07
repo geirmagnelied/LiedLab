@@ -10,7 +10,7 @@ const MODULES = [
   { key: 'farge',    letter: 'F',  label: 'Farge',          color: '#C084B6' },
 ]
 
-export default function AppRail({ activeModule, onModuleChange, onOpenSettings }) {
+export default function AppRail({ activeModule, onModuleChange }) {
   const [hoveredModule, setHoveredModule] = useState(null)
 
   return (
@@ -19,41 +19,10 @@ export default function AppRail({ activeModule, onModuleChange, onOpenSettings }
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       background: '#0A0A0A',
       borderRight: '1px solid rgba(255,255,255,.08)',
-      paddingTop: 10, paddingBottom: 10,
+      paddingTop: 12, paddingBottom: 10,
       userSelect: 'none',
       zIndex: 50,
     }}>
-
-      {/* ── K logo (Kontor) ── */}
-      <div
-        title="LiedLab"
-        style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          marginBottom: 16, cursor: 'default',
-        }}>
-        <div style={{
-          width: 38, height: 38, borderRadius: 10,
-          background: 'rgba(255,255,255,.15)',
-          border: '1.5px solid rgba(255,255,255,.22)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 17, fontWeight: 900, color: '#fff',
-          letterSpacing: '-1px',
-          fontFamily: 'var(--font)',
-        }}>
-          LL
-        </div>
-        <span style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,.45)',
-          marginTop: 3, letterSpacing: '0.06em', fontFamily: 'var(--font)' }}>
-          LIEDLAB
-        </span>
-      </div>
-
-      {/* ── Separator ── */}
-      <div style={{
-        width: 24, height: 1,
-        background: 'rgba(255,255,255,.12)',
-        marginBottom: 14,
-      }}/>
 
       {/* ── Module buttons ── */}
       {MODULES.map(mod => {
@@ -130,34 +99,6 @@ export default function AppRail({ activeModule, onModuleChange, onOpenSettings }
 
       {/* ── Spacer ── */}
       <div style={{ flex: 1 }}/>
-
-      {/* ── Separator before hamburger ── */}
-      <div style={{
-        width: 24, height: 1,
-        background: 'rgba(255,255,255,.12)',
-        marginBottom: 10,
-      }}/>
-
-      {/* ── Hamburger menu (settings) ── */}
-      <button
-        onClick={onOpenSettings}
-        title="Innstillingar"
-        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.1)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-        style={{
-          width: 36, height: 36, borderRadius: 8,
-          background: 'transparent',
-          border: '1.5px solid rgba(255,255,255,.12)',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          gap: 4, cursor: 'pointer',
-          transition: 'background .15s',
-          padding: 0,
-        }}>
-        <span style={{ display:'block', width:16, height:1.5, background:'rgba(255,255,255,.5)', borderRadius:1 }}/>
-        <span style={{ display:'block', width:16, height:1.5, background:'rgba(255,255,255,.5)', borderRadius:1 }}/>
-        <span style={{ display:'block', width:16, height:1.5, background:'rgba(255,255,255,.5)', borderRadius:1 }}/>
-      </button>
     </div>
   )
 }

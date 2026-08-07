@@ -96,7 +96,8 @@ function tomtProsjekt() {
 
 // ══════════════════════════════════════════════════════════════════
 export default function ProsjektModule({ userId, projects: existingProjects, offices,
-                                          activeOfficeId, addProject, onProjectCreated }) {
+                                          activeOfficeId, addProject, onProjectCreated,
+                                          activeProjectId, onSetActiveProject }) {
   const [prosjektList, setProsjektList] = useState([])
   const [selected, setSelected]         = useState(null) // project id
   const [form, setForm]                 = useState(null)  // prosjektkort data
@@ -122,8 +123,21 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
       status: p.project_status || 'tilbod',
       details: p.details || {},
       createdAt: p.created_at,
+      deletedAt: p.deleted_at || null,
     })))
     setLoading(false)
+
+    // Endeleg fjerning av prosjekt som har lege i papirkorga i over 30 dagar
+    const now = Date.now()
+    const expired = (data || []).filter(p => {
+      if (!p.deleted_at) return false
+      const deletedMs = new Date(p.deleted_at).getTime()
+      return (now - deletedMs) > 30 * 24 * 60 * 60 * 1000
+    })
+    if (expired.length > 0) {
+      await supabase.from('projects').delete()
+        .in('id', expired.map(p => p.id)).eq('user_id', userId)
+    }
   }, [userId])
 
   useEffect(() => { loadProsjekt() }, [loadProsjekt])
@@ -145,7 +159,31 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
       })
     }
     setDirty(false)
+    // Synk med det globalt aktive prosjektet (valt i TopBar), slik at alle andre
+    // modular filtrerer på det same prosjektet ein no jobbar med her
+    if (onSetActiveProject && id !== activeProjectId) onSetActiveProject(id)
   }
+
+  // ── Opne det globalt aktive prosjektet automatisk når det vert valt i TopBar ──
+  useEffect(() => {
+    if (!activeProjectId) return
+    if (activeProjectId === selected) return
+    if (dirty) return // ikkje forkast ulagra endringar automatisk
+    const p = prosjektList.find(x => x.id === activeProjectId)
+    if (p) {
+      setSelected(p.id)
+      setForm({
+        projectNumber: p.projectNumber,
+        status: p.status,
+        name: p.name,
+        ...tomtProsjekt(),
+        ...p.details,
+        projectNumber: p.projectNumber,
+        status: p.status,
+      })
+      setDirty(false)
+    }
+  }, [activeProjectId, prosjektList])
 
   // ── Nytt prosjekt ─────────────────────────────────────────────
   const nyttProsjekt = async () => {
@@ -173,13 +211,21 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   const lagreProsjekt = async () => {
     if (!selected || !form) return
     const { projectNumber, status, name, ...details } = form
-    await supabase.from('projects').update({
+    const { error, data } = await supabase.from('projects').update({
       name: name || `Prosjekt ${projectNumber}`,
       project_number: projectNumber,
       project_status: status,
       details,
       updated_at: new Date().toISOString(),
-    }).eq('id', selected).eq('user_id', userId)
+    }).eq('id', selected).eq('user_id', userId).select()
+    if (error) {
+      alert('Klarte ikkje lagre prosjektet: ' + error.message)
+      return
+    }
+    if (!data || data.length === 0) {
+      alert('Lagring feila — prosjektet vart ikkje funne i databasen.')
+      return
+    }
     setDirty(false)
     await loadProsjekt()
   }
@@ -237,25 +283,79 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
       alert('Du må fylle inn tilbodspris før du kan stemple tilbodet som sendt.')
       return
     }
+    const prevStatus = form.status
     set('status', nyStatus)
     if (nyStatus === 'sendt' && !form.sentDate) set('sentDate', new Date().toISOString().slice(0, 10))
     // Auto-lagre statusendring
-    await supabase.from('projects').update({
+    const { error, data } = await supabase.from('projects').update({
       project_status: nyStatus,
       updated_at: new Date().toISOString(),
-    }).eq('id', selected).eq('user_id', userId)
+    }).eq('id', selected).eq('user_id', userId).select()
+    if (error) {
+      alert('Klarte ikkje lagre statusendring: ' + error.message)
+      set('status', prevStatus)
+      return
+    }
+    if (!data || data.length === 0) {
+      alert('Statusendring vart ikkje lagra — prosjektet vart ikkje funne i databasen (id/eigar stemmer ikkje). Kontakt utviklar.')
+      set('status', prevStatus)
+      return
+    }
     setDirty(false)
     await loadProsjekt()
+  }
+
+  // ── Slett prosjekt (til papirkorg, 30 dagar) ──────────────────
+  const slettProsjekt = async (id) => {
+    const p = prosjektList.find(x => x.id === id)
+    if (!p) return
+    if (!window.confirm(`Vil du verkeleg slette prosjektet «${p.name}»?\n\nProsjektet vert lagt i papirkorga og sletta endeleg om 30 dagar.`)) return
+    const { error } = await supabase.from('projects')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id).eq('user_id', userId)
+    if (error) { alert('Klarte ikkje slette prosjektet: ' + error.message); return }
+    if (selected === id) { setSelected(null); setForm(null) }
+    await loadProsjekt()
+  }
+
+  // ── Gjenopprett frå papirkorg ──────────────────────────────────
+  const gjenopprettProsjekt = async (id) => {
+    const { error } = await supabase.from('projects')
+      .update({ deleted_at: null })
+      .eq('id', id).eq('user_id', userId)
+    if (error) { alert('Klarte ikkje gjenopprette prosjektet: ' + error.message); return }
+    await loadProsjekt()
+  }
+
+  // ── Slett endeleg med det same (frå papirkorga) ────────────────
+  const slettEndeleg = async (id) => {
+    const p = prosjektList.find(x => x.id === id)
+    if (!p) return
+    if (!window.confirm(`Slette «${p.name}» endeleg NO? Dette kan ikkje angrast.`)) return
+    const { error } = await supabase.from('projects').delete()
+      .eq('id', id).eq('user_id', userId)
+    if (error) { alert('Klarte ikkje slette prosjektet: ' + error.message); return }
+    await loadProsjekt()
+  }
+
+  const dagarIgjen = (deletedAt) => {
+    const deletedMs = new Date(deletedAt).getTime()
+    const daysLeft = 30 - Math.floor((Date.now() - deletedMs) / (24 * 60 * 60 * 1000))
+    return Math.max(0, daysLeft)
   }
 
   // ── Filter ────────────────────────────────────────────────────
   const filteredList = prosjektList.filter(p => {
     if (activeOfficeId && p.officeId !== activeOfficeId) return false
+    if (filter === 'papirkorg') return !!p.deletedAt
+    if (p.deletedAt) return false  // skjul sletta prosjekt frå alle andre filter
     if (filter === 'tilbod') return p.status === 'tilbod' || p.status === 'sendt'
     if (filter === 'aktiv')  return p.status === 'aktiv'
     if (filter === 'arkiv')  return p.status === 'tapt' || p.status === 'fullfort'
     return true
   })
+
+  const papirkorgTal = prosjektList.filter(p => !!p.deletedAt).length
 
   // ── Input-komponent ───────────────────────────────────────────
   const F = ({ label, id, type='text', half, third, quarter, ...props }) => (
@@ -330,7 +430,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
         </div>
 
         {/* Filter-pills */}
-        <div style={{ display:'flex', gap:4, padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,.08)' }}>
+        <div style={{ display:'flex', gap:4, padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,.08)', flexWrap:'wrap' }}>
           {[['alle','Alle'],['tilbod','Tilbod'],['aktiv','Aktive'],['arkiv','Arkiv']].map(([k,l]) => (
             <button key={k} onClick={() => setFilter(k)}
               style={{ flex:1, padding:'4px 0', borderRadius:5, border:'none',
@@ -340,6 +440,15 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
               {l}
             </button>
           ))}
+          <button onClick={() => setFilter('papirkorg')}
+            title="Papirkorg"
+            style={{ padding:'4px 10px', borderRadius:5, border:'none',
+              background: filter==='papirkorg' ? 'rgba(220,38,38,.35)' : 'transparent',
+              color: filter==='papirkorg' ? '#fff' : 'rgba(255,255,255,.5)',
+              fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)',
+              display:'flex', alignItems:'center', gap:3 }}>
+            🗑{papirkorgTal > 0 ? ` ${papirkorgTal}` : ''}
+          </button>
         </div>
 
         {/* Liste */}
@@ -353,10 +462,11 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
           {filteredList.map(p => {
             const ac = selected === p.id
             const sc = STATUS_COLORS[p.status] || '#4A7560'
+            const inTrash = !!p.deletedAt
             return (
-              <div key={p.id} onClick={() => selectProject(p.id)}
+              <div key={p.id} onClick={() => !inTrash && selectProject(p.id)}
                 style={{ display:'flex', alignItems:'center', gap:8,
-                  padding:'8px 12px 8px 16px', cursor:'pointer',
+                  padding:'8px 12px 8px 16px', cursor: inTrash ? 'default' : 'pointer',
                   background: ac ? 'rgba(255,255,255,.15)' : 'transparent',
                   borderLeft: `3px solid ${ac ? 'rgba(255,255,255,.85)' : 'transparent'}`,
                   transition:'background .1s' }}
@@ -369,13 +479,47 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                   </div>
                   <div style={{ fontSize:10, color:'rgba(255,255,255,.45)', marginTop:1, display:'flex', alignItems:'center', gap:6 }}>
                     <span style={{ fontFamily:'var(--mono)' }}>{p.projectNumber || '—'}</span>
-                    <span style={{ padding:'1px 6px', borderRadius:3,
-                      background:sc, color:'#fff', fontSize:9, fontWeight:700,
-                      letterSpacing:'.04em', textTransform:'uppercase' }}>
-                      {STATUS_LABELS[p.status] || p.status}
-                    </span>
+                    {inTrash ? (
+                      <span style={{ color:'rgba(220,38,38,.85)', fontWeight:600 }}>
+                        Slettast om {dagarIgjen(p.deletedAt)} dagar
+                      </span>
+                    ) : (
+                      <span style={{ padding:'1px 6px', borderRadius:3,
+                        background:sc, color:'#fff', fontSize:9, fontWeight:700,
+                        letterSpacing:'.04em', textTransform:'uppercase' }}>
+                        {STATUS_LABELS[p.status] || p.status}
+                      </span>
+                    )}
                   </div>
                 </div>
+                {inTrash ? (
+                  <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+                    <button onClick={e => { e.stopPropagation(); gjenopprettProsjekt(p.id) }}
+                      title="Gjenopprett"
+                      style={{ padding:'4px 8px', borderRadius:5, border:'1px solid rgba(255,255,255,.3)',
+                        background:'rgba(255,255,255,.1)', color:'#fff', fontSize:10, fontWeight:600,
+                        cursor:'pointer', fontFamily:'var(--font)' }}>
+                      Gjenopprett
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); slettEndeleg(p.id) }}
+                      title="Slett endeleg"
+                      style={{ padding:'4px 8px', borderRadius:5, border:'1px solid rgba(220,38,38,.4)',
+                        background:'rgba(220,38,38,.15)', color:'#fca5a5', fontSize:10, fontWeight:600,
+                        cursor:'pointer', fontFamily:'var(--font)' }}>
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={e => { e.stopPropagation(); slettProsjekt(p.id) }}
+                    onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'rgba(252,165,165,.9)' }}
+                    onMouseLeave={e => { e.currentTarget.style.opacity = '0' }}
+                    title="Slett prosjekt"
+                    style={{ padding:'4px 6px', borderRadius:5, border:'none',
+                      background:'transparent', color:'rgba(255,255,255,.3)', fontSize:12,
+                      cursor:'pointer', flexShrink:0, opacity:0, transition:'opacity .15s' }}>
+                    🗑
+                  </button>
+                )}
               </div>
             )
           })}
@@ -384,7 +528,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
         {/* Botntelling */}
         <div style={{ padding:'8px 16px', borderTop:'1px solid rgba(255,255,255,.1)',
           fontSize:11, color:'rgba(255,255,255,.3)' }}>
-          {prosjektList.filter(p => p.status === 'aktiv').length} aktive prosjekt
+          {prosjektList.filter(p => p.status === 'aktiv' && !p.deletedAt).length} aktive prosjekt
         </div>
       </aside>
 
@@ -417,6 +561,15 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
               </span>
               <span style={{ fontSize:13, color:'rgba(255,255,255,.7)' }}>{form.name}</span>
               <div style={{ flex:1 }}/>
+              <button onClick={() => slettProsjekt(selected)}
+                title="Slett prosjekt"
+                style={{ display:'flex', alignItems:'center', gap:6,
+                  padding:'6px 14px', borderRadius:'var(--r)',
+                  border:'1.5px solid rgba(255,255,255,.25)',
+                  background:'rgba(220,38,38,.18)', color:'rgba(255,255,255,.9)',
+                  fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+                🗑 Slett prosjekt
+              </button>
             </>
           )}
         </div>
