@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabase'
+import DatePicker from './DatePicker'
 
 // ── Konstantar ────────────────────────────────────────────────────────
 const FAG = ['ARK', 'RIB', 'RIE', 'RIV', 'RIBr', 'Landskap', 'Anna']
@@ -29,7 +30,7 @@ const COLORDER_KEY = 'liedlab-saker-colorder-v1'
 function fmtTime(iso) {
   if (!iso) return ''
   const d = new Date(iso)
-  return d.toLocaleDateString('no-NO', { day:'2-digit', month:'short' }) + ' ' + d.toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit' })
+  return d.toLocaleDateString('no-NO', { day:'2-digit', month:'short' }) + ' ' + d.toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit', hour12:false })
 }
 function fmtDate(iso) {
   if (!iso) return '\u2014'
@@ -43,6 +44,10 @@ function initials(name) { return (name || '?').split(' ').map(w=>w[0]).join('').
 
 export default function SakerModule({ userId, userEmail, activeProjectId, projects, notes, activeOfficeId }) {
   const activeProject = (projects || []).find(p => p.id === activeProjectId)
+  // Berre notat frå det aktive prosjektet skal kunne koplast til ei sak
+  const projectNotes = (notes || []).filter(n => n.projectId === activeProjectId)
+  // Personell-forslag henta frå deltakarlister i prosjektets møtereferat (inga eiga personelliste finst enno)
+  const personnelList = Array.from(new Set(projectNotes.flatMap(n => n.attendees || []).filter(Boolean))).sort()
 
   const [cases, setCases]           = useState([])
   const [comments, setComments]     = useState({}) // caseId -> [comment,...]
@@ -71,7 +76,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     setCases(list.map(c => ({
       id: c.id, number: c.number, title: c.title, description: c.description || '',
       fag: c.fag, type: c.type, status: c.status, prioritet: c.prioritet,
-      ansvarlig: c.ansvarlig || '', frist: c.frist || '', tegning: c.tegning || '',
+      ansvarlig: c.ansvarlig || '', involverte: c.involverte || [], frist: c.frist || '', tegning: c.tegning || '',
       linkedNotes: c.linked_notes || [], linkedTasks: c.linked_tasks || [],
       attachments: c.attachments || [],
       opprettet: c.created_at, opprettetAv: c.created_by,
@@ -111,14 +116,15 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
   }
 
   // ── Opprett sak ────────────────────────────────────────────────
-  const createCase = async (fields) => {
+  const createCase = async (fields, stagedFiles) => {
     if (!fields.title.trim()) { alert('Tittel er p\u00E5krevd'); return }
     const id = Date.now()
     const row = {
       id, user_id: userId, project_id: activeProjectId,
       number: nextCaseNumber(), title: fields.title.trim(), description: fields.description.trim(),
       fag: fields.fag, type: fields.type, status: 'ny', prioritet: fields.prioritet,
-      ansvarlig: fields.ansvarlig.trim(), frist: fields.frist || null, tegning: fields.tegning.trim(),
+      ansvarlig: fields.ansvarlig.trim(), involverte: fields.involverte || [],
+      frist: fields.frist || null, tegning: '',
       linked_notes: [], linked_tasks: [], attachments: [],
       created_at: new Date().toISOString(), created_by: currentUser,
     }
@@ -129,6 +135,24 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
       id: commentId, case_id: id, user_id: userId, author: currentUser,
       text: 'Sak oppretta.', system: false, created_at: new Date().toISOString(),
     })
+
+    // Last opp filer/utklipp som vart lagt til i registreringsvindauget
+    if (stagedFiles && stagedFiles.length > 0) {
+      const uploaded = []
+      for (const file of stagedFiles) {
+        try {
+          const path = `${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+          const { error: upErr } = await supabase.storage.from('Vedlegg').upload(path, file)
+          if (upErr) throw upErr
+          const { data: urlData } = supabase.storage.from('Vedlegg').getPublicUrl(path)
+          uploaded.push({ name: file.name, path, url: urlData.publicUrl, size: file.size, type: file.type })
+        } catch (e) { console.error('Opplasting feila:', file.name, e) }
+      }
+      if (uploaded.length > 0) {
+        await supabase.from('cases').update({ attachments: uploaded }).eq('id', id).eq('user_id', userId)
+      }
+    }
+
     setShowNewModal(false)
     await loadCases()
     setOpenCaseId(id)
@@ -297,6 +321,12 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
       {/* Verktøylinje */}
       <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 16px',
         background:'var(--bg2)', borderBottom:'1px solid var(--border)', flexWrap:'wrap' }}>
+        <button onClick={()=>setShowNewModal(true)}
+          style={{ padding:'7px 14px', borderRadius:'var(--r)', border:'none',
+            background:'var(--brand)', color:'#fff', fontWeight:700, fontSize:12.5, cursor:'pointer', fontFamily:'var(--font)' }}>
+          + Ny sak
+        </button>
+        <div style={{ width:1, height:22, background:'var(--border)' }}/>
         <input placeholder={'S\u00F8k sak...'} value={search} onChange={e=>setSearch(e.target.value)}
           style={{ padding:'7px 12px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
             fontSize:12.5, fontFamily:'var(--font)', outline:'none', width:220 }}/>
@@ -310,12 +340,6 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
         <div style={{ width:1, height:22, background:'var(--border)' }}/>
         <FilterChip active={fagFilter==='alle'} onClick={()=>setFagFilter('alle')}>Alle fag</FilterChip>
         {FAG.map(f => <FilterChip key={f} active={fagFilter===f} onClick={()=>setFagFilter(f)}>{f}</FilterChip>)}
-        <div style={{ flex:1 }}/>
-        <button onClick={()=>setShowNewModal(true)}
-          style={{ padding:'7px 14px', borderRadius:'var(--r)', border:'none',
-            background:'var(--brand)', color:'#fff', fontWeight:700, fontSize:12.5, cursor:'pointer', fontFamily:'var(--font)' }}>
-          + Ny sak
-        </button>
       </div>
 
       {/* Matrise */}
@@ -357,7 +381,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
                     <td key={col.key} style={{ padding:'9px 12px', borderBottom:'1px solid var(--border)',
                       borderRight:'1px solid var(--border)', whiteSpace:'nowrap', overflow:'hidden',
                       textOverflow:'ellipsis', maxWidth:260, minWidth:col.width, fontSize:13 }}>
-                      <Cell c={c} colKey={col.key} notes={notes} commentCount={(comments[c.id] || []).length}/>
+                      <Cell c={c} colKey={col.key} notes={projectNotes} commentCount={(comments[c.id] || []).length}/>
                     </td>
                   ))}
                 </tr>
@@ -371,7 +395,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
         <CaseDetailModal
           c={openCase}
           comments={comments[openCase.id] || []}
-          notes={notes || []}
+          notes={projectNotes}
           currentUser={currentUser}
           onClose={()=>setOpenCaseId(null)}
           onSetStatus={setCaseStatus}
@@ -388,6 +412,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
       {showNewModal && (
         <NewCaseModal
           nextNumber={nextCaseNumber()}
+          personnel={personnelList}
           onClose={()=>setShowNewModal(false)}
           onCreate={createCase}
         />
@@ -748,51 +773,238 @@ function SectionLabel({ children }) {
 }
 
 // ── Ny sak-modal ─────────────────────────────────────────────────
-function NewCaseModal({ nextNumber, onClose, onCreate }) {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [fag, setFag] = useState(FAG[0])
-  const [type, setType] = useState(TYPE[0])
-  const [prioritet, setPrioritet] = useState('normal')
-  const [ansvarlig, setAnsvarlig] = useState('')
-  const [frist, setFrist] = useState('')
-  const [tegning, setTegning] = useState('')
+const DRAFT_KEY = 'liedlab-saker-newcase-draft'
+const emptyDraft = { title:'', description:'', fag:FAG[0], type:TYPE[0], prioritet:'normal', ansvarlig:'', involverte:[], frist:'' }
+
+function NewCaseModal({ nextNumber, personnel, onClose, onCreate }) {
+  const [fields, setFields] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DRAFT_KEY))
+      return saved && typeof saved === 'object' ? { ...emptyDraft, ...saved } : { ...emptyDraft }
+    } catch { return { ...emptyDraft } }
+  })
+  const [involvertInput, setInvolvertInput] = useState('')
+  const [stagedFiles, setStagedFiles] = useState([])
+  const [dragActive, setDragActive] = useState(false)
+  const fileInputRef = useRef(null)
+
+  const set = (key, val) => setFields(f => {
+    const next = { ...f, [key]: val }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(next))
+    return next
+  })
+
+  const addInvolvert = (name) => {
+    const n = (name || '').trim()
+    if (!n || fields.involverte.includes(n)) return
+    set('involverte', [...fields.involverte, n])
+    setInvolvertInput('')
+  }
+  const removeInvolvert = (name) => set('involverte', fields.involverte.filter(x => x !== name))
+
+  const handleFiles = (files) => {
+    if (!files || files.length === 0) return
+    setStagedFiles(prev => [...prev, ...files])
+  }
+  const removeStagedFile = (idx) => setStagedFiles(prev => prev.filter((_, i) => i !== idx))
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) {
+          e.preventDefault()
+          const named = new File([file], `utklipp_${Date.now()}.png`, { type: file.type })
+          handleFiles([named])
+        }
+      }
+    }
+  }
+
+  const handleCreate = () => {
+    onCreate(fields, stagedFiles)
+    localStorage.removeItem(DRAFT_KEY)
+  }
+  const handleClose = () => {
+    // Informasjonen er alt lagra som utkast i localStorage — trygt å lukke utan å miste noko.
+    // Utkastet vert henta att neste gong "Ny sak" vert opna, til brukar oppretter eller uttrykkeleg forkastar det.
+    onClose()
+  }
+  const discardDraft = () => {
+    if (!window.confirm('Forkaste utkastet? Alt du har fylt ut i dette skjemaet g\u00E5r tapt.')) return
+    localStorage.removeItem(DRAFT_KEY)
+    setFields({ ...emptyDraft })
+    setStagedFiles([])
+  }
+
+  const hasDraftContent = fields.title || fields.description || fields.ansvarlig ||
+    fields.involverte.length > 0 || fields.frist || stagedFiles.length > 0
 
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.42)', display:'flex',
-        alignItems:'center', justifyContent:'center', zIndex:200 }}>
-      <div style={{ background:'var(--bg2)', borderRadius:'var(--r2)', width:560, maxWidth:'92vw',
-        maxHeight:'88vh', overflowY:'auto', padding:'26px 30px' }}>
-        <h3 style={{ margin:'0 0 18px', fontSize:18 }}>Ny sak{' \u2014 '}{nextNumber}</h3>
+    // Merk: ingen "klikk utanfor for å lukke" — ville mista utfylt informasjon ved uhell.
+    // Lukking skjer berre via eksplisitt knapp, og utkastet vert i tillegg lagra fortløpande.
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.42)', display:'flex',
+      alignItems:'center', justifyContent:'center', zIndex:200 }}>
+      <div onPaste={handlePaste}
+        style={{ background:'var(--bg2)', borderRadius:'var(--r2)',
+          width:'min(1180px, 94vw)', height:'min(760px, 90vh)',
+          minWidth:640, minHeight:440, maxWidth:'96vw', maxHeight:'96vh',
+          resize:'both', overflow:'hidden', display:'flex', flexDirection:'column',
+          boxShadow:'0 24px 70px rgba(0,0,0,.35)' }}>
 
-        <FormField label="Tittel"><input className="saker-field-input" value={title} onChange={e=>setTitle(e.target.value)} placeholder="Kort, beskrivende tittel"/></FormField>
-        <FormField label="Skildring"><textarea className="saker-field-input" rows={3} value={description} onChange={e=>setDescription(e.target.value)} placeholder="Beskriv problemstillinga i detalj"/></FormField>
-        <div style={{ display:'flex', gap:10 }}>
-          <FormField label="Fag" flex><select className="saker-field-input" value={fag} onChange={e=>setFag(e.target.value)}>{FAG.map(f=><option key={f}>{f}</option>)}</select></FormField>
-          <FormField label="Type" flex><select className="saker-field-input" value={type} onChange={e=>setType(e.target.value)}>{TYPE.map(t=><option key={t}>{t}</option>)}</select></FormField>
-        </div>
-        <div style={{ display:'flex', gap:10 }}>
-          <FormField label="Prioritet" flex>
-            <select className="saker-field-input" value={prioritet} onChange={e=>setPrioritet(e.target.value)}>
-              {Object.entries(PRIO_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </FormField>
-          <FormField label="Ansvarleg" flex><input className="saker-field-input" value={ansvarlig} onChange={e=>setAnsvarlig(e.target.value)} placeholder="Namn (fag)"/></FormField>
-        </div>
-        <div style={{ display:'flex', gap:10 }}>
-          <FormField label="Frist" flex><input className="saker-field-input" type="date" value={frist} onChange={e=>setFrist(e.target.value)}/></FormField>
-          <FormField label="Tegningsreferanse" flex><input className="saker-field-input" value={tegning} onChange={e=>setTegning(e.target.value)} placeholder="t.d. A-201, rev. B"/></FormField>
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'18px 26px',
+          borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+          <h3 style={{ margin:0, fontSize:19 }}>Ny sak{' \u2014 '}{nextNumber}</h3>
+          {hasDraftContent && (
+            <span style={{ fontSize:11, color:'var(--text3)', background:'var(--bg3)',
+              padding:'3px 9px', borderRadius:20, fontWeight:600 }}>
+              {'Utkast lagra fortl\u00F8pande'}
+            </span>
+          )}
+          <div style={{ flex:1 }}/>
+          {hasDraftContent && (
+            <button onClick={discardDraft}
+              style={{ background:'none', border:'none', color:'var(--text3)', fontSize:12,
+                cursor:'pointer', fontFamily:'var(--font)', textDecoration:'underline' }}>
+              Forkast utkast
+            </button>
+          )}
         </div>
 
-        <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:20 }}>
-          <button onClick={onClose}
+        {/* To kolonner: tekstfelt til venstre, vedlegg til høgre */}
+        <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
+
+          {/* Venstre kolonne — tekstfelt */}
+          <div style={{ flex:'1 1 58%', overflowY:'auto', padding:'22px 26px', borderRight:'1px solid var(--border)' }}>
+            <FormField label="Tittel">
+              <input className="saker-field-input" value={fields.title} onChange={e=>set('title', e.target.value)}
+                placeholder="Kort, beskrivende tittel"/>
+            </FormField>
+            <FormField label="Skildring">
+              <textarea className="saker-field-input" rows={6} value={fields.description}
+                onChange={e=>set('description', e.target.value)}
+                placeholder="Beskriv problemstillinga i detalj"/>
+            </FormField>
+
+            <div style={{ display:'flex', gap:14 }}>
+              <FormField label="Ansvarleg" flex>
+                <input className="saker-field-input" list="saker-personnel-list" value={fields.ansvarlig}
+                  onChange={e=>set('ansvarlig', e.target.value)}
+                  placeholder="Vel eller skriv namn"/>
+              </FormField>
+              <FormField label="Frist" flex>
+                <DatePicker value={fields.frist} onChange={v=>set('frist', v)}/>
+              </FormField>
+            </div>
+
+            <FormField label="Involverte">
+              <div style={{ display:'flex', gap:8 }}>
+                <input className="saker-field-input" list="saker-personnel-list" value={involvertInput}
+                  onChange={e=>setInvolvertInput(e.target.value)}
+                  onKeyDown={e=>{ if (e.key==='Enter') { e.preventDefault(); addInvolvert(involvertInput) } }}
+                  placeholder="Vel eller skriv namn, Enter for å legge til"/>
+                <button type="button" onClick={()=>addInvolvert(involvertInput)}
+                  style={{ padding:'0 16px', borderRadius:'var(--r)', border:'1.5px solid var(--brand2)',
+                    background:'var(--brandbg)', color:'var(--brand)', fontWeight:700, fontSize:12.5,
+                    cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                  Legg til
+                </button>
+              </div>
+              {fields.involverte.length > 0 && (
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:8 }}>
+                  {fields.involverte.map(name => (
+                    <span key={name} style={{ display:'inline-flex', alignItems:'center', gap:6,
+                      padding:'4px 10px', background:'var(--bg3)', borderRadius:20, fontSize:12.5, fontWeight:500 }}>
+                      {name}
+                      <span onClick={()=>removeInvolvert(name)} style={{ cursor:'pointer', color:'var(--text3)', fontSize:13 }}>{'\u00D7'}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <datalist id="saker-personnel-list">
+                {personnel.map(p => <option key={p} value={p}/>)}
+              </datalist>
+            </FormField>
+
+            <div style={{ display:'flex', gap:14 }}>
+              <FormField label="Fag" flex>
+                <select className="saker-field-input" value={fields.fag} onChange={e=>set('fag', e.target.value)}>
+                  {FAG.map(f=><option key={f}>{f}</option>)}
+                </select>
+              </FormField>
+              <FormField label="Type" flex>
+                <select className="saker-field-input" value={fields.type} onChange={e=>set('type', e.target.value)}>
+                  {TYPE.map(t=><option key={t}>{t}</option>)}
+                </select>
+              </FormField>
+              <FormField label="Prioritet" flex>
+                <select className="saker-field-input" value={fields.prioritet} onChange={e=>set('prioritet', e.target.value)}>
+                  {Object.entries(PRIO_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </FormField>
+            </div>
+          </div>
+
+          {/* Høgre kolonne — vedlegg/utklipp */}
+          <div style={{ flex:'1 1 42%', overflowY:'auto', padding:'22px 26px', display:'flex', flexDirection:'column' }}>
+            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--text3)', letterSpacing:'.03em',
+              marginBottom:8, textTransform:'uppercase' }}>
+              Vedlegg / tegningar / utklipp
+            </label>
+            <div
+              onClick={()=>fileInputRef.current?.click()}
+              onDragOver={e=>{ e.preventDefault(); setDragActive(true) }}
+              onDragLeave={()=>setDragActive(false)}
+              onDrop={e=>{ e.preventDefault(); setDragActive(false); handleFiles([...e.dataTransfer.files]) }}
+              style={{ flex:1, minHeight:180, border:`2px dashed ${dragActive ? 'var(--brand2)' : 'var(--border)'}`,
+                borderRadius:'var(--r2)', background: dragActive ? 'var(--brandbg)' : 'var(--bg3)',
+                display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                gap:10, cursor:'pointer', transition:'all .15s', padding:20, textAlign:'center' }}>
+              <span style={{ fontSize:30 }}>{'\u{1F4CE}'}</span>
+              <div style={{ fontSize:13, fontWeight:600, color:'var(--text2)' }}>
+                Dra og slepp PDF-ar eller bilete hit
+              </div>
+              <div style={{ fontSize:12, color:'var(--text3)' }}>
+                {'eller klikk for \u00E5 velje filer \u2014 du kan ogs\u00E5 lime inn eit skjermutklipp (Ctrl+V) direkte i vindauget'}
+              </div>
+            </div>
+            <input ref={fileInputRef} type="file" multiple style={{ display:'none' }}
+              onChange={e => { handleFiles([...e.target.files]); e.target.value = '' }}/>
+
+            {stagedFiles.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:12 }}>
+                {stagedFiles.map((file, i) => (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px',
+                    background:'var(--bg3)', borderRadius:'var(--r)', border:'1px solid var(--border)' }}>
+                    <span style={{ fontSize:10.5, fontWeight:700, padding:'2px 7px', borderRadius:5,
+                      background:'var(--brandbg)', color:'var(--brand)', flexShrink:0 }}>
+                      {file.type?.includes('image') ? 'BILETE' : file.type?.includes('pdf') ? 'PDF' : 'FIL'}
+                    </span>
+                    <span style={{ flex:1, fontSize:12.5, fontWeight:500, overflow:'hidden',
+                      textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{file.name}</span>
+                    <span style={{ fontSize:10.5, color:'var(--text3)' }}>{(file.size/1024).toFixed(0)} KB</span>
+                    <button onClick={()=>removeStagedFile(i)}
+                      style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer', padding:2 }}>
+                      <span style={{ fontWeight:800, fontSize:13 }}>{'\u00D7'}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display:'flex', justifyContent:'flex-end', gap:10, padding:'16px 26px',
+          borderTop:'1px solid var(--border)', flexShrink:0 }}>
+          <button onClick={handleClose}
             style={{ padding:'9px 18px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
               background:'var(--bg2)', fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>
-            Avbryt
+            Lukk (utkast vert lagra)
           </button>
-          <button onClick={()=>onCreate({ title, description, fag, type, prioritet, ansvarlig, frist, tegning })}
-            style={{ padding:'9px 18px', borderRadius:'var(--r)', border:'none', background:'var(--brand)',
+          <button onClick={handleCreate}
+            style={{ padding:'9px 20px', borderRadius:'var(--r)', border:'none', background:'var(--brand)',
               color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>
             Opprett sak
           </button>
@@ -804,9 +1016,9 @@ function NewCaseModal({ nextNumber, onClose, onCreate }) {
 
 function FormField({ label, flex, children }) {
   return (
-    <div style={{ marginBottom:14, flex: flex ? 1 : undefined }}>
+    <div style={{ marginBottom:16, flex: flex ? 1 : undefined }}>
       <label style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--text3)', letterSpacing:'.03em',
-        marginBottom:4, textTransform:'uppercase' }}>{label}</label>
+        marginBottom:5, textTransform:'uppercase' }}>{label}</label>
       {children}
     </div>
   )

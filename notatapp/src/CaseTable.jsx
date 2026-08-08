@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
+import DatePicker from './DatePicker'
 
 const STATUSES = ['Ny', 'Pågår', 'Venter', 'Lukka']
 const STATUS_COLORS = {
@@ -124,8 +125,7 @@ function CaseModal({ caseData, onSave, onDelete, onClose, userId }) {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
             <div>
               <label style={lbl}>Frist</label>
-              <input style={fi} type="date" value={deadline || ''}
-                onChange={e => setDeadline(e.target.value)}/>
+              <DatePicker value={deadline || ''} onChange={v => setDeadline(v)}/>
             </div>
             <div>
               <label style={lbl}>Status</label>

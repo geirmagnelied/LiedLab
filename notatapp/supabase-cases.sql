@@ -41,6 +41,9 @@ CREATE INDEX IF NOT EXISTS idx_cases_status       ON cases(status);
 CREATE INDEX IF NOT EXISTS idx_cases_deleted      ON cases(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_case_comments_case ON case_comments(case_id);
 
+-- Nytt felt: fleire involverte personar (i tillegg til éin ansvarleg) — trygt å køyre igjen
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS involverte JSONB DEFAULT '[]';
+
 ALTER TABLE cases ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "cases_select" ON cases;
 DROP POLICY IF EXISTS "cases_insert" ON cases;
