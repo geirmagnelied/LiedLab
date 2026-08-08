@@ -182,3 +182,17 @@
     border-right-color: var(--border);
   }
 }
+
+/* ── Saksmodul: input-felt i "Ny sak"-skjemaet ── */
+.saker-field-input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--r);
+  border: 1.5px solid var(--border);
+  font-family: var(--font);
+  font-size: 13.5px;
+  outline: none;
+}
+.saker-field-input:focus {
+  border-color: var(--brand2);
+}

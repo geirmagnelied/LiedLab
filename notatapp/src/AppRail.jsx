@@ -5,6 +5,7 @@ const MODULES = [
   { key: 'prosjekt', letter: 'P',  label: 'Prosjekt',       color: '#85B7EB' },
   { key: 'kunde',    letter: 'K',  label: 'Kunde',          color: '#D4537E' },
   { key: 'oppgaver', letter: 'O',  label: 'Oppg\u00E5ver',  color: '#4EADA3' },
+  { key: 'saker',    letter: 'S',  label: 'Saker',          color: '#E07A5F' },
   { key: 'timar',    letter: 'T',  label: 'Timar',          color: '#60A5D4' },
   { key: 'kvalitet', letter: 'KS', label: 'Kvalitetssystem', color: '#EC9A5A' },
   { key: 'farge',    letter: 'F',  label: 'Farge',          color: '#C084B6' },
