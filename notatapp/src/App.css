@@ -186,11 +186,11 @@
 /* ── Saksmodul: input-felt i "Ny sak"-skjemaet ── */
 .saker-field-input {
   width: 100%;
-  padding: 13px 15px;
+  padding: 15px 17px;
   border-radius: var(--r);
   border: 1.5px solid var(--border);
   font-family: var(--font);
-  font-size: 13.5px;
+  font-size: 15px;
   outline: none;
   line-height: 1.5;
 }
@@ -198,6 +198,6 @@
   border-color: var(--brand2);
 }
 textarea.saker-field-input {
-  min-height: 120px;
+  min-height: 150px;
   resize: vertical;
 }

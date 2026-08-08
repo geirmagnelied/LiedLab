@@ -876,49 +876,45 @@ function NewCaseModal({ nextNumber, personnel, onClose, onCreate }) {
         {/* To kolonner: tekstfelt til venstre, vedlegg til høgre */}
         <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
 
-          {/* Venstre kolonne — tekstfelt */}
-          <div style={{ flex:'1 1 58%', overflowY:'auto', padding:'22px 26px', borderRight:'1px solid var(--border)' }}>
+          {/* Venstre kolonne — tekstfelt, alle stabla under kvarandre i full breidde */}
+          <div style={{ flex:'1 1 58%', overflowY:'auto', padding:'26px 32px', borderRight:'1px solid var(--border)' }}>
             <FormField label="Tittel">
               <input className="saker-field-input" value={fields.title} onChange={e=>set('title', e.target.value)}
                 placeholder="Kort, beskrivende tittel"/>
             </FormField>
+
             <FormField label="Skildring">
-              <textarea className="saker-field-input" rows={6} value={fields.description}
+              <textarea className="saker-field-input" rows={7} value={fields.description}
                 onChange={e=>set('description', e.target.value)}
                 placeholder="Beskriv problemstillinga i detalj"/>
             </FormField>
 
-            <div style={{ display:'flex', gap:14 }}>
-              <FormField label="Ansvarleg" flex>
-                <input className="saker-field-input" list="saker-personnel-list" value={fields.ansvarlig}
-                  onChange={e=>set('ansvarlig', e.target.value)}
-                  placeholder="Vel eller skriv namn"/>
-              </FormField>
-              <FormField label="Frist" flex>
-                <DatePicker value={fields.frist} onChange={v=>set('frist', v)}/>
-              </FormField>
-            </div>
+            <FormField label="Ansvarleg">
+              <input className="saker-field-input" list="saker-personnel-list" value={fields.ansvarlig}
+                onChange={e=>set('ansvarlig', e.target.value)}
+                placeholder="Vel eller skriv namn"/>
+            </FormField>
 
             <FormField label="Involverte">
-              <div style={{ display:'flex', gap:8 }}>
+              <div style={{ display:'flex', gap:10 }}>
                 <input className="saker-field-input" list="saker-personnel-list" value={involvertInput}
                   onChange={e=>setInvolvertInput(e.target.value)}
                   onKeyDown={e=>{ if (e.key==='Enter') { e.preventDefault(); addInvolvert(involvertInput) } }}
                   placeholder="Vel eller skriv namn, Enter for å legge til"/>
                 <button type="button" onClick={()=>addInvolvert(involvertInput)}
-                  style={{ padding:'0 16px', borderRadius:'var(--r)', border:'1.5px solid var(--brand2)',
-                    background:'var(--brandbg)', color:'var(--brand)', fontWeight:700, fontSize:12.5,
-                    cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                  style={{ padding:'0 20px', borderRadius:'var(--r)', border:'1.5px solid var(--brand2)',
+                    background:'var(--brandbg)', color:'var(--brand)', fontWeight:700, fontSize:13.5,
+                    cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap', flexShrink:0 }}>
                   Legg til
                 </button>
               </div>
               {fields.involverte.length > 0 && (
-                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:8 }}>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:10 }}>
                   {fields.involverte.map(name => (
-                    <span key={name} style={{ display:'inline-flex', alignItems:'center', gap:6,
-                      padding:'4px 10px', background:'var(--bg3)', borderRadius:20, fontSize:12.5, fontWeight:500 }}>
+                    <span key={name} style={{ display:'inline-flex', alignItems:'center', gap:7,
+                      padding:'6px 13px', background:'var(--bg3)', borderRadius:20, fontSize:13.5, fontWeight:500 }}>
                       {name}
-                      <span onClick={()=>removeInvolvert(name)} style={{ cursor:'pointer', color:'var(--text3)', fontSize:13 }}>{'\u00D7'}</span>
+                      <span onClick={()=>removeInvolvert(name)} style={{ cursor:'pointer', color:'var(--text3)', fontSize:14 }}>{'\u00D7'}</span>
                     </span>
                   ))}
                 </div>
@@ -928,23 +924,27 @@ function NewCaseModal({ nextNumber, personnel, onClose, onCreate }) {
               </datalist>
             </FormField>
 
-            <div style={{ display:'flex', gap:14 }}>
-              <FormField label="Fag" flex>
-                <select className="saker-field-input" value={fields.fag} onChange={e=>set('fag', e.target.value)}>
-                  {FAG.map(f=><option key={f}>{f}</option>)}
-                </select>
-              </FormField>
-              <FormField label="Type" flex>
-                <select className="saker-field-input" value={fields.type} onChange={e=>set('type', e.target.value)}>
-                  {TYPE.map(t=><option key={t}>{t}</option>)}
-                </select>
-              </FormField>
-              <FormField label="Prioritet" flex>
-                <select className="saker-field-input" value={fields.prioritet} onChange={e=>set('prioritet', e.target.value)}>
-                  {Object.entries(PRIO_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </FormField>
-            </div>
+            <FormField label="Fag">
+              <select className="saker-field-input" value={fields.fag} onChange={e=>set('fag', e.target.value)}>
+                {FAG.map(f=><option key={f}>{f}</option>)}
+              </select>
+            </FormField>
+
+            <FormField label="Type">
+              <select className="saker-field-input" value={fields.type} onChange={e=>set('type', e.target.value)}>
+                {TYPE.map(t=><option key={t}>{t}</option>)}
+              </select>
+            </FormField>
+
+            <FormField label="Prioritet">
+              <select className="saker-field-input" value={fields.prioritet} onChange={e=>set('prioritet', e.target.value)}>
+                {Object.entries(PRIO_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </FormField>
+
+            <FormField label="Frist">
+              <DatePicker value={fields.frist} onChange={v=>set('frist', v)}/>
+            </FormField>
           </div>
 
           {/* Høgre kolonne — vedlegg/utklipp */}
@@ -1016,9 +1016,9 @@ function NewCaseModal({ nextNumber, personnel, onClose, onCreate }) {
 
 function FormField({ label, flex, children }) {
   return (
-    <div style={{ marginBottom:16, flex: flex ? 1 : undefined }}>
-      <label style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--text3)', letterSpacing:'.03em',
-        marginBottom:5, textTransform:'uppercase' }}>{label}</label>
+    <div style={{ marginBottom:22, flex: flex ? 1 : undefined }}>
+      <label style={{ display:'block', fontSize:11.5, fontWeight:700, color:'var(--text3)', letterSpacing:'.03em',
+        marginBottom:7, textTransform:'uppercase' }}>{label}</label>
       {children}
     </div>
   )
