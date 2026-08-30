@@ -1,31 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabase'
 import DatePicker from './DatePicker'
-
-// ── Konstantar ────────────────────────────────────────────────────────
-const FAG = ['ARK', 'RIB', 'RIE', 'RIV', 'RIBr', 'Landskap', 'Anna']
-const TYPE = ['Prosjekteringsavvik', 'Grensesnitt', 'Sp\u00F8rsm\u00E5l', 'Krev avklaring', 'Forslag']
-const STATUS_LABELS = { ny: 'Ny', arbeid: 'Under arbeid', kontroll: 'Til kontroll', lukka: 'Lukka' }
-const STATUS_ORDER = ['ny', 'arbeid', 'kontroll', 'lukka']
-const STATUS_COLORS = { ny: '#1565C0', arbeid: '#B45309', kontroll: '#6D28D9', lukka: '#166534' }
-const PRIO_LABELS = { lav: 'Lav', normal: 'Normal', hoog: 'H\u00F8g', kritisk: 'Kritisk' }
-const PRIO_COLORS = { lav: '#6B7280', normal: '#6B7280', hoog: '#B45309', kritisk: '#B91C1C' }
-
-const ALL_COLUMNS = [
-  { key: 'number',    label: 'Nr',          width: 110 },
-  { key: 'title',      label: 'Tittel',      width: 260 },
-  { key: 'status',     label: 'Status',      width: 130 },
-  { key: 'fag',        label: 'Fag',         width: 90  },
-  { key: 'type',       label: 'Type',        width: 160 },
-  { key: 'prioritet',  label: 'Prioritet',   width: 100 },
-  { key: 'ansvarlig',  label: 'Ansvarleg',   width: 140 },
-  { key: 'frist',      label: 'Frist',       width: 110 },
-  { key: 'tegning',    label: 'Tegning',     width: 130 },
-  { key: 'linked',     label: 'Koplingar',   width: 170 },
-  { key: 'comments',   label: 'Kommentarar', width: 100 },
-  { key: 'opprettet',  label: 'Opprettet',   width: 120 },
-]
-const COLORDER_KEY = 'liedlab-saker-colorder-v1'
+import SakerTabell from './SakerTabell'
+import {
+  FAG, TYPE,
+  STATUS_LABELS, STATUS_ORDER, STATUS_COLORS,
+  PRIO_LABELS, caseNoText,
+} from './sakerKonstantar'
 
 function fmtTime(iso) {
   if (!iso) return ''
@@ -51,22 +32,18 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
 
   const [cases, setCases]           = useState([])
   const [comments, setComments]     = useState({}) // caseId -> [comment,...]
+  const [eigneKolonnar, setEigneKolonnar] = useState([]) // eigendefinerte kolonnar for prosjektet
   const [loading, setLoading]       = useState(true)
   const [statusFilter, setStatusFilter] = useState('alle')
   const [fagFilter, setFagFilter]   = useState('alle')
   const [search, setSearch]         = useState('')
   const [openCaseId, setOpenCaseId] = useState(null)
   const [showNewModal, setShowNewModal] = useState(false)
-  const [columnOrder, setColumnOrder] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(COLORDER_KEY)) || ALL_COLUMNS.map(c=>c.key) }
-    catch { return ALL_COLUMNS.map(c=>c.key) }
-  })
-  const dragColRef = useRef(null)
   const currentUser = userEmail || 'Ukjend brukar'
 
   // ── Last saker + kommentarar for aktivt prosjekt ──────────────
   const loadCases = useCallback(async () => {
-    if (!userId || !activeProjectId) { setCases([]); setComments({}); setLoading(false); return }
+    if (!userId || !activeProjectId) { setCases([]); setComments({}); setEigneKolonnar([]); setLoading(false); return }
     setLoading(true)
     const { data: caseData, error: caseErr } = await supabase.from('cases').select('*')
       .eq('user_id', userId).eq('project_id', activeProjectId).is('deleted_at', null)
@@ -79,6 +56,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
       ansvarlig: c.ansvarlig || '', involverte: c.involverte || [], frist: c.frist || '', tegning: c.tegning || '',
       linkedNotes: c.linked_notes || [], linkedTasks: c.linked_tasks || [],
       attachments: c.attachments || [],
+      ekstra: c.ekstra || {},
       opprettet: c.created_at, opprettetAv: c.created_by,
     })))
 
@@ -94,25 +72,28 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     } else {
       setComments({})
     }
+    // Eigendefinerte kolonnar for dette prosjektet
+    const { data: colData, error: colErr } = await supabase.from('case_columns').select('*')
+      .eq('user_id', userId).eq('project_id', activeProjectId)
+      .order('sortering', { ascending: true })
+    if (colErr) {
+      console.warn('Klarte ikkje hente eigne kolonnar (er case_columns oppretta?)', colErr.message)
+      setEigneKolonnar([])
+    } else {
+      setEigneKolonnar((colData || []).map(k => ({ key: k.key, label: k.label, art: k.art || 'tekst' })))
+    }
+
     setLoading(false)
   }, [userId, activeProjectId])
 
   useEffect(() => { loadCases() }, [loadCases])
 
-  const saveColOrder = (order) => {
-    setColumnOrder(order)
-    localStorage.setItem(COLORDER_KEY, JSON.stringify(order))
-  }
-
-  // ── Saksnummer-generering per prosjekt ────────────────────────
+  // ── Saksnummer per prosjekt ───────────────────────────────────
+  // Saksnummeret er berre eit lopande tal. Prosjektet går fram av
+  // prosjektnummer-kolonna, så nummeret treng ikkje prefiks.
   const nextCaseNumber = () => {
-    const prefix = activeProject?.projectNumber || '0000'
-    const nums = cases.map(c => {
-      const parts = c.number.split('-')
-      return parseInt(parts[parts.length - 1])
-    }).filter(n => !isNaN(n))
-    const next = (nums.length ? Math.max(...nums) : 0) + 1
-    return `K-${prefix}-${String(next).padStart(3, '0')}`
+    const nums = cases.map(c => parseInt(caseNoText(c.number), 10)).filter(n => !isNaN(n))
+    return String((nums.length ? Math.max(...nums) : 0) + 1)
   }
 
   // ── Opprett sak ────────────────────────────────────────────────
@@ -262,16 +243,47 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     await loadCases()
   }
 
-  // ── Kolonne drag-and-drop ────────────────────────────────────
-  const onColDragStart = (key) => { dragColRef.current = key }
-  const onColDrop = (targetKey) => {
-    const from = dragColRef.current
-    if (!from || from === targetKey) return
-    const order = [...columnOrder]
-    const fi = order.indexOf(from), ti = order.indexOf(targetKey)
-    order.splice(fi, 1); order.splice(ti, 0, from)
-    dragColRef.current = null
-    saveColOrder(order)
+  // ── Eigendefinerte kolonnar ───────────────────────────────────
+  // Definisjonen ligg i case_columns og høyrer til prosjektet, slik at
+  // kolonnen dukkar opp same kvar du opnar saksregisteret.
+  const addColumn = async (label, art) => {
+    const key = 'eigen_' + Date.now().toString(36)
+    const rad = {
+      id: Date.now(), user_id: userId, project_id: activeProjectId,
+      key, label, art, sortering: eigneKolonnar.length,
+      created_at: new Date().toISOString(),
+    }
+    const { error } = await supabase.from('case_columns').insert(rad)
+    if (error) {
+      alert('Klarte ikkje lagre kolonnen.\n\nHar du køyrt SQL-en som opprettar tabellen «case_columns»?\n\n' + error.message)
+      return null
+    }
+    setEigneKolonnar(prev => [...prev, { key, label, art }])
+    return key
+  }
+
+  const deleteColumn = async (key) => {
+    const { error } = await supabase.from('case_columns').delete()
+      .eq('key', key).eq('user_id', userId).eq('project_id', activeProjectId)
+    if (error) { alert('Klarte ikkje slette kolonnen: ' + error.message); return }
+    setEigneKolonnar(prev => prev.filter(k => k.key !== key))
+  }
+
+  // ── Verdi i eigendefinert kolonne ─────────────────────────────
+  // Kolonnedefinisjonen ligg lokalt i nettlesaren, verdiane i databasen
+  // (cases.ekstra). Krev at SQL-en som legg til «ekstra» er køyrd.
+  const setExtraValue = async (caseId, key, value) => {
+    const c = cases.find(x => x.id === caseId)
+    if (!c) return
+    const neste = { ...(c.ekstra || {}), [key]: value }
+    setCases(prev => prev.map(x => x.id === caseId ? { ...x, ekstra: neste } : x))
+    const { error } = await supabase.from('cases')
+      .update({ ekstra: neste, updated_at: new Date().toISOString() })
+      .eq('id', caseId).eq('user_id', userId)
+    if (error) {
+      alert('Klarte ikkje lagre verdien.\n\nHar du køyrt SQL-en som legg til kolonnen «ekstra» i cases-tabellen?\n\n' + error.message)
+      await loadCases()
+    }
   }
 
   // ── Filtrering ─────────────────────────────────────────────────
@@ -281,7 +293,8 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     if (search && !(c.title + c.number).toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
-  const cols = columnOrder.map(k => ALL_COLUMNS.find(c => c.key === k)).filter(Boolean)
+  const prosjektNr = activeProject?.projectNumber || ''
+  const rader = filtered.map(c => ({ ...c, prosjektNr }))
   const openCase = cases.find(c => c.id === openCaseId)
 
   // ── Ingen prosjekt valt ────────────────────────────────────────
@@ -343,57 +356,23 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
       </div>
 
       {/* Matrise */}
-      <div style={{ flex:1, overflow:'auto' }}>
-        {loading ? (
-          <div style={{ padding:20, color:'var(--text3)', fontSize:13 }}>{'Lastar\u2026'}</div>
-        ) : (
-          <table style={{ borderCollapse:'collapse', width:'100%', minWidth:900 }}>
-            <thead>
-              <tr>
-                {cols.map(col => (
-                  <th key={col.key} draggable style={{ position:'sticky', top:0, zIndex:5,
-                      background:'var(--bg3)', borderBottom:'2px solid var(--border)', borderRight:'1px solid var(--border)',
-                      padding:0, textAlign:'left', userSelect:'none', minWidth:col.width }}
-                    onDragStart={()=>onColDragStart(col.key)}
-                    onDragOver={e=>e.preventDefault()}
-                    onDrop={()=>onColDrop(col.key)}>
-                    <div style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 12px', cursor:'grab',
-                      fontSize:10.5, fontWeight:700, color:'var(--text3)', letterSpacing:'.04em', textTransform:'uppercase' }}>
-                      <span style={{ opacity:.35, fontSize:11 }}>{'\u22EE\u22EE'}</span>
-                      {col.label}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 && (
-                <tr><td colSpan={cols.length} style={{ textAlign:'center', padding:30, color:'var(--text3)' }}>
-                  Ingen saker matcher filteret
-                </td></tr>
-              )}
-              {filtered.map(c => (
-                <tr key={c.id} onDoubleClick={()=>setOpenCaseId(c.id)} title={'Dobbeltklikk for \u00E5 opne'}
-                  style={{ cursor:'pointer', opacity: c.status==='lukka' ? .55 : 1 }}
-                  onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'}
-                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                  {cols.map(col => (
-                    <td key={col.key} style={{ padding:'9px 12px', borderBottom:'1px solid var(--border)',
-                      borderRight:'1px solid var(--border)', whiteSpace:'nowrap', overflow:'hidden',
-                      textOverflow:'ellipsis', maxWidth:260, minWidth:col.width, fontSize:13 }}>
-                      <Cell c={c} colKey={col.key} notes={projectNotes} commentCount={(comments[c.id] || []).length}/>
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {loading ? (
+        <div style={{ padding:20, color:'var(--text3)', fontSize:13 }}>{'Lastar\u2026'}</div>
+      ) : (
+        <SakerTabell
+          cases={rader}
+          comments={comments}
+          eigne={eigneKolonnar}
+          onOpenCase={setOpenCaseId}
+          onSetExtra={setExtraValue}
+          onNyKolonne={addColumn}
+          onSlettKolonne={deleteColumn}
+        />
+      )}
 
       {openCase && (
         <CaseDetailModal
-          c={openCase}
+          c={{ ...openCase, prosjektNr }}
           comments={comments[openCase.id] || []}
           notes={projectNotes}
           currentUser={currentUser}
@@ -430,58 +409,6 @@ function FilterChip({ active, onClick, children }) {
         fontSize:11.5, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
       {children}
     </button>
-  )
-}
-
-// ── Celle-rendering ──────────────────────────────────────────────
-function Cell({ c, colKey, notes, commentCount }) {
-  switch (colKey) {
-    case 'number': return <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--text3)' }}>{c.number}</span>
-    case 'title': return <span style={{ fontWeight:600 }}>{c.title}</span>
-    case 'status': return <StatusBadge status={c.status}/>
-    case 'fag': return c.fag
-    case 'type': return c.type
-    case 'prioritet': return <PrioBadge prio={c.prioritet}/>
-    case 'ansvarlig': return c.ansvarlig || '\u2014'
-    case 'frist': return fmtDateShort(c.frist)
-    case 'tegning': return c.tegning || '\u2014'
-    case 'linked': {
-      const n = c.linkedNotes.length, t = c.linkedTasks.length
-      if (!n && !t) return <span style={{ color:'var(--text3)', opacity:.5 }}>{'\u2014'}</span>
-      return (
-        <>
-          {n > 0 && <LinkPill>{'\u{1F4C4}'} {n} notat</LinkPill>}
-          {t > 0 && <LinkPill>{'\u2713'} {t} oppg.</LinkPill>}
-        </>
-      )
-    }
-    case 'comments': return `\u{1F4AC} ${commentCount}`
-    case 'opprettet': return fmtDateShort(c.opprettet)
-    default: return null
-  }
-}
-function StatusBadge({ status }) {
-  return (
-    <span style={{ padding:'2px 9px', borderRadius:20, fontSize:10.5, fontWeight:700, letterSpacing:'.02em',
-      textTransform:'uppercase', background: STATUS_COLORS[status]+'1a', color: STATUS_COLORS[status] }}>
-      {STATUS_LABELS[status]}
-    </span>
-  )
-}
-function PrioBadge({ prio }) {
-  return (
-    <span style={{ padding:'2px 9px', borderRadius:20, fontSize:10.5, fontWeight:700, letterSpacing:'.02em',
-      textTransform:'uppercase', background: PRIO_COLORS[prio]+'1a', color: PRIO_COLORS[prio] }}>
-      {PRIO_LABELS[prio]}
-    </span>
-  )
-}
-function LinkPill({ children }) {
-  return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 7px', borderRadius:20,
-      background:'var(--brandbg)', color:'var(--brand)', fontSize:10.5, fontWeight:600, marginRight:4 }}>
-      {children}
-    </span>
   )
 }
 
@@ -533,7 +460,9 @@ function CaseDetailModal({ c, comments, notes, currentUser, onClose, onSetStatus
 
         {/* Head */}
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'16px 20px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-          <span style={{ fontFamily:'var(--mono)', fontWeight:800, fontSize:15, color:'var(--brand)' }}>{c.number}</span>
+          <span style={{ fontFamily:'var(--mono)', fontWeight:800, fontSize:15, color:'var(--brand)' }}>
+            {c.prosjektNr ? c.prosjektNr + ' \u00B7 ' : ''}{'Sak '}{caseNoText(c.number)}
+          </span>
           <span style={{ color:'var(--text3)', fontSize:12 }}>{c.fag}{' \u00B7 '}{c.type}</span>
           <button onClick={onClose} style={{ marginLeft:'auto', background:'none', border:'none', fontSize:20,
             cursor:'pointer', color:'var(--text3)', lineHeight:1, padding:4 }}>{'\u00D7'}</button>
@@ -856,7 +785,7 @@ function NewCaseModal({ nextNumber, personnel, onClose, onCreate }) {
 
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'18px 26px',
           borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-          <h3 style={{ margin:0, fontSize:19 }}>Ny sak{' \u2014 '}{nextNumber}</h3>
+          <h3 style={{ margin:0, fontSize:19 }}>Ny sak{' \u2014 nr '}{nextNumber}</h3>
           {hasDraftContent && (
             <span style={{ fontSize:11, color:'var(--text3)', background:'var(--bg3)',
               padding:'3px 9px', borderRadius:20, fontWeight:600 }}>
