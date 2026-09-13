@@ -1,14 +1,16 @@
 import { useState } from 'react'
 
 const MODULES = [
-  { key: 'notatar',  letter: 'N',  label: 'Notatar',        color: '#52B788' },
   { key: 'prosjekt', letter: 'P',  label: 'Prosjekt',       color: '#85B7EB' },
   { key: 'kunde',    letter: 'K',  label: 'Kunde',          color: '#D4537E' },
+  { key: 'notatar',  letter: 'N',  label: 'Notatar',        color: '#52B788' },
   { key: 'oppgaver', letter: 'O',  label: 'Oppg\u00E5ver',  color: '#4EADA3' },
   { key: 'saker',    letter: 'S',  label: 'Saker',          color: '#E07A5F' },
   { key: 'timar',    letter: 'T',  label: 'Timar',          color: '#60A5D4' },
   { key: 'kvalitet', letter: 'KS', label: 'Kvalitetssystem', color: '#EC9A5A' },
   { key: 'farge',    letter: 'F',  label: 'Farge',          color: '#C084B6' },
+  { key: 'resultatdokument', letter: 'Rd', label: 'Resultatdokument', color: '#E9C46A' },
+  { key: 'kalender', letter: 'Ka', label: 'Kalender',       color: '#2A9D8F' },
 ]
 
 export default function AppRail({ activeModule, onModuleChange }) {

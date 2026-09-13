@@ -82,14 +82,14 @@ export function useStore(userId) {
       createdAt: p.created_at,
     })))
     setNotes((nData || []).map(n => ({
-      id: n.id, title: n.title, text: n.text, html: n.html,
+      id: n.id, nr: n.nr, title: n.title, text: n.text, html: n.html,
       tasks: n.tasks || [], tag: n.tag, projectId: n.project_id,
       isEmail: n.is_email, sketchDataUrl: n.sketch_data_url,
       attachments: n.attachments || [],
       isMeeting: n.is_meeting, isReferat: n.is_referat || false, meetingTime: n.meeting_time,
       meetingDuration: n.meeting_duration, meetingLocation: n.meeting_location,
       attendees: n.attendees || [],
-      done: n.done, createdAt: n.created_at,
+      done: n.done, createdAt: n.created_at, updatedAt: n.updated_at,
     })))
     setLoading(false)
   }, [userId])
@@ -97,10 +97,19 @@ export function useStore(userId) {
   useEffect(() => { loadAll() }, [loadAll])
 
   // ── Notes ─────────────────────────────────────────────────────────────
+  // Notatnummer: eit permanent, unikt løpenummer per brukar — same mønster
+  // som saksnummer i saksmodulen (nextCaseNumber i SakerModule.jsx): rekna
+  // ut som høgste eksisterande + 1, ikkje ein database-sekvens.
+  const nextNoteNumber = () => {
+    const nrs = notes.map(n => n.nr || 0)
+    return (nrs.length ? Math.max(...nrs) : 0) + 1
+  }
+
   const addNote = async (n) => {
     const id = Date.now()
+    const nr = nextNoteNumber()
     const row = {
-      id, user_id: userId,
+      id, user_id: userId, nr,
       title: n.title || '', text: n.text || '', html: n.html || '',
       tasks: n.tasks || [], tag: n.tag || null,
       project_id: n.projectId || null,
@@ -119,7 +128,7 @@ export function useStore(userId) {
     if (!error) {
       // Optimistic local append — no full reload, avoids re-render storms
       setNotes(ns => [{
-        id, title: row.title, text: row.text, html: row.html,
+        id, nr: row.nr, title: row.title, text: row.text, html: row.html,
         tasks: row.tasks, tag: row.tag, projectId: row.project_id,
         isEmail: row.is_email, sketchDataUrl: row.sketch_data_url,
         attachments: row.attachments,
@@ -153,7 +162,7 @@ export function useStore(userId) {
     }
     // Optimistic local update — avoids re-fetching the whole notes list (and the
     // resulting re-render storm) on every autosave tick while the user is typing.
-    setNotes(ns => ns.map(n => n.id === id ? { ...n, ...changes } : n))
+    setNotes(ns => ns.map(n => n.id === id ? { ...n, ...changes, updatedAt: row.updated_at } : n))
     await supabase.from('notes').update(row).eq('id', id).eq('user_id', userId)
   }
 
@@ -166,9 +175,10 @@ export function useStore(userId) {
     const note = notes.find(n => n.id === id)
     if (!note) return
     const newDone = !note.done
+    const now = new Date().toISOString()
     // Optimistic update — no screen reload
-    setNotes(ns => ns.map(n => n.id === id ? { ...n, done: newDone } : n))
-    await supabase.from('notes').update({ done: newDone, updated_at: new Date().toISOString() })
+    setNotes(ns => ns.map(n => n.id === id ? { ...n, done: newDone, updatedAt: now } : n))
+    await supabase.from('notes').update({ done: newDone, updated_at: now })
       .eq('id', id).eq('user_id', userId)
   }
 
@@ -177,8 +187,9 @@ export function useStore(userId) {
     const note = notes.find(n => n.id === noteId)
     if (!note) return
     const newTasks = (note.tasks || []).map(t => t.id === taskId ? { ...t, ...changes } : t)
-    setNotes(ns => ns.map(n => n.id === noteId ? { ...n, tasks: newTasks } : n))
-    await supabase.from('notes').update({ tasks: newTasks, updated_at: new Date().toISOString() })
+    const now = new Date().toISOString()
+    setNotes(ns => ns.map(n => n.id === noteId ? { ...n, tasks: newTasks, updatedAt: now } : n))
+    await supabase.from('notes').update({ tasks: newTasks, updated_at: now })
       .eq('id', noteId).eq('user_id', userId)
   }
 
@@ -201,8 +212,9 @@ export function useStore(userId) {
     const note = notes.find(n => n.id === noteId)
     if (!note) return
     const newTasks = (note.tasks || []).filter(t => t.id !== taskId)
-    setNotes(ns => ns.map(n => n.id === noteId ? { ...n, tasks: newTasks } : n))
-    await supabase.from('notes').update({ tasks: newTasks, updated_at: new Date().toISOString() })
+    const now = new Date().toISOString()
+    setNotes(ns => ns.map(n => n.id === noteId ? { ...n, tasks: newTasks, updatedAt: now } : n))
+    await supabase.from('notes').update({ tasks: newTasks, updated_at: now })
       .eq('id', noteId).eq('user_id', userId)
   }
 

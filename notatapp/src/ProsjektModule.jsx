@@ -91,6 +91,8 @@ function tomtProsjekt() {
     tiltakDescription: '',
     // Tilbod
     offerPrice: '', estimatedHours: '', sentDate: '', actualHours: '',
+    // Resultatdokument
+    resultatDokSti: '',
   }
 }
 
@@ -828,6 +830,32 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                     )}
                   </Row>
                 )}
+              </Section>
+
+              {/* ── Resultatdokument ── */}
+              <Section title="Resultatdokument">
+                <Row>
+                  <F label="Sti til resultatdokument-mappe" id="resultatDokSti"
+                    placeholder="C:\...\03 Resultatdokumenter" style={{ fontFamily:'var(--mono)', fontSize:12 }}/>
+                  {typeof window !== 'undefined' && window.resultatdokumentAPI && (
+                    <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:1 }}>
+                      <button onClick={async () => {
+                          const valgt = await window.resultatdokumentAPI.velgMappe()
+                          if (valgt) set('resultatDokSti', valgt)
+                        }}
+                        style={{ padding:'8px 14px', borderRadius:'var(--r)',
+                          border:'1.5px solid var(--border)', background:'var(--bg3)',
+                          fontSize:12, fontWeight:600, cursor:'pointer', color:'var(--text2)',
+                          fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                        Bla gjennom…
+                      </button>
+                    </div>
+                  )}
+                </Row>
+                <p style={{ fontSize:11, color:'var(--text3)', marginTop:2, lineHeight:1.5 }}>
+                  Brukast av Resultatdokument-modulen (Rd) for å plassere filer i riktig mappe automatisk.
+                  Krev at appen er opna via skrivebordsversjonen. Hugs å lagre prosjektkortet etter endring.
+                </p>
               </Section>
 
               </div>

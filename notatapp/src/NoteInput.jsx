@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { nextFriday, fmt } from './dateUtils'
 import SketchPad from './SketchPad'
 import CaseTable from './CaseTable'
@@ -141,7 +141,7 @@ function TaskRow({ task, onUpdate, onDelete }) {
   )
 }
 
-export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, defaultProjectId, editNote, onCancelEdit, isMeeting: isMeetingProp, isTaskOnly, isReferat: isReferatProp, userId }) {
+const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, defaultProjectId, editNote, onCancelEdit, isMeeting: isMeetingProp, isTaskOnly, isReferat: isReferatProp, userId, onDirtyChange }, ref) {
   const isEdit = !!editNote
   // Lock in "is this a meeting/referat note" so the auto-create→edit transition
   // (which can flip props mid-typing) never collapses the UI. Re-sync ONLY in a
@@ -456,6 +456,48 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
     </div>
   )
 
+  // ── Lagre arbeidsoppgåver (task-only-modus) ──────────────────────────
+  // Trekt ut til ein eigen funksjon slik at han kan kallast både frå
+  // «Lagre»-knappen under og frå den eksterne save()-referansen (sjå
+  // useImperativeHandle under) — brukt av NoteModal når brukar vel
+  // «Lagre og lukk» i stadfestingsdialogen ved X-lukking.
+  const handleSaveTasksOnly = () => {
+    // Commit any text still sitting in the input field
+    if (newTaskText.trim()) commitNewTask()
+    setTimeout(() => {
+      let pid = null
+      if (projectVal && projectVal !== '__new__') pid = parseInt(projectVal)
+      const finalTasks = newTaskText.trim()
+        ? [...tasks, { id: Date.now(), text: newTaskText.trim(), done:false,
+            startDate: newTaskStart || null, date: newTaskDate || nextFriday(),
+            hours: newTaskHours !== '' ? parseFloat(newTaskHours) : 0.5 }]
+        : tasks
+      if (finalTasks.length === 0) return
+      const titleSummary = finalTasks.length === 1
+        ? `Oppgåve: ${finalTasks[0].text.substring(0, 50)}`
+        : `${finalTasks.length} arbeidsoppgåver`
+      onAdd({ title: titleSummary,
+        text: '', html: '', tasks: finalTasks, tag: 'oppgåve',
+        projectId: pid, newProjName: projectVal === '__new__' ? newProjName : '',
+        sketchDataUrl: null, attachments: [],
+        isMeeting: false })
+    }, 0)
+  }
+
+  // ── Ulagra-endringar-signal + ekstern lagre-metode ───────────────────
+  // isTaskOnly har inga autolagring (eksplisitt «Lagre»-knapp), så dirty
+  // er her rekna direkte frå innhaldet. Elles fell det saman med
+  // saveStatus === 'saving' (autolagringa har registrert ei endring som
+  // enno ikkje er stadfesta lagra). NoteModal bruker onDirtyChange til å
+  // avgjere om X-lukking skal spørje om lagring, og save() (via ref) til
+  // å utløyse lagring direkte når brukar svarar «Lagre og lukk».
+  const dirty = isTaskOnly ? (tasks.length > 0 || newTaskText.trim() !== '') : (saveStatus === 'saving')
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty])
+
+  useImperativeHandle(ref, () => ({
+    save: () => { if (isTaskOnly) handleSaveTasksOnly(); else handleSave() },
+  }), [isTaskOnly, handleSaveTasksOnly, handleSave])
+
   // Simplified task-only mode
   if (isTaskOnly) {
     return (
@@ -542,28 +584,7 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
 
         {/* Save all — primærknapp til venstre */}
         <div style={{ display:'flex', justifyContent:'flex-start', gap:10, marginTop:8 }}>
-          <button onClick={() => {
-              // Commit any text still sitting in the input field
-              if (newTaskText.trim()) commitNewTask()
-              setTimeout(() => {
-                let pid = null
-                if (projectVal && projectVal !== '__new__') pid = parseInt(projectVal)
-                const finalTasks = newTaskText.trim()
-                  ? [...tasks, { id: Date.now(), text: newTaskText.trim(), done:false,
-                      startDate: newTaskStart || null, date: newTaskDate || nextFriday(),
-                      hours: newTaskHours !== '' ? parseFloat(newTaskHours) : 0.5 }]
-                  : tasks
-                if (finalTasks.length === 0) return
-                const titleSummary = finalTasks.length === 1
-                  ? `Oppgåve: ${finalTasks[0].text.substring(0, 50)}`
-                  : `${finalTasks.length} arbeidsoppgåver`
-                onAdd({ title: titleSummary,
-                  text: '', html: '', tasks: finalTasks, tag: 'oppgåve',
-                  projectId: pid, newProjName: projectVal === '__new__' ? newProjName : '',
-                  sketchDataUrl: null, attachments: [],
-                  isMeeting: false })
-              }, 0)
-            }}
+          <button onClick={handleSaveTasksOnly}
             style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 24px',
               background:'var(--brand)', border:'none', borderRadius:'var(--r2)',
               color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
@@ -930,4 +951,6 @@ export default function NoteInput({ projects, onAdd, onAutoSave, onSetEditNote, 
       )}
     </div>
   )
-}
+})
+
+export default NoteInput

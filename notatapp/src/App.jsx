@@ -3,13 +3,14 @@ import { useStore } from './useStore'
 import AppRail from './AppRail'
 import TopBar from './TopBar'
 import Sidebar from './Sidebar'
-import NoteInput from './NoteInput'
-import NoteList from './NoteList'
+import NoteModal from './NoteModal'
+import NoteTabell from './NoteTabell'
+import NotePreview from './NotePreview'
 import DeadlineView from './DeadlineView'
 import TimeTracker from './TimeTracker'
 import ForecastView from './ForecastView'
 import SettingsPanel from './SettingsPanel'
-import CalendarView from './CalendarView'
+import KalenderModule from './KalenderModule'
 import Timeline from './Timeline'
 import TimarModule from './TimarModule'
 import KvalitetModule from './KvalitetModule'
@@ -18,24 +19,18 @@ import KundeModule from './KundeModule'
 import OppgaveModule from './OppgaveModule'
 import FargeModule from './FargeModule'
 import SakerModule from './SakerModule'
+import ResultatdokumentModule from './ResultatdokumentModule'
 
-const INITIAL_SB_W  = 260
-const INITIAL_CAL_W = 260
 const INITIAL_TL_H  = 200
-const MIN_W = 160, MAX_W = 600
 
 export default function App({ userId, userEmail }) {
   const { notes, projects, loading, addNote, updateNote, deleteNote, toggleDone,
           addTask, updateTask, deleteTask, addProject, updateProject, deleteProject, toggleFavorite,
           offices, addOffice, updateOffice, deleteOffice } = useStore(userId)
 
-  const [view,              setView]              = useState('new')
+  const [view,              setView]              = useState('notatar')
   const [selectedProjectId, setSelectedProjectId] = useState(null)
-  const [sbCollapsed,       setSbCollapsed]       = useState(false)
-  const [calCollapsed,      setCalCollapsed]      = useState(false)
   const [tlCollapsed,       setTlCollapsed]       = useState(false)
-  const [sbWidth,           setSbWidth]           = useState(INITIAL_SB_W)
-  const [calWidth,          setCalWidth]          = useState(INITIAL_CAL_W)
   const [tlHeight,          setTlHeight]          = useState(INITIAL_TL_H)
   const [editNote,          setEditNote]          = useState(null)
   const [highlightNoteId,   setHighlightNoteId]   = useState(null)
@@ -50,6 +45,11 @@ export default function App({ userId, userEmail }) {
   const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
   const [showSettings,      setShowSettings]      = useState(false)
   const [activeModule,      setActiveModule]      = useState('notatar') // 'notatar' | 'timar' | 'kvalitet'
+  const [selectedNoteId,    setSelectedNoteId]    = useState(null) // markert (enkeltklikka) notat i NoteTabell — vist i NotePreview
+  const [previewWidth,      setPreviewWidth]      = useState(() => {
+    try { const v = parseInt(localStorage.getItem('liedlab-notat-preview-w')); return isNaN(v) ? 380 : v }
+    catch { return 380 }
+  })
 
   // Expose nextFriday to NoteList via window (simple bridge)
   useEffect(() => {
@@ -164,24 +164,7 @@ export default function App({ userId, userEmail }) {
     return () => window.removeEventListener('timeline-ctx', handler)
   }, [])
 
-  // Column resize
-  const dragging   = useRef(null)
-  const dragStart  = useRef(null)
-  const widthStart = useRef(null)
-
-  const onColMouseDown = useCallback((side, e) => {
-    e.preventDefault()
-    dragging.current   = side
-    dragStart.current  = e.clientX
-    widthStart.current = side==='sb' ? sbWidth : calWidth
-    const onMove = ev => {
-      const delta = ev.clientX - dragStart.current
-      if (dragging.current==='sb')  setSbWidth( Math.min(MAX_W, Math.max(MIN_W, widthStart.current+delta)))
-      else                          setCalWidth(Math.min(MAX_W, Math.max(MIN_W, widthStart.current-delta)))
-    }
-    const onUp = () => { dragging.current=null; window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp) }
-    window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp)
-  }, [sbWidth, calWidth])
+  const handleSetOffice = (id) => { setActiveOfficeId(id); setSelectedProjectId(null) }
 
   // Full save / done — used by task-only and explicit save
   const handleAdd = async (data) => {
@@ -243,6 +226,28 @@ export default function App({ userId, userEmail }) {
   const handleSelectNote  = id  => {
     setSelectedProjectId(null); setView('notatar')
     setHighlightNoteId(id); setTimeout(()=>setHighlightNoteId(null),2000)
+  }
+
+  // Justerbar breidd på førehandsvisings-ruta i den todelte notat-dashbordet
+  // (NoteTabell til venstre, NotePreview til høgre) — sjå claude/notatmodul-tabellvisning.md
+  // Merk: previewWidth er breidda på HØGRE rute, så å dra skiljelinja mot
+  // høgre skal gjere ho smalare — difor trekk vi frå deltaX, ikkje legg til.
+  const startPreviewResize = (e) => {
+    e.preventDefault()
+    const startX = e.clientX, startW = previewWidth
+    const flytt = (ev) => {
+      const ny = Math.max(240, Math.min(760, Math.round(startW - (ev.clientX - startX))))
+      setPreviewWidth(ny)
+    }
+    const slepp = () => {
+      window.removeEventListener('mousemove', flytt)
+      window.removeEventListener('mouseup', slepp)
+      document.body.style.cursor = ''
+      setPreviewWidth(w => { try { localStorage.setItem('liedlab-notat-preview-w', String(w)) } catch { /* privat modus */ } ; return w })
+    }
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('mousemove', flytt)
+    window.addEventListener('mouseup', slepp)
   }
 
   const defaultProjectId = view==='new' && !editNote ? selectedProjectId : undefined
@@ -351,7 +356,7 @@ export default function App({ userId, userEmail }) {
         </div>
         {/* Module switcher pills */}
         <div style={{ display:'flex', gap:3, marginRight:4 }}>
-          {[{k:'notatar',l:'N'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'farge',l:'F'}].map(m => (
+          {[{k:'notatar',l:'N'},{k:'kalender',l:'Ka'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'farge',l:'F'},{k:'resultatdokument',l:'Rd'}].map(m => (
             <button key={m.k} onClick={() => { setActiveModule(m.k); if(m.k!=='notatar') setView('notatar') }}
               style={{ width:24,height:24,borderRadius:6,border:'none',
                 background: activeModule===m.k ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.08)',
@@ -405,20 +410,20 @@ export default function App({ userId, userEmail }) {
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
         {activeModule === 'notatar' && (
           <>
-            {view==='new'      && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}/>}
-            {view==='notatar'  && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
-            {view==='timar'    && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
+            {view==='notatar'  && <NoteTabell notes={visibleNotes} projects={projects} onEdit={handleEdit} onDelete={deleteNote} onToggleDone={toggleDone}/>}
 // Fjerna - prognose er no i TimarModule:             {view==='prognose' && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
             {view==='fristar'  && <DeadlineView notes={visibleNotes} projects={projects} {...listProps}/>}
           </>
         )}
         {activeModule === 'timar' && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
+        {activeModule === 'kalender' && <KalenderModule projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} onEdit={handleEdit}/>}
         {activeModule === 'prosjekt' && <ProsjektModule userId={userId} projects={officeProjects} offices={offices} activeOfficeId={activeOfficeId} addProject={addProject} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
         {activeModule === 'kunde' && <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>}
-        {activeModule === 'kvalitet' && <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
+        {activeModule === 'kvalitet' && <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
         {activeModule === 'oppgaver' && <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'farge' && <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'saker' && <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>}
+        {activeModule === 'resultatdokument' && <ResultatdokumentModule userId={userId} projects={officeProjects} activeProjectId={selectedProjectId}/>}
       </div>
 
       {/* Mobile bottom nav */}
@@ -427,9 +432,17 @@ export default function App({ userId, userEmail }) {
         paddingBottom:'env(safe-area-inset-bottom)' }}>
         <MobileTab v="new"      letter="N" label="Nytt" onClick={() => { handleNewNote('regular'); setMobileSheet(false) }}/>
         <MobileTab v="notatar"  letter="L" label="Notatar"/>
-        <MobileTab v="timar"    letter="T" label="Timar"/>
         <MobileTab v="fristar"  letter="F" label="Fristar"/>
       </div>
+
+      {view === 'new' && (
+        <NoteModal
+          projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave}
+          onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }}
+          defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit}
+          isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}
+        />
+      )}
 
       {showSettings && (
         <SettingsPanel
@@ -458,6 +471,10 @@ export default function App({ userId, userEmail }) {
         activeProjectId={selectedProjectId}
         onSelectProject={setSelectedProjectId}
         onOpenSettings={() => setShowSettings(true)}
+        offices={offices}
+        activeOfficeId={activeOfficeId}
+        onSetOffice={handleSetOffice}
+        onAddOffice={addOffice}
       />
 
       <div style={{ display:'flex', flex:1, overflow:'hidden', minHeight:0 }}>
@@ -475,6 +492,8 @@ export default function App({ userId, userEmail }) {
         <ProsjektModule userId={userId} projects={officeProjects} offices={offices}
           activeOfficeId={activeOfficeId} addProject={addProject}
           activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>
+      ) : activeModule === 'kalender' ? (
+        <KalenderModule projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} onEdit={handleEdit}/>
       ) : activeModule === 'kunde' ? (
         <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'oppgaver' ? (
@@ -483,11 +502,13 @@ export default function App({ userId, userEmail }) {
         <TimarModule userId={userId} projects={officeProjects}
           addProject={addProject} mode={mode} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'kvalitet' ? (
-        <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>
+        <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>
       ) : activeModule === 'farge' ? (
         <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'saker' ? (
         <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>
+      ) : activeModule === 'resultatdokument' ? (
+        <ResultatdokumentModule userId={userId} projects={officeProjects} activeProjectId={selectedProjectId}/>
       ) : (
       /* ── Notatar module (original layout) ── */
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
@@ -495,31 +516,14 @@ export default function App({ userId, userEmail }) {
         {/* Upper section */}
         <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
 
-          {/* Sidebar */}
-          {!sbCollapsed && (
-            <>
-              <aside style={{ width:sbWidth,minWidth:sbWidth,overflow:'hidden',flexShrink:0,display:'flex',flexDirection:'column' }}>
-                <Sidebar projects={activeProjectFiltered} notes={modeNotes}
-                  onSelectProject={handleSelectProject} onSelectNote={handleSelectNote}
-                  selectedProjectId={selectedProjectId} onDeleteProject={deleteProject}
-                  onNewNote={handleNewNote} onToggleFavorite={toggleFavorite}
-                  onRenameProject={handleRenameProject}
-                  offices={offices} activeOfficeId={activeOfficeId} onSetOffice={setActiveOfficeId}
-                  onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}
-                  onOpenSettings={() => setShowSettings(true)}
-                  mode={mode}/>
-              </aside>
-              <div className="resize-handle" onMouseDown={e=>onColMouseDown('sb',e)}/>
-            </>
-          )}
-
           {/* Main */}
           <main style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0 }}>
-            <div style={{ display:'flex',alignItems:'center',gap:4,padding:'0 12px',
+            <div style={{ display:'flex',alignItems:'center',gap:4,padding:'0 16px',
               borderBottom:'1px solid rgba(255,255,255,.1)',background:'var(--brand)',
               height:50,flexShrink:0 }}>
-              <IcoBtn onClick={()=>setSbCollapsed(v=>!v)} active={sbCollapsed} title="Meny"><span style={{fontWeight:800,fontSize:13}}>M</span></IcoBtn>
-              <div style={{width:8}}/>
+              <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em', marginRight:10 }}>
+                Notatapp
+              </span>
               {/* Direkte snarvegar for notattypar */}
               <button onClick={()=>handleNewNote('regular')}
                 style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
@@ -554,7 +558,6 @@ export default function App({ userId, userEmail }) {
                 + Oppgåve
               </button>
               <div style={{width:10}}/>
-              <Tab v="timar"    letter="T" label="Timar"/>
               <Tab v="fristar"  letter="F" label="Fristar"/>
               <div style={{flex:1}}/>
               {selProj&&(
@@ -571,27 +574,37 @@ export default function App({ userId, userEmail }) {
                 style={{padding:'4px 10px',background:'rgba(255,255,255,.1)',border:'1px solid rgba(255,255,255,.2)',borderRadius:'var(--r)',color:'rgba(255,255,255,.8)',fontSize:11,cursor:'pointer',whiteSpace:'nowrap',marginLeft:4}}>
                 Logg ut
               </button>
-              <div style={{width:4}}/>
-              <IcoBtn onClick={()=>setCalCollapsed(v=>!v)} active={calCollapsed} title="Kalender"><span style={{fontWeight:800,fontSize:13}}>K</span></IcoBtn>
             </div>
 
-            <div style={{ flex:1,overflowY:'auto',padding:'22px 26px' }}>
-              {view==='new'        && <NoteInput projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave} onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }} defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit} isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}/>}
-              {view==='notatar'    && <NoteList notes={visibleNotes} {...listProps} highlightNoteId={highlightNoteId}/>}
-              {view==='timar'      && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
-              {view==='fristar'    && <DeadlineView notes={visibleNotes} projects={projects} {...listProps}/>}
-            </div>
+            {view==='notatar' && (
+              <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
+                {/* Notattabellen — venstre halvdel */}
+                <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column',
+                  overflow:'hidden', padding:'22px 20px 22px 26px' }}>
+                  <NoteTabell notes={visibleNotes} projects={projects} onEdit={handleEdit}
+                    onDelete={deleteNote} onToggleDone={toggleDone}
+                    onSelect={setSelectedNoteId} selectedId={selectedNoteId}/>
+                </div>
+                {/* Dragbar delelinje — justerer andelen mellom tabell og førehandsvising */}
+                <div onMouseDown={startPreviewResize} title="Dra for å justere breidda"
+                  style={{ width:7, flexShrink:0, cursor:'col-resize', position:'relative' }}>
+                  <div style={{ position:'absolute', left:3, top:0, bottom:0, width:1, background:'var(--border)' }}/>
+                </div>
+                {/* Førehandsvising av markert notat — høgre halvdel */}
+                <div style={{ width:previewWidth, minWidth:240, maxWidth:760, flexShrink:0,
+                  display:'flex', flexDirection:'column', overflow:'hidden',
+                  borderLeft:'1px solid var(--border)' }}>
+                  <NotePreview note={visibleNotes.find(n => n.id === selectedNoteId) || null}
+                    projects={projects} onEdit={handleEdit} onUpdateTask={updateTask}/>
+                </div>
+              </div>
+            )}
+            {view==='fristar' && (
+              <div style={{ flex:1,overflowY:'auto',padding:'22px 26px' }}>
+                <DeadlineView notes={visibleNotes} projects={projects} {...listProps}/>
+              </div>
+            )}
           </main>
-
-          {/* Calendar panel */}
-          {!calCollapsed&&(
-            <>
-              <div className="resize-handle" onMouseDown={e=>onColMouseDown('cal',e)}/>
-              <aside style={{ width:calWidth,minWidth:calWidth,borderLeft:'1px solid var(--border)',background:'var(--bg2)',display:'flex',flexDirection:'column',overflow:'hidden',flexShrink:0 }}>
-                <CalendarView notes={notes} projects={projects} onDelete={deleteNote} onToggleDone={toggleDone} onEdit={handleEdit} compact/>
-              </aside>
-            </>
-          )}
         </div>
 
         {/* Timeline */}
@@ -609,6 +622,15 @@ export default function App({ userId, userEmail }) {
       </div>
       </div>
 
+      {view === 'new' && (
+        <NoteModal
+          projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave}
+          onSetEditNote={(noteOrId) => { if (noteOrId?._autoCreated) setPendingEditId(noteOrId.id); else setEditNote(noteOrId) }}
+          defaultProjectId={defaultProjectId} editNote={editNote} onCancelEdit={handleCancelEdit}
+          isMeeting={isMeeting} isTaskOnly={isTaskOnly && !editNote} isReferat={isReferat} userId={userId}
+        />
+      )}
+
       {showSettings && (
         <SettingsPanel
           onClose={() => setShowSettings(false)}
@@ -625,7 +647,7 @@ export default function App({ userId, userEmail }) {
 )
 }
 
-const MODULE_LABELS = { notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge' }
+const MODULE_LABELS = { notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', resultatdokument:'Resultatdokument' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())
