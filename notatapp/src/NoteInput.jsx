@@ -3,6 +3,18 @@ import { nextFriday, fmt } from './dateUtils'
 import SketchPad from './SketchPad'
 import CaseTable from './CaseTable'
 
+// ── Tabell i redigeringsvindauget ────────────────────────────────────
+// Rein HTML-tabell med inline-stilar (ikkje CSS-klassar) — notat.html vert
+// vist fleire stadar (NotePreview, møtereferat osv.) utan ei felles
+// stilsette for notatinnhald, så inline er einaste måten å garantere at
+// tabellen ser lik ut over alt.
+const TABELL_CELLE_STIL = 'border:1px solid #94a3b8;padding:6px 9px;min-width:50px'
+function lagTabellHtml(rader = 3, kolonner = 3) {
+  const cellePad = c => `<td style="${TABELL_CELLE_STIL}">${c}</td>`
+  const rad = () => `<tr>${Array.from({ length: kolonner }, () => cellePad('&nbsp;')).join('')}</tr>`
+  return `<table style="border-collapse:collapse;margin:8px 0">${Array.from({ length: rader }, rad).join('')}</table><p><br></p>`
+}
+
 const TAGS = [
   { key:'møte',    color:'#1565C0' }, { key:'oppgåve', color:'#5E35B1' },
   { key:'frist',   color:'#B45309' }, { key:'idé',     color:'#166534' },
@@ -213,7 +225,88 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
   // All projects (no type filter)
   const allProjects = projects
 
-  const exec = (cmd, val=null) => { editorRef.current?.focus(); document.execCommand(cmd, false, val) }
+  const exec = (cmd, val=null) => { editorRef.current?.focus(); document.execCommand(cmd, false, val); triggerAutoSave() }
+
+  // ── Tabell: sett inn, og rediger via høgreklikk-meny ─────────────────
+  const [tableMenu, setTableMenu] = useState(null) // { x, y, cell, table }
+
+  const settInnTabell = () => {
+    editorRef.current?.focus()
+    document.execCommand('insertHTML', false, lagTabellHtml())
+    triggerAutoSave()
+  }
+
+  const handleEditorContextMenu = (e) => {
+    const cell = e.target.closest('td, th')
+    const table = e.target.closest('table')
+    if (!cell || !table || !editorRef.current?.contains(table)) { setTableMenu(null); return }
+    e.preventDefault()
+    setTableMenu({ x: e.clientX, y: e.clientY, cell, table })
+  }
+
+  useEffect(() => {
+    if (!tableMenu) return
+    const lukk = () => setTableMenu(null)
+    const esc  = (e) => { if (e.key === 'Escape') setTableMenu(null) }
+    window.addEventListener('mousedown', lukk)
+    window.addEventListener('keydown', esc)
+    window.addEventListener('scroll', lukk, true)
+    return () => {
+      window.removeEventListener('mousedown', lukk)
+      window.removeEventListener('keydown', esc)
+      window.removeEventListener('scroll', lukk, true)
+    }
+  }, [tableMenu])
+
+  // Manipulerer tabell-DOM-en direkte (insertRow/deleteCell osv. utløyser
+  // ikkje eit 'input'-event på det redigerbare feltet slik tastetrykk gjer),
+  // så autolagringa må kallast eksplisitt etter kvar endring.
+  const nyCelle = (rad, malCelle) => {
+    const c = rad.insertCell()
+    c.innerHTML = '&nbsp;'
+    c.setAttribute('style', malCelle?.getAttribute('style') || TABELL_CELLE_STIL)
+    return c
+  }
+  const settInnRad = (retning) => {
+    if (!tableMenu) return
+    const { cell, table } = tableMenu
+    const radIndeks = cell.parentElement.rowIndex + (retning === 'under' ? 1 : 0)
+    const nyRad = table.insertRow(radIndeks)
+    const malRad = table.rows[retning === 'under' ? radIndeks - 1 : radIndeks + 1]
+    const tal = malRad ? malRad.cells.length : cell.parentElement.cells.length
+    for (let i = 0; i < tal; i++) nyCelle(nyRad, malRad?.cells[i])
+    setTableMenu(null); triggerAutoSave()
+  }
+  const settInnKolonne = (retning) => {
+    if (!tableMenu) return
+    const { cell, table } = tableMenu
+    const kolIndeks = cell.cellIndex + (retning === 'høgre' ? 1 : 0)
+    for (const rad of table.rows) {
+      const c = rad.insertCell(kolIndeks)
+      c.innerHTML = '&nbsp;'
+      c.setAttribute('style', rad.cells[0]?.getAttribute('style') || TABELL_CELLE_STIL)
+    }
+    setTableMenu(null); triggerAutoSave()
+  }
+  const slettRad = () => {
+    if (!tableMenu) return
+    const { cell, table } = tableMenu
+    if (table.rows.length <= 1) table.remove()
+    else table.deleteRow(cell.parentElement.rowIndex)
+    setTableMenu(null); triggerAutoSave()
+  }
+  const slettKolonne = () => {
+    if (!tableMenu) return
+    const { cell, table } = tableMenu
+    if (table.rows[0].cells.length <= 1) table.remove()
+    else for (const rad of table.rows) rad.deleteCell(cell.cellIndex)
+    setTableMenu(null); triggerAutoSave()
+  }
+  const slettTabell = () => {
+    if (!tableMenu) return
+    tableMenu.table.remove()
+    setTableMenu(null); triggerAutoSave()
+  }
 
   // ── Task auto-save ───────────────────────────────────────────────────
   const commitNewTask = () => {
@@ -437,8 +530,12 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
     if (files.length > 0) { processFile(files[0]) }
   }
 
+  // tabIndex={-1}: verktøylinja skal ikkje vere ein del av Tab-rekkjefølgja —
+  // utan dette var «Fet»-knappen (fyrste elementet i verktøylinja, som ligg
+  // rett før redigeringsvindauget i DOM-en) det Tab landa på etter tittel-
+  // feltet, i staden for å hoppe rett til sjølve tekstfeltet.
   const TBtn = ({ onClick, title, children }) => (
-    <button onClick={onClick} title={title}
+    <button onClick={onClick} title={title} tabIndex={-1}
       style={{ padding:'4px 7px', border:'1px solid transparent', background:'none',
         borderRadius:5, cursor:'pointer', color:'var(--text2)', fontSize:13, lineHeight:1 }}
       onMouseEnter={e=>{e.currentTarget.style.background='var(--bg4)';e.currentTarget.style.borderColor='var(--border)'}}
@@ -783,15 +880,55 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
                 border:'1.5px solid rgba(0,0,0,.15)', cursor:'pointer', flexShrink:0 }}/>
           ))}
           <div style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }}/>
+          <TBtn onClick={settInnTabell} title="Sett inn tabell (høgreklikk i tabellen for å leggje til/fjerne rader og kolonnar)">⊞</TBtn>
+          <div style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }}/>
           <TBtn onClick={()=>exec('removeFormat')} title="Fjern format.">✕</TBtn>
         </div>
         <div ref={editorRef} contentEditable suppressContentEditableWarning
           style={{ minHeight:140, padding:'13px 15px', outline:'none',
             fontSize:14, lineHeight:1.8, color:'var(--text)', background:'var(--bg2)' }}
           onInput={handleEditorInput}
+          onContextMenu={handleEditorContextMenu}
           onKeyDown={e => { if (e.key==='Enter' && (e.ctrlKey||e.metaKey)) handleSave() }}
           data-placeholder="Skriv notat, eller dra inn e-post / PDF…"/>
       </div>
+
+      {/* ── Tabell-kontekstmeny (høgreklikk i ein tabellcelle) ── */}
+      {tableMenu && (
+        <div onMouseDown={e => e.stopPropagation()}
+          style={{ position:'fixed', left:Math.min(tableMenu.x, window.innerWidth-210), top:tableMenu.y,
+            zIndex:400, width:200, background:'var(--bg2)', border:'1px solid var(--border)',
+            borderRadius:10, boxShadow:'var(--shadow-lg)', padding:5 }}>
+          {[
+            ['Sett inn rad over',    () => settInnRad('over')],
+            ['Sett inn rad under',   () => settInnRad('under')],
+            ['Sett inn kolonne til venstre', () => settInnKolonne('venstre')],
+            ['Sett inn kolonne til høgre',   () => settInnKolonne('høgre')],
+          ].map(([txt, fn]) => (
+            <button key={txt} onClick={fn} style={{ display:'block', width:'100%', textAlign:'left',
+              border:'none', background:'transparent', padding:'6px 10px', borderRadius:7,
+              fontSize:12.5, color:'var(--text)', fontFamily:'var(--font)', cursor:'pointer' }}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--brandbg)'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              {txt}
+            </button>
+          ))}
+          <div style={{ height:1, background:'var(--border)', margin:'5px 4px' }}/>
+          {[
+            ['Slett rad',      slettRad],
+            ['Slett kolonne',  slettKolonne],
+            ['Slett tabell',   slettTabell],
+          ].map(([txt, fn]) => (
+            <button key={txt} onClick={fn} style={{ display:'block', width:'100%', textAlign:'left',
+              border:'none', background:'transparent', padding:'6px 10px', borderRadius:7,
+              fontSize:12.5, color:'var(--danger)', fontFamily:'var(--font)', cursor:'pointer' }}
+              onMouseEnter={e=>e.currentTarget.style.background='rgba(185,28,28,.10)'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              {txt}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Arbeidsoppgåver ── */}
       <Divider label="Arbeidsoppgåver"/>

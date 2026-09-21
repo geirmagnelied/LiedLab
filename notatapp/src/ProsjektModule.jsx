@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase'
 
 // ── Konstantar ────────────────────────────────────────────────────────
@@ -56,11 +56,13 @@ async function sokBrreg(orgnr) {
   } catch { return null }
 }
 
-// ── Sikre resultatdokument-mappe på disk (berre i skrivebordsversjonen) ──
-async function sikreResultatdokumentMappe(projectNumber) {
-  if (typeof window === 'undefined' || !window.resultatdokumentAPI || !projectNumber) return ''
-  try { return (await window.resultatdokumentAPI.sikreMappe(projectNumber)) || '' }
-  catch { return '' }
+// ── Oppdragsmappe: standard rot + føreslått sti + mappestruktur ────
+// Brukar må sjølv stadfeste («låse») stien før noko vert oppretta på disk
+// — sjå Section «Oppdragsmappe» og laasOppdragssti() i sjølve komponenten.
+const OPPDRAG_BASIS = 'C:\\Users\\gemli\\Jottacloud\\Lied Lab\\Web\\Oppdrag'
+const OPPDRAGSMAPPER = ['1 Oppdragsleiing', '2 Informasjonsflyt', '3 Arbeidsdokumenter', '4 Resultatdokumenter', '5 BIM']
+function forslagOppdragssti(projectNumber) {
+  return projectNumber ? `${OPPDRAG_BASIS}\\${projectNumber}` : OPPDRAG_BASIS
 }
 
 // ── Generer prosjektnummer ÅÅNNN ──────────────────────────────────
@@ -149,8 +151,8 @@ function tomtProsjekt() {
     tiltakDescription: '',
     // Tilbod
     offerPrice: '', estimatedHours: '', sentDate: '', actualHours: '',
-    // Resultatdokument
-    resultatDokSti: '',
+    // Oppdragsmappe (lokal filstruktur)
+    oppdragsSti: '', oppdragsStiLast: false,
   }
 }
 
@@ -168,7 +170,6 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   const [orgLookup, setOrgLookup]       = useState({ field: null, loading: false })
   const [filter, setFilter]             = useState('alle') // alle|tilbod|aktiv|arkiv
   const [sidebarWidth]                  = useState(240)
-  const selectedRef = useRef(null) // speglar `selected` synkront, sjå sikreMappeForOpna
 
   // ── Last prosjekt med detaljar ────────────────────────────────
   const loadProsjekt = useCallback(async () => {
@@ -203,27 +204,21 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
 
   useEffect(() => { loadProsjekt() }, [loadProsjekt])
 
-  // ── Sikre resultatdokument-mappe for eit prosjekt som vert opna ──
-  // Gjeld både eksisterande prosjekt (som enno manglar resultatDokSti —
-  // typisk prosjekt oppretta før denne funksjonen fanst) og speglar det
-  // som skjer automatisk for nye prosjekt i nyttProsjekt(). Skriv berre
-  // til databasen når stien faktisk mangla frå før, slik at ein sti
-  // brukar har sett manuelt aldri vert overskriven.
-  const sikreMappeForOpna = async (p) => {
-    if (!p || p.details?.resultatDokSti) return
-    const sti = await sikreResultatdokumentMappe(p.projectNumber)
-    if (!sti) return
-    const nyeDetails = { ...(p.details || {}), resultatDokSti: sti }
-    await supabase.from('projects').update({ details: nyeDetails }).eq('id', p.id).eq('user_id', userId)
-    setProsjektList(list => list.map(x => x.id === p.id ? { ...x, details: nyeDetails } : x))
-    if (selectedRef.current === p.id) setForm(f => f ? { ...f, resultatDokSti: sti } : f)
-  }
+  // ── Oppdragsmappe: føreslått (endå ikkje låst) sti ─────────────
+  // Halde utanfor `form`/dirty-sporinga — dette er berre eit forslag brukar
+  // kan skrive over før dei eksplisitt trykkjer «Lås denne stien» (sjå
+  // laasOppdragssti under), ikkje eit felt som skal inngå i den vanlege
+  // «Lagre prosjektkort»-flyten.
+  const [oppdragsForslag, setOppdragsForslag] = useState('')
+  useEffect(() => {
+    if (!form || form.oppdragsStiLast) return
+    setOppdragsForslag(form.oppdragsSti || forslagOppdragssti(form.projectNumber))
+  }, [form?.projectNumber, form?.oppdragsStiLast])
 
   // ── Vel prosjekt ──────────────────────────────────────────────
   const selectProject = (id) => {
     if (dirty && !window.confirm('Du har ulagra endringar. Vil du forkaste dei?')) return
     setSelected(id)
-    selectedRef.current = id
     const p = prosjektList.find(x => x.id === id)
     if (p) {
       setForm({
@@ -235,7 +230,6 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
         projectNumber: p.projectNumber,
         status: p.status,
       })
-      sikreMappeForOpna(p)
     }
     setDirty(false)
     // Synk med det globalt aktive prosjektet (valt i TopBar), slik at alle andre
@@ -251,7 +245,6 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     const p = prosjektList.find(x => x.id === activeProjectId)
     if (p) {
       setSelected(p.id)
-      selectedRef.current = p.id
       setForm({
         projectNumber: p.projectNumber,
         status: p.status,
@@ -262,7 +255,6 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
         status: p.status,
       })
       setDirty(false)
-      sikreMappeForOpna(p)
     }
   }, [activeProjectId, prosjektList])
 
@@ -271,10 +263,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     if (dirty && !window.confirm('Du har ulagra endringar. Vil du forkaste dei?')) return
     const nr = genererProsjektnummer(prosjektList.map(p => p.projectNumber))
     const id = Date.now()
-    // Opprett automatisk mappestrukturen for resultatdokument (berre mogleg
-    // frå skrivebordsversjonen — sjå sikreResultatdokumentMappe() over)
-    const resultatDokSti = await sikreResultatdokumentMappe(nr)
-    const details = { ...tomtProsjekt(), resultatDokSti }
+    const details = tomtProsjekt()
     const row = {
       id, user_id: userId, name: `Nytt prosjekt ${nr}`,
       favorite: false, type: 'work',
@@ -388,6 +377,53 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     }
     setDirty(false)
     await loadProsjekt()
+  }
+
+  // ── Lås oppdragsmappe (auto-lagrar, som byttStatus) ────────────
+  // Brukar må eksplisitt stadfeste stien før noko vert oppretta på disk —
+  // sjå forslagOppdragssti()/OPPDRAG_BASIS over. Kan IKKJE skje via den
+  // vanlege set()+lagreProsjekt()-flyten, sidan set() berre planlegg ei
+  // state-oppdatering — eit umiddelbart lagreProsjekt()-kall etterpå ville
+  // lese att den GAMLE `form`-verdien (same «race»-fallgruve som
+  // byttStatus over er bygd for å unngå).
+  const laasOppdragssti = async () => {
+    const sti = (oppdragsForslag || '').trim()
+    if (!sti) { alert('Skriv eller vel ein sti fyrst.'); return }
+    if (!window.confirm(
+      `Lås prosjektet til:\n${sti}\n\n` +
+      `Følgjande mapper vert oppretta der:\n${OPPDRAGSMAPPER.map(m => '• ' + m).join('\n')}\n\n` +
+      `Fortsette?`
+    )) return
+    if (typeof window !== 'undefined' && window.resultatdokumentAPI) {
+      const res = await window.resultatdokumentAPI.opprettOppdragsmapper(sti)
+      if (!res?.ok) { alert('Klarte ikkje opprette mappestrukturen: ' + (res?.melding || 'ukjend feil')); return }
+    }
+    const { projectNumber, status, name, ...restDetails } = form
+    const nyeDetails = { ...restDetails, oppdragsSti: sti, oppdragsStiLast: true }
+    const { error, data } = await supabase.from('projects').update({
+      details: nyeDetails, updated_at: new Date().toISOString(),
+    }).eq('id', selected).eq('user_id', userId).select()
+    if (error || !data?.length) {
+      alert('Klarte ikkje lagre stien: ' + (error?.message || 'prosjektet vart ikkje funne'))
+      return
+    }
+    setForm(f => ({ ...f, oppdragsSti: sti, oppdragsStiLast: true }))
+    setProsjektList(list => list.map(p => p.id === selected ? { ...p, details: nyeDetails } : p))
+  }
+
+  const laasOppOppdragssti = async () => {
+    if (!window.confirm('Låse opp stien? Du kan då velje ein annan plassering. Mapper som alt er oppretta på disk vert IKKJE sletta.')) return
+    const { projectNumber, status, name, ...restDetails } = form
+    const nyeDetails = { ...restDetails, oppdragsStiLast: false }
+    const { error, data } = await supabase.from('projects').update({
+      details: nyeDetails, updated_at: new Date().toISOString(),
+    }).eq('id', selected).eq('user_id', userId).select()
+    if (error || !data?.length) {
+      alert('Klarte ikkje låse opp: ' + (error?.message || 'prosjektet vart ikkje funne'))
+      return
+    }
+    setForm(f => ({ ...f, oppdragsStiLast: false }))
+    setProsjektList(list => list.map(p => p.id === selected ? { ...p, details: nyeDetails } : p))
   }
 
   // ── Slett prosjekt (til papirkorg, 30 dagar) ──────────────────
@@ -881,30 +917,82 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                 )}
               </Section>
 
-              {/* ── Resultatdokument ── */}
-              <Section title="Resultatdokument">
-                <Row>
-                  <F {...bind} label="Sti til resultatdokument-mappe" id="resultatDokSti"
-                    placeholder="C:\...\03 Resultatdokumenter" style={{ fontFamily:'var(--mono)', fontSize:12 }}/>
-                  {typeof window !== 'undefined' && window.resultatdokumentAPI && (
-                    <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:1 }}>
-                      <button onClick={async () => {
-                          const valgt = await window.resultatdokumentAPI.velgMappe()
-                          if (valgt) set('resultatDokSti', valgt)
-                        }}
+              {/* ── Oppdragsmappe ── */}
+              <Section title="Oppdragsmappe">
+                {form.oppdragsStiLast ? (
+                  <>
+                    <label style={{ display:'block', fontSize:11, fontWeight:600, color:'var(--text3)',
+                      marginBottom:3, letterSpacing:'.03em' }}>Låst sti</label>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:12, padding:'8px 10px',
+                      background:'var(--bg3)', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
+                      color:'var(--text2)', wordBreak:'break-all', marginBottom:10 }}>
+                      {form.oppdragsSti}
+                    </div>
+                    <div style={{ display:'flex', gap:8 }}>
+                      {typeof window !== 'undefined' && window.resultatdokumentAPI && (
+                        <button onClick={() => window.resultatdokumentAPI.apneMappe(form.oppdragsSti)}
+                          style={{ padding:'8px 14px', borderRadius:'var(--r)',
+                            border:'1.5px solid var(--border)', background:'var(--bg3)',
+                            fontSize:12, fontWeight:600, cursor:'pointer', color:'var(--text2)',
+                            fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                          Opne mappe i utforskar
+                        </button>
+                      )}
+                      <button onClick={laasOppOppdragssti}
                         style={{ padding:'8px 14px', borderRadius:'var(--r)',
-                          border:'1.5px solid var(--border)', background:'var(--bg3)',
-                          fontSize:12, fontWeight:600, cursor:'pointer', color:'var(--text2)',
+                          border:'1.5px solid var(--border)', background:'var(--bg2)',
+                          fontSize:12, fontWeight:600, cursor:'pointer', color:'var(--text3)',
                           fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
-                        Bla gjennom…
+                        Lås opp
                       </button>
                     </div>
-                  )}
-                </Row>
-                <p style={{ fontSize:11, color:'var(--text3)', marginTop:2, lineHeight:1.5 }}>
-                  Brukast av Resultatdokument-modulen (Rd) for å plassere filer i riktig mappe automatisk.
-                  Krev at appen er opna via skrivebordsversjonen. Hugs å lagre prosjektkortet etter endring.
-                </p>
+                  </>
+                ) : (
+                  <>
+                    <Row>
+                      <div style={{ flex:1 }}>
+                        <label style={{ display:'block', fontSize:11, fontWeight:600, color:'var(--text3)',
+                          marginBottom:3, letterSpacing:'.03em' }}>Føreslått sti (kan endrast før du låser)</label>
+                        <input type="text" value={oppdragsForslag} onChange={e => setOppdragsForslag(e.target.value)}
+                          style={{ width:'100%', padding:'8px 10px', borderRadius:'var(--r)',
+                            border:'1.5px solid var(--border)', background:'var(--bg2)',
+                            fontSize:12, fontFamily:'var(--mono)', color:'var(--text)',
+                            outline:'none', boxSizing:'border-box' }}/>
+                      </div>
+                      {typeof window !== 'undefined' && window.resultatdokumentAPI && (
+                        <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:1 }}>
+                          <button onClick={async () => {
+                              const valgt = await window.resultatdokumentAPI.velgMappe()
+                              if (valgt) setOppdragsForslag(valgt)
+                            }}
+                            style={{ padding:'8px 14px', borderRadius:'var(--r)',
+                              border:'1.5px solid var(--border)', background:'var(--bg3)',
+                              fontSize:12, fontWeight:600, cursor:'pointer', color:'var(--text2)',
+                              fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                            Bla gjennom…
+                          </button>
+                        </div>
+                      )}
+                    </Row>
+                    <p style={{ fontSize:11, color:'var(--text3)', margin:'2px 0 10px', lineHeight:1.6 }}>
+                      Når du låser stien vert desse mappene oppretta der: {OPPDRAGSMAPPER.join(' · ')}.
+                      Resultatdokument-modulen brukar «{OPPDRAGSMAPPER[3]}» automatisk.
+                      {(typeof window === 'undefined' || !window.resultatdokumentAPI) &&
+                        ' Krev at appen er opna via skrivebordsversjonen for å opprette mappene på disk.'}
+                    </p>
+                    <button onClick={laasOppdragssti}
+                      disabled={typeof window === 'undefined' || !window.resultatdokumentAPI}
+                      title={(typeof window === 'undefined' || !window.resultatdokumentAPI) ? 'Krev skrivebordsversjonen' : undefined}
+                      style={{ padding:'8px 18px', borderRadius:'var(--r)', border:'none',
+                        background: (typeof window !== 'undefined' && window.resultatdokumentAPI) ? 'var(--brand)' : 'var(--bg4)',
+                        color: (typeof window !== 'undefined' && window.resultatdokumentAPI) ? '#fff' : 'var(--text3)',
+                        fontSize:13, fontWeight:700,
+                        cursor: (typeof window !== 'undefined' && window.resultatdokumentAPI) ? 'pointer' : 'default',
+                        fontFamily:'var(--font)' }}>
+                      Lås denne stien
+                    </button>
+                  </>
+                )}
               </Section>
 
               </div>

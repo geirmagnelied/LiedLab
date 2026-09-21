@@ -118,17 +118,11 @@ export default function DataTabell({
   }, [prefs.rekkje, kolMap, alleKolonner])
   const synlege = useMemo(() => rekkje.filter(k => !prefs.skjulte.includes(k)), [rekkje, prefs.skjulte])
   const breidd  = (k) => prefs.breidder[k] ?? kolMap[k]?.w ?? 130
-  // Minstebreidd per kolonne: nok til å vise heile overskrifta, men ikkje
-  // breiare enn det. Kolonnar kan overstyre med eit eige `minW`, elles vert
-  // han rekna ut frå lengda på overskrifta — aldri breiare enn kolonnen sin
-  // eigen standardbreidd (`w`), slik at ein kolonne alltid kan dragast heilt
-  // ned att til der han starta.
-  const minBreidd = (k) => {
-    const kol = kolMap[k]
-    if (kol?.minW) return kol.minW
-    const utrekna = Math.max(40, Math.round((kol?.label?.length || 4) * 6.5) + 30)
-    return kol?.w ? Math.min(utrekna, kol.w) : utrekna
-  }
+  // Minstebreidd — same for alle kolonnar (kan overstyrast med eit eige
+  // `minW` på kolonnedefinisjonen for særtilfelle). Overskrifta vert klipt
+  // med «…» (dt-namn har overflow:hidden) om kolonnen vert smalare enn ho.
+  const MIN_KOL_BREIDD = 20
+  const minBreidd = (k) => kolMap[k]?.minW ?? MIN_KOL_BREIDD
   const totalBreidd = useMemo(() => synlege.reduce((sum, k) => sum + breidd(k), 0), [synlege, prefs.breidder, kolMap])
 
   // ── Verdiar ─────────────────────────────────────────────────────
@@ -240,33 +234,59 @@ export default function DataTabell({
 
   // ── Breiddejustering ────────────────────────────────────────────
   // Dra-handtaket sit på høgre kant av kolonnen (mellom han og den neste).
-  // Som i eit reknearkprogram skal dette flytte breidd MELLOM dei to
-  // nabokolonnane (éin veks, den andre krympar like mykje) i staden for
-  // berre å endre éin kolonne — elles må <table> anten strekkje seg til
-  // 100% breidd (som fordeler «overflødig» plass ut over ALLE kolonnar,
-  // ikkje berre desse to, sjå breidd/totalBreidd-styringa av <table> under)
-  // eller endre totalbreidda kvar gong. Siste, høgre kolonne har ingen
-  // nabo og får då berre endre seg sjølv (og totalbreidda på tabellen).
+  // Som i eit reknearkprogram flyttar dette breidd MELLOM nabokolonnane
+  // (éin veks, den andre krympar like mykje) i staden for berre å endre
+  // éin kolonne — elles må <table> anten strekkje seg til 100% breidd (som
+  // fordeler «overflødig» plass ut over ALLE kolonnar, sjå breidd/
+  // totalBreidd-styringa av <table> under) eller endre totalbreidda kvar
+  // gong. Når nabokolonnen når SIN minstebreidd og draget held fram, held
+  // ikkje operasjonen berre opp — han kaskaderer vidare til NESTE kolonne
+  // i same retning (og so vidare), slik at draget aldri «set seg fast» før
+  // alle kolonnane i den retninga faktisk er nede på minstebreidda si.
+  // Siste kolonnen i tabellen har ingen nabo på høgre side og får då berre
+  // endre seg sjølv (og dermed totalbreidda på tabellen).
   const startResize = (key, e) => {
     e.preventDefault(); e.stopPropagation()
     const idx = synlege.indexOf(key)
-    const nesteKey = synlege[idx + 1]
+    const erSiste = idx === synlege.length - 1
     const startX = e.clientX
-    const startW = breidd(key)
-    const startNesteW = nesteKey ? breidd(nesteKey) : null
-    const minEigen  = minBreidd(key)
-    const minNeste  = nesteKey ? minBreidd(nesteKey) : 0
+    const startBreidder = synlege.map(k => breidd(k))
+    const minEigen = minBreidd(key)
     const flytt = (ev) => {
-      let delta = ev.clientX - startX
-      if (nesteKey) {
-        delta = Math.max(minEigen - startW, delta)
-        delta = Math.min(startNesteW - minNeste, delta)
-        setPrefsRaw(p => ({ ...p, breidder: { ...p.breidder,
-          [key]: Math.round(startW + delta), [nesteKey]: Math.round(startNesteW - delta) } }))
-      } else {
-        const ny = Math.max(minEigen, Math.round(startW + delta))
+      const delta = ev.clientX - startX
+      if (erSiste) {
+        const ny = Math.max(minEigen, Math.round(startBreidder[idx] + delta))
         setPrefsRaw(p => ({ ...p, breidder: { ...p.breidder, [key]: ny } }))
+        return
       }
+      const bredder = [...startBreidder]
+      if (delta > 0) {
+        // Key veks — hentar plass frå kolonnane etter han, éin om gongen
+        let att = delta
+        for (let i = idx + 1; i < bredder.length && att > 0; i++) {
+          const min = minBreidd(synlege[i])
+          const teke = Math.min(Math.max(0, startBreidder[i] - min), att)
+          bredder[i] = startBreidder[i] - teke
+          att -= teke
+        }
+        bredder[idx] = startBreidder[idx] + (delta - att)
+      } else if (delta < 0) {
+        // Kolonnen til høgre for key veks — hentar plass frå key og
+        // kolonnane FØR han, éin om gongen
+        let att = -delta
+        for (let i = idx; i >= 0 && att > 0; i--) {
+          const min = minBreidd(synlege[i])
+          const teke = Math.min(Math.max(0, startBreidder[i] - min), att)
+          bredder[i] = startBreidder[i] - teke
+          att -= teke
+        }
+        bredder[idx + 1] = startBreidder[idx + 1] + (-delta - att)
+      }
+      setPrefsRaw(p => {
+        const nye = { ...p.breidder }
+        synlege.forEach((k, i) => { nye[k] = Math.round(bredder[i]) })
+        return { ...p, breidder: nye }
+      })
     }
     const slepp = () => {
       window.removeEventListener('mousemove', flytt)

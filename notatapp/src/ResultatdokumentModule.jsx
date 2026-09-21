@@ -7,8 +7,12 @@ function fmtTid(ms) {
   return new Date(ms).toLocaleString('no-NO', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false })
 }
 
+// Undermappa Resultatdokument-modulen brukar inni ein låst oppdragssti
+// (sjå OPPDRAGSMAPPER i ProsjektModule.jsx — desse to må halde seg i sync).
+const RESULTAT_UNDERMAPPE = '4 Resultatdokumenter'
+
 export default function ResultatdokumentModule({ userId, projects, activeProjectId, onOpenProsjekt }) {
-  const [details, setDetails]   = useState(null)   // { resultatDokSti, ... } for aktivt prosjekt
+  const [details, setDetails]   = useState(null)   // { oppdragsSti, oppdragsStiLast, ... } for aktivt prosjekt
   const [loading, setLoading]   = useState(true)
   const [filer, setFiler]       = useState([])
   const [versjonerTal, setVersjonerTal] = useState(0)
@@ -18,31 +22,18 @@ export default function ResultatdokumentModule({ userId, projects, activeProject
 
   const harBru = typeof window !== 'undefined' && !!window.resultatdokumentAPI
   const aktivtProsjekt = projects.find(p => p.id === activeProjectId)
-  const sti = details?.resultatDokSti || ''
+  const laast = !!(details?.oppdragsStiLast && details?.oppdragsSti)
+  const sti = laast ? `${details.oppdragsSti}\\${RESULTAT_UNDERMAPPE}` : ''
 
   // ── Last stien til aktivt prosjekt (frå projects.details i Supabase) ──
-  // Manglar prosjektet enno ein resultatDokSti (typisk eit eldre prosjekt
-  // oppretta før mappe-automatikken fanst), vert mappa oppretta og stien
-  // lagra her med det same — same automatikk som i ProsjektModule sin
-  // sikreMappeForOpna(), for prosjekt som vert opna direkte i denne
-  // modulen utan å gå vegen om Prosjekt-modulen fyrst.
   const lastDetails = useCallback(async () => {
     if (!userId || !activeProjectId) { setDetails(null); setLoading(false); return }
     setLoading(true)
-    const { data } = await supabase.from('projects').select('details, project_number')
+    const { data } = await supabase.from('projects').select('details')
       .eq('id', activeProjectId).eq('user_id', userId).single()
-    let detaljar = data?.details || {}
-    if (harBru && !detaljar.resultatDokSti && data?.project_number) {
-      const sti = await window.resultatdokumentAPI.sikreMappe(data.project_number)
-      if (sti) {
-        detaljar = { ...detaljar, resultatDokSti: sti }
-        await supabase.from('projects').update({ details: detaljar })
-          .eq('id', activeProjectId).eq('user_id', userId)
-      }
-    }
-    setDetails(detaljar)
+    setDetails(data?.details || {})
     setLoading(false)
-  }, [userId, activeProjectId, harBru])
+  }, [userId, activeProjectId])
 
   useEffect(() => { lastDetails() }, [lastDetails])
 
@@ -125,11 +116,11 @@ export default function ResultatdokumentModule({ userId, projects, activeProject
             skrivebords-snarvegen for å bruke denne modulen.
           </Melding>
 
-        ) : !sti ? (
-          <Melding tittel="Ingen mappe er sett for dette prosjektet" ikon="!">
-            Gå til <b>Prosjekt</b>-modulen og fyll inn stien til resultatdokument-mappa for
-            «{aktivtProsjekt.name}» (t.d. <code style={{ fontFamily:'var(--mono)' }}>…\03 Resultatdokumenter</code>),
-            og lagre prosjektkortet.
+        ) : !laast ? (
+          <Melding tittel="Ingen oppdragssti er låst for dette prosjektet" ikon="!">
+            Gå til <b>Prosjekt</b>-modulen og lås ein oppdragssti for «{aktivtProsjekt.name}» —
+            mappa <code style={{ fontFamily:'var(--mono)' }}>{RESULTAT_UNDERMAPPE}</code> vert
+            oppretta automatisk der, og denne modulen brukar ho med det same.
           </Melding>
 
         ) : (

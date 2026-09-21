@@ -7,7 +7,8 @@ import TeikningTabell, { FAG_COLORS } from './TeikningTabell'
 //
 //  Del A (denne versjonen): eit ekte teikningsregister per prosjekt.
 //  Brukar dreg teikningar/dokument inn kor som helst i vindauget, appen
-//  flyttar dei til <resultatDokSti>/kontroll/til kontroll/, skannar
+//  flyttar dei til <oppdragsSti>\4 Resultatdokumenter\kontroll\til kontroll,
+//  skannar
 //  filnamn + PDF-tittelfelt (same logikk som det gamle pdf_vaktar.py-
 //  skriptet), og lagrar éi rad per fil i Supabase-tabellen
 //  ks_teikningar. Feil frå skanninga rettar ein med dobbeltklikk i
@@ -316,9 +317,15 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
 
   const harBru = typeof window !== 'undefined' && !!window.resultatdokumentAPI
   const aktivtProsjekt = projects.find(p => p.id === activeProjectId)
-  const sti = details?.resultatDokSti || ''
+  // Same base-sti som Resultatdokument-modulen (oppdragsSti + «4 Resultat-
+  // dokumenter», sett/låst i Prosjekt-modulen) — kontroll/-undermappa (sjå
+  // ks:*-endepunkta i electron/main.js) ligg framleis INNI denne, ikkje
+  // som ei eiga oppdragsmappe, for å halde fram som før prosjektet vart
+  // gjort om til den låsbare oppdragssti-modellen.
+  const laast = !!(details?.oppdragsStiLast && details?.oppdragsSti)
+  const sti = laast ? `${details.oppdragsSti}\\4 Resultatdokumenter` : ''
 
-  // ── Last resultatDokSti for aktivt prosjekt ──
+  // ── Last oppdragssti for aktivt prosjekt ──
   const lastDetails = useCallback(async () => {
     if (!userId || !activeProjectId) { setDetails(null); setDetaljLastar(false); return }
     setDetaljLastar(true)
@@ -483,7 +490,7 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
                   {harBru && !sti && (
                     <div style={{ marginBottom:14, padding:'8px 14px', borderRadius:'var(--r)',
                       background:'rgba(217,119,6,.10)', color:'#B45309', fontSize:12.5, fontWeight:600 }}>
-                      Ingen resultatdokument-mappe er sett for «{aktivtProsjekt.name}». Gå til Prosjekt-modulen og fyll ho inn for å kunne dra inn nye teikningar.
+                      Ingen oppdragssti er låst for «{aktivtProsjekt.name}». Gå til Prosjekt-modulen og lås ein sti for å kunne dra inn nye teikningar.
                     </div>
                   )}
                   {harBru && sti && arbeider && (

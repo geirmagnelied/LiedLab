@@ -91,18 +91,24 @@ app.on('window-all-closed', () => {
 // Resultatdokument — filoperasjonar
 // ═══════════════════════════════════════════════════════════════════
 
-// Fast rotmappe for alle oppdrag på brukaren si maskin. Kvart prosjekt
-// får automatisk oppretta ei undermappe «03 Resultatdokumenter» her,
-// namngjeven etter prosjektnummeret — både for eksisterande prosjekt
-// (fyrste gong dei vert opna i Prosjekt- eller Resultatdokument-modulen)
-// og for nye prosjekt (ved oppretting). Sjå sikreMappe() under.
-const OPPDRAGSROT = path.join('C:\\', 'Users', 'gemli', 'Jottacloud', 'Lied Lab', 'Web', 'LiedLab', 'Oppdrag')
+// Standard mappestruktur som vert oppretta INNI oppdragsstien når brukar
+// låser prosjektet til ein sti i Prosjekt-modulen (sjå ProsjektModule.jsx:
+// laasOppdragssti()). Stien sjølv er brukarstyrt (foreslått, men fritt
+// redigerbar/veljbar før låsing) — ikkje ei fast rotmappe rekna ut frå
+// prosjektnummeret slik det var tidlegare. Resultatdokument-modulen brukar
+// «4 Resultatdokumenter»-undermappa automatisk.
+const OPPDRAGSMAPPER = ['1 Oppdragsleiing', '2 Informasjonsflyt', '3 Arbeidsdokumenter', '4 Resultatdokumenter', '5 BIM']
 
-ipcMain.handle('resultatdokument:sikre-mappe', async (event, { projectNumber }) => {
-  if (!projectNumber) return null
-  const sti = path.join(OPPDRAGSROT, String(projectNumber), '03 Resultatdokumenter')
-  fs.mkdirSync(sti, { recursive: true })
-  return sti
+ipcMain.handle('resultatdokument:opprett-oppdragsmapper', async (event, { oppdragsSti }) => {
+  if (!oppdragsSti) return { ok: false, melding: 'Inga sti oppgjeven.' }
+  try {
+    for (const mappe of OPPDRAGSMAPPER) {
+      fs.mkdirSync(path.join(oppdragsSti, mappe), { recursive: true })
+    }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, melding: e.message }
+  }
 })
 
 // Tolkar filnamn på forma: A-20-01_B.pdf → nr=A-20-01, rev=B
@@ -265,11 +271,12 @@ ipcMain.handle('resultatdokument:legg-til', async (event, { prosjektSti, filPath
 // ═══════════════════════════════════════════════════════════════════
 //
 // Byggjer på same mappekonvensjon som pdf_vaktar.py brukte:
-//   <resultatDokSti>/kontroll/til kontroll/       ← nye filer hamnar her
-//   <resultatDokSti>/kontroll/Kontrollkopiar/…/   ← ferdigstilte kontrollar
+//   <oppdragsSti>\4 Resultatdokumenter\kontroll\til kontroll\        ← nye filer hamnar her
+//   <oppdragsSti>\4 Resultatdokumenter\kontroll\Kontrollkopiar\…\    ← ferdigstilte kontrollar
 //
-// «resultatDokSti» er den same stien som er sett for prosjektet i
-// Prosjekt-modulen (resultatdokument-mappa) — ingen ny sti trengst.
+// «prosjektSti» (parameternamnet under) er stien som Resultatdokument-
+// modulen alt reknar ut (oppdragsSti + «4 Resultatdokumenter», låst i
+// Prosjekt-modulen) — ingen eigen sti for KS-modulen.
 
 // Les tekst frå éi side i eit ope PDF-dokument.
 //

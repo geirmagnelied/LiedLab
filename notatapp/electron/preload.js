@@ -19,10 +19,12 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
   // Opnar ein native mappe-veljar. Returnerer vald sti, eller null.
   velgMappe: () => ipcRenderer.invoke('resultatdokument:velg-mappe'),
 
-  // Sikrar at «Oppdrag\<prosjektnummer>\03 Resultatdokumenter» finst på
-  // disk (opprettar mappa/mapp-strukturen om ho manglar) og returnerer
-  // den fulle stien. Trygg å kalle fleire gongar (mkdir -p-semantikk).
-  sikreMappe: (projectNumber) => ipcRenderer.invoke('resultatdokument:sikre-mappe', { projectNumber }),
+  // Opprettar standard-mappestrukturen (1 Oppdragsleiing, 2 Informasjons-
+  // flyt, 3 Arbeidsdokumenter, 4 Resultatdokumenter, 5 BIM) inni ein
+  // brukarvald/-stadfesta oppdragssti. Trygg å kalle fleire gongar
+  // (mkdir -p-semantikk) — brukast av ProsjektModule sin «Lås denne
+  // stien»-knapp. Returnerer { ok, melding? }.
+  opprettOppdragsmapper: (oppdragsSti) => ipcRenderer.invoke('resultatdokument:opprett-oppdragsmapper', { oppdragsSti }),
 
   // Opnar mappa i Windows Utforskar.
   apneMappe: (sti) => ipcRenderer.invoke('resultatdokument:apne-mappe', sti),
