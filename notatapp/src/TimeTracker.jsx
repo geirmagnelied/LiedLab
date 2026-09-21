@@ -72,8 +72,21 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
   const entriesRef = useRef([])
   useEffect(() => { entriesRef.current = entries }, [entries])
 
+  // clientId er ein STABIL nøkkel som aldri endrar seg gjennom heile rada
+  // sitt liv — i motsetnad til `id`, som byrjar som ein mellombels, lokalt
+  // generert verdi og vert BYTT UT med den ekte databaseIDen straks rada
+  // er lagra fyrste gong (sjå persistRow under). Radene sin React `key`
+  // MÅ bruke clientId, ikkje id — elles ser React ein heilt ny rad (ny
+  // key) i det same augeblikket lagringa fullfører, og byter ut heile
+  // DOM-noden for rada. Det var difor markøren/fokuset i eit felt (t.d.
+  // «Tidsbruk») kunne forsvinne midt i skriving: den debounsa lagringa
+  // (700ms etter t.d. eit prosjektval) treff akkurat medan brukar har
+  // rokke å tabbe vidare og byrja skrive i neste felt.
+  const nyClientId = () => (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID() : `c${Date.now()}_${Math.random()}`
+
   const emptyRow = () => ({
-    id: Date.now() + Math.random(),
+    id: Date.now() + Math.random(), clientId: nyClientId(),
     projectId: null, newProjName: '',
     rawInput: '', hours: 0,
     startTime: null, endTime: null,
@@ -101,6 +114,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
         setErrorMsg(null)
         const rows = (data || []).map(r => ({
           id:          r.id,
+          clientId:    String(r.id), // alt lagra, id endrar seg aldri meir
           projectId:   r.project_id,
           newProjName: '',
           rawInput:    r.raw_input || '',
@@ -340,7 +354,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
           const isSubmitted = row.submitted && row.isPersisted
 
           return (
-            <div key={row.id}
+            <div key={row.clientId}
               style={{ display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 90px 40px',
                 borderBottom: '1px solid var(--border)',
                 background: isSubmitted ? 'var(--bg3)' : 'var(--bg2)',

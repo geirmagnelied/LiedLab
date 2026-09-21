@@ -10,12 +10,12 @@ const pc = i => PALETTE[i % PALETTE.length]
 const DOW_NB = ['man','tir','ons','tor','fre','lør','søn']
 const MON_NB = ['jan','feb','mar','apr','mai','jun','jul','aug','sep','okt','nov','des']
 
-export default function Timeline({ notes, projects, height, onResize }) {
+export default function Timeline({ notes, projects, height, onResize, onSelectNote, onEditNote }) {
   const [mode,        setMode]        = useState('month-week')
   const [anchor,      setAnchor]      = useState(new Date())
   const [filterProjs, setFilterProjs] = useState([])
   const [showFilter,  setShowFilter]  = useState(false)
-  const [tooltip,     setTooltip]     = useState(null)
+  const [hoverTask,   setHoverTask]   = useState(null) // { id, noteId, ... } — vist over sett med musepeikaren
   const [dragOver,    setDragOver]    = useState(null)
   const scrollRef = useRef(null)
   const headerRef = useRef(null)
@@ -101,14 +101,23 @@ export default function Timeline({ notes, projects, height, onResize }) {
     window.dispatchEvent(new CustomEvent('timeline-drop',{detail:{noteId,date:dateStr}}))
   }
 
-  const Chip = ({task}) => (
+  // Enkeltklikk merkar notatet (og viser det i høgrevindauget via
+  // onSelectNote), dobbeltklikk opnar det for redigering (onEditNote) —
+  // svarar til korleis NoteTabell/NotePreview fungerer elles i notatmodulen.
+  // Førehandsvisinga av notatinnhaldet vert vist på hover, ikkje klikk.
+  const Chip = ({task}) => {
+    const heileNotatet = notes.find(n => n.id === task.noteId)
+    const visPreview = hoverTask?.id === task.id && hoverTask?.noteId === task.noteId
+    return (
     <div style={{position:'relative'}}>
-      <div onClick={e=>{e.stopPropagation();setTooltip(tooltip?.id===task.id&&tooltip?.noteId===task.noteId?null:task)}}
+      <div
+        onClick={e=>{ e.stopPropagation(); onSelectNote?.(task.noteId) }}
+        onDoubleClick={e=>{ e.stopPropagation(); onEditNote?.(task.noteId) }}
         style={{display:'flex',alignItems:'flex-start',gap:3,padding:'2px 4px',
           background:task.color+'1A',border:`1.5px solid ${task.color}55`,
           borderLeft:`3px solid ${task.color}`,borderRadius:4,cursor:'pointer',marginBottom:2}}
-        onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 2px 6px ${task.color}44`}
-        onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+        onMouseEnter={e=>{e.currentTarget.style.boxShadow=`0 2px 6px ${task.color}44`; setHoverTask(task)}}
+        onMouseLeave={e=>{e.currentTarget.style.boxShadow='none'; setHoverTask(h => (h===task ? null : h))}}>
         <span style={{width:6,height:6,borderRadius:'50%',background:task.color,flexShrink:0,marginTop:3}}/>
         <div style={{minWidth:0}}>
           <div style={{fontSize:9,fontWeight:700,color:task.color,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',lineHeight:1.3}}>
@@ -119,21 +128,35 @@ export default function Timeline({ notes, projects, height, onResize }) {
           </div>
         </div>
       </div>
-      {tooltip?.id===task.id&&tooltip?.noteId===task.noteId&&(
-        <div style={{position:'absolute',bottom:'110%',left:0,zIndex:300,
+      {visPreview&&(
+        <div style={{position:'absolute',bottom:'110%',left:0,zIndex:300,pointerEvents:'none',
           background:'var(--bg2)',border:`2px solid ${task.color}`,
           borderRadius:'var(--r2)',padding:'10px 13px',
-          minWidth:190,maxWidth:250,boxShadow:'var(--shadow-lg)'}}>
+          minWidth:210,maxWidth:300,boxShadow:'var(--shadow-lg)'}}>
           <div style={{fontSize:11,fontWeight:700,color:task.color,marginBottom:4}}>{task.projName||'–'}</div>
           <div style={{fontSize:12,fontWeight:600,color:'var(--text)',marginBottom:3}}>{task.noteTitle}</div>
           <div style={{fontSize:12,color:'var(--text2)',marginBottom:6}}>{task.text}</div>
+          {heileNotatet&&(heileNotatet.html||heileNotatet.text)&&(
+            heileNotatet.html
+              ? <div style={{fontSize:11.5,lineHeight:1.5,color:'var(--text2)',maxHeight:120,
+                  overflow:'hidden',marginBottom:6,borderTop:'1px solid var(--border)',paddingTop:6}}
+                  dangerouslySetInnerHTML={{__html:heileNotatet.html}}/>
+              : <div style={{fontSize:11.5,lineHeight:1.5,color:'var(--text2)',maxHeight:120,
+                  overflow:'hidden',whiteSpace:'pre-wrap',marginBottom:6,borderTop:'1px solid var(--border)',paddingTop:6}}>
+                  {heileNotatet.text}
+                </div>
+          )}
           <div style={{fontSize:11,color:'var(--text3)',display:'flex',alignItems:'center',gap:4}}>
             📅 {format(parseISO(task.date),'d. MMMM yyyy',{locale:nb})}
+          </div>
+          <div style={{fontSize:10,color:'var(--text3)',marginTop:5,fontStyle:'italic'}}>
+            Klikk for å merke · dobbeltklikk for å redigere
           </div>
         </div>
       )}
     </div>
-  )
+    )
+  }
 
   const ColCell = ({dateStr, tasks, isNow, headerContent, w, flex}) => {
     const isDT = dragOver===dateStr
@@ -479,7 +502,6 @@ export default function Timeline({ notes, projects, height, onResize }) {
           </div>
         </>
       )}
-      {tooltip&&<div style={{position:'fixed',inset:0,zIndex:299}} onClick={()=>setTooltip(null)}/>}
     </div>
   )
 }

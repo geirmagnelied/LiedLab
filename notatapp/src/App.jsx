@@ -614,7 +614,9 @@ export default function App({ userId, userEmail }) {
         {/* Timeline */}
         {!tlCollapsed&&(
           <div style={{ height:tlHeight,minHeight:90,maxHeight:600,flexShrink:0 }}>
-            <Timeline notes={notes} projects={projects} height={tlHeight} onResize={setTlHeight}/>
+            <Timeline notes={notes} projects={projects} height={tlHeight} onResize={setTlHeight}
+              onSelectNote={id => { setView('notatar'); setSelectedNoteId(id) }}
+              onEditNote={id => { const n = notes.find(x => x.id === id); if (n) handleEdit(n) }}/>
           </div>
         )}
       </div>

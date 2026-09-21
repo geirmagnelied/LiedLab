@@ -1,5 +1,32 @@
 # Notatappen — kvar ting ligg og korleis han blir publisert
 
+## Dagleg e-post om forfallande oppgåver
+
+Ein Supabase Edge Function (`hyper-worker`, kjeldefil `send-deadline-
+reminders.ts`) sender kvar dag kl. 06:00 UTC ein e-post med oppgåver som
+er forfalt, forfell i dag, eller forfell i morgon. Trigga av ein
+`pg_cron`-jobb (`dagleg-frist-varsling`, `0 6 * * *`) som kallar funksjonen
+via `net.http_post`. E-post vert sendt via Resend (domenet
+`liedarkitektur.no` er verifisert der) til éin av to faste adresser,
+avhengig av om oppgåva sitt prosjekt er typa `work` eller `private`
+(oppgåver utan prosjekt går til den innlogga brukaren sin eigen e-post).
+
+**Feil oppdaga og retta 21. sept. 2026:** Heile dette oppsettet fanst frå
+før, men hadde ALDRI fungert — `pg_net`-utvidinga (som gjev tilgang til
+`net.http_post`) var aldri skrudd på i databasen, så kron-jobben feila
+stille kvar einaste dag sidan minst 12. sept. med `ERROR: schema "net"
+does not exist` (synleg i `cron.job_run_details`, ikkje i vanlege
+applikasjonslogg). I same runde vart òg eit logikkfeil retta: funksjonen
+filtrerte tidlegare bort alt som var forfalt FØR i dag (`t.date <
+todayStr`), så allereie forfalte oppgåver kom aldri med i e-posten —
+berre dei neste 2 dagane. No er nedre grense fjerna heilt (all forfalt,
+uansett kor gamalt, kjem med), og øvre grense sett til i morgon (var før
+2 dagar fram).
+
+Krev to secrets sett på Edge Function-nivå i Supabase (allereie på plass):
+`RESEND_API_KEY`, samt dei automatisk tilgjengelege
+`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`.
+
 ## Mapper på maskina (Windows)
 
 | Kva | Sti |
