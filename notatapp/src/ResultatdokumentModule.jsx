@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 // ── Datoformat ──────────────────────────────────────────────────────
 function fmtTid(ms) {
   if (!ms) return '—'
-  return new Date(ms).toLocaleString('no-NO', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' })
+  return new Date(ms).toLocaleString('no-NO', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false })
 }
 
 export default function ResultatdokumentModule({ userId, projects, activeProjectId, onOpenProsjekt }) {
@@ -21,14 +21,28 @@ export default function ResultatdokumentModule({ userId, projects, activeProject
   const sti = details?.resultatDokSti || ''
 
   // ── Last stien til aktivt prosjekt (frå projects.details i Supabase) ──
+  // Manglar prosjektet enno ein resultatDokSti (typisk eit eldre prosjekt
+  // oppretta før mappe-automatikken fanst), vert mappa oppretta og stien
+  // lagra her med det same — same automatikk som i ProsjektModule sin
+  // sikreMappeForOpna(), for prosjekt som vert opna direkte i denne
+  // modulen utan å gå vegen om Prosjekt-modulen fyrst.
   const lastDetails = useCallback(async () => {
     if (!userId || !activeProjectId) { setDetails(null); setLoading(false); return }
     setLoading(true)
-    const { data } = await supabase.from('projects').select('details')
+    const { data } = await supabase.from('projects').select('details, project_number')
       .eq('id', activeProjectId).eq('user_id', userId).single()
-    setDetails(data?.details || {})
+    let detaljar = data?.details || {}
+    if (harBru && !detaljar.resultatDokSti && data?.project_number) {
+      const sti = await window.resultatdokumentAPI.sikreMappe(data.project_number)
+      if (sti) {
+        detaljar = { ...detaljar, resultatDokSti: sti }
+        await supabase.from('projects').update({ details: detaljar })
+          .eq('id', activeProjectId).eq('user_id', userId)
+      }
+    }
+    setDetails(detaljar)
     setLoading(false)
-  }, [userId, activeProjectId])
+  }, [userId, activeProjectId, harBru])
 
   useEffect(() => { lastDetails() }, [lastDetails])
 

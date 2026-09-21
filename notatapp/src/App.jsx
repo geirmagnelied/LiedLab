@@ -232,11 +232,15 @@ export default function App({ userId, userEmail }) {
   // (NoteTabell til venstre, NotePreview til høgre) — sjå claude/notatmodul-tabellvisning.md
   // Merk: previewWidth er breidda på HØGRE rute, så å dra skiljelinja mot
   // høgre skal gjere ho smalare — difor trekk vi frå deltaX, ikkje legg til.
+  // Maksbreidda er sett dynamisk (70 % av vindaugsbreidda, aldri under 500px)
+  // i staden for eit fast tak — den gamle faste grensa på 760px kjentest ut
+  // som ei sperre på om lag 1/4 av skjermbreidda på ein vanleg skjerm.
+  const maxPreviewWidth = () => Math.max(500, Math.round(window.innerWidth * 0.7))
   const startPreviewResize = (e) => {
     e.preventDefault()
     const startX = e.clientX, startW = previewWidth
     const flytt = (ev) => {
-      const ny = Math.max(240, Math.min(760, Math.round(startW - (ev.clientX - startX))))
+      const ny = Math.max(240, Math.min(maxPreviewWidth(), Math.round(startW - (ev.clientX - startX))))
       setPreviewWidth(ny)
     }
     const slepp = () => {
@@ -591,7 +595,7 @@ export default function App({ userId, userEmail }) {
                   <div style={{ position:'absolute', left:3, top:0, bottom:0, width:1, background:'var(--border)' }}/>
                 </div>
                 {/* Førehandsvising av markert notat — høgre halvdel */}
-                <div style={{ width:previewWidth, minWidth:240, maxWidth:760, flexShrink:0,
+                <div style={{ width:previewWidth, minWidth:240, maxWidth:maxPreviewWidth(), flexShrink:0,
                   display:'flex', flexDirection:'column', overflow:'hidden',
                   borderLeft:'1px solid var(--border)' }}>
                   <NotePreview note={visibleNotes.find(n => n.id === selectedNoteId) || null}

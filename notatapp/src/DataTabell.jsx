@@ -118,6 +118,18 @@ export default function DataTabell({
   }, [prefs.rekkje, kolMap, alleKolonner])
   const synlege = useMemo(() => rekkje.filter(k => !prefs.skjulte.includes(k)), [rekkje, prefs.skjulte])
   const breidd  = (k) => prefs.breidder[k] ?? kolMap[k]?.w ?? 130
+  // Minstebreidd per kolonne: nok til å vise heile overskrifta, men ikkje
+  // breiare enn det. Kolonnar kan overstyre med eit eige `minW`, elles vert
+  // han rekna ut frå lengda på overskrifta — aldri breiare enn kolonnen sin
+  // eigen standardbreidd (`w`), slik at ein kolonne alltid kan dragast heilt
+  // ned att til der han starta.
+  const minBreidd = (k) => {
+    const kol = kolMap[k]
+    if (kol?.minW) return kol.minW
+    const utrekna = Math.max(40, Math.round((kol?.label?.length || 4) * 6.5) + 30)
+    return kol?.w ? Math.min(utrekna, kol.w) : utrekna
+  }
+  const totalBreidd = useMemo(() => synlege.reduce((sum, k) => sum + breidd(k), 0), [synlege, prefs.breidder, kolMap])
 
   // ── Verdiar ─────────────────────────────────────────────────────
   const tekst = useCallback((rad, key) => {
@@ -227,12 +239,34 @@ export default function DataTabell({
   }
 
   // ── Breiddejustering ────────────────────────────────────────────
+  // Dra-handtaket sit på høgre kant av kolonnen (mellom han og den neste).
+  // Som i eit reknearkprogram skal dette flytte breidd MELLOM dei to
+  // nabokolonnane (éin veks, den andre krympar like mykje) i staden for
+  // berre å endre éin kolonne — elles må <table> anten strekkje seg til
+  // 100% breidd (som fordeler «overflødig» plass ut over ALLE kolonnar,
+  // ikkje berre desse to, sjå breidd/totalBreidd-styringa av <table> under)
+  // eller endre totalbreidda kvar gong. Siste, høgre kolonne har ingen
+  // nabo og får då berre endre seg sjølv (og totalbreidda på tabellen).
   const startResize = (key, e) => {
     e.preventDefault(); e.stopPropagation()
-    const startX = e.clientX, startW = breidd(key)
+    const idx = synlege.indexOf(key)
+    const nesteKey = synlege[idx + 1]
+    const startX = e.clientX
+    const startW = breidd(key)
+    const startNesteW = nesteKey ? breidd(nesteKey) : null
+    const minEigen  = minBreidd(key)
+    const minNeste  = nesteKey ? minBreidd(nesteKey) : 0
     const flytt = (ev) => {
-      const ny = Math.max(64, Math.round(startW + (ev.clientX - startX)))
-      setPrefsRaw(p => ({ ...p, breidder: { ...p.breidder, [key]: ny } }))
+      let delta = ev.clientX - startX
+      if (nesteKey) {
+        delta = Math.max(minEigen - startW, delta)
+        delta = Math.min(startNesteW - minNeste, delta)
+        setPrefsRaw(p => ({ ...p, breidder: { ...p.breidder,
+          [key]: Math.round(startW + delta), [nesteKey]: Math.round(startNesteW - delta) } }))
+      } else {
+        const ny = Math.max(minEigen, Math.round(startW + delta))
+        setPrefsRaw(p => ({ ...p, breidder: { ...p.breidder, [key]: ny } }))
+      }
     }
     const slepp = () => {
       window.removeEventListener('mousemove', flytt)
@@ -299,7 +333,7 @@ export default function DataTabell({
       {/* ── Tabell ── */}
       <div className="dt-skroll" style={{ flex:1, overflow:'auto', minHeight:0 }}>
         <table className={'dt-tabell' + (prefs.farge ? ' farge' : '')}
-          style={{ tableLayout:'fixed', width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
+          style={{ tableLayout:'fixed', width:totalBreidd, borderCollapse:'separate', borderSpacing:0 }}>
           <colgroup>{synlege.map(k => <col key={k} style={{ width:breidd(k) }}/>)}</colgroup>
           <thead>
             <tr>

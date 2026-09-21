@@ -72,7 +72,7 @@ export default function NotePreview({ note, projects, onEdit, onUpdateTask }) {
           display:'flex', flexDirection:'column', gap:4 }}>
           {note.meetingTime && (
             <div><b>Tidspunkt:</b> {new Date(note.meetingTime).toLocaleString('no-NO',
-              { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+              { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false })}</div>
           )}
           {note.meetingLocation && <div><b>Stad:</b> {note.meetingLocation}</div>}
           {note.attendees?.length > 0 && <div><b>Deltakarar:</b> {note.attendees.join(', ')}</div>}

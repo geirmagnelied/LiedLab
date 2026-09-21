@@ -71,6 +71,20 @@ app.on('window-all-closed', () => {
 // Resultatdokument — filoperasjonar
 // ═══════════════════════════════════════════════════════════════════
 
+// Fast rotmappe for alle oppdrag på brukaren si maskin. Kvart prosjekt
+// får automatisk oppretta ei undermappe «03 Resultatdokumenter» her,
+// namngjeven etter prosjektnummeret — både for eksisterande prosjekt
+// (fyrste gong dei vert opna i Prosjekt- eller Resultatdokument-modulen)
+// og for nye prosjekt (ved oppretting). Sjå sikreMappe() under.
+const OPPDRAGSROT = path.join('C:\\', 'Users', 'gemli', 'Jottacloud', 'Lied Lab', 'Web', 'LiedLab', 'Oppdrag')
+
+ipcMain.handle('resultatdokument:sikre-mappe', async (event, { projectNumber }) => {
+  if (!projectNumber) return null
+  const sti = path.join(OPPDRAGSROT, String(projectNumber), '03 Resultatdokumenter')
+  fs.mkdirSync(sti, { recursive: true })
+  return sti
+})
+
 // Tolkar filnamn på forma: A-20-01_B.pdf → nr=A-20-01, rev=B
 // Støttar også: A-20-01 rev B.pdf, A-20-01(B).pdf
 // Same mønster som parse_filnamn() i pdf_vaktar.py (KS-modulen),

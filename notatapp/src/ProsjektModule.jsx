@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabase'
 
 // ── Konstantar ────────────────────────────────────────────────────────
@@ -56,6 +56,13 @@ async function sokBrreg(orgnr) {
   } catch { return null }
 }
 
+// ── Sikre resultatdokument-mappe på disk (berre i skrivebordsversjonen) ──
+async function sikreResultatdokumentMappe(projectNumber) {
+  if (typeof window === 'undefined' || !window.resultatdokumentAPI || !projectNumber) return ''
+  try { return (await window.resultatdokumentAPI.sikreMappe(projectNumber)) || '' }
+  catch { return '' }
+}
+
 // ── Generer prosjektnummer ÅÅNNN ──────────────────────────────────
 function genererProsjektnummer(eksisterande) {
   const aar = String(new Date().getFullYear()).slice(2)
@@ -66,6 +73,57 @@ function genererProsjektnummer(eksisterande) {
     .filter(n => !isNaN(n))
   const neste = brukte.length > 0 ? Math.max(...brukte) + 1 : 1
   return prefix + String(neste).padStart(3, '0')
+}
+
+// ── Input-komponent ───────────────────────────────────────────────
+// MÅ liggje på modulnivå (ikkje definerast inni ProsjektModule-funksjonen).
+// Ein komponent definert inni ein annan komponent sin render-funksjon får
+// ein NY funksjonsreferanse kvar gong forelderen rerendrar — React tolkar
+// det som ein heilt ny komponenttype, og byter difor ut heile <input>-DOM-
+// noden (i staden for berre å oppdatere verdien hans) kvar gong `form`
+// endrar seg, altså etter kvart tastetrykk. Det gjorde at feltet mista
+// fokus og berre eitt teikn kunne skrivast inn før ein måtte klikke i
+// boksen på nytt. Faste, modulnivå-funksjonar har éin stabil referanse
+// gjennom heile appen sitt liv, så React kan gjenbruke DOM-noden i staden.
+function F({ form, set, label, id, type='text', half, third, quarter, ...props }) {
+  return (
+    <div style={{ flex: quarter ? '0 0 25%' : third ? '0 0 33.33%' : half ? '0 0 50%' : 1, minWidth: 0 }}>
+      <label style={{ display:'block', fontSize:11, fontWeight:600, color:'var(--text3)',
+        marginBottom:3, letterSpacing:'.03em' }}>{label}</label>
+      {type === 'textarea' ? (
+        <textarea value={form?.[id] || ''} onChange={e => set(id, e.target.value)}
+          rows={3} {...props}
+          style={{ width:'100%', padding:'8px 10px', borderRadius:'var(--r)',
+            border:'1.5px solid var(--border)', background:'var(--bg2)',
+            fontSize:14, fontFamily:'var(--font)', color:'var(--text)',
+            resize:'vertical', outline:'none', ...props.style }}/>
+      ) : (
+        <input type={type} value={form?.[id] || ''} onChange={e => set(id, e.target.value)}
+          {...props}
+          style={{ width:'100%', padding:'8px 10px', borderRadius:'var(--r)',
+            border:'1.5px solid var(--border)', background:'var(--bg2)',
+            fontSize:14, fontFamily:'var(--font)', color:'var(--text)',
+            outline:'none', boxSizing:'border-box', ...props.style }}/>
+      )}
+    </div>
+  )
+}
+
+// ── Seksjon-wrapper ───────────────────────────────────────────────
+function Section({ title, children }) {
+  return (
+    <div style={{ marginBottom:20 }}>
+      <div style={{ fontSize:13, fontWeight:700, color:'var(--brand)', letterSpacing:'-0.01em',
+        marginBottom:10, paddingBottom:6, borderBottom:'2px solid var(--brandbg2)' }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function Row({ children, gap=10 }) {
+  return <div style={{ display:'flex', gap, marginBottom:8 }}>{children}</div>
 }
 
 // ── Tom prosjektdata ──────────────────────────────────────────────
@@ -110,6 +168,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   const [orgLookup, setOrgLookup]       = useState({ field: null, loading: false })
   const [filter, setFilter]             = useState('alle') // alle|tilbod|aktiv|arkiv
   const [sidebarWidth]                  = useState(240)
+  const selectedRef = useRef(null) // speglar `selected` synkront, sjå sikreMappeForOpna
 
   // ── Last prosjekt med detaljar ────────────────────────────────
   const loadProsjekt = useCallback(async () => {
@@ -144,10 +203,27 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
 
   useEffect(() => { loadProsjekt() }, [loadProsjekt])
 
+  // ── Sikre resultatdokument-mappe for eit prosjekt som vert opna ──
+  // Gjeld både eksisterande prosjekt (som enno manglar resultatDokSti —
+  // typisk prosjekt oppretta før denne funksjonen fanst) og speglar det
+  // som skjer automatisk for nye prosjekt i nyttProsjekt(). Skriv berre
+  // til databasen når stien faktisk mangla frå før, slik at ein sti
+  // brukar har sett manuelt aldri vert overskriven.
+  const sikreMappeForOpna = async (p) => {
+    if (!p || p.details?.resultatDokSti) return
+    const sti = await sikreResultatdokumentMappe(p.projectNumber)
+    if (!sti) return
+    const nyeDetails = { ...(p.details || {}), resultatDokSti: sti }
+    await supabase.from('projects').update({ details: nyeDetails }).eq('id', p.id).eq('user_id', userId)
+    setProsjektList(list => list.map(x => x.id === p.id ? { ...x, details: nyeDetails } : x))
+    if (selectedRef.current === p.id) setForm(f => f ? { ...f, resultatDokSti: sti } : f)
+  }
+
   // ── Vel prosjekt ──────────────────────────────────────────────
   const selectProject = (id) => {
     if (dirty && !window.confirm('Du har ulagra endringar. Vil du forkaste dei?')) return
     setSelected(id)
+    selectedRef.current = id
     const p = prosjektList.find(x => x.id === id)
     if (p) {
       setForm({
@@ -159,6 +235,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
         projectNumber: p.projectNumber,
         status: p.status,
       })
+      sikreMappeForOpna(p)
     }
     setDirty(false)
     // Synk med det globalt aktive prosjektet (valt i TopBar), slik at alle andre
@@ -174,6 +251,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     const p = prosjektList.find(x => x.id === activeProjectId)
     if (p) {
       setSelected(p.id)
+      selectedRef.current = p.id
       setForm({
         projectNumber: p.projectNumber,
         status: p.status,
@@ -184,6 +262,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
         status: p.status,
       })
       setDirty(false)
+      sikreMappeForOpna(p)
     }
   }, [activeProjectId, prosjektList])
 
@@ -192,19 +271,23 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     if (dirty && !window.confirm('Du har ulagra endringar. Vil du forkaste dei?')) return
     const nr = genererProsjektnummer(prosjektList.map(p => p.projectNumber))
     const id = Date.now()
+    // Opprett automatisk mappestrukturen for resultatdokument (berre mogleg
+    // frå skrivebordsversjonen — sjå sikreResultatdokumentMappe() over)
+    const resultatDokSti = await sikreResultatdokumentMappe(nr)
+    const details = { ...tomtProsjekt(), resultatDokSti }
     const row = {
       id, user_id: userId, name: `Nytt prosjekt ${nr}`,
       favorite: false, type: 'work',
       office_id: activeOfficeId,
       project_number: nr, project_status: 'tilbod',
-      details: tomtProsjekt(),
+      details,
       created_at: new Date().toISOString(),
     }
     const { error } = await supabase.from('projects').insert(row)
     if (!error) {
       await loadProsjekt()
       setSelected(id)
-      setForm({ ...tomtProsjekt(), projectNumber: nr, status: 'tilbod', name: row.name })
+      setForm({ ...details, projectNumber: nr, status: 'tilbod', name: row.name })
       setDirty(false)
     }
   }
@@ -359,43 +442,9 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
 
   const papirkorgTal = prosjektList.filter(p => !!p.deletedAt).length
 
-  // ── Input-komponent ───────────────────────────────────────────
-  const F = ({ label, id, type='text', half, third, quarter, ...props }) => (
-    <div style={{ flex: quarter ? '0 0 25%' : third ? '0 0 33.33%' : half ? '0 0 50%' : 1, minWidth: 0 }}>
-      <label style={{ display:'block', fontSize:11, fontWeight:600, color:'var(--text3)',
-        marginBottom:3, letterSpacing:'.03em' }}>{label}</label>
-      {type === 'textarea' ? (
-        <textarea value={form?.[id] || ''} onChange={e => set(id, e.target.value)}
-          rows={3} {...props}
-          style={{ width:'100%', padding:'8px 10px', borderRadius:'var(--r)',
-            border:'1.5px solid var(--border)', background:'var(--bg2)',
-            fontSize:14, fontFamily:'var(--font)', color:'var(--text)',
-            resize:'vertical', outline:'none', ...props.style }}/>
-      ) : (
-        <input type={type} value={form?.[id] || ''} onChange={e => set(id, e.target.value)}
-          {...props}
-          style={{ width:'100%', padding:'8px 10px', borderRadius:'var(--r)',
-            border:'1.5px solid var(--border)', background:'var(--bg2)',
-            fontSize:14, fontFamily:'var(--font)', color:'var(--text)',
-            outline:'none', boxSizing:'border-box', ...props.style }}/>
-      )}
-    </div>
-  )
-
-  // ── Seksjon-wrapper ───────────────────────────────────────────
-  const Section = ({ title, children }) => (
-    <div style={{ marginBottom:20 }}>
-      <div style={{ fontSize:13, fontWeight:700, color:'var(--brand)', letterSpacing:'-0.01em',
-        marginBottom:10, paddingBottom:6, borderBottom:'2px solid var(--brandbg2)' }}>
-        {title}
-      </div>
-      {children}
-    </div>
-  )
-
-  const Row = ({ children, gap=10 }) => (
-    <div style={{ display:'flex', gap, marginBottom:8 }}>{children}</div>
-  )
+  // F/Section/Row ligg no på modulnivå (sjå over) — `bind` sender form/set
+  // ned til F som vanlege props, i staden for via lukke, sjå kommentaren der.
+  const bind = { form, set }
 
   // ══════════════════════════════════════════════════════════════
   return (
@@ -598,8 +647,8 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
               {/* ── Grunndata ── */}
               <Section title="Grunndata">
                 <Row>
-                  <F label="Prosjektnummer" id="projectNumber" style={{ fontFamily:'var(--mono)', fontWeight:700 }}/>
-                  <F label="Prosjektnamn" id="name"/>
+                  <F {...bind} label="Prosjektnummer" id="projectNumber" style={{ fontFamily:'var(--mono)', fontWeight:700 }}/>
+                  <F {...bind} label="Prosjektnamn" id="name"/>
                 </Row>
                 <Row>
                   <div style={{ flex:1 }}>
@@ -620,13 +669,13 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                     </div>
                   </div>
                 </Row>
-                <Row><F label="Kort prosjektbeskriving" id="description" type="textarea"/></Row>
+                <Row><F {...bind} label="Kort prosjektbeskriving" id="description" type="textarea"/></Row>
               </Section>
 
               {/* ── Kunde ── */}
               <Section title="Kunde">
                 <Row>
-                  <F label="Org.nr." id="clientOrgNr" half/>
+                  <F {...bind} label="Org.nr." id="clientOrgNr" half/>
                   <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:1 }}>
                     <button onClick={() => doOrgLookup('client')}
                       disabled={orgLookup.loading}
@@ -638,16 +687,16 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                     </button>
                   </div>
                 </Row>
-                <Row><F label="Firmanamn / Namn" id="clientName"/></Row>
+                <Row><F {...bind} label="Firmanamn / Namn" id="clientName"/></Row>
                 <Row>
-                  <F label="Adresse" id="clientAddress"/>
-                  <F label="Postnr." id="clientPostnr" quarter/>
-                  <F label="Poststad" id="clientPoststad" third/>
+                  <F {...bind} label="Adresse" id="clientAddress"/>
+                  <F {...bind} label="Postnr." id="clientPostnr" quarter/>
+                  <F {...bind} label="Poststad" id="clientPoststad" third/>
                 </Row>
                 <Row>
-                  <F label="Kontaktperson" id="clientContactName"/>
-                  <F label="E-post" id="clientContactEmail" type="email"/>
-                  <F label="Telefon" id="clientContactPhone" type="tel"/>
+                  <F {...bind} label="Kontaktperson" id="clientContactName"/>
+                  <F {...bind} label="E-post" id="clientContactEmail" type="email"/>
+                  <F {...bind} label="Telefon" id="clientContactPhone" type="tel"/>
                 </Row>
               </Section>
 
@@ -665,7 +714,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                 {!form.tiltakshavarSameAsClient && (
                   <>
                     <Row>
-                      <F label="Org.nr." id="tiltakshavarOrgNr" half/>
+                      <F {...bind} label="Org.nr." id="tiltakshavarOrgNr" half/>
                       <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:1 }}>
                         <button onClick={() => doOrgLookup('tiltakshavar')}
                           disabled={orgLookup.loading}
@@ -677,12 +726,12 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                         </button>
                       </div>
                     </Row>
-                    <Row><F label="Firmanamn / Namn" id="tiltakshavarName"/></Row>
-                    <Row><F label="Adresse" id="tiltakshavarAddress"/></Row>
+                    <Row><F {...bind} label="Firmanamn / Namn" id="tiltakshavarName"/></Row>
+                    <Row><F {...bind} label="Adresse" id="tiltakshavarAddress"/></Row>
                     <Row>
-                      <F label="Kontaktperson" id="tiltakshavarContactName"/>
-                      <F label="E-post" id="tiltakshavarContactEmail" type="email"/>
-                      <F label="Telefon" id="tiltakshavarContactPhone" type="tel"/>
+                      <F {...bind} label="Kontaktperson" id="tiltakshavarContactName"/>
+                      <F {...bind} label="E-post" id="tiltakshavarContactEmail" type="email"/>
+                      <F {...bind} label="Telefon" id="tiltakshavarContactPhone" type="tel"/>
                     </Row>
                   </>
                 )}
@@ -733,19 +782,19 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                   </div>
                 )}
                 <Row>
-                  <F label="Adresse" id="propertyAddress"/>
-                  <F label="Postnr." id="propertyPostnr" quarter/>
-                  <F label="Poststad" id="propertyPoststad" third/>
+                  <F {...bind} label="Adresse" id="propertyAddress"/>
+                  <F {...bind} label="Postnr." id="propertyPostnr" quarter/>
+                  <F {...bind} label="Poststad" id="propertyPoststad" third/>
                 </Row>
                 <Row>
-                  <F label="Kommune" id="propertyKommune"/>
-                  <F label="Kommunenr." id="propertyKommunenr" quarter/>
+                  <F {...bind} label="Kommune" id="propertyKommune"/>
+                  <F {...bind} label="Kommunenr." id="propertyKommunenr" quarter/>
                 </Row>
                 <Row>
-                  <F label="Gnr." id="propertyGnr" quarter/>
-                  <F label="Bnr." id="propertyBnr" quarter/>
-                  <F label="Festenr." id="propertyFestenr" quarter/>
-                  <F label="Seksjonsnr." id="propertySeksjonsnr" quarter/>
+                  <F {...bind} label="Gnr." id="propertyGnr" quarter/>
+                  <F {...bind} label="Bnr." id="propertyBnr" quarter/>
+                  <F {...bind} label="Festenr." id="propertyFestenr" quarter/>
+                  <F {...bind} label="Seksjonsnr." id="propertySeksjonsnr" quarter/>
                 </Row>
               </Section>
 
@@ -804,21 +853,21 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                       {(KATEGORIAR[form.buildingCategory] || []).map(k => <option key={k} value={k}>{k}</option>)}
                     </select>
                   </div>
-                  <F label="BRA (m²)" id="bra" type="number" quarter/>
+                  <F {...bind} label="BRA (m²)" id="bra" type="number" quarter/>
                 </Row>
-                <Row><F label="Beskriving av tiltaket" id="tiltakDescription" type="textarea"/></Row>
+                <Row><F {...bind} label="Beskriving av tiltaket" id="tiltakDescription" type="textarea"/></Row>
               </Section>
 
               {/* ── Tilbod ── */}
               <Section title="Tilbod og økonomi">
                 <Row>
-                  <F label="Tilbodspris (kr)" id="offerPrice" type="number"/>
-                  <F label="Estimerte timar" id="estimatedHours" type="number"/>
-                  <F label="Sendt dato" id="sentDate" type="date"/>
+                  <F {...bind} label="Tilbodspris (kr)" id="offerPrice" type="number"/>
+                  <F {...bind} label="Estimerte timar" id="estimatedHours" type="number"/>
+                  <F {...bind} label="Sendt dato" id="sentDate" type="date"/>
                 </Row>
                 {(form.status === 'aktiv' || form.status === 'fullfort') && (
                   <Row>
-                    <F label="Faktiske timar" id="actualHours" type="number"/>
+                    <F {...bind} label="Faktiske timar" id="actualHours" type="number"/>
                     {form.estimatedHours && form.actualHours && (
                       <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:8 }}>
                         <span style={{ fontSize:13, fontWeight:600,
@@ -835,7 +884,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
               {/* ── Resultatdokument ── */}
               <Section title="Resultatdokument">
                 <Row>
-                  <F label="Sti til resultatdokument-mappe" id="resultatDokSti"
+                  <F {...bind} label="Sti til resultatdokument-mappe" id="resultatDokSti"
                     placeholder="C:\...\03 Resultatdokumenter" style={{ fontFamily:'var(--mono)', fontSize:12 }}/>
                   {typeof window !== 'undefined' && window.resultatdokumentAPI && (
                     <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:1 }}>

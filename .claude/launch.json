@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "liedlab-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "notatapp", "run", "dev"],
+      "port": 5173,
+      "url": "http://localhost:5173"
+    }
+  ]
+}

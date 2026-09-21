@@ -97,17 +97,19 @@ export function useStore(userId) {
   useEffect(() => { loadAll() }, [loadAll])
 
   // ── Notes ─────────────────────────────────────────────────────────────
-  // Notatnummer: eit permanent, unikt løpenummer per brukar — same mønster
-  // som saksnummer i saksmodulen (nextCaseNumber i SakerModule.jsx): rekna
-  // ut som høgste eksisterande + 1, ikkje ein database-sekvens.
-  const nextNoteNumber = () => {
-    const nrs = notes.map(n => n.nr || 0)
+  // Notatnummer: eit løpenummer INNANFOR kvart prosjekt (ikkje globalt per
+  // brukar) — rekna ut som høgste eksisterande nr blant notat i SAME
+  // prosjekt + 1. Notat utan prosjekt deler éin felles «ingen prosjekt»-
+  // serie. Det betyr at notat i ulike prosjekt kan ha same nr — det er
+  // meint slik, sidan nr berre skal vere unikt/løpande per prosjekt.
+  const nextNoteNumber = (projectId) => {
+    const nrs = notes.filter(n => (n.projectId || null) === (projectId || null)).map(n => n.nr || 0)
     return (nrs.length ? Math.max(...nrs) : 0) + 1
   }
 
   const addNote = async (n) => {
     const id = Date.now()
-    const nr = nextNoteNumber()
+    const nr = nextNoteNumber(n.projectId)
     const row = {
       id, user_id: userId, nr,
       title: n.title || '', text: n.text || '', html: n.html || '',

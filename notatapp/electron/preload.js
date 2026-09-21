@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
   // Opnar ein native mappe-veljar. Returnerer vald sti, eller null.
   velgMappe: () => ipcRenderer.invoke('resultatdokument:velg-mappe'),
 
+  // Sikrar at «Oppdrag\<prosjektnummer>\03 Resultatdokumenter» finst på
+  // disk (opprettar mappa/mapp-strukturen om ho manglar) og returnerer
+  // den fulle stien. Trygg å kalle fleire gongar (mkdir -p-semantikk).
+  sikreMappe: (projectNumber) => ipcRenderer.invoke('resultatdokument:sikre-mappe', { projectNumber }),
+
   // Opnar mappa i Windows Utforskar.
   apneMappe: (sti) => ipcRenderer.invoke('resultatdokument:apne-mappe', sti),
 

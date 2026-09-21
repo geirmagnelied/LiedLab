@@ -696,6 +696,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
             <div>
               <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Tidspunkt</label>
               <input type="datetime-local" value={meetingTime} onChange={e=>setMeetingTime(e.target.value)}
+                step={300}
                 style={{ ...fi, background:'var(--bg2)', padding:'8px 8px', fontSize:12 }}/>
             </div>
             <div>

@@ -40,7 +40,7 @@ function fmtLastaOpp(iso) {
   if (!iso) return ''
   const d = new Date(iso)
   if (isNaN(d)) return ''
-  return d.toLocaleString('no-NO', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' })
+  return d.toLocaleString('no-NO', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false })
 }
 
 const BASE_COLUMNS = [
