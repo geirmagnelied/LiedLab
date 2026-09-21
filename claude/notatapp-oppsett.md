@@ -59,6 +59,16 @@ Ein gammal, utdatert klone låg i `C:\Users\gemli\liedlab\notatapp`
   Godkjenninga er versjonslåst (`allowScripts` i `package.json`) — dukkar
   same åtvaringa opp igjen etter ei versjonsoppgradering av éin av desse to
   pakkane, må dei godkjennast på nytt.
+- **Auto-restart av Electron ved endring i fil-brua (lagt til 21. sept.
+  2026):** `electron/main.js` og `electron/preload.js` vert normalt berre
+  lasta éin gong ved oppstart — i motsetnad til `src/`, som Vite alt
+  hot-reloadar. `electron-reload` (ny devDependency) overvakar no BERRE
+  `electron/`-mappa og gjer ein full restart av Electron-prosessen
+  (`app.exit()` + `app.relaunch()`) automatisk når main.js/preload.js vert
+  lagra medan `npm run electron`/`electron:dev` køyrer. `src/` vert ikkje
+  overvaka av dette — Vite tek seg av alt der, som før. Køyrer aldri i ein
+  pakka `.exe` (`app.isPackaged`-sjekk), og feilar stille (åtvaring i
+  konsollen, ikkje ein krasj) om pakken av ein eller annan grunn manglar.
 
 ## Publisere endringar (frå Windows-maskina)
 

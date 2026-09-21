@@ -20,6 +20,26 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
+// ── Dev-only: automatisk restart av Electron ved endring i fil-brua ──
+// electron/main.js og electron/preload.js vert berre lasta éin gong, ved
+// oppstart — i motsetnad til React-koden i src/, som Vite alt hot-
+// reloadar automatisk. Utan dette måtte du sjølv lukke og opne appen på
+// nytt kvar gong desse to filene vart endra. Overvakar difor BERRE denne
+// mappa (electron/) — src/ rører vi ikkje, Vite tek seg av det som før.
+// Køyrer aldri i ein pakka .exe (app.isPackaged), og electron-reload er
+// ein reindyrka devDependency — feilar require()-en (t.d. i eit miljø der
+// devDependencies ikkje er installerte), held appen fram som normalt.
+if (!app.isPackaged) {
+  try {
+    require('electron-reload')(__dirname, {
+      electron: process.execPath,
+      hardResetMethod: 'exit',
+    })
+  } catch (e) {
+    console.warn('[dev] electron-reload er ikkje tilgjengeleg — restart appen manuelt ved endringar i electron/main.js eller preload.js:', e.message)
+  }
+}
+
 // pdfjs-dist er berre tilgjengeleg som ES-modul (build/pdf.mjs) — denne
 // fila er CommonJS, så vi lastar han inn med ein dynamisk import() og
 // cachar resultatet. «legacy»-bygget er meint for Node/eldre miljø utan
