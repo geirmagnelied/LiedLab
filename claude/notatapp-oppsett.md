@@ -96,6 +96,36 @@ Ein gammal, utdatert klone låg i `C:\Users\gemli\liedlab\notatapp`
   overvaka av dette — Vite tek seg av alt der, som før. Køyrer aldri i ein
   pakka `.exe` (`app.isPackaged`-sjekk), og feilar stille (åtvaring i
   konsollen, ikkje ein krasj) om pakken av ein eller annan grunn manglar.
+- **`npm run dist` (bygg installasjonsfila) — to fallgruver oppdaga/retta
+  23. sept. 2026:**
+  1. `icon.png` var berre 32×32 px. `electron-builder` krev minst 256×256
+     for portable-target-ikonet og feila («image ... must be at least
+     256x256»). Retta ved å erstatte `icon.png` med ein 512×512-versjon
+     (same design, generert frå `icon.svg`).
+  2. Sjølv med rett ikon feilar bygget likevel på denne maskina, éin steg
+     seinare: `electron-builder` prøver alltid å laste ned og pakke ut
+     `winCodeSign` (eit paket som eigentleg gjeld macOS-signering, men som
+     vert henta uansett måloperativsystem), og utpakkinga inneheld
+     symbolske lenker (`.dylib`-filer for macOS) som krev eit Windows-
+     løyve (`SeCreateSymbolicLinkPrivilege`) kontoen manglar utan anten (a)
+     Utviklarmodus skrudd på (Innstillingar → Personvern og tryggleik → For
+     utviklarar → Utviklarmodus), eller (b) å køyre terminalen som
+     administrator. Ingen av delane er noko Claude Code skal gjere sjølv
+     (køyrer under vanleg brukarkonto, og skal ikkje endre
+     tryggleiksinnstillingar) — **Geir Magne må skru på Utviklarmodus (eller
+     køyre som admin) éin gong, sjølv, før `npm run dist` fullfører.**
+     Fram til då: `release\win-unpacked\Notatapp.exe` (heile mappa, ikkje
+     berre .exe-fila) vert oppretta FØR dette steget og er ein fullt
+     fungerande, ikkje-pakka versjon av appen — brukbar direkte, berre ikkje
+     éi enkelt portabel fil.
+  Same dag vart det òg oppdaga at det installerte skrivebords-snarveg-
+  programmet var eit **frose, mykje eldre `npm run dist`-bygg** — heile
+  fil-bru-arbeidet (Resultatdokument-modulen, `resultatdokumentAPI`) fanst
+  ikkje i det. Skjeramen (`electron/main.js`+`preload.js`) er berre bunta
+  INN i sjølve installasjonsfila ved bygge-tidspunktet, og oppdaterer seg
+  ALDRI automatisk sjølv om Vite/nettsida gjer det — ein ny `npm run dist`
+  (og utdeling av den nye fila til snarvegen) er einaste måten å få
+  fil-bru-endringar inn i ein installert/portabel versjon.
 
 ## Publisere endringar (frå Windows-maskina)
 
