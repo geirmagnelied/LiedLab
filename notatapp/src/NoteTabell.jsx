@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import DataTabell from './DataTabell'
 import { fmtDateShort } from './sakerKonstantar'
 
@@ -14,7 +14,7 @@ import { fmtDateShort } from './sakerKonstantar'
 //  fått det etterutfylt via supabase-notes-nr.sql, etter opprettingsdato.
 // ═══════════════════════════════════════════════════════════════════
 
-const PREFS_KEY = 'liedlab-notat-tabell-v1'
+const PREFS_KEY = 'liedlab-notat-tabell-v2'
 
 const BASE_COLUMNS = [
   { key:'nr',         label:'Nr.',        w:64,  art:'tal',   mono:true },
@@ -36,7 +36,8 @@ function typeFor(n) {
   return 'Notat'
 }
 
-export default function NoteTabell({ notes, projects, onEdit, onDelete, onToggleDone, onSelect, selectedId }) {
+export default function NoteTabell({ notes, projects, onEdit, onDelete, onToggleDone, onSelect, selectedId,
+                                     activeProjectId, onToggleFavorite, onTogglePinned }) {
   const [showArchived, setShowArchived] = useState(false)
   const activeNotes   = notes.filter(n => !n.done)
   const archivedNotes = notes.filter(n => n.done)
@@ -108,6 +109,14 @@ export default function NoteTabell({ notes, projects, onEdit, onDelete, onToggle
     return undefined
   }, [onToggleDone, onDelete])
 
+  // Radmeny (☰): favoritt/fest-til-topp — sjå DataTabell sin `radMeny`-prop.
+  const radMeny = useMemo(() => ({
+    erFavoritt:    n => !!n.favorite,
+    onFavoritt:    (id) => onToggleFavorite?.(id),
+    erFesta:       n => !!n.pinned,
+    onFestTilTopp: (id) => onTogglePinned?.(id),
+  }), [onToggleFavorite, onTogglePinned])
+
   return (
     <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
       {archivedNotes.length > 0 && (
@@ -142,7 +151,8 @@ export default function NoteTabell({ notes, projects, onEdit, onDelete, onToggle
           onOpenRad={(id, n) => onEdit?.(n)}
           onRowClick={(id) => onSelect?.(id)}
           radStil={n => n.id === selectedId ? { background:'var(--brandbg)' } : undefined}
-          prefsKey={PREFS_KEY}
+          radMeny={radMeny}
+          prefsKey={`${PREFS_KEY}:${activeProjectId ?? 'alle'}`}
           itemNamn="notatar"
           defaultSortering={{ key:'nr', dir:'desc' }}
         />

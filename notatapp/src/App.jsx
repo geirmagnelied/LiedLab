@@ -25,6 +25,7 @@ const INITIAL_TL_H  = 200
 
 export default function App({ userId, userEmail }) {
   const { notes, projects, loading, addNote, updateNote, deleteNote, toggleDone,
+          toggleNoteFavorite, toggleNotePinned,
           addTask, updateTask, deleteTask, addProject, updateProject, deleteProject, toggleFavorite,
           offices, addOffice, updateOffice, deleteOffice } = useStore(userId)
 
@@ -414,7 +415,8 @@ export default function App({ userId, userEmail }) {
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
         {activeModule === 'notatar' && (
           <>
-            {view==='notatar'  && <NoteTabell notes={visibleNotes} projects={projects} onEdit={handleEdit} onDelete={deleteNote} onToggleDone={toggleDone}/>}
+            {view==='notatar'  && <NoteTabell key={selectedProjectId} notes={visibleNotes} projects={projects} onEdit={handleEdit} onDelete={deleteNote} onToggleDone={toggleDone}
+              activeProjectId={selectedProjectId} onToggleFavorite={toggleNoteFavorite} onTogglePinned={toggleNotePinned}/>}
 // Fjerna - prognose er no i TimarModule:             {view==='prognose' && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
             {view==='fristar'  && <DeadlineView notes={visibleNotes} projects={projects} {...listProps}/>}
           </>
@@ -585,9 +587,10 @@ export default function App({ userId, userEmail }) {
                 {/* Notattabellen — venstre halvdel */}
                 <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column',
                   overflow:'hidden', padding:'22px 20px 22px 26px' }}>
-                  <NoteTabell notes={visibleNotes} projects={projects} onEdit={handleEdit}
+                  <NoteTabell key={selectedProjectId} notes={visibleNotes} projects={projects} onEdit={handleEdit}
                     onDelete={deleteNote} onToggleDone={toggleDone}
-                    onSelect={setSelectedNoteId} selectedId={selectedNoteId}/>
+                    onSelect={setSelectedNoteId} selectedId={selectedNoteId}
+                    activeProjectId={selectedProjectId} onToggleFavorite={toggleNoteFavorite} onTogglePinned={toggleNotePinned}/>
                 </div>
                 {/* Dragbar delelinje — justerer andelen mellom tabell og førehandsvising */}
                 <div onMouseDown={startPreviewResize} title="Dra for å justere breidda"

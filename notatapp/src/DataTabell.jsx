@@ -64,16 +64,48 @@ function slett(key) {
 
 const samanlikn = new Intl.Collator('no', { numeric:true, sensitivity:'base' })
 
+// ── Automatisk standardbreidd ──────────────────────────────────────
+// Kvar kolonne skal FRÅ START vere brei nok til å vise heile overskrifta
+// (inkludert plassen sorteringspila og filter-/meny-knappen tek), pluss
+// litt margin — ikkje ei fast, manuelt vald pikselbreidd som må stemme
+// med akkurat den norske teksten. Målt med ein gøymd <canvas> i same
+// skrift/vekt som .dt-th faktisk brukar, så det stemmer uansett ordlengd.
+let måleCanvas = null
+function tekstbreidd(tekst, font) {
+  if (typeof document === 'undefined') return tekst.length * 7
+  if (!måleCanvas) måleCanvas = document.createElement('canvas')
+  const ctx = måleCanvas.getContext('2d')
+  ctx.font = font
+  return ctx.measureText(tekst).width
+}
+function standardKolonnebreidd(label, font) {
+  const PADDING    = 20 // .dt-th: padding: 0 10px, venstre + høgre
+  const GAP_PIL     = 5 // gap mellom namn og sorteringspil
+  const PIL         = 9 // ▲/▼-teiknet
+  const GAP_CARET   = 5 // gap mellom pil og filter-/meny-knapp
+  const CARET       = 20 // .dt-caret: width 20px
+  const MARGIN      = 12 // litt ekstra margin, som ønskt
+  return Math.ceil(tekstbreidd(label, font)) + PADDING + GAP_PIL + PIL + GAP_CARET + CARET + MARGIN
+}
+
 export default function DataTabell({
   rader: dataRader, kolonnar,
   hentVerdi, hentRedigerVerdi, hentSorteringsverdi, lagCelle, rangering,
   radId = (r) => r.id, radStil,
   eigne = [],
   onOpenRad, onOpneFil, onRowClick, onSetExtra, onSetVerdi, onNyKolonne, onSlettKolonne,
+  radMeny, // valfri; sjå kommentar ved render av radmeny-kolonnen under
   prefsKey, itemNamn = 'rader',
   defaultSortering,
 }) {
-  const standardBreidder = useMemo(() => Object.fromEntries(kolonnar.map(c => [c.key, c.w])), [kolonnar])
+  const font = useMemo(() => {
+    if (typeof window === 'undefined') return "700 12px sans-serif"
+    const fam = getComputedStyle(document.documentElement).getPropertyValue('--font').trim()
+    return `700 12px ${fam || 'sans-serif'}`
+  }, [])
+  const standardBreidder = useMemo(() =>
+    Object.fromEntries(kolonnar.map(c => [c.key, standardKolonnebreidd(c.label, font)])),
+    [kolonnar, font])
   const standardSkjulte  = useMemo(() => kolonnar.filter(c => c.standardSkjult).map(c => c.key), [kolonnar])
   const standardRekkje   = useMemo(() => kolonnar.map(c => c.key), [kolonnar])
   const standardPrefs = useMemo(() => ({
@@ -123,7 +155,9 @@ export default function DataTabell({
   // med «…» (dt-namn har overflow:hidden) om kolonnen vert smalare enn ho.
   const MIN_KOL_BREIDD = 20
   const minBreidd = (k) => kolMap[k]?.minW ?? MIN_KOL_BREIDD
-  const totalBreidd = useMemo(() => synlege.reduce((sum, k) => sum + breidd(k), 0), [synlege, prefs.breidder, kolMap])
+  const RAD_MENY_BREIDD = 34
+  const totalBreidd = useMemo(() => synlege.reduce((sum, k) => sum + breidd(k), 0) + (radMeny ? RAD_MENY_BREIDD : 0),
+    [synlege, prefs.breidder, kolMap, radMeny])
 
   // ── Verdiar ─────────────────────────────────────────────────────
   const tekst = useCallback((rad, key) => {
@@ -151,14 +185,22 @@ export default function DataTabell({
 
   const rader = useMemo(() => {
     const { key, dir } = prefs.sortering || {}
-    if (!key || !kolMap[key]) return filtrerte
-    const teikn = dir === 'desc' ? -1 : 1
-    return [...filtrerte].sort((a, b) => {
-      const x = sorteringsverdi(a, key), y = sorteringsverdi(b, key)
-      if (typeof x === 'number' && typeof y === 'number') return (x - y) * teikn
-      return samanlikn.compare(String(x), String(y)) * teikn
-    })
-  }, [filtrerte, prefs.sortering, kolMap, sorteringsverdi])
+    let sortert = filtrerte
+    if (key && kolMap[key]) {
+      const teikn = dir === 'desc' ? -1 : 1
+      sortert = [...filtrerte].sort((a, b) => {
+        const x = sorteringsverdi(a, key), y = sorteringsverdi(b, key)
+        if (typeof x === 'number' && typeof y === 'number') return (x - y) * teikn
+        return samanlikn.compare(String(x), String(y)) * teikn
+      })
+    }
+    // «Fest til toppen» (radMeny.erFesta) vinn alltid over vanleg sortering —
+    // festa rader vert flytta fremst, elles urørt rekkjefølgje.
+    if (!radMeny?.erFesta) return sortert
+    const festa = sortert.filter(r => radMeny.erFesta(r))
+    const resten = sortert.filter(r => !radMeny.erFesta(r))
+    return [...festa, ...resten]
+  }, [filtrerte, prefs.sortering, kolMap, sorteringsverdi, radMeny])
 
   // ── Meny: plassering og lukking ─────────────────────────────────
   const plasser = useCallback(() => {
@@ -233,60 +275,21 @@ export default function DataTabell({
   }
 
   // ── Breiddejustering ────────────────────────────────────────────
-  // Dra-handtaket sit på høgre kant av kolonnen (mellom han og den neste).
-  // Som i eit reknearkprogram flyttar dette breidd MELLOM nabokolonnane
-  // (éin veks, den andre krympar like mykje) i staden for berre å endre
-  // éin kolonne — elles må <table> anten strekkje seg til 100% breidd (som
-  // fordeler «overflødig» plass ut over ALLE kolonnar, sjå breidd/
-  // totalBreidd-styringa av <table> under) eller endre totalbreidda kvar
-  // gong. Når nabokolonnen når SIN minstebreidd og draget held fram, held
-  // ikkje operasjonen berre opp — han kaskaderer vidare til NESTE kolonne
-  // i same retning (og so vidare), slik at draget aldri «set seg fast» før
-  // alle kolonnane i den retninga faktisk er nede på minstebreidda si.
-  // Siste kolonnen i tabellen har ingen nabo på høgre side og får då berre
-  // endre seg sjølv (og dermed totalbreidda på tabellen).
+  // Dra-handtaket sit på høgre kant av kolonnen. Endrar BERRE breidda på
+  // denne eine kolonnen — alle kolonnane etter han flyttar seg naturleg
+  // med (dei kjem jo rett etter i tabellrada), utan at DEI sine eigne
+  // breidder vert rørte. <table> sin breidd er summen av kolonnebreiddene
+  // (ikkje 100%, sjå totalBreidd over) nettopp for at dette skal vere
+  // einaste effekten — elles ville nettlesaren fordelt «overflødig» plass
+  // proporsjonalt ut over ALLE kolonnar kvar gong éin av dei endra breidd.
   const startResize = (key, e) => {
     e.preventDefault(); e.stopPropagation()
-    const idx = synlege.indexOf(key)
-    const erSiste = idx === synlege.length - 1
     const startX = e.clientX
-    const startBreidder = synlege.map(k => breidd(k))
-    const minEigen = minBreidd(key)
+    const startW = breidd(key)
+    const min = minBreidd(key)
     const flytt = (ev) => {
-      const delta = ev.clientX - startX
-      if (erSiste) {
-        const ny = Math.max(minEigen, Math.round(startBreidder[idx] + delta))
-        setPrefsRaw(p => ({ ...p, breidder: { ...p.breidder, [key]: ny } }))
-        return
-      }
-      const bredder = [...startBreidder]
-      if (delta > 0) {
-        // Key veks — hentar plass frå kolonnane etter han, éin om gongen
-        let att = delta
-        for (let i = idx + 1; i < bredder.length && att > 0; i++) {
-          const min = minBreidd(synlege[i])
-          const teke = Math.min(Math.max(0, startBreidder[i] - min), att)
-          bredder[i] = startBreidder[i] - teke
-          att -= teke
-        }
-        bredder[idx] = startBreidder[idx] + (delta - att)
-      } else if (delta < 0) {
-        // Kolonnen til høgre for key veks — hentar plass frå key og
-        // kolonnane FØR han, éin om gongen
-        let att = -delta
-        for (let i = idx; i >= 0 && att > 0; i--) {
-          const min = minBreidd(synlege[i])
-          const teke = Math.min(Math.max(0, startBreidder[i] - min), att)
-          bredder[i] = startBreidder[i] - teke
-          att -= teke
-        }
-        bredder[idx + 1] = startBreidder[idx + 1] + (-delta - att)
-      }
-      setPrefsRaw(p => {
-        const nye = { ...p.breidder }
-        synlege.forEach((k, i) => { nye[k] = Math.round(bredder[i]) })
-        return { ...p, breidder: nye }
-      })
+      const ny = Math.max(min, Math.round(startW + (ev.clientX - startX)))
+      setPrefsRaw(p => ({ ...p, breidder: { ...p.breidder, [key]: ny } }))
     }
     const slepp = () => {
       window.removeEventListener('mousemove', flytt)
@@ -354,9 +357,13 @@ export default function DataTabell({
       <div className="dt-skroll" style={{ flex:1, overflow:'auto', minHeight:0 }}>
         <table className={'dt-tabell' + (prefs.farge ? ' farge' : '')}
           style={{ tableLayout:'fixed', width:totalBreidd, borderCollapse:'separate', borderSpacing:0 }}>
-          <colgroup>{synlege.map(k => <col key={k} style={{ width:breidd(k) }}/>)}</colgroup>
+          <colgroup>
+            {radMeny && <col style={{ width:RAD_MENY_BREIDD }}/>}
+            {synlege.map(k => <col key={k} style={{ width:breidd(k) }}/>)}
+          </colgroup>
           <thead>
             <tr>
+              {radMeny && <th className="dt-radmeny-hovud"/>}
               {synlege.map(k => {
                 const kol = kolMap[k]
                 const sortert = prefs.sortering?.key === k
@@ -381,7 +388,7 @@ export default function DataTabell({
           </thead>
           <tbody>
             {rader.length === 0 && (
-              <tr><td colSpan={synlege.length} style={{ textAlign:'center', padding:30, color:'var(--text3)', height:'auto' }}>
+              <tr><td colSpan={synlege.length + (radMeny ? 1 : 0)} style={{ textAlign:'center', padding:30, color:'var(--text3)', height:'auto' }}>
                 Ingen {itemNamn} matchar filteret
               </td></tr>
             )}
@@ -391,6 +398,15 @@ export default function DataTabell({
               <tr key={id} onClick={() => onRowClick?.(id, r)} onDoubleClick={() => onOpenRad?.(id, r)}
                 title={onOpenRad ? 'Dobbeltklikk for å opne' : undefined}
                 style={radStil ? radStil(r) : undefined}>
+                {radMeny && (
+                  <td style={{ height:radhøgd, padding:0, textAlign:'center' }}
+                    onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+                    <button type="button" className="dt-radmeny-knapp" title="Rad-meny"
+                      onClick={e => opneMeny('rad', id, e)}>
+                      ☰{radMeny.erFavoritt?.(r) && <span className="dt-radmeny-stjerne">★</span>}
+                    </button>
+                  </td>
+                )}
                 {synlege.map(k => {
                   const kol = kolMap[k]
                   const kanRedigere = kol.eigen || kol.redigerbar
@@ -455,12 +471,35 @@ export default function DataTabell({
           onSorter={dir => { sorter(meny.key, dir); setMeny(null) }}
           onFilter={v => veksleFilter(meny.key, v)}
           onTomFilter={() => tomFilter(meny.key)}
-          onStandardBreidd={() => { setPrefs(p => ({ ...p, breidder: { ...p.breidder, [meny.key]: kolMap[meny.key].w } })); setMeny(null) }}
+          onStandardBreidd={() => { setPrefs(p => ({ ...p, breidder: { ...p.breidder, [meny.key]: standardBreidder[meny.key] } })); setMeny(null) }}
           onSkjul={() => { skjul(meny.key); setMeny(null) }}
           onSlett={() => slettKolonne(meny.key)}
           onNyKolonne={onNyKolonne ? () => setMeny(m => ({ ...m, slag:'ny' })) : null}
         />
       )}
+
+      {meny?.slag === 'rad' && radMeny && (() => {
+        const rad = rader.find(r => radId(r) === meny.key)
+        if (!rad) return null
+        const favoritt = !!radMeny.erFavoritt?.(rad)
+        const festa = !!radMeny.erFesta?.(rad)
+        return (
+          <div className="dt-meny" style={{ left:meny.left, top:meny.top, width:210 }}>
+            {radMeny.onFavoritt && (
+              <button type="button" className="dt-val" onClick={() => { radMeny.onFavoritt(meny.key, rad); setMeny(null) }}>
+                <span className="hake">{favoritt ? '★' : '☆'}</span>
+                <span>{favoritt ? 'Fjern favoritt' : 'Merk som favoritt'}</span>
+              </button>
+            )}
+            {radMeny.onFestTilTopp && (
+              <button type="button" className="dt-val" onClick={() => { radMeny.onFestTilTopp(meny.key, rad); setMeny(null) }}>
+                <span className="hake">📌</span>
+                <span>{festa ? 'Løys frå toppen' : 'Fest til toppen'}</span>
+              </button>
+            )}
+          </div>
+        )
+      })()}
 
       {meny?.slag === 'kolonnar' && (
         <div className="dt-meny" style={{ left:meny.left, top:meny.top }}>
@@ -742,6 +781,13 @@ const CSS = `
 .dt-caret:hover { background:var(--brand); color:#fff; opacity:1 }
 .dt-grip { position:absolute; top:0; right:-3px; width:7px; height:100%; cursor:col-resize; z-index:6 }
 .dt-grip:hover { background:var(--brand3); opacity:.5 }
+.dt-radmeny-hovud { position:sticky; top:0; z-index:5; background:var(--bg3); border-bottom:2px solid var(--border);
+  border-right:1px solid var(--border) }
+.dt-radmeny-knapp { width:100%; height:100%; border:0; background:transparent; cursor:pointer;
+  color:var(--text3); font-size:13px; display:flex; align-items:center; justify-content:center; gap:2px;
+  position:relative }
+.dt-radmeny-knapp:hover { color:var(--brand); background:var(--brandbg) }
+.dt-radmeny-stjerne { color:var(--warn); font-size:9px; position:absolute; top:3px; right:3px }
 
 .dt-tabell td { border-bottom:1px solid var(--border); border-right:1px solid var(--border);
   font-size:13px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }

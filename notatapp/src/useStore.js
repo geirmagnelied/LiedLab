@@ -89,6 +89,7 @@ export function useStore(userId) {
       isMeeting: n.is_meeting, isReferat: n.is_referat || false, meetingTime: n.meeting_time,
       meetingDuration: n.meeting_duration, meetingLocation: n.meeting_location,
       attendees: n.attendees || [],
+      favorite: n.favorite || false, pinned: n.pinned || false,
       done: n.done, createdAt: n.created_at, updatedAt: n.updated_at,
     })))
     setLoading(false)
@@ -107,13 +108,32 @@ export function useStore(userId) {
     return (nrs.length ? Math.max(...nrs) : 0) + 1
   }
 
+  // Arbeidsoppgåvenummer: same mønster som notatnummer — eit løpenummer
+  // INNANFOR kvart prosjekt, rekna ut som høgste eksisterande nr blant
+  // ALLE oppgåver i alle notat i same prosjekt + 1. Oppgåver manglar sin
+  // eigen tabell (dei ligg som eit jsonb-felt på notes), så nr vert tildelt
+  // her — sentralt, kvar gong eit notat sine oppgåver vert lagra — i
+  // staden for i sjølve inndatakomponenten (NoteInput), som ikkje har
+  // oversikt over oppgåver i ANDRE notat i same prosjekt.
+  const nextTaskNumber = (projectId) => {
+    const nrs = notes
+      .filter(n => (n.projectId || null) === (projectId || null))
+      .flatMap(n => (n.tasks || []).map(t => t.nr || 0))
+    return (nrs.length ? Math.max(...nrs) : 0) + 1
+  }
+  const tildelTaskNr = (tasks, projectId) => {
+    let neste = nextTaskNumber(projectId)
+    return (tasks || []).map(t => t.nr ? t : { ...t, nr: neste++ })
+  }
+
   const addNote = async (n) => {
     const id = Date.now()
     const nr = nextNoteNumber(n.projectId)
+    const tasks = tildelTaskNr(n.tasks, n.projectId)
     const row = {
       id, user_id: userId, nr,
       title: n.title || '', text: n.text || '', html: n.html || '',
-      tasks: n.tasks || [], tag: n.tag || null,
+      tasks, tag: n.tag || null,
       project_id: n.projectId || null,
       is_email:         n.isEmail         || false,
       sketch_data_url:  n.sketchDataUrl   || null,
@@ -124,6 +144,7 @@ export function useStore(userId) {
       meeting_duration: n.meetingDuration || null,
       meeting_location: n.meetingLocation || null,
       attendees:        n.attendees       || [],
+      favorite: false, pinned: false,
       done: false, created_at: new Date().toISOString(),
     }
     const { error } = await supabase.from('notes').insert(row)
@@ -137,6 +158,7 @@ export function useStore(userId) {
         isMeeting: row.is_meeting, isReferat: row.is_referat, meetingTime: row.meeting_time,
         meetingDuration: row.meeting_duration, meetingLocation: row.meeting_location,
         attendees: row.attendees,
+        favorite: false, pinned: false,
         done: false, createdAt: row.created_at,
       }, ...ns])
     }
@@ -144,6 +166,12 @@ export function useStore(userId) {
   }
 
   const updateNote = async (id, changes) => {
+    // Tildel nr til NYE oppgåver (manglar nr frå før) før lagring — sjå
+    // tildelTaskNr over. Oppgåver som alt har nr vert urørte.
+    if (changes.tasks !== undefined) {
+      const gjeldande = notes.find(n => n.id === id)
+      changes = { ...changes, tasks: tildelTaskNr(changes.tasks, gjeldande?.projectId) }
+    }
     const row = {
       ...(changes.title     !== undefined && { title:           changes.title }),
       ...(changes.text      !== undefined && { text:            changes.text }),
@@ -152,6 +180,8 @@ export function useStore(userId) {
       ...(changes.tag       !== undefined && { tag:             changes.tag }),
       ...(changes.projectId !== undefined && { project_id:      changes.projectId }),
       ...(changes.done      !== undefined && { done:            changes.done }),
+      ...(changes.favorite  !== undefined && { favorite:        changes.favorite }),
+      ...(changes.pinned    !== undefined && { pinned:          changes.pinned }),
       ...(changes.sketchDataUrl     !== undefined && { sketch_data_url:  changes.sketchDataUrl }),
       ...(changes.attachments       !== undefined && { attachments:      changes.attachments }),
       ...(changes.isMeeting         !== undefined && { is_meeting:       changes.isMeeting }),
@@ -278,9 +308,22 @@ export function useStore(userId) {
       .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || a.name.localeCompare(b.name)))
   }
 
+  // ── Notat: favoritt / fest til toppen (radmeny i DataTabell) ───────────
+  const toggleNoteFavorite = async (id) => {
+    const note = notes.find(n => n.id === id)
+    if (!note) return
+    await updateNote(id, { favorite: !note.favorite })
+  }
+  const toggleNotePinned = async (id) => {
+    const note = notes.find(n => n.id === id)
+    if (!note) return
+    await updateNote(id, { pinned: !note.pinned })
+  }
+
   return {
     notes, projects, offices, loading,
     addNote, updateNote, deleteNote, toggleDone,
+    toggleNoteFavorite, toggleNotePinned,
     addTask, updateTask, deleteTask,
     addProject, updateProject, deleteProject, toggleFavorite,
     addOffice, updateOffice, deleteOffice,
