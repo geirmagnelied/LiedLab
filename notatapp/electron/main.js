@@ -52,8 +52,15 @@ function lastPdfjs() {
 
 // Live nettversjon (Vercel) — same URL som i nettlesar, sjå README.md
 const PROD_URL = 'https://liedarkitektur.no/liedlab/notatblokk/'
-// Lokal dev-server (npm run dev), for å teste endringar før dei er pusha
-const DEV_URL = 'http://localhost:5173/liedlab/notatblokk/'
+// Lokal dev-server (npm run dev), for å teste endringar før dei er pusha.
+// MERK: vite.config.js sin `base` er '/' (ikkje '/liedlab/notatblokk/' —
+// den stien finst berre via reverse-proxyen på liedarkitektur.no i
+// produksjon), så lokalt køyrer Vite frå rot. Retta 23. sept. 2026: denne
+// var tidlegare feilaktig sett til .../liedlab/notatblokk/, som gav 404
+// frå den lokale dev-serveren i staden for å falle tilbake til PROD_URL —
+// ein 404 er eit gyldig HTTP-svar, ikkje ein nettverksfeil, så .catch()
+// under vart aldri utløyst.
+const DEV_URL = 'http://localhost:5173/'
 
 function createWindow() {
   const win = new BrowserWindow({
