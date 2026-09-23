@@ -50,17 +50,46 @@ function lastPdfjs() {
   return pdfjsLibPromise
 }
 
-// Live nettversjon (Vercel) — same URL som i nettlesar, sjå README.md
-const PROD_URL = 'https://liedarkitektur.no/liedlab/notatblokk/'
+// Live nettversjon (Vercel) — same URL som i nettlesar, sjå README.md.
+// «liedarkitektur.no» er den tilsikta/pene offentlege adressa (peikar via
+// eit eige domeneoppsett/reverse-proxy over til Vercel-deployen), medan
+// «liedlab.vercel.app» er sjølve Vercel-prosjektet sin eigen, alltid
+// gyldige adresse — brukt her berre som eit sikkerheitsnett dersom noko
+// går gale med domeneoppsettet til liedarkitektur.no (skjedde 23. sept.
+// 2026: domenet peika til ein heilt annan LiteSpeed-server som gav 404 —
+// utanfor dette repoet, må rettast i Vercel sine domeneinnstillingar eller
+// hos den som driftar sjølve liedarkitektur.no-nettstaden).
+const PROD_URL       = 'https://liedarkitektur.no/liedlab/notatblokk/'
+const PROD_URL_BACKUP = 'https://liedlab.vercel.app/'
 // Lokal dev-server (npm run dev), for å teste endringar før dei er pusha.
 // MERK: vite.config.js sin `base` er '/' (ikkje '/liedlab/notatblokk/' —
 // den stien finst berre via reverse-proxyen på liedarkitektur.no i
 // produksjon), så lokalt køyrer Vite frå rot. Retta 23. sept. 2026: denne
 // var tidlegare feilaktig sett til .../liedlab/notatblokk/, som gav 404
-// frå den lokale dev-serveren i staden for å falle tilbake til PROD_URL —
-// ein 404 er eit gyldig HTTP-svar, ikkje ein nettverksfeil, så .catch()
-// under vart aldri utløyst.
+// frå den lokale dev-serveren i staden for å falle tilbake til PROD_URL.
 const DEV_URL = 'http://localhost:5173/'
+
+// Prøver kvar url i rekkjefølgje til éin lastar utan feil. Fell vidare til
+// neste både ved NETTVERKSFEIL (t.d. ingen dev-server på 5173 —
+// loadURL()-promiset avvisast, fanga av .catch) OG ved HTTP-FEILSTATUS
+// (t.d. ein 404-side — det er eit gyldig svar, ikkje ein nettverksfeil,
+// så .catch fangar det ALDRI; må sjekkast via did-navigate sin
+// httpResponseCode i staden). Utan denne skiljet kan appen bli sitjande
+// fast på ei 404-side i staden for å prøve neste kandidat — nøyaktig det
+// som skjedde både med DEV_URL (før fiksen over) og med PROD_URL (før
+// PROD_URL_BACKUP vart lagt til).
+function loadWithFallback(win, urls) {
+  let current = -1
+  const tryNext = () => {
+    current += 1
+    if (current >= urls.length) return
+    win.loadURL(urls[current]).catch(() => tryNext())
+  }
+  win.webContents.on('did-navigate', (event, url, httpResponseCode) => {
+    if (httpResponseCode >= 400 && current < urls.length - 1) tryNext()
+  })
+  tryNext()
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -77,10 +106,9 @@ function createWindow() {
   })
 
   // Prøv lokal dev-server fyrst (viss «npm run dev» køyrer i ein annan
-  // terminal, t.d. under utvikling/testing) — fell elles tilbake til den
-  // live nettsida. Slik fungerer både vanleg dagleg bruk (start.bat) og
-  // lokal utvikling/testing av nye endringar utan å måtte pushe fyrst.
-  win.loadURL(DEV_URL).catch(() => win.loadURL(PROD_URL))
+  // terminal, t.d. under utvikling/testing), så den tilsikta live-adressa,
+  // så Vercel sin eigen adresse som siste sikkerheitsnett.
+  loadWithFallback(win, [DEV_URL, PROD_URL, PROD_URL_BACKUP])
 }
 
 app.whenReady().then(() => {
