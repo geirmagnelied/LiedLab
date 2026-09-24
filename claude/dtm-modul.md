@@ -382,6 +382,71 @@ justerast mot faktiske tal i staden for gjetting.
   underliggande felt/verdi, berre nytt namn — brukar sitt eige omgrep for
   A0–A4-papirstorleik) og er no synleg som standard.
 
+## Retta 25. sept. 2026 — verifisert mot to ekte PDF-ar frå brukar
+
+Brukar la over to ekte teikningar (`A-60-02 Dørskjema.pdf` og
+`A-45-01-02 Fasader Øst og Vest.pdf`) og gav detaljert tilbakemelding på 14
+punkt etter fyrste import-forsøk. Kunne lese sjølve PDF-teksten direkte
+(Read-verktøyet) og stadfeste fleire konkrete rotårsaker:
+
+1. **Importvindauget var for smalt** — no `90vw` (var `min(94vw, 1180px)`),
+   og kolonnebreidda i gjennomgangsmatrisa er no rekna ut frå faktisk
+   innhald (`ch`-einingar via ein `kolonneBreidd`-`useMemo` i
+   `DTMImportModal.jsx`) i staden for faste pikselbreidder.
+2. **Ny kolonne «Filtype»** — utleia frå filendinga, lagt til både i
+   gjennomgangsmatrisa og som (skjult som standard) kolonne i
+   `DTMTabell.jsx`.
+3. **Tegningsnummer feil lese** — stadfesta rotårsak: `parseFilnamn()`
+   sin fallback (heile filnamnet, t.d. «A-60-02 Dørskjema», sidan filnamnet
+   ikkje hadde noko revisjonssuffiks) vart ikkje alltid overstyrt av
+   PDF-innhaldet, sidan `tolkStablaFelt()` sitt merkelapp/verdi-oppslag
+   berre såg på DEN NESTE linja. Retta: søkjer no i eit VINDAUGE på inntil
+   tre linjer under merkelappen (ikkje berre éi), og finn næraste x-
+   posisjon blant dei.
+4. Revisjonsnummer var korrekt — inga endring nødvendig.
+5. og 12. **Revisjonsskildring/Utarbeida/Godkjent frå feil kolonne** —
+   stadfesta rotårsak: kolonnane i revisjonstabellen vart slått opp med
+   ORDINAL CELLE-INDEKS (kolonne nr. 3, nr. 4 …), som forskyv seg dersom
+   éi celle i akkurat DENNE rada tilfeldigvis slo seg saman eller delte
+   seg annleis enn i header-rada. Retta: `tolkRevisjonstabell()` slår no
+   opp kvar kolonne ved X-POSISJON (næraste celle til DER header-cella
+   står), ikkje ved indeks — robust mot at data- og header-rada har ulikt
+   celletal.
+6. **Fag skal vise fullt namn, ikkje kodebokstaven** — `gjettFag()`
+   returnerer no «Arkitekt» (osb., sjå `FAG_NAMN` i `main.js`) i staden
+   for berre «A».
+7. Tittel var korrekt — inga endring.
+8. **Oppdragsgivar inkonsekvent mellom dei to filene** — sannsynleg same
+   rotårsak som punkt 3/5 (linjevindauge/kolonne-oppslag), bør vere retta
+   av same fiksar — IKKJE særskilt stadfesta mot akkurat denne fila enno.
+9. **Tiltakshavar ikkje lese** — same rotårsak/fiks som punkt 3.
+10. **Målestokk ikkje lese (dørskjema)** — verifisert mot den faktiske
+    PDF-teksten at dette IKKJE er ein kode-feil: eit dørskjema er eit
+    tabelldokument utan reell teikningsmålestokk, og feltet er rett og
+    slett tomt på denne sida. Fasadeteikninga (som HAR ein målestokk,
+    «1:100») bør lesast korrekt av same logikk.
+11. Arkstørrelse var korrekt — inga endring.
+13. **Oppdragsnummer inneheldt både oppdragsnummer og tegningsnummer**
+    — stadfesta rotårsak: cella-grensa i `lesLinjerFraSide()`
+    (`ORD_GAP`) var for STOR for denne tronge talkolonnen, så
+    «52406865» og «A-60-02» vart lima saman til éi celle. To tiltak:
+    (a) cella-grensene er no RELATIVE til gjennomsnittleg teiknbreidd i
+    staden for ein fast punktverdi (skalerer med skriftstorleiken ulike
+    stader på sida), og (b) eit forsvar i `tolkStablaFelt()` splittar
+    automatisk eit oppdragsnummer-felt som framleis inneheld eit
+    tegningsnummer-mønster på slutten.
+
+**Verifisert** med eit utvida offline Node-testskript (framleis handlaga
+«linjer»/«celler»-strukturar, ikkje ekte PDF-koordinatar) at både det
+opphavlege scenarioet OG splitt-forsvaret for punkt 13 fungerer som
+tiltenkt. **IKKJE verifisert**: at dei nye, RELATIVE cella-grensene i
+`lesLinjerFraSide()` faktisk gjev rette celleskilje på ekte PDF-
+koordinatar frå desse to filene — dette krev testing inne i
+skrivebordsappen (kan ikkje køyrast herifrå, sidan pdfjs-dist/Electron
+ikkje er tilgjengeleg i dette miljøet). Send `[DTM] ... — lesne
+linjer:`-loggen frå konsollen om noko framleis er feil, så kan grensene
+justerast mot faktiske tal.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

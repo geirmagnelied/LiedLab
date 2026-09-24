@@ -23,6 +23,7 @@ const BASE_COLUMNS = [
   { key:'nr',          label:'Nr.',          w:110, art:'tekst', mono:true, opnaFil:true },
   { key:'tittel',      label:'Tittel',       w:240, art:'tekst', utanFilter:true },
   { key:'status',      label:'Status',       w:190, art:'val',   utanFilter:true },
+  { key:'filtype',     label:'Filtype',      w:80,  art:'val',   mono:true, standardSkjult:true },
   { key:'rev',         label:'Rev.',         w:64,  art:'tekst', mono:true },
   { key:'dato',        label:'Dato',         w:96,  art:'tekst', mono:true },
   { key:'revisjonsbeskriving', label:'Revisjonsskildring', w:190, art:'tekst', utanFilter:true },
@@ -53,6 +54,10 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'nr':          return rad.nr || ''
       case 'tittel':      return rad.tittel || rad.nr || ''
       case 'status':      return reknStatus(rad, aktivtSett).join(', ')
+      case 'filtype': {
+        const m = /\.([a-z0-9]+)$/i.exec(g.filnamn || '')
+        return m ? m[1].toUpperCase() : ''
+      }
       case 'rev':         return g.revisjon || ''
       case 'dato':        return g.dato || ''
       case 'revisjonsbeskriving': return rad.revisjonsbeskriving || ''

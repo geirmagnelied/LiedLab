@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { KATEGORI_LABEL, KATEGORI_FARGE, genererDNummer, genererSDNummer } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
@@ -18,24 +18,29 @@ import { KATEGORI_LABEL, KATEGORI_FARGE, genererDNummer, genererSDNummer } from 
 // ═══════════════════════════════════════════════════════════════════
 
 const FELT = [
-  { key:'nr',           namn:'Nr.',           w:120 },
-  { key:'rev',          namn:'Rev.',          w:64 },
-  { key:'dato',         namn:'Dato',          w:96 },
-  { key:'revisjonsbeskriving', namn:'Revisjonsskildring', w:170 },
-  { key:'fag',          namn:'Fag',           w:80 },
-  { key:'tittel',       namn:'Tittel',        w:200 },
-  { key:'oppdragsgivar',namn:'Oppdragsgivar', w:150 },
-  { key:'tiltakshavar', namn:'Tiltakshavar',  w:150 },
-  { key:'fase',         namn:'Fase',          w:110 },
-  { key:'delprosjekt',  namn:'Delprosjekt',   w:120 },
-  { key:'malestokk',    namn:'Målestokk',     w:96 },
-  { key:'format',       namn:'Arkstørrelse',  w:90 },
-  { key:'utarbeida_av', namn:'Utarbeida av',  w:110 },
-  { key:'fk_person',    namn:'Fagkontroll',   w:90 },
-  { key:'godkjent_av',  namn:'Godkjent',      w:90 },
-  { key:'ek_person',    namn:'EK',            w:56 },
-  { key:'oppdragsnr',   namn:'Oppdragsnr.',   w:100 },
+  { key:'nr',           namn:'Nr.' },
+  { key:'rev',          namn:'Rev.' },
+  { key:'dato',         namn:'Dato' },
+  { key:'revisjonsbeskriving', namn:'Revisjonsskildring' },
+  { key:'fag',          namn:'Fag' },
+  { key:'tittel',       namn:'Tittel' },
+  { key:'oppdragsgivar',namn:'Oppdragsgivar' },
+  { key:'tiltakshavar', namn:'Tiltakshavar' },
+  { key:'fase',         namn:'Fase' },
+  { key:'delprosjekt',  namn:'Delprosjekt' },
+  { key:'malestokk',    namn:'Målestokk' },
+  { key:'format',       namn:'Arkstørrelse' },
+  { key:'utarbeida_av', namn:'Utarbeida av' },
+  { key:'fk_person',    namn:'Fagkontroll' },
+  { key:'godkjent_av',  namn:'Godkjent' },
+  { key:'ek_person',    namn:'EK' },
+  { key:'oppdragsnr',   namn:'Oppdragsnr.' },
 ]
+
+function filtype(filnamn) {
+  const m = /\.([a-z0-9]+)$/i.exec(filnamn || '')
+  return m ? m[1].toUpperCase() : ''
+}
 
 export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLukk, onImporter }) {
   const [steg, setSteg]         = useState('drop') // 'drop' | 'skannar' | 'gjennomgang' | 'importerer' | 'ferdig'
@@ -89,6 +94,19 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
   const fjernRad = (i) => setRader(rs => rs.map((r, idx) => idx === i ? { ...r, fjerna:true } : r))
   const attRader = rader.filter(r => !r.fjerna)
 
+  // Kolonnebreidd tilpassa faktisk innhald (i staden for faste pikselbreidder),
+  // slik at t.d. eit langt oppdragsgivarnamn ikkje vert avkutta medan Rev.-
+  // kolonna tek unødig mykje plass. Målt i «ch» (teiknbreidd), rekna ut på
+  // nytt kvar gong radene endrar seg.
+  const kolonneBreidd = useMemo(() => {
+    const breidd = {}
+    for (const f of FELT) {
+      const lengder = attRader.map(r => String(r[f.key] || '').length).concat(f.namn.length)
+      breidd[f.key] = Math.max(5, Math.min(38, Math.max(...lengder, 0) + 2))
+    }
+    return breidd
+  }, [attRader])
+
   const bekreft = async () => {
     if (attRader.length === 0) return
     setSteg('importerer')
@@ -107,7 +125,7 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.42)', display:'flex',
       alignItems:'center', justifyContent:'center', zIndex:200 }}>
       <div style={{ background:'var(--bg2)', borderRadius:'var(--r2)',
-        width: steg === 'gjennomgang' || steg === 'ferdig' ? 'min(94vw, 1180px)' : 480,
+        width: steg === 'gjennomgang' || steg === 'ferdig' ? '90vw' : 480,
         maxHeight:'90vh', overflow:'hidden', display:'flex', flexDirection:'column',
         boxShadow:'0 24px 70px rgba(0,0,0,.35)' }}>
 
@@ -174,14 +192,15 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
                     <tr style={{ background:'var(--bg3)' }}>
                       <th style={{ width:28 }}/>
                       <th style={thStil}>Fil</th>
-                      {FELT.map(f => <th key={f.key} style={{ ...thStil, width:f.w }}>{f.namn}</th>)}
+                      <th style={{ ...thStil, width:'6ch' }}>Filtype</th>
+                      {FELT.map(f => <th key={f.key} style={{ ...thStil, width:`${kolonneBreidd[f.key]}ch` }}>{f.namn}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {rader.map((r, i) => r.fjerna && r.status !== 'ok' ? (
                       <tr key={i} style={{ opacity:.5 }}>
                         <td style={tdStil}/>
-                        <td style={tdStil} colSpan={FELT.length + 1}>
+                        <td style={tdStil} colSpan={FELT.length + 2}>
                           <span style={{ color:'var(--danger)' }}>✕ {r.filnamn}</span> — {r.melding}
                         </td>
                       </tr>
@@ -192,14 +211,16 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
                             style={{ border:'none', background:'transparent', color:'var(--text3)',
                               fontSize:14, cursor:'pointer', fontWeight:800 }}>×</button>
                         </td>
-                        <td style={{ ...tdStil, fontSize:11.5, color:'var(--text3)', maxWidth:160,
+                        <td style={{ ...tdStil, fontSize:11.5, color:'var(--text3)', maxWidth:220,
                           overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={r.filnamn}>
                           {r.filnamn}
                         </td>
+                        <td style={{ ...tdStil, fontSize:11.5, color:'var(--text3)' }}>{filtype(r.filnamn)}</td>
                         {FELT.map(f => (
                           <td key={f.key} style={tdStil}>
                             <input value={r[f.key] || ''} onChange={e => oppdaterRad(i, f.key, e.target.value)}
-                              style={{ ...inputStil, ...(f.key === 'nr' && r.nrUsikker ? { color:'var(--warn)' } : {}) }}/>
+                              style={{ ...inputStil, width:`${kolonneBreidd[f.key]}ch`,
+                                ...(f.key === 'nr' && r.nrUsikker ? { color:'var(--warn)' } : {}) }}/>
                             {f.key === 'nr' && r.nrUsikker && <span style={{ color:'var(--warn)' }}> *</span>}
                           </td>
                         ))}

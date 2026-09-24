@@ -215,10 +215,18 @@ function formatTidsstempel(d) {
 // claude/prosjektplan-tegningskontroll.md) — brukt til å gjette faget frå
 // dokumentnummeret sitt fyrste ledd, og til Fag-D-<løpenr>-fallnummer for
 // dokument der appen ikkje klarte å tolke ut noko dokumentnummer i det heile.
-const FAG_KODAR = ['RIVA', 'RIB', 'RIE', 'RIV', 'ARK', 'A', 'R', 'K', 'L']
+// Kodane er ledd 1 i dokumentnummeret, verdiane er det FULLE fagnamnet
+// som skal visast (t.d. «A» → «Arkitekt», ikkje berre bokstaven) — sjå
+// brukar sitt krav 24. sept. 2026.
+const FAG_NAMN = {
+  A: 'Arkitekt', ARK: 'Arkitekt',
+  RIB: 'Rådgivande ingeniør bygg', RIE: 'Rådgivande ingeniør elektro',
+  RIV: 'Rådgivande ingeniør VVS', RIVA: 'Rådgivande ingeniør VA',
+  R: 'Rådgivar', K: 'Konstruksjon', L: 'Landskap',
+}
 function gjettFag(nr) {
   const fyrsteLedd = String(nr || '').split(/[-_ ]/)[0].toUpperCase()
-  return FAG_KODAR.find((f) => f === fyrsteLedd) || ''
+  return FAG_NAMN[fyrsteLedd] || ''
 }
 
 // Ser om `nr` faktisk ser ut som ein gyldig dokumentkode (fagbokstavar +
@@ -418,22 +426,32 @@ async function lesLinjerFraSide(pdf, sideNr) {
     }
     rader.sort((a, b) => b.y - a.y) // pdf-koordinatar: høgast y er øvst på sida
 
-    const TEIKN_GAP = 1.2
-    const ORD_GAP = 20
+    // Grensene er RELATIVE til gjennomsnittleg teiknbreidd (item.breidd /
+    // talet på teikn) i staden for faste punkt-verdiar. Retta 24. sept.
+    // 2026 — ein fast ORD_GAP=20 var for STOR for tronge tal-kolonnar
+    // (t.d. «Oppdragsnummer  Tegningsnummer» limte «52406865» og
+    // «A-60-02» saman til éi celle, sidan mellomrommet mellom dei var
+    // mindre enn 20 punkt), men måtte samstundes vere stor nok til å IKKJE
+    // kutte vanlege setningar («Sjøåsan B21 - Detaljprosjekt») i fleire
+    // celler. Ein relativ grense skalerer naturleg med skriftstorleiken på
+    // ulike stader på sida (stor teikningstittel vs. liten tabelltekst).
     return rader.map((r) => {
       const delar = [...r.delar].sort((a, b) => a.x - b.x)
       const celler = []
       for (const d of delar) {
+        const dTeiknbreidd = d.breidd / Math.max(1, d.tekst.length)
         const siste = celler[celler.length - 1]
         const gap = siste ? d.x - siste.xSlutt : Infinity
-        if (siste && gap <= ORD_GAP) {
-          siste.tekst += (gap <= TEIKN_GAP ? '' : ' ') + d.tekst
+        const referanse = siste ? Math.max(dTeiknbreidd, siste.teiknbreidd, 2) : dTeiknbreidd
+        if (siste && gap <= referanse * 3.2) {
+          siste.tekst += (gap <= referanse * 0.7 ? '' : ' ') + d.tekst
           siste.xSlutt = Math.max(siste.xSlutt, d.x + d.breidd)
+          siste.teiknbreidd = referanse
         } else {
-          celler.push({ x: d.x, xSlutt: d.x + d.breidd, tekst: d.tekst })
+          celler.push({ x: d.x, xSlutt: d.x + d.breidd, tekst: d.tekst, teiknbreidd: dTeiknbreidd })
         }
       }
-      return { y: r.y, celler }
+      return { y: r.y, celler: celler.map(({ x, xSlutt, tekst }) => ({ x, xSlutt, tekst })) }
     })
   } catch {
     return []
@@ -460,48 +478,81 @@ const STABLA_FELT = [
   { m: /^revisjon$/i, felt: 'revisjon' },
 ]
 function tolkStablaFelt(linjer, resultat) {
+  // Ser i dei NESTE INNTIL TRE linjene (ikkje berre den aller neste) —
+  // avstanden mellom merkelapp og verdi kan variere litt (t.d. ei ekstra,
+  // nesten-tom linje mellom dei), så éi fast linje under held ikkje alltid.
+  const VINDAUGE = 3
   for (let i = 0; i < linjer.length - 1; i++) {
     for (const celle of linjer[i].celler) {
       const tekst = celle.tekst.trim()
       const treff = STABLA_FELT.find((f) => f.m.test(tekst))
       if (!treff || resultat[treff.felt]) continue
-      // Verdien står i den cella i NESTE linje som ligg nærast same
-      // x-posisjon som merkelapp-cella (rett under, i same rute).
-      let næraste = null, minDiff = Infinity
-      for (const v of linjer[i + 1].celler) {
-        const diff = Math.abs(v.x - celle.x)
-        if (diff < minDiff) { minDiff = diff; næraste = v }
+      // Verdien står i den cella (i éi av dei næraste linjene under) som
+      // ligg nærast same x-posisjon som merkelapp-cella (rett under, i
+      // same rute) — vel den med lågast (linjeavstand, x-avstand).
+      let næraste = null, bestScore = Infinity
+      for (let j = i + 1; j < Math.min(linjer.length, i + 1 + VINDAUGE); j++) {
+        for (const v of linjer[j].celler) {
+          if (!v.tekst.trim()) continue
+          const score = (j - i) * 1000 + Math.abs(v.x - celle.x)
+          if (score < bestScore) { bestScore = score; næraste = v }
+        }
       }
-      if (næraste && minDiff < 60 && næraste.tekst.trim()) resultat[treff.felt] = næraste.tekst.trim()
+      if (næraste && Math.abs(næraste.x - celle.x) < 60) resultat[treff.felt] = næraste.tekst.trim()
+    }
+  }
+
+  // Forsvar mot celler som slo seg saman på tvers av kolonnegrensa (t.d.
+  // «52406865 A-60-02» i staden for to åtskilde celler, dersom gapet
+  // mellom dei var mindre enn cella-grensa i lesLinjerFraSide()) — splittar
+  // oppdragsnummer frå eit tegningsnummer som heng med på slutten.
+  if (resultat.oppdragsnr) {
+    const m = resultat.oppdragsnr.match(/^(\d{3,})\s+([A-Za-zÆØÅæøå]{1,4}-\S+)$/)
+    if (m) {
+      resultat.oppdragsnr = m[1]
+      if (!resultat.tegningsnrFraPdf) resultat.tegningsnrFraPdf = m[2]
     }
   }
 }
 
 // Revisjonstabellen (Rev. | Dato | Beskrivelse | ... | Utarbeidet |
-// Fagkontroll | Godkjent) — finn header-rada, les kvar data-rad kolonne
-// for kolonne, og plukkar ut rada som samsvarar med revisjonen
-// tolkStablaFelt() over fann (fell tilbake til siste rad i tabellen om
-// revisjonen ikkje vart funnen der).
+// Fagkontroll | Godkjent) — finn header-rada, og les kvar data-rad ved å
+// slå opp cella som ligg NÆRAST SAME X-POSISJON som kvar header-kolonne
+// (IKKJE ved ordinal celle-indeks — ei data-rad kan ha eit anna tal
+// celler enn header-rada, t.d. om to verdiar slo seg saman eller ein
+// tekst delte seg i to, og då hamnar alt etter feilpunktet på feil
+// kolonne om ein berre tel celle-indeksar). Plukkar til slutt ut rada
+// som samsvarar med revisjonen tolkStablaFelt() over fann (fell tilbake
+// til siste rad i tabellen om revisjonen ikkje vart funnen der).
 //
 // MERK: data-rada(ne) kan liggje BÅDE over og under header-rada, avhengig
 // av malen — i Norconsult sitt oppsett (verifisert mot eit ekte tittelfelt
 // 24. sept. 2026) ligg t.d. den siste revisjonen RETT OVER header-rada,
 // ikkje under. Skannar difor i BÅDE retningar frå header-rada.
-function samleRevisjonsrader(linjer, headerIdx, kol, retning) {
+function finnVedX(celler, x) {
+  let næraste = null, minDiff = Infinity
+  for (const c of celler) {
+    const diff = Math.abs(c.x - x)
+    if (diff < minDiff) { minDiff = diff; næraste = c }
+  }
+  return næraste && minDiff < 45 ? næraste.tekst.trim() : ''
+}
+
+function samleRevisjonsrader(linjer, headerIdx, kolX, retning) {
   const rader = []
   for (let i = headerIdx + retning; i >= 0 && i < linjer.length; i += retning) {
     const celler = linjer[i].celler
-    const revTekst = (celler[kol.rev]?.tekst || '').trim()
+    const revTekst = finnVedX(celler, kolX.rev)
     // Stopp ved fyrste rad som ikkje ser ut som ein revisjonskode — t.d.
     // ei tom rad eller den lovpålagde brødteksten ved sida av tabellen.
     if (!revTekst || !/^[A-ZÆØÅ]{0,2}\d{0,2}$/i.test(revTekst)) break
     rader.push({
       rev: revTekst.toUpperCase(),
-      dato: (celler[kol.dato]?.tekst || '').trim(),
-      beskriving: (celler[kol.beskriving]?.tekst || '').trim(),
-      utarbeidd: (celler[kol.utarbeidd]?.tekst || '').trim(),
-      fagkontroll: (celler[kol.fagkontroll]?.tekst || '').trim(),
-      godkjent: (celler[kol.godkjent]?.tekst || '').trim(),
+      dato: finnVedX(celler, kolX.dato),
+      beskriving: finnVedX(celler, kolX.beskriving),
+      utarbeidd: finnVedX(celler, kolX.utarbeidd),
+      fagkontroll: finnVedX(celler, kolX.fagkontroll),
+      godkjent: finnVedX(celler, kolX.godkjent),
     })
   }
   return rader
@@ -513,15 +564,15 @@ function tolkRevisjonstabell(linjer, resultat) {
     l.celler.some((c) => /^dato$/i.test(c.tekst.trim())))
   if (headerIdx === -1) return
   const header = linjer[headerIdx].celler
-  const finnKol = (re) => header.findIndex((c) => re.test(c.tekst.trim()))
-  const kol = {
-    rev: finnKol(/^rev\.?$/i), dato: finnKol(/^dato$/i), beskriving: finnKol(/beskriv/i),
-    utarbeidd: finnKol(/utarbeid/i), fagkontroll: finnKol(/fagkontroll/i), godkjent: finnKol(/godkjent/i),
+  const finnKolX = (re) => header.find((c) => re.test(c.tekst.trim()))?.x
+  const kolX = {
+    rev: finnKolX(/^rev\.?$/i), dato: finnKolX(/^dato$/i), beskriving: finnKolX(/beskriv/i),
+    utarbeidd: finnKolX(/utarbeid/i), fagkontroll: finnKolX(/fagkontroll/i), godkjent: finnKolX(/godkjent/i),
   }
 
   const rader = [
-    ...samleRevisjonsrader(linjer, headerIdx, kol, -1).reverse(),
-    ...samleRevisjonsrader(linjer, headerIdx, kol, 1),
+    ...samleRevisjonsrader(linjer, headerIdx, kolX, -1).reverse(),
+    ...samleRevisjonsrader(linjer, headerIdx, kolX, 1),
   ]
   if (rader.length === 0) return
 
