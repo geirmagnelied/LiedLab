@@ -498,6 +498,7 @@ function samleRevisjonsrader(linjer, headerIdx, kol, retning) {
     rader.push({
       rev: revTekst.toUpperCase(),
       dato: (celler[kol.dato]?.tekst || '').trim(),
+      beskriving: (celler[kol.beskriving]?.tekst || '').trim(),
       utarbeidd: (celler[kol.utarbeidd]?.tekst || '').trim(),
       fagkontroll: (celler[kol.fagkontroll]?.tekst || '').trim(),
       godkjent: (celler[kol.godkjent]?.tekst || '').trim(),
@@ -514,8 +515,8 @@ function tolkRevisjonstabell(linjer, resultat) {
   const header = linjer[headerIdx].celler
   const finnKol = (re) => header.findIndex((c) => re.test(c.tekst.trim()))
   const kol = {
-    rev: finnKol(/^rev\.?$/i), dato: finnKol(/^dato$/i), utarbeidd: finnKol(/utarbeid/i),
-    fagkontroll: finnKol(/fagkontroll/i), godkjent: finnKol(/godkjent/i),
+    rev: finnKol(/^rev\.?$/i), dato: finnKol(/^dato$/i), beskriving: finnKol(/beskriv/i),
+    utarbeidd: finnKol(/utarbeid/i), fagkontroll: finnKol(/fagkontroll/i), godkjent: finnKol(/godkjent/i),
   }
 
   const rader = [
@@ -527,6 +528,7 @@ function tolkRevisjonstabell(linjer, resultat) {
   const rad = (resultat.revisjon && rader.find((r) => r.rev === resultat.revisjon.toUpperCase())) || rader[rader.length - 1]
   if (!resultat.revisjon) resultat.revisjon = rad.rev
   if (!resultat.dato) resultat.dato = rad.dato
+  if (!resultat.revisjonsbeskriving) resultat.revisjonsbeskriving = rad.beskriving
   if (!resultat.teikna_av) resultat.teikna_av = rad.utarbeidd
   if (!resultat.fk_person) resultat.fk_person = rad.fagkontroll
   if (!resultat.godkjent_av) resultat.godkjent_av = rad.godkjent
@@ -581,7 +583,7 @@ function tolkInlineMerkelappar(tekst, resultat) {
 async function lesTittelfelt(pdfSti) {
   const resultat = {
     tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '', revisjon: '',
-    oppdragsgivar: '', tiltakshavar: '', oppdragsnr: '', tegningsnrFraPdf: '', godkjent_av: '',
+    oppdragsgivar: '', tiltakshavar: '', oppdragsnr: '', tegningsnrFraPdf: '', godkjent_av: '', revisjonsbeskriving: '',
   }
   try {
     const pdfjsLib = await lastPdfjs()
@@ -749,7 +751,7 @@ ipcMain.handle('dtm:skann-filer', async (event, { filPathar, kategori }) => {
       let revisjon = finnRevisjonFraFilnamn(filnamn)
       let meta = {
         tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '',
-        oppdragsgivar: '', tiltakshavar: '', oppdragsnr: '', tegningsnrFraPdf: '', godkjent_av: '',
+        oppdragsgivar: '', tiltakshavar: '', oppdragsnr: '', tegningsnrFraPdf: '', godkjent_av: '', revisjonsbeskriving: '',
       }
       if (ext === '.pdf') {
         meta = await lesTittelfelt(kjeldeSti)
@@ -767,6 +769,7 @@ ipcMain.handle('dtm:skann-filer', async (event, { filPathar, kategori }) => {
         ek_person: meta.ek_person, fk_person: meta.fk_person, dato: meta.dato, format: meta.format,
         oppdragsgivar: meta.oppdragsgivar, tiltakshavar: meta.tiltakshavar,
         oppdragsnr: meta.oppdragsnr, godkjent_av: meta.godkjent_av,
+        revisjonsbeskriving: meta.revisjonsbeskriving,
       })
     } catch (e) {
       resultat.push({ kjeldeSti, filnamn, status: 'feil', melding: e.message })

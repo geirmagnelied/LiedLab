@@ -366,6 +366,22 @@ celle-strukturen til konsollen (`[DTM] ... — lesne linjer:`) — send dette
 hit om ei teikning framleis ikkje vert tolka rett, så kan grensene
 justerast mot faktiske tal i staden for gjetting.
 
+## Justeringar 24. sept. 2026 (etter fyrste test i skrivebordsappen)
+
+- **Importknappane flytta**: låg fyrst til høgre i den grøne topbaren
+  (lette å oversjå mot fargen) — ligg no i ei eiga, venstrestilt rad øvst
+  i sjølve innhaldsområdet til modulen, over «sett»-fanene.
+- **Nytt felt `revisjonsbeskriving`** — «Beskrivelse»-kolonna i
+  revisjonstabellen (t.d. «Arbeidstegninger for bruk»), lagt til heile
+  vegen (schema, skanning, gjennomgangsmatrise, tabellkolonne «Revisjons-
+  skildring»).
+- **`oppdragsgivar`/`tiltakshavar`** er no synlege som standard (var
+  `standardSkjult` — brukar såg dei ikkje og bad om at dei vart lagt til,
+  sjølv om dei alt fanst frå tittelfelt-fiksen tidlegare same dag).
+- **«Format»-kolonna heiter no «Arkstørrelse»** i visinga (same
+  underliggande felt/verdi, berre nytt namn — brukar sitt eige omgrep for
+  A0–A4-papirstorleik) og er no synleg som standard.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

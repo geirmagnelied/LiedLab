@@ -25,17 +25,18 @@ const BASE_COLUMNS = [
   { key:'status',      label:'Status',       w:190, art:'val',   utanFilter:true },
   { key:'rev',         label:'Rev.',         w:64,  art:'tekst', mono:true },
   { key:'dato',        label:'Dato',         w:96,  art:'tekst', mono:true },
+  { key:'revisjonsbeskriving', label:'Revisjonsskildring', w:190, art:'tekst', utanFilter:true },
   { key:'fag',         label:'Fag',          w:90,  art:'val' },
+  { key:'oppdragsgivar',label:'Oppdragsgivar',w:160,art:'val' },
+  { key:'tiltakshavar',label:'Tiltakshavar', w:160, art:'val' },
   { key:'fase',        label:'Fase',         w:120, art:'val',   standardSkjult:true },
   { key:'delprosjekt', label:'Delprosjekt',  w:130, art:'tekst', redigerbar:true },
   { key:'malestokk',   label:'Målestokk',    w:104, art:'tekst', standardSkjult:true },
-  { key:'format',      label:'Format',       w:88,  art:'val',   standardSkjult:true },
+  { key:'format',      label:'Arkstørrelse', w:100, art:'val' },
   { key:'utarbeida_av',label:'Utarbeida av', w:126, art:'val' },
   { key:'fk_person',   label:'Fagkontroll',  w:110, art:'val',   standardSkjult:true },
   { key:'godkjent_av', label:'Godkjent',     w:110, art:'val',   standardSkjult:true },
   { key:'ek_person',   label:'EK',           w:64,  art:'val',   standardSkjult:true },
-  { key:'oppdragsgivar',label:'Oppdragsgivar',w:160,art:'val',   standardSkjult:true },
-  { key:'tiltakshavar',label:'Tiltakshavar', w:160, art:'val',   standardSkjult:true },
   { key:'oppdragsnr',  label:'Oppdragsnr.',  w:110, art:'tekst', mono:true, standardSkjult:true },
   { key:'lagra_av',    label:'Lagra av',     w:170, art:'val',   standardSkjult:true },
   { key:'lasta_opp',   label:'Lasta opp',    w:112, art:'dato',  mono:true },
@@ -54,6 +55,7 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'status':      return reknStatus(rad, aktivtSett).join(', ')
       case 'rev':         return g.revisjon || ''
       case 'dato':        return g.dato || ''
+      case 'revisjonsbeskriving': return rad.revisjonsbeskriving || ''
       case 'fag':         return rad.fag || ''
       case 'fase':        return rad.fase || ''
       case 'delprosjekt': return rad.delprosjekt || ''

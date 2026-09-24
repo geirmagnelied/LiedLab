@@ -127,6 +127,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           utarbeida_av: r.utarbeida_av || '', ek_person: r.ek_person || '', fk_person: r.fk_person || '',
           godkjent_av: r.godkjent_av || '', oppdragsgivar: r.oppdragsgivar || '',
           tiltakshavar: r.tiltakshavar || '', oppdragsnr: r.oppdragsnr || '',
+          revisjonsbeskriving: r.revisjonsbeskriving || '',
           lagra_av: userEmail || '', status: [], ekstra: {},
           arbeidsdokument: null, resultatdokument: null, kontrolldokument: null, styrande_dokument: null,
           created_at: no, updated_at: no,
@@ -148,6 +149,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           oppdragsgivar: r.oppdragsgivar || gammalRad.oppdragsgivar,
           tiltakshavar: r.tiltakshavar || gammalRad.tiltakshavar,
           oppdragsnr: r.oppdragsnr || gammalRad.oppdragsnr,
+          revisjonsbeskriving: r.revisjonsbeskriving || gammalRad.revisjonsbeskriving,
           lagra_av: userEmail || gammalRad.lagra_av, updated_at: no,
           [kategori]: kategoriVerdi,
         }
@@ -184,17 +186,23 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           <span style={{ fontSize:13, color:'rgba(255,255,255,.7)', fontFamily:'var(--mono)' }}>{aktivtProsjekt.projectNumber}</span>
           <span style={{ fontSize:13, color:'rgba(255,255,255,.7)' }}>{aktivtProsjekt.name}</span>
         </>)}
-        <div style={{ flex:1 }}/>
-        {harBru && laast && KATEGORIAR.map(k => (
-          <button key={k} onClick={() => setImportKategori(k)}
-            style={{ padding:'7px 14px', borderRadius:'var(--r)', border:'none',
-              background: KATEGORI_FARGE[k], color:'#fff', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
-            Import {KATEGORI_LABEL[k].toLowerCase()}
-          </button>
-        ))}
       </div>
 
       <div style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column', padding:'18px 20px' }}>
+        {/* Importknappar — venstrestilt og godt synlege øvst i modulen */}
+        {harBru && laast && (
+          <div style={{ display:'flex', gap:8, marginBottom:16, flexShrink:0, flexWrap:'wrap' }}>
+            {KATEGORIAR.map(k => (
+              <button key={k} onClick={() => setImportKategori(k)}
+                style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'none',
+                  background: KATEGORI_FARGE[k], color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
+                  boxShadow:'var(--shadow-sm)' }}>
+                Import {KATEGORI_LABEL[k].toLowerCase()}
+              </button>
+            ))}
+          </div>
+        )}
+
         {!aktivtProsjekt ? (
           <Melding tittel="Vel eit prosjekt" ikon="P">Vel eit prosjekt øvst i vindauget for å sjå DTM-registeret.</Melding>
         ) : loading ? (

@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS dtm_dokumenter (
   tiltakshavar     TEXT DEFAULT '',
   oppdragsnr       TEXT DEFAULT '',
   godkjent_av      TEXT DEFAULT '',
+  revisjonsbeskriving TEXT DEFAULT '',
   status           TEXT[] NOT NULL DEFAULT '{}',
   arbeidsdokument   JSONB,   -- { filnamn, revisjon, dato, lasta_opp } | null
   resultatdokument  JSONB,
