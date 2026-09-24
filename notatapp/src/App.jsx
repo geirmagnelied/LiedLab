@@ -26,6 +26,7 @@ const INITIAL_TL_H  = 200
 export default function App({ userId, userEmail }) {
   const { notes, projects, loading, addNote, updateNote, deleteNote, toggleDone,
           toggleNoteFavorite, toggleNotePinned,
+          noteColumns, addNoteColumn, deleteNoteColumn, setNoteExtraValue,
           addTask, updateTask, deleteTask, addProject, updateProject, deleteProject, toggleFavorite,
           offices, addOffice, updateOffice, deleteOffice } = useStore(userId)
 
@@ -416,7 +417,8 @@ export default function App({ userId, userEmail }) {
         {activeModule === 'notatar' && (
           <>
             {view==='notatar'  && <NoteTabell key={selectedProjectId} notes={visibleNotes} projects={projects} onEdit={handleEdit} onDelete={deleteNote} onToggleDone={toggleDone}
-              activeProjectId={selectedProjectId} onToggleFavorite={toggleNoteFavorite} onTogglePinned={toggleNotePinned}/>}
+              activeProjectId={selectedProjectId} onToggleFavorite={toggleNoteFavorite} onTogglePinned={toggleNotePinned}
+              eigneKolonnar={noteColumns} onSetExtra={setNoteExtraValue} onNyKolonne={addNoteColumn} onSlettKolonne={deleteNoteColumn}/>}
 // Fjerna - prognose er no i TimarModule:             {view==='prognose' && <ForecastView userId={userId} projects={officeProjects} mode={mode}/>}
             {view==='fristar'  && <DeadlineView notes={visibleNotes} projects={projects} {...listProps}/>}
           </>
@@ -590,7 +592,8 @@ export default function App({ userId, userEmail }) {
                   <NoteTabell key={selectedProjectId} notes={visibleNotes} projects={projects} onEdit={handleEdit}
                     onDelete={deleteNote} onToggleDone={toggleDone}
                     onSelect={setSelectedNoteId} selectedId={selectedNoteId}
-                    activeProjectId={selectedProjectId} onToggleFavorite={toggleNoteFavorite} onTogglePinned={toggleNotePinned}/>
+                    activeProjectId={selectedProjectId} onToggleFavorite={toggleNoteFavorite} onTogglePinned={toggleNotePinned}
+                    eigneKolonnar={noteColumns} onSetExtra={setNoteExtraValue} onNyKolonne={addNoteColumn} onSlettKolonne={deleteNoteColumn}/>
                 </div>
                 {/* Dragbar delelinje — justerer andelen mellom tabell og førehandsvising */}
                 <div onMouseDown={startPreviewResize} title="Dra for å justere breidda"

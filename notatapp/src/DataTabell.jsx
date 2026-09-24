@@ -47,6 +47,8 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 //    onNyKolonne(label, art) → Promise<key> → lagar ein ny eigen kolonne.
 //                       Er denne ikkje sett, er heile «Ny kolonne»-flyten skjult.
 //    onSlettKolonne(key)
+//    merking         — valfri; { valde:Set<id>, onEndre(nyttSett) } for fleirval
+//                       av rader med shift-/ctrl-klikk (t.d. massesletting).
 //    prefsKey        — unik nøkkel for personleg visingsoppsett i localStorage
 //    itemNamn        — namn brukt i teljetekst/tomt-resultat (t.d. «saker»)
 // ═══════════════════════════════════════════════════════════════════
@@ -95,6 +97,7 @@ export default function DataTabell({
   eigne = [],
   onOpenRad, onOpneFil, onRowClick, onSetExtra, onSetVerdi, onNyKolonne, onSlettKolonne,
   radMeny, // valfri; sjå kommentar ved render av radmeny-kolonnen under
+  merking, // valfri; { valde:Set<id>, onEndre(nyttSett) } — shift/ctrl-klikk for å velje fleire rader
   prefsKey, itemNamn = 'rader',
   defaultSortering,
 }) {
@@ -127,6 +130,7 @@ export default function DataTabell({
   const klikkTimerRef = useRef(null) // skil enkelt- frå dobbeltklikk på «opnaFil»-celler
   const ankerRef = useRef(null)
   const dragRef  = useRef(null)
+  const sisteMerktRef = useRef(null) // sist klikka rad-id, for shift-områdeval
 
   const setPrefs = useCallback((oppdater) => {
     setPrefsRaw(p => {
@@ -314,6 +318,35 @@ export default function DataTabell({
     })
   }
 
+  // ── Fleirval (shift/ctrl-klikk) ─────────────────────────────────
+  // Vanleg klikk vel berre denne eine rada. Shift-klikk vel heile området
+  // frå sist klikka rad (i den viste rekkjefølgja) til denne. Ctrl/Cmd-klikk
+  // legg til/fjernar denne eine rada frå det gjeldande utvalet.
+  const handterMerkKlikk = (id, e) => {
+    if (!merking) return
+    const valde = merking.valde instanceof Set ? merking.valde : new Set(merking.valde || [])
+    if (e.shiftKey && sisteMerktRef.current != null) {
+      const ids = rader.map(r => radId(r))
+      const a = ids.indexOf(sisteMerktRef.current), b = ids.indexOf(id)
+      if (a !== -1 && b !== -1) {
+        const [start, slutt] = a < b ? [a, b] : [b, a]
+        const nye = new Set(valde)
+        ids.slice(start, slutt + 1).forEach(x => nye.add(x))
+        merking.onEndre(nye)
+        return
+      }
+    }
+    if (e.ctrlKey || e.metaKey) {
+      const nye = new Set(valde)
+      nye.has(id) ? nye.delete(id) : nye.add(id)
+      merking.onEndre(nye)
+      sisteMerktRef.current = id
+      return
+    }
+    merking.onEndre(new Set([id]))
+    sisteMerktRef.current = id
+  }
+
   const aktiveFilter = Object.entries(prefs.filter).filter(([, v]) => v && v.length)
   const radhøgd = prefs.tettleik === 'tett' ? 30 : prefs.tettleik === 'luftig' ? 48 : 38
   const cellePad = prefs.tettleik === 'tett' ? '0 8px' : '0 11px'
@@ -394,10 +427,13 @@ export default function DataTabell({
             )}
             {rader.map(r => {
               const id = radId(r)
+              const merkt = merking && (merking.valde instanceof Set ? merking.valde.has(id) : merking.valde?.includes(id))
               return (
-              <tr key={id} onClick={() => onRowClick?.(id, r)} onDoubleClick={() => onOpenRad?.(id, r)}
+              <tr key={id}
+                onClick={e => { handterMerkKlikk(id, e); onRowClick?.(id, r) }}
+                onDoubleClick={() => onOpenRad?.(id, r)}
                 title={onOpenRad ? 'Dobbeltklikk for å opne' : undefined}
-                style={radStil ? radStil(r) : undefined}>
+                style={{ ...(radStil ? radStil(r) : undefined), ...(merkt ? { background:'var(--brandbg)', boxShadow:'inset 0 0 0 1.5px var(--brand2)' } : undefined) }}>
                 {radMeny && (
                   <td style={{ height:radhøgd, padding:0, textAlign:'center' }}
                     onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
@@ -481,20 +517,34 @@ export default function DataTabell({
       {meny?.slag === 'rad' && radMeny && (() => {
         const rad = rader.find(r => radId(r) === meny.key)
         if (!rad) return null
-        const favoritt = !!radMeny.erFavoritt?.(rad)
-        const festa = !!radMeny.erFesta?.(rad)
+        const favoritt  = !!radMeny.erFavoritt?.(rad)
+        const festa     = !!radMeny.erFesta?.(rad)
+        const arkivert  = !!radMeny.erArkivert?.(rad)
         return (
           <div className="dt-meny" style={{ left:meny.left, top:meny.top, width:210 }}>
             {radMeny.onFavoritt && (
               <button type="button" className="dt-val" onClick={() => { radMeny.onFavoritt(meny.key, rad); setMeny(null) }}>
-                <span className="hake">{favoritt ? '★' : '☆'}</span>
+                <span className="dt-rmikon">{favoritt ? '★' : '☆'}</span>
                 <span>{favoritt ? 'Fjern favoritt' : 'Merk som favoritt'}</span>
               </button>
             )}
             {radMeny.onFestTilTopp && (
               <button type="button" className="dt-val" onClick={() => { radMeny.onFestTilTopp(meny.key, rad); setMeny(null) }}>
-                <span className="hake">📌</span>
+                <span className="dt-rmikon">📌</span>
                 <span>{festa ? 'Løys frå toppen' : 'Fest til toppen'}</span>
+              </button>
+            )}
+            {radMeny.onArkiver && (<>
+              <div className="dt-skilje"/>
+              <button type="button" className="dt-val" onClick={() => { radMeny.onArkiver(meny.key, rad); setMeny(null) }}>
+                <span className="dt-rmikon">⤓</span>
+                <span>{arkivert ? 'Hent ut av arkivet' : 'Arkiver'}</span>
+              </button>
+            </>)}
+            {radMeny.onSlett && (
+              <button type="button" className="dt-val" onClick={() => { radMeny.onSlett(meny.key, rad); setMeny(null) }}>
+                <span className="dt-rmikon">🗑</span>
+                <span>Slett</span>
               </button>
             )}
           </div>
@@ -784,10 +834,11 @@ const CSS = `
 .dt-radmeny-hovud { position:sticky; top:0; z-index:5; background:var(--bg3); border-bottom:2px solid var(--border);
   border-right:1px solid var(--border) }
 .dt-radmeny-knapp { width:100%; height:100%; border:0; background:transparent; cursor:pointer;
-  color:var(--text3); font-size:13px; display:flex; align-items:center; justify-content:center; gap:2px;
+  color:var(--text3); font-size:17px; display:flex; align-items:center; justify-content:center; gap:2px;
   position:relative }
-.dt-radmeny-knapp:hover { color:var(--brand); background:var(--brandbg) }
-.dt-radmeny-stjerne { color:var(--warn); font-size:9px; position:absolute; top:3px; right:3px }
+.dt-radmeny-knapp:hover { background:var(--bg3) }
+.dt-radmeny-stjerne { color:var(--text3); font-size:10px; position:absolute; top:2px; right:2px }
+.dt-rmikon { width:20px; flex:0 0 auto; text-align:center; font-size:15px; color:var(--text2) }
 
 .dt-tabell td { border-bottom:1px solid var(--border); border-right:1px solid var(--border);
   font-size:13px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }

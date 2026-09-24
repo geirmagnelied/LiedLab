@@ -57,6 +57,7 @@ export function useStore(userId) {
   const [notes,    setNotes]    = useState([])
   const [projects, setProjects] = useState([])
   const [offices,  setOffices]  = useState([])
+  const [noteColumns, setNoteColumns] = useState([]) // eigendefinerte kolonnar i notat-tabellen
   const [loading,  setLoading]  = useState(true)
 
   // ── Load from Supabase ────────────────────────────────────────────────
@@ -65,11 +66,13 @@ export function useStore(userId) {
     setLoading(true)
     await migrateLocalStorage(userId)
 
-    const [{ data: oData }, { data: pData }, { data: nData }] = await Promise.all([
+    const [{ data: oData }, { data: pData }, { data: nData }, { data: colData }] = await Promise.all([
       supabase.from('offices').select('*').eq('user_id', userId).order('sort_order').order('name'),
       supabase.from('projects').select('*').eq('user_id', userId).order('favorite', { ascending: false }).order('name'),
       supabase.from('notes').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+      supabase.from('note_columns').select('*').eq('user_id', userId).order('sortering', { ascending: true }),
     ])
+    setNoteColumns((colData || []).map(k => ({ key: k.key, label: k.label, art: k.art || 'tekst' })))
 
     setOffices((oData || []).map(o => ({
       id: o.id, name: o.name, color: o.color || '#1B4332', sortOrder: o.sort_order,
@@ -90,6 +93,7 @@ export function useStore(userId) {
       meetingDuration: n.meeting_duration, meetingLocation: n.meeting_location,
       attendees: n.attendees || [],
       favorite: n.favorite || false, pinned: n.pinned || false,
+      ekstra: n.ekstra || {},
       done: n.done, createdAt: n.created_at, updatedAt: n.updated_at,
     })))
     setLoading(false)
@@ -182,6 +186,7 @@ export function useStore(userId) {
       ...(changes.done      !== undefined && { done:            changes.done }),
       ...(changes.favorite  !== undefined && { favorite:        changes.favorite }),
       ...(changes.pinned    !== undefined && { pinned:          changes.pinned }),
+      ...(changes.ekstra    !== undefined && { ekstra:          changes.ekstra }),
       ...(changes.sketchDataUrl     !== undefined && { sketch_data_url:  changes.sketchDataUrl }),
       ...(changes.attachments       !== undefined && { attachments:      changes.attachments }),
       ...(changes.isMeeting         !== undefined && { is_meeting:       changes.isMeeting }),
@@ -320,10 +325,42 @@ export function useStore(userId) {
     await updateNote(id, { pinned: !note.pinned })
   }
 
+  // ── Notat: eigendefinerte kolonnar («+ Ny kolonne…» i tabellmenyen) ────
+  // Same mønster som saksmatrisa (case_columns/cases.ekstra) — definisjonen
+  // ligg i note_columns (per brukar, ikkje per prosjekt), verdiane i notes.ekstra.
+  const addNoteColumn = async (label, art) => {
+    const key = 'eigen_' + Date.now().toString(36)
+    const rad = {
+      id: Date.now(), user_id: userId,
+      key, label, art, sortering: noteColumns.length,
+      created_at: new Date().toISOString(),
+    }
+    const { error } = await supabase.from('note_columns').insert(rad)
+    if (error) {
+      alert('Klarte ikkje lagre kolonnen.\n\nHar du køyrt SQL-en som opprettar tabellen «note_columns»?\n\n' + error.message)
+      return null
+    }
+    setNoteColumns(prev => [...prev, { key, label, art }])
+    return key
+  }
+
+  const deleteNoteColumn = async (key) => {
+    const { error } = await supabase.from('note_columns').delete().eq('key', key).eq('user_id', userId)
+    if (error) { alert('Klarte ikkje slette kolonnen: ' + error.message); return }
+    setNoteColumns(prev => prev.filter(k => k.key !== key))
+  }
+
+  const setNoteExtraValue = async (id, key, value) => {
+    const note = notes.find(n => n.id === id)
+    if (!note) return
+    await updateNote(id, { ekstra: { ...(note.ekstra || {}), [key]: value } })
+  }
+
   return {
     notes, projects, offices, loading,
     addNote, updateNote, deleteNote, toggleDone,
     toggleNoteFavorite, toggleNotePinned,
+    noteColumns, addNoteColumn, deleteNoteColumn, setNoteExtraValue,
     addTask, updateTask, deleteTask,
     addProject, updateProject, deleteProject, toggleFavorite,
     addOffice, updateOffice, deleteOffice,
