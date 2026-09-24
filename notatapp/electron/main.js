@@ -132,13 +132,32 @@ app.on('window-all-closed', () => {
 // redigerbar/veljbar før låsing) — ikkje ei fast rotmappe rekna ut frå
 // prosjektnummeret slik det var tidlegare. Resultatdokument-modulen brukar
 // «4 Resultatdokumenter»-undermappa automatisk.
-const OPPDRAGSMAPPER = ['1 Oppdragsleiing', '2 Informasjonsflyt', '3 Arbeidsdokumenter', '4 Resultatdokumenter', '5 BIM']
+const OPPDRAGSMAPPER = [
+  '1 Oppdragsleiing', '2 Informasjonsflyt', '3 Arbeidsdokument', '4 Resultatdokument',
+  '5 Kontrolldokument', '6 Styrande dokument', '7 BIM', '8 Diverse', '9 Foreløpig',
+]
+// Desse fire har kvar si «Arkiv»-undermappe — gjeldande revisjon ligg direkte
+// i mappa, eldre revisjonar (med _REV<revisjon|dato-tidsstempel> i filnamnet)
+// vert flytta til Arkiv når ein ny versjon vert importert. Sjå DTM-modulen
+// (claude/dtm-modul.md).
+const DTM_KATEGORI_MAPPER = ['3 Arbeidsdokument', '4 Resultatdokument', '5 Kontrolldokument', '6 Styrande dokument']
 
+// Trygt å køyre om att på eit alt-låst prosjekt (t.d. når DTM-modulen opnar) —
+// mkdirSync med recursive:true rører aldri eksisterande filer/mapper, berre
+// legg til det som manglar. Slik får eksisterande prosjekt dei nye DTM-
+// mappene automatisk, utan at nokon må flytte/omdøype noko manuelt. NB: eit
+// prosjekt som vart låst FØR denne lista vart utvida (berre «5 BIM» som
+// mappe 5) får IKKJE den gamle «5 BIM»-mappa si automatisk omdøypt/flytta til
+// «7 BIM» — begge vil då eksistere side om side. Handter dette manuelt for
+// slike prosjekt om ynskjeleg.
 ipcMain.handle('resultatdokument:opprett-oppdragsmapper', async (event, { oppdragsSti }) => {
   if (!oppdragsSti) return { ok: false, melding: 'Inga sti oppgjeven.' }
   try {
     for (const mappe of OPPDRAGSMAPPER) {
       fs.mkdirSync(path.join(oppdragsSti, mappe), { recursive: true })
+    }
+    for (const mappe of DTM_KATEGORI_MAPPER) {
+      fs.mkdirSync(path.join(oppdragsSti, mappe, 'Arkiv'), { recursive: true })
     }
     return { ok: true }
   } catch (e) {

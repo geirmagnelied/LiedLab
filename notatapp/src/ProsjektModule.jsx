@@ -60,7 +60,11 @@ async function sokBrreg(orgnr) {
 // Brukar må sjølv stadfeste («låse») stien før noko vert oppretta på disk
 // — sjå Section «Oppdragsmappe» og laasOppdragssti() i sjølve komponenten.
 const OPPDRAG_BASIS = 'C:\\Users\\gemli\\Jottacloud\\Lied Lab\\Web\\Oppdrag'
-const OPPDRAGSMAPPER = ['1 Oppdragsleiing', '2 Informasjonsflyt', '3 Arbeidsdokumenter', '4 Resultatdokumenter', '5 BIM']
+// Må haldast i sync med OPPDRAGSMAPPER i electron/main.js.
+const OPPDRAGSMAPPER = [
+  '1 Oppdragsleiing', '2 Informasjonsflyt', '3 Arbeidsdokument', '4 Resultatdokument',
+  '5 Kontrolldokument', '6 Styrande dokument', '7 BIM', '8 Diverse', '9 Foreløpig',
+]
 function forslagOppdragssti(projectNumber) {
   return projectNumber ? `${OPPDRAG_BASIS}\\${projectNumber}` : OPPDRAG_BASIS
 }
@@ -976,7 +980,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                     </Row>
                     <p style={{ fontSize:11, color:'var(--text3)', margin:'2px 0 10px', lineHeight:1.6 }}>
                       Når du låser stien vert desse mappene oppretta der: {OPPDRAGSMAPPER.join(' · ')}.
-                      Resultatdokument-modulen brukar «{OPPDRAGSMAPPER[3]}» automatisk.
+                      Dokument, tegningar og modellar (DTM) brukar mappe 3–6 automatisk.
                       {(typeof window === 'undefined' || !window.resultatdokumentAPI) &&
                         ' Krev at appen er opna via skrivebordsversjonen for å opprette mappene på disk.'}
                     </p>

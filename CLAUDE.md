@@ -16,6 +16,10 @@ den relevante fila når ei oppgåve gjeld eit tema han dekkjer:
   Python/Flask-verktøy (ikkje ein del av dette repoet), dokumentert her fordi
   KS-modulens PDF-tittelfelt-lesing (`lesTittelfelt()`) er ein direkte port
   av logikk derifrå — sjå fila for autoritative regex-mønster og kontekst
+- `claude/dtm-modul.md` — **under bygging** (frå 24. sept. 2026): DTM
+  (Dokument, tegningar og modellar) erstattar Resultatdokument-modulen.
+  Full spesifikasjon (mapper, datamodell, status-logikk, importflytar,
+  fase-status) — les denne FØR du gjer noko DTM-relatert
 
 Same innhald finst òg (kan verte forelda over tid) som eigne dokument i
 Claude-prosjektet **"Digitale verktøy"** på claude.ai — `claude/`-mappa her
