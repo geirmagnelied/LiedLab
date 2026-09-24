@@ -63,4 +63,27 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
   // skriveverna — desse er framleis under kontroll og kan redigerast.
   ksApneFil: (prosjektSti, filnamn) =>
     ipcRenderer.invoke('ks:apne-fil', { prosjektSti, filnamn }),
+
+  // ── DTM (Dokument, tegningar og modellar) — same bru, eigne endepunkt ──
+  // Sjå claude/dtm-modul.md. «kategori» er éin av: arbeidsdokument,
+  // resultatdokument, kontrolldokument, styrande_dokument.
+
+  // Skannar filer (nr/rev/fag + PDF-tittelfelt) UTAN å flytte dei — brukast
+  // til gjennomgangsmatrisa før brukar stadfestar importen.
+  dtmSkannFiler: (filPathar, kategori) =>
+    ipcRenderer.invoke('dtm:skann-filer', { filPathar, kategori }),
+
+  // Flyttar dei (evt. retta) dokumenta til rett kategorimappe med
+  // _REV<revisjon|dato-tidsstempel>-namngjeving, og arkiverer eventuell
+  // eksisterande fil for same dokumentnummer fyrst.
+  dtmBekreftImport: (oppdragsSti, kategori, dokument) =>
+    ipcRenderer.invoke('dtm:bekreft-import', { oppdragsSti, kategori, dokument }),
+
+  // Listar gjeldande + arkiverte filer for éin kategori.
+  dtmListFiler: (oppdragsSti, kategori) =>
+    ipcRenderer.invoke('dtm:list', { oppdragsSti, kategori }),
+
+  // Opnar ei fil (gjeldande eller arkivert) i systemet sitt standardprogram.
+  dtmApneFil: (oppdragsSti, kategori, filnamn, arkivert) =>
+    ipcRenderer.invoke('dtm:apne-fil', { oppdragsSti, kategori, filnamn, arkivert }),
 })

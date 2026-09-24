@@ -197,16 +197,70 @@ av DENNE kategorien (frå `dtm_versjonar`/Arkiv-mappa) som under-rader.
 Dette er ny generisk funksjonalitet som må byggjast i `DataTabell.jsx`
 (finst ikkje i dag) — sjå oppgåveliste.
 
+## Fase 2 — Electron-fil-bru: grensesnitt (`window.resultatdokumentAPI`)
+
+Skanning og bekrefta import er MEDVITE to separate IPC-kall (i motsetnad
+til `ks:skann-og-legg-til`, som gjer begge på éin gong) — ingen fil vert
+flytta før brukar har fått rette/fjerne dokument i gjennomgangsmatrisa.
+
+**`dtmSkannFiler(filPathar, kategori) → [{ kjeldeSti, filnamn, status,
+nr, nrUsikker, rev, fag, tittel, malestokk, utarbeida_av, ek_person,
+fk_person, dato, format }]`** — les, flyttar INGENTING.
+- `nr`: dokumentnummer via `parseFilnamn()` (filnamn), med eit
+  IFC-spesialtilfelle (`^[A-Za-zÆØÅæøå]{1,4}-\d{2}` frå starten av
+  filnamnet). **Fag-D-løpenummer-fallnummeret og SD-løpenummeret er IKKJE
+  implementerte i denne fasen** — dei krev tilgang til dei ALT eksisterande
+  dokumenta i prosjektet sitt register for å finne neste ledige løpenummer,
+  og `main.js` har ingen Supabase-tilgang (all DB-tilgang skjer i
+  renderar-koden). Dette må gjerast i **Fase 3**, i sjølve DTM-modulen
+  (same stad som `nextNoteNumber()`/`nextTaskNumber()` i `useStore.js` reknar
+  ut sine løpenummer client-side).
+- `nrUsikker: true` når `nr` berre er parseFilnamn() sin fallback (heile
+  filnamnet, ser ikkje ut som ein ekte dokumentkode) — eit signal til Fase 3
+  om at denne rada bør få eit generert Fag-D-nummer i staden, eller
+  markerast tydeleg for brukar i gjennomgangsmatrisa.
+- `rev`: berre sett dersom FAKTISK funnen (filnamn ELLER PDF-tittelfelt,
+  `lesTittelfelt()` har no òg fått ei `revisjon`-utrekning som ikkje fanst i
+  den opphavlege KS-porten) — tom streng elles, ALDRI ein fallback-verdi
+  (ulikt `parseFilnamn()` sin `rev:'A'`-fallback, sidan DTM treng å skilje
+  «ikkje funnen» frå «funnen, og er A»).
+- `fag`: gjetta frå nr sitt fyrste ledd (`FAG_KODAR` i `main.js`).
+
+**`dtmBekreftImport(oppdragsSti, kategori, dokument) → [{ ...dokument,
+status, filnamn, rev }]`** — `dokument` er lista slik brukar har retta ho
+(kan ha andre nr/rev enn skanninga fann). For kvar fil:
+1. Filnamn vert sett til `<nr>_REV<rev>.<ext>` (kollisjon løyst med
+   `(2)`, `(3)` …) — **MERK: bruker dokumentnummeret som stem, IKKJE det
+   opphavlege filnamnet** — ei tolking av brukar sitt krav, ikkje eksplisitt
+   stadfesta. Rett opp om original-filnamnet skulle vore halde på i staden.
+2. Manglar `rev` (tom/ikkje sett) → eit dato-tidsstempel
+   (`YYYYMMDD-HHmm`) vert brukt i staden.
+3. Finst det alt ei fil i kategorimappa som startar med `<nr>_REV` (altså
+   ei gjeldande fil for same dokumentnummer)? Han vert flytta til
+   `Arkiv`-undermappa fyrst (kollisjon løyst likt).
+4. Kjeldefila vert så flytta til kategorimappa med det nye namnet.
+
+**`dtmListFiler(oppdragsSti, kategori) → { finst, filer, arkiverte }`**
+og **`dtmApneFil(oppdragsSti, kategori, filnamn, arkivert)`** — same
+mønster som `resultatdokumentAPI.listFiler`/`apneFil`, filtrert til éin
+DTM-kategori og med eit `arkivert`-flagg for å opne frå Arkiv-undermappa.
+
+Testa berre med `node --check` (syntaktisk) + full `npm run build` —
+**IKKJE funksjonelt testa** i den ekte skrivebordsappen enno (krev
+Electron + ekte filer, ikkje mogleg frå Browser-pane-verktøyet). Bør
+røykprøvast i praksis så snart Fase 3-UI-et finst å teste gjennom.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i
       `main.js`+`ProsjektModule.jsx`, Arkiv-undermapper lagt til i
       opprett-oppdragsmapper-IPC-en. `dtm_dokumenter`+`dtm_versjonar`
       oppretta i Supabase (sjå `supabase-dtm.sql`).
-- [ ] **Fase 2 — Electron-fil-bru.** Nye IPC-endepunkt i `main.js`:
-      skann fleire filer (attributt-uttrekk per kategori-reglane over),
-      bekreft-import (flytt + `_REV`-namngjeving + arkiver gamal versjon),
-      list gjeldande + arkiverte filer per kategori.
+- [x] **Fase 2 — Electron-fil-bru.** Sjå eige avsnitt over. `dtmSkannFiler`,
+      `dtmBekreftImport`, `dtmListFiler`, `dtmApneFil` på
+      `window.resultatdokumentAPI`. **Attståande frå Fase 2, flytta til
+      Fase 3:** Fag-D-løpenummer-fallback og SD-løpenummer-tildeling
+      (krev tilgang til eksisterande register, gjer det i renderar-koden).
 - [ ] **Fase 3 — DTM-modulen sjølv.** Ny fil (truleg omdøyping/omskriving
       av `ResultatdokumentModule.jsx`), fire importknappar + modal-flyt,
       matrise-vising via utvida `DataTabell`, sjølvlegande

@@ -136,11 +136,16 @@ const OPPDRAGSMAPPER = [
   '1 Oppdragsleiing', '2 Informasjonsflyt', '3 Arbeidsdokument', '4 Resultatdokument',
   '5 Kontrolldokument', '6 Styrande dokument', '7 BIM', '8 Diverse', '9 Foreløpig',
 ]
-// Desse fire har kvar si «Arkiv»-undermappe — gjeldande revisjon ligg direkte
-// i mappa, eldre revisjonar (med _REV<revisjon|dato-tidsstempel> i filnamnet)
-// vert flytta til Arkiv når ein ny versjon vert importert. Sjå DTM-modulen
-// (claude/dtm-modul.md).
-const DTM_KATEGORI_MAPPER = ['3 Arbeidsdokument', '4 Resultatdokument', '5 Kontrolldokument', '6 Styrande dokument']
+// Kategori → mappenamn for DTM-modulen. Kvar av desse fire har si eiga
+// «Arkiv»-undermappe — gjeldande revisjon ligg direkte i mappa, eldre
+// revisjonar (med _REV<revisjon|dato-tidsstempel> i filnamnet) vert flytta
+// til Arkiv når ein ny versjon vert importert. Sjå claude/dtm-modul.md.
+const DTM_KATEGORI_MAPPE = {
+  arbeidsdokument:   '3 Arbeidsdokument',
+  resultatdokument:  '4 Resultatdokument',
+  kontrolldokument:  '5 Kontrolldokument',
+  styrande_dokument: '6 Styrande dokument',
+}
 
 // Trygt å køyre om att på eit alt-låst prosjekt (t.d. når DTM-modulen opnar) —
 // mkdirSync med recursive:true rører aldri eksisterande filer/mapper, berre
@@ -156,7 +161,7 @@ ipcMain.handle('resultatdokument:opprett-oppdragsmapper', async (event, { oppdra
     for (const mappe of OPPDRAGSMAPPER) {
       fs.mkdirSync(path.join(oppdragsSti, mappe), { recursive: true })
     }
-    for (const mappe of DTM_KATEGORI_MAPPER) {
+    for (const mappe of Object.values(DTM_KATEGORI_MAPPE)) {
       fs.mkdirSync(path.join(oppdragsSti, mappe, 'Arkiv'), { recursive: true })
     }
     return { ok: true }
@@ -182,6 +187,48 @@ function parseFilnamn(filnamn) {
   if (m) return { nr: m[1], rev: m[2].toUpperCase() }
 
   return { nr: namn, rev: 'A' }
+}
+
+// ── DTM-hjelparar ────────────────────────────────────────────────────
+// I motsetnad til parseFilnamn() over (som alltid fell tilbake til
+// rev:'A' når ingen revisjon er å finne — god nok default der, sidan rev
+// berre er visningsinfo for Resultatdokument/KS) treng DTM å VITE om
+// revisjonen faktisk vart funnen, sidan appen då skal bruke eit
+// dato/tidsstempel i staden (jf. brukar sitt krav i claude/dtm-modul.md).
+// Returnerer null når ikkje funnen, aldri ein fallback-verdi.
+function finnRevisjonFraFilnamn(filnamn) {
+  const namn = filnamn.replace(/\.[^.]+$/, '')
+  let m = namn.match(/^(.+?)_([A-Za-z0-9]{1,3})$/); if (m) return m[2].toUpperCase()
+  m = namn.match(/^(.+?)\s+rev\s+([A-Za-z0-9]{1,3})$/i); if (m) return m[2].toUpperCase()
+  m = namn.match(/^(.+?)\(([A-Za-z0-9]{1,3})\)$/); if (m) return m[2].toUpperCase()
+  return null
+}
+
+// Kompakt dato-tidsstempel, brukt i filnamnet i staden for revisjon når
+// ingen revisjon vart funnen verken i filnamnet eller i PDF-tittelfeltet.
+function formatTidsstempel(d) {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`
+}
+
+// Kjende fagkodar (same liste som i pdf_autotagger.py, sjå
+// claude/prosjektplan-tegningskontroll.md) — brukt til å gjette faget frå
+// dokumentnummeret sitt fyrste ledd, og til Fag-D-<løpenr>-fallnummer for
+// dokument der appen ikkje klarte å tolke ut noko dokumentnummer i det heile.
+const FAG_KODAR = ['RIVA', 'RIB', 'RIE', 'RIV', 'ARK', 'A', 'R', 'K', 'L']
+function gjettFag(nr) {
+  const fyrsteLedd = String(nr || '').split(/[-_ ]/)[0].toUpperCase()
+  return FAG_KODAR.find((f) => f === fyrsteLedd) || ''
+}
+
+// Ser om `nr` faktisk ser ut som ein gyldig dokumentkode (fagbokstavar +
+// bindestrek, t.d. «A-40-02-02» eller IFC-forma «A-01»), i staden for at
+// parseFilnamn() sin fallback berre gav att heile filnamnet uendra (som
+// skjer for filnamn utan noko attkjenneleg mønster). Reint syntaktisk
+// sjekk — ei fullstendig, sikker deteksjon er ikkje mogleg, sjå
+// claude/dtm-modul.md.
+function serUtSomDokumentkode(nr) {
+  return /^[A-Za-zÆØÅæøå]{1,4}-\d/.test(String(nr || ''))
 }
 
 // Flytt ei fil — prøver rename (raskt), fell tilbake til kopi+slett
@@ -370,7 +417,7 @@ async function lesTekstFraSide(pdf, sideNr) {
 // electron»/«npm run dev» køyrer) — nyttig for å sjå kva som faktisk
 // vart lese om ei teikning ikkje vert tolka rett.
 async function lesTittelfelt(pdfSti) {
-  const resultat = { tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '' }
+  const resultat = { tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '', revisjon: '' }
   try {
     const pdfjsLib = await lastPdfjs()
     const data = new Uint8Array(fs.readFileSync(pdfSti))
@@ -410,6 +457,12 @@ async function lesTittelfelt(pdfSti) {
 
       m = l.match(/\b(A[0-4])\b/)
       if (m && !resultat.format) resultat.format = m[1]
+
+      // Lagt til for DTM (fanst ikkje i den opphavlege KS-porten) — same
+      // mønster som «revisjon» i pdf_tittelfelt_tagger.py, sjå
+      // claude/prosjektplan-tegningskontroll.md.
+      m = l.match(/\bREV(?:ISJON)?[:\s.]+([A-Z0-9]{1,3})\b/i)
+      if (m && !resultat.revisjon) resultat.revisjon = m[1].toUpperCase()
     }
 
     if (!resultat.tittel) resultat.tittel = parseFilnamn(path.basename(pdfSti)).nr
@@ -521,4 +574,153 @@ ipcMain.handle('ks:ferdigstill', async (event, { prosjektSti, seq, namn, filnamn
     flytta.push(path.basename(målSti))
   }
   return { ok: true, mappe: målMappe, flytta }
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// DTM — Dokument, tegningar og modellar
+// ═══════════════════════════════════════════════════════════════════
+//
+// Erstattar Resultatdokument-modulen. Sjå claude/dtm-modul.md for full
+// spesifikasjon. Fase 2: sjølve fil-brua. Skanning og bekrefta import er
+// to separate steg (i motsetnad til ks:skann-og-legg-til, som gjer begge
+// på éin gong) — brukar skal kunne rette/fjerne dokument i ei matrise
+// FØR noka fil vert flytta, jf. brukar sitt krav.
+
+// Skannar filer UTAN å flytte dei — nr/rev/fag + (for PDF) tittelfelt.
+// «kategori» styrer berre korleis dokumentnummeret vert tolka (IFC-
+// spesialregel), ikkje kva som vert lese; sjølve flyttinga skjer fyrst i
+// dtm:bekreft-import, etter at brukar har fått rette/fjerne dokument.
+ipcMain.handle('dtm:skann-filer', async (event, { filPathar, kategori }) => {
+  const resultat = []
+  for (const kjeldeSti of filPathar || []) {
+    const filnamn = path.basename(kjeldeSti)
+    const ext = path.extname(filnamn).toLowerCase()
+    try {
+      if (!fs.existsSync(kjeldeSti)) {
+        resultat.push({ kjeldeSti, filnamn, status: 'feil', melding: 'Fann ikkje kjeldefila.' })
+        continue
+      }
+
+      let { nr } = parseFilnamn(filnamn)
+      // IFC-filer: dokumentnummeret er fyrste ledd av filnamnet
+      // (<fagbokstav>-<tosifra løpenr>, t.d. «A-01» frå «A-01_Modell.ifc»)
+      // — IKKJE heile filnamnet slik parseFilnamn() sin generelle fallback
+      // ville gjeve.
+      if (ext === '.ifc') {
+        const m = filnamn.match(/^([A-Za-zÆØÅæøå]{1,4}-\d{2})/)
+        if (m) nr = m[1]
+      }
+
+      let revisjon = finnRevisjonFraFilnamn(filnamn)
+      let meta = { tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '' }
+      if (ext === '.pdf') {
+        meta = await lesTittelfelt(kjeldeSti)
+        if (!revisjon && meta.revisjon) revisjon = meta.revisjon
+      }
+
+      const fann = serUtSomDokumentkode(nr)
+      resultat.push({
+        kjeldeSti, filnamn, status: 'ok',
+        nr, nrUsikker: !fann, rev: revisjon || '', fag: gjettFag(nr),
+        tittel: meta.tittel || nr, malestokk: meta.malestokk, utarbeida_av: meta.teikna_av,
+        ek_person: meta.ek_person, fk_person: meta.fk_person, dato: meta.dato, format: meta.format,
+      })
+    } catch (e) {
+      resultat.push({ kjeldeSti, filnamn, status: 'feil', melding: e.message })
+    }
+  }
+  return resultat
+})
+
+// Bekreftar import: flyttar dei (evt. retta) dokumenta til rett
+// kategorimappe med _REV<revisjon>-namngjeving (eller _REV<dato-
+// tidsstempel> om ingen revisjon vart funnen), og arkiverer eventuell
+// eksisterande gjeldande fil for same dokumentnummer i kategorien sin
+// Arkiv-undermappe fyrst. «dokument» er lista frå matrisa AKKURAT SLIK
+// brukar har retta ho (kan ha andre nr/rev enn det skanninga fann).
+ipcMain.handle('dtm:bekreft-import', async (event, { oppdragsSti, kategori, dokument }) => {
+  const mappeNamn = DTM_KATEGORI_MAPPE[kategori]
+  if (!oppdragsSti || !mappeNamn) {
+    return (dokument || []).map((d) => ({ ...d, status: 'feil', melding: 'Ukjend kategori eller manglande oppdragssti.' }))
+  }
+  const mappeSti = path.join(oppdragsSti, mappeNamn)
+  const arkivSti = path.join(mappeSti, 'Arkiv')
+  fs.mkdirSync(arkivSti, { recursive: true })
+
+  const resultat = []
+  for (const d of dokument || []) {
+    try {
+      if (!d.kjeldeSti || !fs.existsSync(d.kjeldeSti)) {
+        resultat.push({ ...d, status: 'feil', melding: 'Fann ikkje kjeldefila (kan vere flytta/sletta sidan skanninga).' })
+        continue
+      }
+      const ext = path.extname(d.kjeldeSti)
+      const trygtNr = String(d.nr || 'ukjend').replace(/[\\/:*?"<>|]/g, '_')
+      const revEllerTidsstempel = d.rev ? String(d.rev).toUpperCase() : formatTidsstempel(new Date())
+
+      let nyttFilnamn = `${trygtNr}_REV${revEllerTidsstempel}${ext}`
+      let målSti = path.join(mappeSti, nyttFilnamn)
+      let teller = 2
+      while (fs.existsSync(målSti)) {
+        nyttFilnamn = `${trygtNr}_REV${revEllerTidsstempel}(${teller})${ext}`
+        målSti = path.join(mappeSti, nyttFilnamn)
+        teller++
+      }
+
+      // Finst det alt ei gjeldande fil for same dokumentnummer direkte i
+      // kategorimappa (ikkje i Arkiv frå før)? Arkiver ho fyrst.
+      const eksisterande = fs.readdirSync(mappeSti, { withFileTypes: true })
+        .filter((f) => f.isFile() && f.name.startsWith(trygtNr + '_REV'))
+      for (const gammalFil of eksisterande) {
+        let arkivMål = path.join(arkivSti, gammalFil.name)
+        let t2 = 2
+        while (fs.existsSync(arkivMål)) {
+          const gammalExt = path.extname(gammalFil.name)
+          arkivMål = path.join(arkivSti, `${path.basename(gammalFil.name, gammalExt)}(${t2})${gammalExt}`)
+          t2++
+        }
+        flyttFil(path.join(mappeSti, gammalFil.name), arkivMål)
+      }
+
+      flyttFil(d.kjeldeSti, målSti)
+      resultat.push({ ...d, status: 'ok', filnamn: nyttFilnamn, rev: revEllerTidsstempel })
+    } catch (e) {
+      resultat.push({ ...d, status: 'feil', melding: e.message })
+    }
+  }
+  return resultat
+})
+
+// Listar gjeldande filer + arkiverte (eldre) revisjonar for éin kategori.
+ipcMain.handle('dtm:list', async (event, { oppdragsSti, kategori }) => {
+  const mappeNamn = DTM_KATEGORI_MAPPE[kategori]
+  if (!oppdragsSti || !mappeNamn) return { finst: false, filer: [], arkiverte: [] }
+  const mappeSti = path.join(oppdragsSti, mappeNamn)
+  if (!fs.existsSync(mappeSti)) return { finst: false, filer: [], arkiverte: [] }
+
+  const lesMappe = (sti) => fs.existsSync(sti)
+    ? fs.readdirSync(sti, { withFileTypes: true }).filter((f) => f.isFile())
+        .map((f) => {
+          const stat = fs.statSync(path.join(sti, f.name))
+          return { namn: f.name, endra: stat.mtimeMs }
+        })
+    : []
+
+  return {
+    finst: true,
+    filer: lesMappe(mappeSti),
+    arkiverte: lesMappe(path.join(mappeSti, 'Arkiv')),
+  }
+})
+
+// Opnar ei fil (gjeldande eller arkivert) i systemet sitt standardprogram.
+ipcMain.handle('dtm:apne-fil', async (event, { oppdragsSti, kategori, filnamn, arkivert }) => {
+  const mappeNamn = DTM_KATEGORI_MAPPE[kategori]
+  if (!oppdragsSti || !mappeNamn || !filnamn) return false
+  const sti = arkivert
+    ? path.join(oppdragsSti, mappeNamn, 'Arkiv', filnamn)
+    : path.join(oppdragsSti, mappeNamn, filnamn)
+  if (!fs.existsSync(sti)) return false
+  await shell.openPath(sti)
+  return true
 })
