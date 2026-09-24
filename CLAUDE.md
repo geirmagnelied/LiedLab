@@ -12,6 +12,10 @@ den relevante fila når ei oppgåve gjeld eit tema han dekkjer:
 - `claude/kvalitetsmodul-teikningar.md` — KS-modulens teikningsregister
 - `claude/saksmodul-tabell.md` — Saksmodulen og `DataTabell.jsx`
 - `claude/resultatdokument-modul.md` — Resultatdokument-modulen og Electron-fil-brua
+- `claude/prosjektplan-tegningskontroll.md` — eit **separat, frittståande**
+  Python/Flask-verktøy (ikkje ein del av dette repoet), dokumentert her fordi
+  KS-modulens PDF-tittelfelt-lesing (`lesTittelfelt()`) er ein direkte port
+  av logikk derifrå — sjå fila for autoritative regex-mønster og kontekst
 
 Same innhald finst òg (kan verte forelda over tid) som eigne dokument i
 Claude-prosjektet **"Digitale verktøy"** på claude.ai — `claude/`-mappa her

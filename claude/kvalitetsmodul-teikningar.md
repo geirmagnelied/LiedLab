@@ -57,7 +57,9 @@ rettar ein rett i tabellen (sjå «Redigering» under).
 
 ## PDF-tittelfelt: `pdfjs-dist`
 
-`les_tittelfelt()` frå `pdf_vaktar.py` (det gamle Python-skriptet) er porta
+`les_tittelfelt()` frå `pdf_vaktar.py` (det gamle Python-skriptet — sjå
+[`claude/prosjektplan-tegningskontroll.md`](prosjektplan-tegningskontroll.md)
+for full kontekst og dei autoritative regex-mønstera) er porta
 til `electron/main.js` (`lesTittelfelt()`), med alle sju regex-mønstera
 (målestokk/tittel/teikna av/egenkontroll/fagkontroll/dato/format) uendra.
 `pdfjs-dist` finst frå versjon 6 berre som ES-modul (`legacy/build/pdf.mjs`,
