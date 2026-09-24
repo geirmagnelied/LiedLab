@@ -309,6 +309,63 @@ IKKJE alle eksplisitt stadfesta av brukar):
   `npm run build` + eit røyk-sjekk av at nettsida framleis lastar utan
   konsoll-feil er gjort. Krev Electron for å teste importflyten i praksis.
 
+## Retta 24. sept. 2026 — tittelfelt-tolking fungerte ikkje i praksis
+
+Fyrste røyktest i skrivebordsappen synte at INGENTING vart tolka frå eit
+ekte Norconsult-tittelfelt (alle felt tomme i gjennomgangsmatrisa, bortsett
+frå nr/fag som kjem frå filnamnet). Årsak: det Python-porta mønsteret
+(«merkelapp: verdi» på ei og same linje) passar ikkje med korleis dette
+tittelfeltet faktisk er bygd opp — merkelappen («Oppdragsgiver») og verdien
+(«Gunvald Johansen Bygg AS») ligg på TO ULIKE linjer (merkelapp øvst, verdi
+rett under, i same rute), ikkje kolon-skilt på éi linje. I tillegg gav
+pdfjs-dist ofte kvart siffer/teikn som eit HEILT EIGE «item», og den gamle
+koda limte ALLE item i ei linje saman med mellomrom mellom kvart einaste
+eitt — det gjorde om t.d. «100» til «1 0 0», så \d+-regexen berre fanga
+fyrste sifferet («1:1» i staden for «1:100», synleg i det feilslegne
+skjermbiletet brukaren sende).
+
+**Ny tolkingsstrategi** (`lesLinjerFraSide()`/`tolkStablaFelt()`/
+`tolkRevisjonstabell()`/`tolkInlineMerkelappar()` i `main.js`):
+
+1. Tekst vert no gruppert i BÅDE linjer OG celler (kolonnar) innanfor kvar
+   linje, med tre avstandsnivå (nesten-null/vanleg ord/ny kolonne) — fiksar
+   sifferfragmenteringa.
+2. **Stabla merkelapp/verdi-par** (Oppdragsgiver, Tiltakshaver, Tegningsnavn
+   → tittel, Målestokk, Oppdragsnummer, Tegningsnummer, Revisjon): finn
+   merkelapp-cella, hentar verdien frå cella i NESTE linje som ligg nærast
+   same x-posisjon (rett under, same rute).
+3. **Revisjonstabellen** (Rev./Dato/Beskrivelse/…/Utarbeidet/Fagkontroll/
+   Godkjent): finn header-rada, les kolonneindeksane frå henne, og skannar
+   BÅDE OVER OG UNDER header-rada etter data-rader (verifisert mot eit ekte
+   tittelfelt at data-rada med gjeldande revisjon ligg RETT OVER header-
+   rada i denne malen — ikkje under, som elles ville vore det vanlege). Vel
+   rada som samsvarar med revisjonen frå steg 2 (fell tilbake til siste
+   rad).
+4. Det gamle, kolon-baserte mønsteret køyrer framleis som eit siste steg,
+   for tittelfelt-malar som skulle bruke den enklare stilen.
+
+**Nye felt** (frå tittelfeltet, i tillegg til dei frå før): `oppdragsgivar`,
+`tiltakshavar`, `oppdragsnr` (prosjektnummeret PÅ SJØLVE TEIKNINGA — kan i
+prinsippet avvike frå appen sitt eige `projectNumber`, ikkje kryssjekka
+enno), `godkjent_av` (frå «Godkjent»-kolonna i revisjonstabellen — eit anna
+omgrep enn `ek_person`/egenkontroll, som denne malen ikkje har). Lagt til
+som eigne kolonnar i `dtm_dokumenter` (sjå `supabase-dtm.sql`), redigerbare
+felt i `DTMImportModal.jsx`, og skjulte-som-standard kolonnar i
+`DTMTabell.jsx`. **Tegningsnummeret lese FRÅ SJØLVE PDF-en vert no
+FØRETRUKKE over filnamn-gjettinga** når det ser ut som ein gyldig kode —
+same tanke som i det opphavlege `pdf_vaktar.py`.
+
+**Verifisert** med eit reint offline Node-testskript (handlaga «linjer»-
+struktur etter skjermbiletet brukaren sende — ikkje ein ekte PDF) at
+`tolkStablaFelt()`/`tolkRevisjonstabell()` koda riktig ut ALLE felt frå
+eksempelet. **IKKJE verifisert**: at den rå pdfjs-item-til-celle-gruppe-
+ringa (`TEIKN_GAP`/`ORD_GAP`-grensene i `lesLinjerFraSide()`) faktisk
+produserer akkurat denne celle-strukturen på ekte PDF-koordinatar — dette
+er den attverande uvissa. `lesTittelfelt()` loggar no den fulle linje/
+celle-strukturen til konsollen (`[DTM] ... — lesne linjer:`) — send dette
+hit om ei teikning framleis ikkje vert tolka rett, så kan grensene
+justerast mot faktiske tal i staden for gjetting.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

@@ -379,99 +379,234 @@ ipcMain.handle('resultatdokument:legg-til', async (event, { prosjektSti, filPath
 // modulen alt reknar ut (oppdragsSti + «4 Resultatdokumenter», låst i
 // Prosjekt-modulen) — ingen eigen sti for KS-modulen.
 
-// Les tekst frå éi side i eit ope PDF-dokument.
+// Les tekst frå éi side i eit ope PDF-dokument, gruppert i LINJER og i
+// CELLER (kolonnar) innanfor kvar linje.
 //
-// pdfjs-dist sin getTextContent() gjev tekst som mange separate,
-// posisjonerte «item»-bitar (typisk eitt ord/éin tekst-run kvar) — IKKJE
-// ferdige linjer slik det gamle Python-skriptet fekk frå pdfplumber sin
-// extract_text() (som klyngjar bitar etter Y-posisjon til visuelle linjer
-// for deg). Utan denne klyngjinga hamnar t.d. «Målestokk:» og «1:100» som
-// to heilt ulike «linjer» i staden for éi, og regex-mønstera i
-// lesTittelfelt() under finn då aldri kvarandre. Derfor grupperer vi her
-// tekstbitar med nesten lik Y-posisjon til éi linje, og sorterer bitane
-// innanfor linja etter X (venstre til høgre) før vi limer dei saman.
-async function lesTekstFraSide(pdf, sideNr) {
+// Retta 24. sept. 2026: DTM-import synte at det opphavlege, Python-porta
+// «merkelapp: verdi på éi linje»-mønsteret (les_tittelfelt() i
+// pdf_vaktar.py) ikkje fann NOKO i det heile på Norconsult sin faktiske
+// standardmal — der står merkelappen («Oppdragsgiver») og verdien
+// («Gunvald Johansen Bygg AS») på TO ulike linjer, ikkje kolon-skilde på
+// éi. I tillegg gjev pdfjs-dist sin getTextContent() ofte kvart teikn/tal
+// som eit HEILT EIGE «item» (t.d. tre item «1», «0», «0» for talet 100) —
+// den gamle koda limte ALLE item i ei linje saman med mellomrom mellom
+// kvart einaste eitt, som gjorde om «100» til «1 0 0» og fekk \d+-regex
+// til berre å fange fyrste sifferet («1:1» i staden for «1:100»).
+//
+// Grupperer difor med tre nivå (i staden for berre «linje»):
+//   - TEIKN_GAP  — nesten null mellomrom → same teikn-run, INGEN
+//                  mellomrom ved samanslåing (fiksar «1 0 0» → «100»)
+//   - ORD_GAP    — vanleg ordmellomrom  → same CELLE (kolonne), eitt
+//                  mellomrom ved samanslåing
+//   - > ORD_GAP  → NY celle (ny kolonne i tittelfeltet/tabellen)
+// Kvar linje vert difor ei liste med celler, ikkje berre éin tekststreng —
+// naudsynt for å kunne slå opp «cella rett under» ei merkelapp-celle
+// (tolkStablaFelt) og for å lese revisjonstabellen kolonne for kolonne
+// (tolkRevisjonstabell).
+async function lesLinjerFraSide(pdf, sideNr) {
   try {
-    if (sideNr < 1 || sideNr > pdf.numPages) return ''
+    if (sideNr < 1 || sideNr > pdf.numPages) return []
     const page = await pdf.getPage(sideNr)
     const content = await page.getTextContent()
-    const linjer = []
+    const rader = []
     for (const item of content.items) {
       if (!item.str || !item.str.trim()) continue
       const y = item.transform[5]
-      let linje = linjer.find((l) => Math.abs(l.y - y) <= 2.5)
-      if (!linje) { linje = { y, delar: [] }; linjer.push(linje) }
-      linje.delar.push({ x: item.transform[4], tekst: item.str })
+      let rad = rader.find((r) => Math.abs(r.y - y) <= 2.5)
+      if (!rad) { rad = { y, delar: [] }; rader.push(rad) }
+      rad.delar.push({ x: item.transform[4], breidd: item.width || item.str.length * 4.5, tekst: item.str })
     }
-    linjer.sort((a, b) => b.y - a.y) // pdf-koordinatar: høgast y er øvst på sida
-    return linjer.map((l) => l.delar.sort((a, b) => a.x - b.x).map((d) => d.tekst).join(' ')).join('\n')
+    rader.sort((a, b) => b.y - a.y) // pdf-koordinatar: høgast y er øvst på sida
+
+    const TEIKN_GAP = 1.2
+    const ORD_GAP = 20
+    return rader.map((r) => {
+      const delar = [...r.delar].sort((a, b) => a.x - b.x)
+      const celler = []
+      for (const d of delar) {
+        const siste = celler[celler.length - 1]
+        const gap = siste ? d.x - siste.xSlutt : Infinity
+        if (siste && gap <= ORD_GAP) {
+          siste.tekst += (gap <= TEIKN_GAP ? '' : ' ') + d.tekst
+          siste.xSlutt = Math.max(siste.xSlutt, d.x + d.breidd)
+        } else {
+          celler.push({ x: d.x, xSlutt: d.x + d.breidd, tekst: d.tekst })
+        }
+      }
+      return { y: r.y, celler }
+    })
   } catch {
-    return ''
+    return []
   }
 }
 
-// Les tittelfelt frå ein PDF ved å søkje etter kjende mønster i siste
-// side (tittelfeltet ligg vanlegvis der), med fyrste side som fallback.
-// Same regex-mønster som les_tittelfelt() i pdf_vaktar.py. Loggar den
-// tolka teksten og resultatet til konsollen (terminalen der «npm run
-// electron»/«npm run dev» køyrer) — nyttig for å sjå kva som faktisk
-// vart lese om ei teikning ikkje vert tolka rett.
+function flatTekstFraLinjer(linjer) {
+  return linjer.map((l) => l.celler.map((c) => c.tekst).join(' ')).join('\n')
+}
+function samletTekstlengd(linjer) {
+  return linjer.reduce((sum, l) => sum + l.celler.reduce((s, c) => s + c.tekst.length, 0), 0)
+}
+
+// Merkelapp/verdi-par STABLA i to linjer (merkelapp øvst, verdi rett
+// under, same x-posisjon i same rute) — Norconsult sin standardmal for
+// tittelfelt. Fyller berre inn felt som er tomme frå før.
+const STABLA_FELT = [
+  { m: /^oppdragsgiver$/i, felt: 'oppdragsgivar' },
+  { m: /^tiltakshaver$/i, felt: 'tiltakshavar' },
+  { m: /^tegningsnavn$/i, felt: 'tittel' },
+  { m: /^m[aå]lestokk\b/i, felt: 'malestokk' },
+  { m: /^oppdragsnummer$/i, felt: 'oppdragsnr' },
+  { m: /^tegningsnummer$/i, felt: 'tegningsnrFraPdf' },
+  { m: /^revisjon$/i, felt: 'revisjon' },
+]
+function tolkStablaFelt(linjer, resultat) {
+  for (let i = 0; i < linjer.length - 1; i++) {
+    for (const celle of linjer[i].celler) {
+      const tekst = celle.tekst.trim()
+      const treff = STABLA_FELT.find((f) => f.m.test(tekst))
+      if (!treff || resultat[treff.felt]) continue
+      // Verdien står i den cella i NESTE linje som ligg nærast same
+      // x-posisjon som merkelapp-cella (rett under, i same rute).
+      let næraste = null, minDiff = Infinity
+      for (const v of linjer[i + 1].celler) {
+        const diff = Math.abs(v.x - celle.x)
+        if (diff < minDiff) { minDiff = diff; næraste = v }
+      }
+      if (næraste && minDiff < 60 && næraste.tekst.trim()) resultat[treff.felt] = næraste.tekst.trim()
+    }
+  }
+}
+
+// Revisjonstabellen (Rev. | Dato | Beskrivelse | ... | Utarbeidet |
+// Fagkontroll | Godkjent) — finn header-rada, les kvar data-rad kolonne
+// for kolonne, og plukkar ut rada som samsvarar med revisjonen
+// tolkStablaFelt() over fann (fell tilbake til siste rad i tabellen om
+// revisjonen ikkje vart funnen der).
+//
+// MERK: data-rada(ne) kan liggje BÅDE over og under header-rada, avhengig
+// av malen — i Norconsult sitt oppsett (verifisert mot eit ekte tittelfelt
+// 24. sept. 2026) ligg t.d. den siste revisjonen RETT OVER header-rada,
+// ikkje under. Skannar difor i BÅDE retningar frå header-rada.
+function samleRevisjonsrader(linjer, headerIdx, kol, retning) {
+  const rader = []
+  for (let i = headerIdx + retning; i >= 0 && i < linjer.length; i += retning) {
+    const celler = linjer[i].celler
+    const revTekst = (celler[kol.rev]?.tekst || '').trim()
+    // Stopp ved fyrste rad som ikkje ser ut som ein revisjonskode — t.d.
+    // ei tom rad eller den lovpålagde brødteksten ved sida av tabellen.
+    if (!revTekst || !/^[A-ZÆØÅ]{0,2}\d{0,2}$/i.test(revTekst)) break
+    rader.push({
+      rev: revTekst.toUpperCase(),
+      dato: (celler[kol.dato]?.tekst || '').trim(),
+      utarbeidd: (celler[kol.utarbeidd]?.tekst || '').trim(),
+      fagkontroll: (celler[kol.fagkontroll]?.tekst || '').trim(),
+      godkjent: (celler[kol.godkjent]?.tekst || '').trim(),
+    })
+  }
+  return rader
+}
+
+function tolkRevisjonstabell(linjer, resultat) {
+  const headerIdx = linjer.findIndex((l) =>
+    l.celler.some((c) => /^rev\.?$/i.test(c.tekst.trim())) &&
+    l.celler.some((c) => /^dato$/i.test(c.tekst.trim())))
+  if (headerIdx === -1) return
+  const header = linjer[headerIdx].celler
+  const finnKol = (re) => header.findIndex((c) => re.test(c.tekst.trim()))
+  const kol = {
+    rev: finnKol(/^rev\.?$/i), dato: finnKol(/^dato$/i), utarbeidd: finnKol(/utarbeid/i),
+    fagkontroll: finnKol(/fagkontroll/i), godkjent: finnKol(/godkjent/i),
+  }
+
+  const rader = [
+    ...samleRevisjonsrader(linjer, headerIdx, kol, -1).reverse(),
+    ...samleRevisjonsrader(linjer, headerIdx, kol, 1),
+  ]
+  if (rader.length === 0) return
+
+  const rad = (resultat.revisjon && rader.find((r) => r.rev === resultat.revisjon.toUpperCase())) || rader[rader.length - 1]
+  if (!resultat.revisjon) resultat.revisjon = rad.rev
+  if (!resultat.dato) resultat.dato = rad.dato
+  if (!resultat.teikna_av) resultat.teikna_av = rad.utarbeidd
+  if (!resultat.fk_person) resultat.fk_person = rad.fagkontroll
+  if (!resultat.godkjent_av) resultat.godkjent_av = rad.godkjent
+}
+
+// Gamal, generisk «merkelapp: verdi» PÅ ÉI LINJE-tolking (same mønster
+// som det opphavlege les_tittelfelt() i pdf_vaktar.py) — kjørast som
+// FALLBACK etter tolkStablaFelt()/tolkRevisjonstabell(), for tittelfelt-
+// malar som brukar denne enklare, kolon-skilde stilen i staden for
+// Norconsult sin stabla to-linjers stil. Fyller berre inn felt som
+// framleis er tomme.
+function tolkInlineMerkelappar(tekst, resultat) {
+  for (const raw of tekst.split('\n')) {
+    const l = raw.trim()
+    let m
+
+    m = l.match(/(?:målestokk|malestokk|scale|m[aå]l)\s*[:\s]*(\d+\s*:\s*\d+)/i)
+    if (m && !resultat.malestokk) resultat.malestokk = m[1].replace(/\s+/g, '')
+
+    m = l.match(/\b(1\s*:\s*\d+)\b/)
+    if (m && !resultat.malestokk) resultat.malestokk = m[1].replace(/\s+/g, '')
+
+    m = l.match(/(?:tittel|title|teikning)\s*[:\s]+(.+)/i)
+    if (m && !resultat.tittel) resultat.tittel = m[1].trim()
+
+    m = l.match(/(?:teikna|tegnet|drawn|drwn)\s*(?:av|by)?\s*[:\s]+(\w{2,4})/i)
+    if (m && !resultat.teikna_av) resultat.teikna_av = m[1].toUpperCase()
+
+    m = l.match(/(?:egenkontroll|kontrollert|checked|chkd|ek)\s*(?:av|by)?\s*[:\s]+(\w{2,4})/i)
+    if (m && !resultat.ek_person) resultat.ek_person = m[1].toUpperCase()
+
+    m = l.match(/(?:fagkontroll|godkjent|approved|appd|fk)\s*(?:av|by)?\s*[:\s]+(\w{2,4})/i)
+    if (m && !resultat.fk_person) resultat.fk_person = m[1].toUpperCase()
+
+    m = l.match(/(?:dato|date)\s*[:\s]+(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})/i)
+    if (m && !resultat.dato) resultat.dato = m[1]
+
+    m = l.match(/\b(A[0-4])\b/)
+    if (m && !resultat.format) resultat.format = m[1]
+
+    m = l.match(/\bREV(?:ISJON)?[:\s.]+([A-Z0-9]{1,3})\b/i)
+    if (m && !resultat.revisjon) resultat.revisjon = m[1].toUpperCase()
+  }
+}
+
+// Les tittelfelt frå ein PDF: prøver siste side fyrst (tittelfeltet ligg
+// vanlegvis der), med fyrste side som fallback dersom for lite tekst vart
+// funnen. Loggar den lesne linje/celle-strukturen OG resultatet til
+// konsollen (terminalen der «npm run electron»/«npm run dev» køyrer) —
+// send dette hit om ei teikning framleis ikkje vert tolka rett, så kan
+// mønstera/grenseverdiane (ORD_GAP m.fl.) justerast mot faktiske tal.
 async function lesTittelfelt(pdfSti) {
-  const resultat = { tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '', revisjon: '' }
+  const resultat = {
+    tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '', revisjon: '',
+    oppdragsgivar: '', tiltakshavar: '', oppdragsnr: '', tegningsnrFraPdf: '', godkjent_av: '',
+  }
   try {
     const pdfjsLib = await lastPdfjs()
     const data = new Uint8Array(fs.readFileSync(pdfSti))
     const pdf = await pdfjsLib.getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise
     if (pdf.numPages === 0) return resultat
 
-    let tekst = await lesTekstFraSide(pdf, pdf.numPages)
-    if (tekst.trim().length < 20 && pdf.numPages > 1) {
-      tekst = (await lesTekstFraSide(pdf, 1)) + '\n' + tekst
+    let linjer = await lesLinjerFraSide(pdf, pdf.numPages)
+    if (samletTekstlengd(linjer) < 20 && pdf.numPages > 1) {
+      linjer = [...(await lesLinjerFraSide(pdf, 1)), ...linjer]
     }
-    console.log(`[KS] ${path.basename(pdfSti)} — lese tekst:\n${tekst}\n[KS] ── slutt på lese tekst ──`)
+    console.log(`[DTM] ${path.basename(pdfSti)} — lesne linjer:\n` +
+      linjer.map((l) => l.celler.map((c) => c.tekst).join(' | ')).join('\n') + '\n[DTM] ── slutt ──')
 
-    for (const raw of tekst.split('\n')) {
-      const l = raw.trim()
-      let m
-
-      m = l.match(/(?:målestokk|malestokk|scale|m[aå]l)\s*[:\s]*(\d+\s*:\s*\d+)/i)
-      if (m) resultat.malestokk = m[1].replace(/\s+/g, '')
-
-      m = l.match(/\b(1\s*:\s*\d+)\b/)
-      if (m && !resultat.malestokk) resultat.malestokk = m[1].replace(/\s+/g, '')
-
-      m = l.match(/(?:tittel|title|teikning)\s*[:\s]+(.+)/i)
-      if (m && !resultat.tittel) resultat.tittel = m[1].trim()
-
-      m = l.match(/(?:teikna|tegnet|drawn|drwn)\s*(?:av|by)?\s*[:\s]+(\w{2,4})/i)
-      if (m) resultat.teikna_av = m[1].toUpperCase()
-
-      m = l.match(/(?:egenkontroll|kontrollert|checked|chkd|ek)\s*(?:av|by)?\s*[:\s]+(\w{2,4})/i)
-      if (m) resultat.ek_person = m[1].toUpperCase()
-
-      m = l.match(/(?:fagkontroll|godkjent|approved|appd|fk)\s*(?:av|by)?\s*[:\s]+(\w{2,4})/i)
-      if (m) resultat.fk_person = m[1].toUpperCase()
-
-      m = l.match(/(?:dato|date)\s*[:\s]+(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})/i)
-      if (m) resultat.dato = m[1]
-
-      m = l.match(/\b(A[0-4])\b/)
-      if (m && !resultat.format) resultat.format = m[1]
-
-      // Lagt til for DTM (fanst ikkje i den opphavlege KS-porten) — same
-      // mønster som «revisjon» i pdf_tittelfelt_tagger.py, sjå
-      // claude/prosjektplan-tegningskontroll.md.
-      m = l.match(/\bREV(?:ISJON)?[:\s.]+([A-Z0-9]{1,3})\b/i)
-      if (m && !resultat.revisjon) resultat.revisjon = m[1].toUpperCase()
-    }
+    tolkStablaFelt(linjer, resultat)
+    tolkRevisjonstabell(linjer, resultat)
+    tolkInlineMerkelappar(flatTekstFraLinjer(linjer), resultat)
 
     if (!resultat.tittel) resultat.tittel = parseFilnamn(path.basename(pdfSti)).nr
-    console.log(`[KS] ${path.basename(pdfSti)} — tolka:`, resultat)
+    console.log(`[DTM] ${path.basename(pdfSti)} — tolka:`, resultat)
   } catch (e) {
     // Filnamn-tolking dekkjer framleis nr/rev sjølv om PDF-innhaldet
     // ikkje let seg lese — men logg feilen, i staden for å svelgje han
     // stille, slik at ho kan diagnostiserast frå terminalen.
-    console.error(`[KS] Klarte ikkje lese tittelfelt i ${path.basename(pdfSti)}:`, e)
+    console.error(`[DTM] Klarte ikkje lese tittelfelt i ${path.basename(pdfSti)}:`, e)
   }
   return resultat
 }
@@ -612,10 +747,16 @@ ipcMain.handle('dtm:skann-filer', async (event, { filPathar, kategori }) => {
       }
 
       let revisjon = finnRevisjonFraFilnamn(filnamn)
-      let meta = { tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '' }
+      let meta = {
+        tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '',
+        oppdragsgivar: '', tiltakshavar: '', oppdragsnr: '', tegningsnrFraPdf: '', godkjent_av: '',
+      }
       if (ext === '.pdf') {
         meta = await lesTittelfelt(kjeldeSti)
         if (!revisjon && meta.revisjon) revisjon = meta.revisjon
+        // Tegningsnummeret lese FRÅ SJØLVE TEIKNINGA er meir pålitande enn
+        // filnamn-gjetting når det finst — same tanke som i pdf_vaktar.py.
+        if (meta.tegningsnrFraPdf && serUtSomDokumentkode(meta.tegningsnrFraPdf)) nr = meta.tegningsnrFraPdf
       }
 
       const fann = serUtSomDokumentkode(nr)
@@ -624,6 +765,8 @@ ipcMain.handle('dtm:skann-filer', async (event, { filPathar, kategori }) => {
         nr, nrUsikker: !fann, rev: revisjon || '', fag: gjettFag(nr),
         tittel: meta.tittel || nr, malestokk: meta.malestokk, utarbeida_av: meta.teikna_av,
         ek_person: meta.ek_person, fk_person: meta.fk_person, dato: meta.dato, format: meta.format,
+        oppdragsgivar: meta.oppdragsgivar, tiltakshavar: meta.tiltakshavar,
+        oppdragsnr: meta.oppdragsnr, godkjent_av: meta.godkjent_av,
       })
     } catch (e) {
       resultat.push({ kjeldeSti, filnamn, status: 'feil', melding: e.message })

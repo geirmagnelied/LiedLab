@@ -31,8 +31,12 @@ const BASE_COLUMNS = [
   { key:'malestokk',   label:'Målestokk',    w:104, art:'tekst', standardSkjult:true },
   { key:'format',      label:'Format',       w:88,  art:'val',   standardSkjult:true },
   { key:'utarbeida_av',label:'Utarbeida av', w:126, art:'val' },
+  { key:'fk_person',   label:'Fagkontroll',  w:110, art:'val',   standardSkjult:true },
+  { key:'godkjent_av', label:'Godkjent',     w:110, art:'val',   standardSkjult:true },
   { key:'ek_person',   label:'EK',           w:64,  art:'val',   standardSkjult:true },
-  { key:'fk_person',   label:'FK',           w:64,  art:'val',   standardSkjult:true },
+  { key:'oppdragsgivar',label:'Oppdragsgivar',w:160,art:'val',   standardSkjult:true },
+  { key:'tiltakshavar',label:'Tiltakshavar', w:160, art:'val',   standardSkjult:true },
+  { key:'oppdragsnr',  label:'Oppdragsnr.',  w:110, art:'tekst', mono:true, standardSkjult:true },
   { key:'lagra_av',    label:'Lagra av',     w:170, art:'val',   standardSkjult:true },
   { key:'lasta_opp',   label:'Lasta opp',    w:112, art:'dato',  mono:true },
 ]
@@ -58,6 +62,10 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'utarbeida_av':return rad.utarbeida_av || ''
       case 'ek_person':   return rad.ek_person || ''
       case 'fk_person':   return rad.fk_person || ''
+      case 'godkjent_av': return rad.godkjent_av || ''
+      case 'oppdragsgivar': return rad.oppdragsgivar || ''
+      case 'tiltakshavar':  return rad.tiltakshavar || ''
+      case 'oppdragsnr':    return rad.oppdragsnr || ''
       case 'lagra_av':    return rad.lagra_av || ''
       case 'lasta_opp':   return fmtDateShort(g.lasta_opp)
       default:            return String(rad.ekstra?.[key] ?? '')

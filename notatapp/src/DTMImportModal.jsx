@@ -27,8 +27,12 @@ const FELT = [
   { key:'delprosjekt',  namn:'Delprosjekt',   w:120 },
   { key:'malestokk',    namn:'Målestokk',     w:96 },
   { key:'utarbeida_av', namn:'Utarbeida av',  w:110 },
+  { key:'fk_person',    namn:'Fagkontroll',   w:90 },
+  { key:'godkjent_av',  namn:'Godkjent',      w:90 },
   { key:'ek_person',    namn:'EK',            w:56 },
-  { key:'fk_person',    namn:'FK',            w:56 },
+  { key:'oppdragsgivar',namn:'Oppdragsgivar', w:150 },
+  { key:'tiltakshavar', namn:'Tiltakshavar',  w:150 },
+  { key:'oppdragsnr',   namn:'Oppdragsnr.',   w:100 },
 ]
 
 export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLukk, onImporter }) {
