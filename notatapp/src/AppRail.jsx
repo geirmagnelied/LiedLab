@@ -9,7 +9,7 @@ const MODULES = [
   { key: 'timar',    letter: 'T',  label: 'Timar',          color: '#60A5D4' },
   { key: 'kvalitet', letter: 'KS', label: 'Kvalitetssystem', color: '#EC9A5A' },
   { key: 'farge',    letter: 'F',  label: 'Farge',          color: '#C084B6' },
-  { key: 'resultatdokument', letter: 'Rd', label: 'Resultatdokument', color: '#E9C46A' },
+  { key: 'dtm', letter: 'DTM', label: 'Dokument, tegningar og modellar', color: '#E9C46A' },
   { key: 'kalender', letter: 'Ka', label: 'Kalender',       color: '#2A9D8F' },
 ]
 
@@ -66,7 +66,7 @@ export default function AppRail({ activeModule, onModuleChange }) {
               )}
 
               <span style={{
-                fontSize: mod.letter.length > 1 ? 13 : 18, fontWeight: 800,
+                fontSize: mod.letter.length > 2 ? 10.5 : mod.letter.length > 1 ? 13 : 18, fontWeight: 800,
                 color: active ? '#fff' : 'rgba(255,255,255,.7)',
                 fontFamily: 'var(--font)',
                 letterSpacing: mod.letter.length > 1 ? '-0.5px' : '0',

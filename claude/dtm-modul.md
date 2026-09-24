@@ -250,6 +250,65 @@ Testa berre med `node --check` (syntaktisk) + full `npm run build` —
 Electron + ekte filer, ikkje mogleg frå Browser-pane-verktøyet). Bør
 røykprøvast i praksis så snart Fase 3-UI-et finst å teste gjennom.
 
+## Fase 3 — DTM-modulen sjølv
+
+**Nye filer:** `DTMModule.jsx` (hovudmodul — erstattar
+`ResultatdokumentModule.jsx` i `AppRail.jsx`/`App.jsx`, men den gamle fila
+ligg framleis urørt i `src/` som referanse, same konvensjon som
+`NoteList.jsx` — sletta ikkje utan å spørje), `DTMTabell.jsx` (tynn
+DataTabell-wrapper, same mønster som NoteTabell/SakerTabell),
+`DTMImportModal.jsx` (sjølve import-flyten), `dtmKonstantar.js` (delte
+konstantar/hjelparar: kategori-namn/-fargar/-mapper, `reknStatus()`,
+`tolkDato()`, `genererDNummer()`/`genererSDNummer()`).
+
+`AppRail.jsx` og `App.jsx` sin modul-nøkkel er endra frå `resultatdokument`
+til `dtm` (fire stader i `App.jsx` + éin i `AppRail.jsx`), venstremeny-
+bokstaven er no «DTM» (var «Rd»).
+
+**Avgjerder/presiseringar teke i denne fasen** (les gjennom desse — dei er
+IKKJE alle eksplisitt stadfesta av brukar):
+
+- **`status` vert REKNA UT LEVANDE i visinga** (`reknStatus()` i
+  `dtmKonstantar.js`), IKKJE lagra/oppdatert i databasen ved kvar import
+  slik fyrste utkastet av spesifikasjonen la opp til. Grunngjeving: status
+  er heilt utleia av dei tre kategori-datoane som alt ligg lagra — å i
+  tillegg lagre eit statisk `status`-øyeblikksbilete ville krevd
+  gjenutrekning for ALLE dokument som deler nummer kvar gong éin kategori
+  vert importert, og kunne lett gå ut av synk. `status`-kolonna i
+  `dtm_dokumenter` (frå `supabase-dtm.sql`) er difor **ubrukt** i denne
+  fasen — kan fjernast seinare, eller takast i bruk til noko anna.
+- **Fag-D-/SD-løpenummer** vert generert i `DTMImportModal.jsx` (rett
+  etter skanning, før gjennomgangsmatrisa vert vist), ikkje i Electron-fil-
+  brua (som planlagt i Fase 2-avsnittet over) — `genererDNummer()`/
+  `genererSDNummer()` i `dtmKonstantar.js` tek omsyn til BÅDE dei alt
+  lagra dokumenta OG dei som alt er tildelt tidlegare i same importrunde
+  (elles ville fleire ukjende filer i éin og same drop fått same nummer).
+- **Gjennomgangsmatrisa i importmodalen er EI VANLEG HTML-TABELL** med
+  alltid-redigerbare tekstfelt (`<input>` per celle), IKKJE ein
+  `DataTabell`-instans. Dette er ei medviten forenkling for eit
+  kortvarig, «midlertidig utval»-steg — sortering/filter/kolonnestyring
+  gjev inga meirverdi der, og alltid-synlege inputfelt er raskare å rette
+  fleire felt i enn eit dobbeltklikk-per-celle-mønster.
+- **Filnamnet ved import bruker dokumentnummeret som stem**
+  (`<nr>_REV<rev>.<ext>`), ikkje det opphavlege filnamnet — sjå Fase 2-
+  avsnittet, same atterhald der.
+- **«Kategori»-kolonna** i `DTMTabell.jsx` er ikkje lagt til enno som eigen
+  kolonne (kvart «sett» viser berre éin kategori om gongen, så verdien
+  ville vore konstant per vising) — kan leggjast til om DTM seinare får
+  ei samla, ufiltrert vising av alle kategoriar på éin gong.
+- **Eigne kolonnar** («+ Ny kolonne…», `dtm_columns`/`dtm_dokumenter.ekstra`)
+  er kopla opp med same mønster som Notat-/Saks-tabellen.
+- **`delprosjekt`** er sett opp som `redigerbar:true` — rettast med
+  dobbeltklikk direkte i matrisa (fritekst, ingen fast liste).
+
+**IKKJE bygd i denne fasen** (attståande, sjå Fase 4 og oppgåveliste):
+
+- Ekspanderbare rader (vising av eldre Arkiv-versjonar ved klikk) — Fase 4.
+- «Kategori»-kolonne (sjå over).
+- Funksjonell testing mot ekte filer i skrivebordsappen — berre
+  `npm run build` + eit røyk-sjekk av at nettsida framleis lastar utan
+  konsoll-feil er gjort. Krev Electron for å teste importflyten i praksis.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i
@@ -261,11 +320,7 @@ røykprøvast i praksis så snart Fase 3-UI-et finst å teste gjennom.
       `window.resultatdokumentAPI`. **Attståande frå Fase 2, flytta til
       Fase 3:** Fag-D-løpenummer-fallback og SD-løpenummer-tildeling
       (krev tilgang til eksisterande register, gjer det i renderar-koden).
-- [ ] **Fase 3 — DTM-modulen sjølv.** Ny fil (truleg omdøyping/omskriving
-      av `ResultatdokumentModule.jsx`), fire importknappar + modal-flyt,
-      matrise-vising via utvida `DataTabell`, sjølvlegande
-      mappeoppretting (kallar opprett-oppdragsmapper-IPC-en ved opning).
-      `AppRail.jsx` oppdatert med nytt namn/forkorting «DTM».
+- [x] **Fase 3 — DTM-modulen sjølv.** Sjå eige avsnitt under.
 - [ ] **Fase 4 — ekspanderbare rader i `DataTabell.jsx`.** Ny generisk
       `underrader(rad)`-type prop, brukt av DTM men tilgjengeleg for alle
       tabellar.

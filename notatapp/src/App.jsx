@@ -19,7 +19,7 @@ import KundeModule from './KundeModule'
 import OppgaveModule from './OppgaveModule'
 import FargeModule from './FargeModule'
 import SakerModule from './SakerModule'
-import ResultatdokumentModule from './ResultatdokumentModule'
+import DTMModule from './DTMModule'
 
 const INITIAL_TL_H  = 200
 
@@ -362,12 +362,12 @@ export default function App({ userId, userEmail }) {
         </div>
         {/* Module switcher pills */}
         <div style={{ display:'flex', gap:3, marginRight:4 }}>
-          {[{k:'notatar',l:'N'},{k:'kalender',l:'Ka'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'farge',l:'F'},{k:'resultatdokument',l:'Rd'}].map(m => (
+          {[{k:'notatar',l:'N'},{k:'kalender',l:'Ka'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'farge',l:'F'},{k:'dtm',l:'DTM'}].map(m => (
             <button key={m.k} onClick={() => { setActiveModule(m.k); if(m.k!=='notatar') setView('notatar') }}
               style={{ width:24,height:24,borderRadius:6,border:'none',
                 background: activeModule===m.k ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.08)',
                 color: activeModule===m.k ? '#fff' : 'rgba(255,255,255,.45)',
-                fontSize:11,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+                fontSize: m.l.length > 2 ? 8.5 : 11, fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
               {m.l}
             </button>
           ))}
@@ -431,7 +431,7 @@ export default function App({ userId, userEmail }) {
         {activeModule === 'oppgaver' && <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'farge' && <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'saker' && <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>}
-        {activeModule === 'resultatdokument' && <ResultatdokumentModule userId={userId} projects={officeProjects} activeProjectId={selectedProjectId}/>}
+        {activeModule === 'dtm' && <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
       </div>
 
       {/* Mobile bottom nav */}
@@ -515,8 +515,8 @@ export default function App({ userId, userEmail }) {
         <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'saker' ? (
         <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>
-      ) : activeModule === 'resultatdokument' ? (
-        <ResultatdokumentModule userId={userId} projects={officeProjects} activeProjectId={selectedProjectId}/>
+      ) : activeModule === 'dtm' ? (
+        <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>
       ) : (
       /* ── Notatar module (original layout) ── */
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
@@ -659,7 +659,7 @@ export default function App({ userId, userEmail }) {
 )
 }
 
-const MODULE_LABELS = { notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', resultatdokument:'Resultatdokument' }
+const MODULE_LABELS = { notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', dtm:'Dokument, tegningar og modellar' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())
