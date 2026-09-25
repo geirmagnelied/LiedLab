@@ -759,6 +759,34 @@ denne Electron/Chromium-konteksten. Fil-veljaren (punkt 6) og mailto-
 fallback (punkt 2) er difor med vilje bygd som dei PÅLITELEGE vegane,
 ikkje berre som reserveløysingar.
 
+## Vidareutvikling 25. sept. 2026 (2) — rutenettvisning i matrisa
+
+Tre justeringar av sjølve DTM-tabellen same dag:
+
+1. **Tittel-kolonna opnar no fila** akkurat som Dokumentnummer (fekk
+   `opnaFil:true`, same handkurør ved hovring) — brukar peika på at dette
+   burde vere likt.
+2. **Rutenettvisning / grid-redigering**: bygd generisk i `DataTabell.jsx`
+   bak ein ny, opt-in `rutenettRedigering`-prop (sjå
+   `claude/saksmodul-tabell.md` for den fulle spesifikasjonen — Angre,
+   dra-og-fyll, `beregna`-kolonneflagget osb.). DTM er den einaste tabellen
+   som slår han på (`DTMTabell.jsx`). Kolonnane Kategori/Status/Filtype/
+   Rev./Dato/Lasta opp/Utsendingar/Filsti/Lagra av er UTREKNA (nøsta i
+   kategori-JSON-en eller reint avleia) og difor merkt `beregna:true` — dei
+   kan ALDRI redigerast generisk, uansett modus. Alle andre kolonnar (Fag,
+   Oppdragsgivar, Tiltakshavar, Fase, Målestokk, Format, osb.) kan no
+   redigerast direkte i tabellen når modus er på, i tillegg til dei som alt
+   var det (Delprosjekt, Status ved ferdigstilling).
+3. **Redigeringsmodus-knapp + Angre** i verktøylinja, like til venstre for
+   «Fargekode».
+
+**IKKJE verifisert i praksis** (krev innlogging, kunne ikkje testast frå
+dette miljøet): sjølve dra-og-fyll-interaksjonen (mouse-drag +
+`elementFromPoint`) og at Angre faktisk gjenopprettar rett verdi i Supabase
+for alle kolonnetypar. Bygget går gjennom utan feil, og logikken er
+gjennomgått nøye, men bør prøvast i skrivebordsappen før ein stolar heilt
+på han i produksjon.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

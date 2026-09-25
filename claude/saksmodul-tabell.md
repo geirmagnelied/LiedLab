@@ -57,6 +57,38 @@ Slettar du ei eiga kolonne, blir definisjonen borte for prosjektet, medan
 verdiane blir liggjande i `cases.ekstra` (uskadelege, og kjem attende dersom
 kolonnen blir laga med same nøkkel).
 
+## Rutenettvisning (grid-redigering) — 25. sept. 2026, valfri per tabell
+
+Bygd for DTM-matrisa (sjå `claude/dtm-modul.md`), men implementert generisk i
+`DataTabell.jsx` bak ein NY, opt-in prop: `rutenettRedigering` (default av).
+Andre tabellar (Saker, Notat, Kvalitet) er **heilt upåverka** med mindre dei
+sjølv set denne propen — utan han oppfører DataTabell seg nøyaktig som før.
+
+Med `rutenettRedigering` slege på:
+- Eit «Redigering»-av/på-val dukkar opp i verktøylinja, like til venstre for
+  «Fargekode»-etiketten.
+- Med det PÅ kan ALLE celler redigerast med dobbeltklikk — ikkje berre
+  kolonnar merkt `redigerbar:true` — MED UNNTAK av kolonnar merkt
+  `opnaFil:true` (opnar fil, ikkje redigering) eller **`beregna:true`**
+  (kolonnen sin verdi er UTREKNA, ikkje eit flatt felt på rada — t.d. eit
+  join/derivert felt — og skal ALDRI kunne skrivast til generisk, sjølv om
+  modus er på). **Kvar tabell som slår på `rutenettRedigering` MÅ sjølv
+  merkje sine utrekna/nøsta kolonnar med `beregna:true`** — elles vil eit
+  klikk kalle `onSetVerdi(id, key, verdi)` med ein nøkkel som ikkje finst
+  som ekte kolonne i databasen.
+- Dobbeltklikk på ein slik (ikkje enno redigerbar) celle når modus er AV
+  slår sjølv PÅ modus fyrst, som ein snarveg.
+- Eit lite Excel-liknande dra-handtak (firkant nede til høgre) dukkar opp i
+  den sist valde/redigerte cella når modus er på — å dra det ned/opp over
+  andre rader fyller startverdien inn i alle radene ein dreg over, med
+  `document.elementFromPoint` (robust mot sortering/filter/tettleik).
+- Eit «↶ Angre»-tastar dukkar opp i verktøylinja så snart det finst minst
+  éi endring å angre — både enkeltredigeringar og heile dra-og-fyll-
+  operasjonar (dra-og-fyll tel som ÉI angre-gruppe). Angre-historikken er
+  BERRE i minnet (ikkje lagra), og forsvinn ved sideoppdatering — det er
+  meint som eit tryggingsnett mot eit uheldig dobbeltklikk/dra, ikkje ein
+  full versjonshistorikk.
+
 ## Prototype
 
 Designet vart testa som frittståande html-side før implementeringa, publisert

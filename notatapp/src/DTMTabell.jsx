@@ -25,12 +25,12 @@ const STATUS_FARGE = {
 // som standard visning») — ingen `standardSkjult` lenger.
 const BASE_COLUMNS = [
   { key:'nr',          label:'Dokumentnummer', art:'tekst', mono:true, opnaFil:true },
-  { key:'tittel',      label:'Tittel',       art:'tekst', utanFilter:true },
-  { key:'kategori',    label:'Kategori',     art:'val' },
-  { key:'status',      label:'Status',       art:'val',   utanFilter:true },
-  { key:'filtype',     label:'Filtype',      art:'val',   mono:true },
-  { key:'rev',         label:'Rev.',         art:'tekst', mono:true },
-  { key:'dato',        label:'Dato',         art:'tekst', mono:true },
+  { key:'tittel',      label:'Tittel',       art:'tekst', utanFilter:true, opnaFil:true },
+  { key:'kategori',    label:'Kategori',     art:'val',   beregna:true },
+  { key:'status',      label:'Status',       art:'val',   utanFilter:true, beregna:true },
+  { key:'filtype',     label:'Filtype',      art:'val',   mono:true, beregna:true },
+  { key:'rev',         label:'Rev.',         art:'tekst', mono:true, beregna:true },
+  { key:'dato',        label:'Dato',         art:'tekst', mono:true, beregna:true },
   { key:'revisjonsbeskriving', label:'Revisjonsskildring', art:'tekst', utanFilter:true },
   { key:'tegningsformal', label:'Tegningsformål', art:'val' },
   { key:'fag',         label:'Fag',          art:'val' },
@@ -45,10 +45,10 @@ const BASE_COLUMNS = [
   { key:'fk_person',   label:'Fagkontroll',  art:'val' },
   { key:'godkjent_av', label:'Godkjent',     art:'val' },
   { key:'oppdragsnr',  label:'Oppdragsnr.',  art:'tekst', mono:true },
-  { key:'lagra_av',    label:'Lagra av',     art:'val' },
-  { key:'lasta_opp',   label:'Lasta opp',    art:'dato',  mono:true },
-  { key:'utsendingar', label:'Utsendingar',  art:'tekst', utanFilter:true },
-  { key:'filsti',      label:'Filsti',       art:'tekst', utanFilter:true, mono:true, maksInnhaldsBreidd:Infinity },
+  { key:'lagra_av',    label:'Lagra av',     art:'val',   beregna:true },
+  { key:'lasta_opp',   label:'Lasta opp',    art:'dato',  mono:true, beregna:true },
+  { key:'utsendingar', label:'Utsendingar',  art:'tekst', utanFilter:true, beregna:true },
+  { key:'filsti',      label:'Filsti',       art:'tekst', utanFilter:true, mono:true, maksInnhaldsBreidd:Infinity, beregna:true },
 ]
 
 function hentGjeldande(rad, aktivtSett) {
@@ -159,6 +159,7 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
         radMeny={radMeny}
         merking={merking}
         innhaldstilpassaBreidd
+        rutenettRedigering
         prefsKey={`${PREFS_KEY}:${aktivtSett}`}
         itemNamn="dokument"
         defaultSortering={{ key:'nr', dir:'asc' }}
