@@ -1101,3 +1101,55 @@ ipcMain.handle('dtm:del-fil', async (event, { stiar }) => {
   await shell.openExternal(`mailto:?subject=${emne}&body=${kropp}`)
   return { ok: true }
 })
+
+// ═══════════════════════════════════════════════════════════════════
+// DTM — registrering av utsendingar (t.d. e-post)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Kvitteringar (t.d. ein sendt e-post dregen ut av Outlook som .msg) vert
+// lagra i «<oppdragsSti>\2 Informasjonsflyt\Utsendingar\» — same mappe
+// som alt er meint for informasjonsflyt-korrespondanse i OPPDRAGSMAPPER.
+// Denne fila skriv IKKJE til Supabase (det gjer renderar-koden, som for
+// resten av DTM) — berre sjølve fil-kopieringa.
+function utsendingsKvitteringsmappe(oppdragsSti) {
+  return path.join(oppdragsSti, '2 Informasjonsflyt', 'Utsendingar')
+}
+
+// Kopierer (IKKJE flyttar — kjelda kan vere ein midlertidig peikar til ein
+// e-post brukar framleis har open andre stader) ei kvitteringsfil inn i
+// utsendingsmappa. Ledig-gjer filnamnet ved kollisjon.
+ipcMain.handle('dtm:lagre-kvittering', async (event, { oppdragsSti, kjeldeSti }) => {
+  if (!oppdragsSti || !kjeldeSti || !fs.existsSync(kjeldeSti)) {
+    return { ok: false, melding: 'Fann ikkje kjeldefila.' }
+  }
+  try {
+    const mappe = utsendingsKvitteringsmappe(oppdragsSti)
+    fs.mkdirSync(mappe, { recursive: true })
+    const ext = path.extname(kjeldeSti)
+    const stem = path.basename(kjeldeSti, ext)
+    let filnamn = path.basename(kjeldeSti)
+    let målSti = path.join(mappe, filnamn)
+    let teller = 2
+    while (fs.existsSync(målSti)) {
+      filnamn = `${stem}(${teller})${ext}`
+      målSti = path.join(mappe, filnamn)
+      teller++
+    }
+    fs.copyFileSync(kjeldeSti, målSti)
+    return { ok: true, filnamn }
+  } catch (e) {
+    const melding = erFillasFeil(e)
+      ? 'Fila er open i eit anna program (eller på annan måte låst). Lukk fila og prøv igjen.'
+      : e.message
+    return { ok: false, melding }
+  }
+})
+
+// Opnar ei lagra kvitteringsfil med systemet sitt standardprogram.
+ipcMain.handle('dtm:apne-kvittering', async (event, { oppdragsSti, filnamn }) => {
+  if (!oppdragsSti || !filnamn) return false
+  const sti = path.join(utsendingsKvitteringsmappe(oppdragsSti), filnamn)
+  if (!fs.existsSync(sti)) return false
+  await shell.openPath(sti)
+  return true
+})

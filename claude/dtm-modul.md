@@ -639,6 +639,61 @@ runde forbetringar basert på faktisk bruk:
    eit verifisert namn — fungerer bra for vanleg firma-e-postkonvensjon,
    dårlegare for t.d. reine gmail-adresser utan punktum.
 
+## Ny funksjon 25. sept. 2026 — registrering av utsendingar
+
+Brukar ønska ein måte å dokumentere at dokument/tegningar faktisk er sendt
+ut (t.d. på e-post), for ettertida. Vi vurderte fleire alternativ (eige
+Outlook-tillegg, automatisk generert prosjekt-e-postadresse for kopi,
+drege-inn .msg-fil som eiga hovudløysing) — landa på å byggje vidare på
+den ALT EKSISTERANDE «Del fil»-funksjonen, sidan ho krev null ny
+infrastruktur og appen alt veit kva dokument som er involverte. Sjå
+avsnittet om Outlook-integrasjon i chat-historikken for den fulle
+avveginga mot dei andre alternativa (automatisk generert prosjekt-e-post,
+Outlook-tillegg/Graph API) — dei vart vurdert for tunge/avhengige av
+IT-rettar brukar ikkje har.
+
+**Datamodell** (`supabase-dtm-utsendingar.sql`): `dtm_utsendingar` (éi rad
+per utsending — mottakar, kanal, kommentar, status kladd/sendt, dato,
+oppretta_av, bekrefta_av/-tid, kvittering_fil) + `dtm_utsending_dokument`
+(join-tabell, snapshottar nr/kategori/filnamn/revisjon PÅ UTSENDINGS-
+TIDSPUNKTET — ei seinare ny revisjon skal ikkje skrive om historia).
+
+**Flyt:**
+1. **«Registrer utsending»** i radmenyen (☰, saman med «Del fil») —
+   respekterer fleirval same måte som «Del fil» (fleire markerte rader →
+   alle med i same utsending). Opprettar ein KLADD i Supabase MED DET
+   SAME (`DTMModule.jsx` sin `registrerUtsending()`) — ingenting går tapt
+   om vindauget vert lukka.
+2. **`DTMUtsendingModal.jsx`** — mottakar/kanal/dato/kommentar, liste over
+   inkluderte dokument (kan fjernast), eit SØK for å leggje til FLEIRE
+   dokument frå heile prosjektregisteret (ikkje avgrensa til det
+   opphavlege utvalet) — dette er robustheits-kravet: brukar kan opne
+   e-postprogrammet, gå vidare, kome attende og halde fram å leggje til.
+   «Opne e-post» kallar den ALT EKSISTERANDE `dtmDelFil`-IPC-en (attgjenbruk,
+   ingen ny mekanisme).
+3. **Dokumentasjon på faktisk sending — to nivå:**
+   - **Sjølvmelding**: «Stadfest sending»-knapp, set status til sendt.
+   - **Ekte kvittering**: dra den FAKTISK SENDTE e-posten (Outlook kan dra
+     ein e-post ut som .msg-fil) inn i modalen. Lagra i
+     `<oppdragsSti>\2 Informasjonsflyt\Utsendingar\` (nye IPC-endepunkt
+     `dtm:lagre-kvittering`/`dtm:apne-kvittering`, kopierer — flyttar
+     ikkje — kjelda). Set status til sendt automatisk, sidan ei kvittering
+     FRÅ e-postprogrammet er sterkare dokumentasjon enn ei eigenmelding.
+   - **IKKJE verifisert**: om å DRA EIN E-POST DIREKTE FRÅ OUTLOOK inn i
+     Electron-appen sin nettlesarbaserte droppsone faktisk fungerer —
+     Outlook brukar eit «virtuelt fil»-dragformat (FileGroupDescriptor)
+     som ikkje alle nettlesarbaserte droppsoner støttar, i motsetnad til
+     Windows Utforskar. Reserveløysinga (dra e-posten til skrivebordet
+     fyrst, som lagar ei ekte .msg-fil, dra SÅ den inn) er nemnd i
+     brukargrensesnittet, men ingen av delane er testa i praksis enno.
+4. **`DTMUtsendingarListe.jsx`** — oversikt (nådd via ein ny
+   «Utsendingar»-knapp attmed «+ Import»), viser kladdar (kan attopnast
+   eller slettast) og sendt-historikk.
+
+**IKKJE bygd:** automatisk tolking av .msg-innhald (mottakar/dato/emne) —
+fila vert berre lagra som eit ugjennomsiktig vedlegg, ikkje parsa. Kunne
+leggjast til seinare med eit msg-parsingsbibliotek om ønskt.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

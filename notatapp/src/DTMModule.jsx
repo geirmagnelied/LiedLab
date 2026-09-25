@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from './supabase'
 import DTMTabell from './DTMTabell'
 import DTMImportModal from './DTMImportModal'
+import DTMUtsendingModal from './DTMUtsendingModal'
+import DTMUtsendingarListe from './DTMUtsendingarListe'
 import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE, KATEGORI_MAPPE, løysAktivtSett, namnFraEpost } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
@@ -25,6 +27,9 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   const [importMenyOpen, setImportMenyOpen] = useState(false)
   const [valde, setValde] = useState(() => new Set()) // fleirval (shift/ctrl-klikk), sjå DataTabell sin `merking`-prop
   const importMenyRef = useRef(null)
+  const [utsendingar, setUtsendingar] = useState([])
+  const [utsendingModalId, setUtsendingModalId] = useState(null) // id eller null (lukka)
+  const [utsendingarListeOpen, setUtsendingarListeOpen] = useState(false)
 
   const harBru = typeof window !== 'undefined' && !!window.resultatdokumentAPI
   const aktivtProsjekt = projects.find(p => p.id === activeProjectId)
@@ -33,16 +38,23 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
 
   // ── Last prosjektdetaljar (oppdragssti) + register + eigne kolonnar ──
   const lastAlt = useCallback(async () => {
-    if (!userId || !activeProjectId) { setDetails(null); setDokumenter([]); setEigneKolonnar([]); setLoading(false); return }
+    if (!userId || !activeProjectId) {
+      setDetails(null); setDokumenter([]); setEigneKolonnar([]); setUtsendingar([]); setLoading(false); return
+    }
     setLoading(true)
-    const [{ data: pData }, { data: dData }, { data: colData }] = await Promise.all([
+    const [{ data: pData }, { data: dData }, { data: colData }, { data: uData }, { data: udData }] = await Promise.all([
       supabase.from('projects').select('details').eq('id', activeProjectId).eq('user_id', userId).single(),
       supabase.from('dtm_dokumenter').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('nr'),
       supabase.from('dtm_columns').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('sortering'),
+      supabase.from('dtm_utsendingar').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('created_at', { ascending:false }),
+      supabase.from('dtm_utsending_dokument').select('*').eq('user_id', userId),
     ])
     setDetails(pData?.details || {})
     setDokumenter(dData || [])
     setEigneKolonnar((colData || []).map(k => ({ key:k.key, label:k.label, art:k.art || 'tekst', val:k.val_liste || undefined })))
+    const udPerUtsending = {}
+    ;(udData || []).forEach(ud => { (udPerUtsending[ud.utsending_id] ??= []).push(ud) })
+    setUtsendingar((uData || []).map(u => ({ ...u, dokument: udPerUtsending[u.id] || [] })))
     setLoading(false)
   }, [userId, activeProjectId])
 
@@ -150,6 +162,107 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     await window.resultatdokumentAPI.dtmDelFil(stiar)
   }
 
+  // ── Registrering av utsendingar ──────────────────────────────────────
+  // «Registrer utsending» (radmeny) — same fleirval-oppførsel som «Del
+  // fil»: er fleire rader markerte, vert dei ALLE lagt inn i den nye
+  // utsendinga med det same. Lagra som KLADD i Supabase STRAKS, slik at
+  // ingenting går tapt om brukar lukkar vindauget eller går til e-post og
+  // kjem attende seinare — sjå claude/dtm-modul.md.
+  const registrerUtsending = async (id, rad) => {
+    const idAr = valde.has(id) && valde.size > 1 ? [...valde] : [id]
+    const radArr = idAr.map((docId) => docId === id ? rad : dokumenter.find((x) => x.id === docId)).filter(Boolean)
+    if (radArr.length === 0) return
+
+    const no = new Date().toISOString()
+    const utsendingId = Date.now()
+    const nyUtsending = {
+      id: utsendingId, user_id: userId, project_id: activeProjectId,
+      mottakar: '', kanal: 'epost', kommentar: '', status: 'kladd',
+      dato: no.slice(0, 10), oppretta_av: namnFraEpost(userEmail), bekrefta_av: '', bekrefta_tid: null,
+      kvittering_fil: '', created_at: no, updated_at: no,
+    }
+    const { error } = await supabase.from('dtm_utsendingar').insert(nyUtsending)
+    if (error) { alert('Klarte ikkje opprette utsendinga: ' + error.message); return }
+
+    const dokRader = radArr.map((d, i) => {
+      const sett = løysAktivtSett(d, aktivtSett)
+      const g = sett && d[sett]
+      return {
+        id: utsendingId + i + 1, user_id: userId, utsending_id: utsendingId, dokument_id: d.id,
+        nr: d.nr, kategori: sett || '', filnamn: g?.filnamn || '', revisjon: g?.revisjon || '',
+        created_at: no,
+      }
+    })
+    const { error: error2 } = await supabase.from('dtm_utsending_dokument').insert(dokRader)
+    if (error2) { alert('Klarte ikkje leggje til dokument i utsendinga: ' + error2.message) }
+
+    setUtsendingar(us => [{ ...nyUtsending, dokument: dokRader }, ...us])
+    setUtsendingModalId(utsendingId)
+  }
+
+  const oppdaterUtsendingFelt = async (id, felt, verdi) => {
+    setUtsendingar(us => us.map(u => u.id === id ? { ...u, [felt]: verdi } : u))
+    await supabase.from('dtm_utsendingar').update({ [felt]: verdi, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+  }
+
+  const leggTilDokumentIUtsending = async (utsendingId, dokInfo) => {
+    const id = Date.now()
+    const rad = { id, user_id: userId, utsending_id: utsendingId, created_at: new Date().toISOString(), ...dokInfo }
+    const { error } = await supabase.from('dtm_utsending_dokument').insert(rad)
+    if (error) { alert('Klarte ikkje leggje til dokumentet: ' + error.message); return }
+    setUtsendingar(us => us.map(u => u.id === utsendingId ? { ...u, dokument: [...u.dokument, rad] } : u))
+  }
+
+  const fjernDokumentFraUtsending = async (utsendingDokumentId) => {
+    await supabase.from('dtm_utsending_dokument').delete().eq('id', utsendingDokumentId).eq('user_id', userId)
+    setUtsendingar(us => us.map(u => ({ ...u, dokument: u.dokument.filter(d => d.id !== utsendingDokumentId) })))
+  }
+
+  const apneEpostForUtsending = async (utsendingId) => {
+    if (!harBru) return
+    const u = utsendingar.find(x => x.id === utsendingId)
+    if (!u) return
+    const stiar = u.dokument.map(d => d.filnamn ? `${oppdragsSti}\\${KATEGORI_MAPPE[d.kategori]}\\${d.filnamn}` : null).filter(Boolean)
+    if (stiar.length === 0) { alert('Ingen dokument med fil å opne e-post for.'); return }
+    await window.resultatdokumentAPI.dtmDelFil(stiar)
+  }
+
+  const bekreftUtsendingSendt = async (utsendingId) => {
+    const felt = { status: 'sendt', bekrefta_av: namnFraEpost(userEmail), bekrefta_tid: new Date().toISOString() }
+    setUtsendingar(us => us.map(u => u.id === utsendingId ? { ...u, ...felt } : u))
+    await supabase.from('dtm_utsendingar').update({ ...felt, updated_at: new Date().toISOString() }).eq('id', utsendingId).eq('user_id', userId)
+  }
+
+  // Kvittering (t.d. sendt e-post dregen ut som .msg) — sterkare dokumentasjon
+  // enn ei eigenmelding, difor stadfestar dette sendinga automatisk.
+  const lagreKvitteringForUtsending = async (utsendingId, kjeldeSti) => {
+    if (!harBru) return
+    const svar = await window.resultatdokumentAPI.dtmLagreKvittering(oppdragsSti, kjeldeSti)
+    if (!svar?.ok) { throw new Error(svar?.melding || 'Ukjend feil.') }
+    const u = utsendingar.find(x => x.id === utsendingId)
+    const felt = {
+      kvittering_fil: svar.filnamn, status: 'sendt',
+      bekrefta_av: u?.bekrefta_av || namnFraEpost(userEmail),
+      bekrefta_tid: u?.bekrefta_tid || new Date().toISOString(),
+    }
+    setUtsendingar(us => us.map(x => x.id === utsendingId ? { ...x, ...felt } : x))
+    await supabase.from('dtm_utsendingar').update({ ...felt, updated_at: new Date().toISOString() }).eq('id', utsendingId).eq('user_id', userId)
+  }
+
+  const apneKvitteringForUtsending = async (utsendingId) => {
+    if (!harBru) return
+    const u = utsendingar.find(x => x.id === utsendingId)
+    if (!u?.kvittering_fil) return
+    await window.resultatdokumentAPI.dtmApneKvittering(oppdragsSti, u.kvittering_fil)
+  }
+
+  const slettUtsendingKladd = async (utsendingId) => {
+    if (!window.confirm('Slette denne kladden?')) return
+    await supabase.from('dtm_utsendingar').delete().eq('id', utsendingId).eq('user_id', userId)
+    setUtsendingar(us => us.filter(u => u.id !== utsendingId))
+    if (utsendingModalId === utsendingId) setUtsendingModalId(null)
+  }
+
   // ── Sjølve importen: flytt filer (Electron) + skriv til Supabase ───
   // Kalla frå DTMImportModal etter at brukar har retta/fjerna dokument i
   // gjennomgangsmatrisa. Sjå claude/dtm-modul.md, avsnittet om
@@ -255,24 +368,32 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       <div style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column', padding:'18px 20px' }}>
         {/* Import — éin blå knapp med nedtrekksmeny, venstrestilt øvst i modulen */}
         {harBru && laast && (
-          <div ref={importMenyRef} style={{ position:'relative', marginBottom:16, flexShrink:0 }}>
-            <button onClick={() => setImportMenyOpen(v => !v)}
-              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:'var(--r)',
-                border:'none', background:'#2563EB', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
-                boxShadow:'var(--shadow-sm)' }}>
-              + Import <span style={{ fontSize:10 }}>▾</span>
+          <div style={{ display:'flex', gap:8, marginBottom:16, flexShrink:0 }}>
+            <div ref={importMenyRef} style={{ position:'relative' }}>
+              <button onClick={() => setImportMenyOpen(v => !v)}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:'var(--r)',
+                  border:'none', background:'#2563EB', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
+                  boxShadow:'var(--shadow-sm)' }}>
+                + Import <span style={{ fontSize:10 }}>▾</span>
+              </button>
+              {importMenyOpen && (
+                <div className="dt-meny" style={{ left:0, top:'calc(100% + 6px)', position:'absolute', width:220 }}>
+                  {KATEGORIAR.map(k => (
+                    <button key={k} type="button" className="dt-val"
+                      onClick={() => { setImportKategori(k); setImportMenyOpen(false) }}>
+                      <span className="dt-rmikon" style={{ color:KATEGORI_FARGE[k] }}>●</span>
+                      <span>Import {KATEGORI_LABEL[k].toLowerCase()}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={() => setUtsendingarListeOpen(true)}
+              style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
+                background:'var(--bg2)', color:'var(--text2)', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+              Utsendingar {utsendingar.filter(u => u.status !== 'sendt').length > 0
+                && `(${utsendingar.filter(u => u.status !== 'sendt').length} kladd)`}
             </button>
-            {importMenyOpen && (
-              <div className="dt-meny" style={{ left:0, top:'calc(100% + 6px)', position:'absolute', width:220 }}>
-                {KATEGORIAR.map(k => (
-                  <button key={k} type="button" className="dt-val"
-                    onClick={() => { setImportKategori(k); setImportMenyOpen(false) }}>
-                    <span className="dt-rmikon" style={{ color:KATEGORI_FARGE[k] }}>●</span>
-                    <span>Import {KATEGORI_LABEL[k].toLowerCase()}</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -319,6 +440,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
               oppdragsSti={oppdragsSti} merking={{ valde, onEndre: setValde }}
               onSetVerdi={settVerdi} onOpneFil={(rad) => opneFil(rad)} onDelFil={delFil}
               onToggleFavorite={toggleFavorite} onTogglePinned={togglePinned}
+              onRegistrerUtsending={registrerUtsending}
               onNyKolonne={addKolonne} onSlettKolonne={slettKolonne} onSetExtra={setExtraVerdi}/>
           </>
         )}
@@ -327,6 +449,29 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       {importKategori && (
         <DTMImportModal kategori={importKategori} oppdragsSti={oppdragsSti} dokumenter={dokumenter}
           onLukk={() => setImportKategori(null)} onImporter={importer}/>
+      )}
+
+      {utsendingModalId && (() => {
+        const u = utsendingar.find(x => x.id === utsendingModalId)
+        if (!u) return null
+        return (
+          <DTMUtsendingModal utsending={u} dokumenter={dokumenter} oppdragsSti={oppdragsSti}
+            onLukk={() => setUtsendingModalId(null)}
+            onOppdater={(felt, verdi) => oppdaterUtsendingFelt(u.id, felt, verdi)}
+            onLeggTilDokument={(dokInfo) => leggTilDokumentIUtsending(u.id, dokInfo)}
+            onFjernDokument={fjernDokumentFraUtsending}
+            onApneEpost={() => apneEpostForUtsending(u.id)}
+            onBekreftSendt={() => bekreftUtsendingSendt(u.id)}
+            onLagreKvittering={(kjeldeSti) => lagreKvitteringForUtsending(u.id, kjeldeSti)}
+            onApneKvittering={() => apneKvitteringForUtsending(u.id)}/>
+        )
+      })()}
+
+      {utsendingarListeOpen && (
+        <DTMUtsendingarListe utsendingar={utsendingar}
+          onOpne={(id) => { setUtsendingModalId(id); setUtsendingarListeOpen(false) }}
+          onSlett={slettUtsendingKladd}
+          onLukk={() => setUtsendingarListeOpen(false)}/>
       )}
     </div>
   )

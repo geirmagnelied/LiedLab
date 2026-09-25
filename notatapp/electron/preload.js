@@ -90,4 +90,11 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
   // «Del fil» — kopierer filstien(ane) til utklippstavla og opnar e-post-
   // programmet med dei lima inn. «stiar» er fulle filstiar (kan vere fleire).
   dtmDelFil: (stiar) => ipcRenderer.invoke('dtm:del-fil', { stiar }),
+
+  // Registrering av utsendingar — lagrar/opnar ei kvitteringsfil (t.d. ein
+  // sendt e-post dregen ut som .msg) i «2 Informasjonsflyt\Utsendingar».
+  dtmLagreKvittering: (oppdragsSti, kjeldeSti) =>
+    ipcRenderer.invoke('dtm:lagre-kvittering', { oppdragsSti, kjeldeSti }),
+  dtmApneKvittering: (oppdragsSti, filnamn) =>
+    ipcRenderer.invoke('dtm:apne-kvittering', { oppdragsSti, filnamn }),
 })

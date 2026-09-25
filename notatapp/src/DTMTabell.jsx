@@ -56,7 +56,7 @@ function hentGjeldande(rad, aktivtSett) {
 }
 
 export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFil, onDelFil,
-                                     onToggleFavorite, onTogglePinned,
+                                     onToggleFavorite, onTogglePinned, onRegistrerUtsending,
                                      merking, oppdragsSti, eigneKolonnar = [] }) {
   const hentVerdi = useCallback((rad, key) => {
     const { sett, g } = hentGjeldande(rad, aktivtSett)
@@ -117,13 +117,16 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
   }, [aktivtSett])
 
   // Radmeny (☰): favoritt/fest-til-topp (same generiske mønster som
-  // notat-tabellen) + «Del fil» (eige val via radMeny.ekstraVal).
+  // notat-tabellen) + «Del fil»/«Registrer utsending» (via radMeny.ekstraVal).
+  const ekstraVal = []
+  if (onDelFil) ekstraVal.push({ ikon:'✉', namn:'Del fil', onKlikk: (id, rad) => onDelFil(id, rad) })
+  if (onRegistrerUtsending) ekstraVal.push({ ikon:'📤', namn:'Registrer utsending', onKlikk: (id, rad) => onRegistrerUtsending(id, rad) })
   const radMeny = {
     erFavoritt:    (rad) => !!rad.favorite,
     onFavoritt:    (id) => onToggleFavorite?.(id),
     erFesta:       (rad) => !!rad.pinned,
     onFestTilTopp: (id) => onTogglePinned?.(id),
-    ekstraVal: onDelFil ? [{ ikon:'✉', namn:'Del fil', onKlikk: (id, rad) => onDelFil(id, rad) }] : [],
+    ekstraVal,
   }
 
   return (
