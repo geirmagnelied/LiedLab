@@ -532,6 +532,63 @@ filene gav no 100 % korrekt resultat for ALLE felt: tittel, målestokk
 godkjent, dato, arkstørrelse, revisjon, oppdragsgivar, tiltakshavar,
 oppdragsnummer, tegningsnummer og revisjonsskildring.
 
+## Utvida 25. sept. 2026 (runde 4) — brukskvalitet + fleire felt/kolonnar
+
+Etter at tittelfelt-tolkinga endeleg var verifisert korrekt, kom ei ny
+runde forbetringar basert på faktisk bruk:
+
+1. **Nytt felt `tegningsformal`** («Arbeidstegning»/«Søknadstegning»/
+   «Tilbodstegning» osv.) — henta frå den loddrette teksten til venstre
+   for sjølve tittelfeltet. Denne teksten er ROTERT (transform-matrisa har
+   b/c-komponentar ≠ 0), og vart tidlegare filtrert vekk saman med anna
+   rotert tekst (jf. runde 3-fiksen for «Arbeidstegning»-bugen). No vert
+   rotert tekst INNANFOR same tittelfelt-avgrensing fanga opp særskilt
+   (`lesLinjerFraSide()` returnerer no `{ linjer, tegningsformal }`), medan
+   rotert tekst ANDRE stader på arket (mål-tal på snitt/fasadar) framleis
+   vert ignorert sidan dei fell utanfor avgrensinga. Verifisert direkte mot
+   begge dei ekte PDF-ane (gav «Arbeidstegning» på begge).
+2. **Fire importknappar → éin nedtrekksmeny.** «+ Import» (blå knapp) øvst
+   til venstre i modulen; klikk opnar ei liste med dei fire kategoriane
+   (kvar med sin eigen fargeprikk). Reduserer plassbruk monaleg.
+3. **Nytt «sett»: «Alle dokumenter»**, heilt til venstre for kategori-
+   fanene. Viser ALLE dokument uavhengig av kategori. `løysAktivtSett()`/
+   `finnGjeldandeKategori()` (`dtmKonstantar.js`) vel, for kvar rad, kva
+   for kategori (av dei som er utfylte) med NYAST opplastingstidspunkt som
+   «den gjeldande» — det er DEN sitt filnamn/rev/dato/status som vert vist,
+   og DEN sin kategori som vert vist i den nye Kategori-kolonna.
+4. **Fleirval (shift/ctrl-klikk) lagt til** i DTM-matrisa, same generiske
+   `merking`-prop som notat-tabellen — naudsynt for punkt 7.
+5. **Ny generisk `DataTabell`-funksjon: `radMeny.ekstraVal`** — ei liste
+   med eigendefinerte trestreksmeny-val (`{ ikon, namn, onKlikk(id, rad) }`),
+   i tillegg til dei faste (favoritt/fest/arkiver/slett notat-tabellen
+   brukar). DTM sin radmeny har berre eitt val: **«Del fil»** — kopierer
+   filstien(ane) til utklippstavla OG opnar systemet sitt standard e-post-
+   program med stien(ane) lima inn i meldingsteksten (`dtm:del-fil`-IPC,
+   `shell.openExternal('mailto:...')` + `clipboard.writeText()`). Er fleire
+   rader markerte (via fleirvalet) når menyen vert opna på éi av dei, vert
+   ALLE dei markerte filene delte i same e-post.
+6. **Ny generisk `DataTabell`-funksjon: `innhaldstilpassaBreidd`-prop** —
+   standard kolonnebreidd tek då omsyn til dei FAKTISKE verdiane i
+   kolonnen (målt med same skjulte-canvas-teknikk som før, no i cella sin
+   eigen skrift/storleik), ikkje berre overskrifta. Kolonnebreidd cappa på
+   420px (`MAKS_INNHALDS_BREIDD`) så éin uvanleg lang verdi ikkje blæs opp
+   heile tabellen — brukar kan alltids dra breiare sjølv. Berre slått på
+   for DTM-matrisa (notat-/saks-tabellen er urørt, framleis header-basert).
+7. **Alle kolonnar synlege som standard** i DTM-matrisa (fjerna
+   `standardSkjult` frå kvar einaste kolonne).
+8. **Nye kolonnar**: `Kategori` (jf. punkt 3), `Filsti` (utleia av
+   `oppdragsSti` + kategori-mappe + filnamn, ikkje lagra i databasen),
+   `Status ved ferdigstilling` (fast verdiliste: Moglegheitsstudie,
+   Skisseprosjekt, Forprosjekt, Tilbodsunderlag, Arbeidsteikning, Som
+   bygd — `FERDIGSTILLING_STATUS` i `dtmKonstantar.js`, redigerbar med
+   dobbeltklikk), `Tegningsformål` (jf. punkt 1).
+9. **Fiksa ein fag-kode-regresjon** frå runde 3: `gjettFag()` returnerer
+   det FULLE fagnamnet («Arkitekt»), men Fag-D-<løpenr>-fallback-nummeret
+   (`genererDNummer()`) treng den KORTE koden («A») som prefiks — elles
+   vart det t.d. «ARKITEKT-D-01» i staden for «A-D-01». Lagt til ein eigen
+   `gjettFagKode()` i `main.js`, som skanninga no returnerer som eit eige
+   `fagKode`-felt attåt det fulle namnet i `fag`.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

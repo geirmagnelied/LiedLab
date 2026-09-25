@@ -27,6 +27,12 @@ export const KATEGORI_MAPPE = {
   styrande_dokument: '6 Styrande dokument',
 }
 
+// Predefinerte statusar for kor langt prosjektet/dokumentet er kome —
+// fritt redigerbart per dokument, sjå «Status ved ferdigstilling»-kolonna.
+export const FERDIGSTILLING_STATUS = [
+  'Moglegheitsstudie', 'Skisseprosjekt', 'Forprosjekt', 'Tilbodsunderlag', 'Arbeidsteikning', 'Som bygd',
+]
+
 // Kategoriar som tek del i status-samanlikninga (dato mot dato). Styrande
 // dokument har sitt eige, uavhengige nummerserie og tek ALDRI del.
 const STATUS_KATEGORIAR = ['arbeidsdokument', 'resultatdokument', 'kontrolldokument']
@@ -53,6 +59,24 @@ export function tolkDato(verdi) {
     return isNaN(d.getTime()) ? null : d
   }
   return null
+}
+
+// I «Alle dokumenter»-settet (sjå DTMModule.jsx) har ei rad ikkje éin fast
+// kategori — han kan vere aktiv som fleire samstundes. Vel då kategorien
+// med NYAST opplasting som «den gjeldande» å vise filnamn/rev/dato/status
+// frå i den rada, og som verdi i den nye Kategori-kolonna.
+export function finnGjeldandeKategori(dok) {
+  let best = null, bestTid = -1
+  for (const k of KATEGORIAR) {
+    const g = dok[k]
+    if (!g) continue
+    const t = g.lasta_opp ? new Date(g.lasta_opp).getTime() : 0
+    if (t > bestTid) { bestTid = t; best = k }
+  }
+  return best
+}
+export function løysAktivtSett(dok, aktivtSett) {
+  return aktivtSett === 'alle' ? finnGjeldandeKategori(dok) : aktivtSett
 }
 
 // Statusen for éi rad, sett med det aktive settet (kategorien) ho vert

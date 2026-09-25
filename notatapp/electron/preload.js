@@ -86,4 +86,8 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
   // Opnar ei fil (gjeldande eller arkivert) i systemet sitt standardprogram.
   dtmApneFil: (oppdragsSti, kategori, filnamn, arkivert) =>
     ipcRenderer.invoke('dtm:apne-fil', { oppdragsSti, kategori, filnamn, arkivert }),
+
+  // «Del fil» — kopierer filstien(ane) til utklippstavla og opnar e-post-
+  // programmet med dei lima inn. «stiar» er fulle filstiar (kan vere fleire).
+  dtmDelFil: (stiar) => ipcRenderer.invoke('dtm:del-fil', { stiar }),
 })

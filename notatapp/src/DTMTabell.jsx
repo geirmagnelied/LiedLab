@@ -1,16 +1,17 @@
 import { useCallback } from 'react'
 import DataTabell, { Pille } from './DataTabell'
 import { fmtDateShort } from './sakerKonstantar'
-import { reknStatus } from './dtmKonstantar'
+import { reknStatus, løysAktivtSett, KATEGORI_LABEL, KATEGORI_MAPPE, FERDIGSTILLING_STATUS } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTM-matrisa — kolonnedefinisjonar og celle-visning for eitt «sett»
-//  (éin kategori om gongen, sjå DTMModule.jsx). Same mønster som
+//  (éin kategori, eller «alle», sjå DTMModule.jsx). Same mønster som
 //  SakerTabell/TeikningTabell: DataTabell gjer sjølve tabelljobben.
 //
 //  «rad» er ei dtm_dokumenter-rad. Felt som varierer med kategorien
-//  (filnamn/rev/dato/lasta opp) vert lese frå rad[aktivtSett] — sjå
-//  hentGjeldande() under.
+//  (filnamn/rev/dato/lasta opp) vert lese frå rad[løystSett] — sjå
+//  hentGjeldande() under. I «alle»-settet løyser løysAktivtSett() kvar
+//  rad til kategorien med nyaste opplasting (finnGjeldandeKategori).
 // ═══════════════════════════════════════════════════════════════════
 
 const PREFS_KEY = 'liedlab-dtm-tabell-v1'
@@ -19,40 +20,50 @@ const STATUS_FARGE = {
   'Siste versjon': 'var(--success)',
 }
 
+// Alle kolonnar er synlege som standard (brukar sitt eige krav 25. sept.
+// 2026: «legg inn alle kolonnene med info frå skanninga inn i tabellen
+// som standard visning») — ingen `standardSkjult` lenger.
 const BASE_COLUMNS = [
-  { key:'nr',          label:'Dokumentnummer', w:130, art:'tekst', mono:true, opnaFil:true },
-  { key:'tittel',      label:'Tittel',       w:240, art:'tekst', utanFilter:true },
-  { key:'status',      label:'Status',       w:190, art:'val',   utanFilter:true },
-  { key:'filtype',     label:'Filtype',      w:80,  art:'val',   mono:true, standardSkjult:true },
-  { key:'rev',         label:'Rev.',         w:64,  art:'tekst', mono:true },
-  { key:'dato',        label:'Dato',         w:96,  art:'tekst', mono:true },
-  { key:'revisjonsbeskriving', label:'Revisjonsskildring', w:190, art:'tekst', utanFilter:true },
-  { key:'fag',         label:'Fag',          w:90,  art:'val' },
-  { key:'oppdragsgivar',label:'Oppdragsgivar',w:160,art:'val' },
-  { key:'tiltakshavar',label:'Tiltakshavar', w:160, art:'val' },
-  { key:'fase',        label:'Fase',         w:120, art:'val',   standardSkjult:true },
-  { key:'delprosjekt', label:'Delprosjekt',  w:130, art:'tekst', redigerbar:true },
-  { key:'malestokk',   label:'Målestokk',    w:104, art:'tekst', standardSkjult:true },
-  { key:'format',      label:'Arkstørrelse', w:100, art:'val' },
-  { key:'utarbeida_av',label:'Utarbeida av', w:126, art:'val' },
-  { key:'fk_person',   label:'Fagkontroll',  w:110, art:'val',   standardSkjult:true },
-  { key:'godkjent_av', label:'Godkjent',     w:110, art:'val',   standardSkjult:true },
-  { key:'oppdragsnr',  label:'Oppdragsnr.',  w:110, art:'tekst', mono:true, standardSkjult:true },
-  { key:'lagra_av',    label:'Lagra av',     w:170, art:'val',   standardSkjult:true },
-  { key:'lasta_opp',   label:'Lasta opp',    w:112, art:'dato',  mono:true },
+  { key:'nr',          label:'Dokumentnummer', art:'tekst', mono:true, opnaFil:true },
+  { key:'tittel',      label:'Tittel',       art:'tekst', utanFilter:true },
+  { key:'kategori',    label:'Kategori',     art:'val' },
+  { key:'status',      label:'Status',       art:'val',   utanFilter:true },
+  { key:'filtype',     label:'Filtype',      art:'val',   mono:true },
+  { key:'rev',         label:'Rev.',         art:'tekst', mono:true },
+  { key:'dato',        label:'Dato',         art:'tekst', mono:true },
+  { key:'revisjonsbeskriving', label:'Revisjonsskildring', art:'tekst', utanFilter:true },
+  { key:'tegningsformal', label:'Tegningsformål', art:'val' },
+  { key:'fag',         label:'Fag',          art:'val' },
+  { key:'oppdragsgivar',label:'Oppdragsgivar',art:'val' },
+  { key:'tiltakshavar',label:'Tiltakshavar', art:'val' },
+  { key:'fase',        label:'Fase',         art:'val' },
+  { key:'delprosjekt', label:'Delprosjekt',  art:'tekst', redigerbar:true },
+  { key:'ferdigstillingsstatus', label:'Status ved ferdigstilling', art:'val', redigerbar:true, val:['', ...FERDIGSTILLING_STATUS] },
+  { key:'malestokk',   label:'Målestokk',    art:'tekst' },
+  { key:'format',      label:'Arkstørrelse', art:'val' },
+  { key:'utarbeida_av',label:'Utarbeida av', art:'val' },
+  { key:'fk_person',   label:'Fagkontroll',  art:'val' },
+  { key:'godkjent_av', label:'Godkjent',     art:'val' },
+  { key:'oppdragsnr',  label:'Oppdragsnr.',  art:'tekst', mono:true },
+  { key:'lagra_av',    label:'Lagra av',     art:'val' },
+  { key:'lasta_opp',   label:'Lasta opp',    art:'dato',  mono:true },
+  { key:'filsti',      label:'Filsti',       art:'tekst', utanFilter:true, mono:true },
 ]
 
 function hentGjeldande(rad, aktivtSett) {
-  return rad[aktivtSett] || {}
+  const sett = løysAktivtSett(rad, aktivtSett)
+  return { sett, g: (sett && rad[sett]) || {} }
 }
 
-export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFil, eigneKolonnar = [] }) {
+export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFil, onDelFil,
+                                     merking, oppdragsSti, eigneKolonnar = [] }) {
   const hentVerdi = useCallback((rad, key) => {
-    const g = hentGjeldande(rad, aktivtSett)
+    const { sett, g } = hentGjeldande(rad, aktivtSett)
     switch (key) {
       case 'nr':          return rad.nr || ''
       case 'tittel':      return rad.tittel || rad.nr || ''
-      case 'status':      return reknStatus(rad, aktivtSett).join(', ')
+      case 'kategori':    return sett ? KATEGORI_LABEL[sett] : ''
+      case 'status':      return sett ? reknStatus(rad, sett).join(', ') : ''
       case 'filtype': {
         const m = /\.([a-z0-9]+)$/i.exec(g.filnamn || '')
         return m ? m[1].toUpperCase() : ''
@@ -60,9 +71,11 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'rev':         return g.revisjon || ''
       case 'dato':        return g.dato || ''
       case 'revisjonsbeskriving': return rad.revisjonsbeskriving || ''
+      case 'tegningsformal': return rad.tegningsformal || ''
       case 'fag':         return rad.fag || ''
       case 'fase':        return rad.fase || ''
       case 'delprosjekt': return rad.delprosjekt || ''
+      case 'ferdigstillingsstatus': return rad.ferdigstillingsstatus || ''
       case 'malestokk':   return rad.malestokk || ''
       case 'format':      return rad.format || ''
       case 'utarbeida_av':return rad.utarbeida_av || ''
@@ -73,12 +86,13 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'oppdragsnr':    return rad.oppdragsnr || ''
       case 'lagra_av':    return rad.lagra_av || ''
       case 'lasta_opp':   return fmtDateShort(g.lasta_opp)
+      case 'filsti':       return (sett && g.filnamn && oppdragsSti) ? `${oppdragsSti}\\${KATEGORI_MAPPE[sett]}\\${g.filnamn}` : ''
       default:            return String(rad.ekstra?.[key] ?? '')
     }
-  }, [aktivtSett])
+  }, [aktivtSett, oppdragsSti])
 
   const hentSorteringsverdi = useCallback((rad, key) => {
-    const g = hentGjeldande(rad, aktivtSett)
+    const { g } = hentGjeldande(rad, aktivtSett)
     if (key === 'lasta_opp') return g.lasta_opp ? new Date(g.lasta_opp).getTime() : 0
     return undefined
   }, [aktivtSett])
@@ -89,7 +103,8 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
     if (kol.key === 'nr')
       return <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--brand)' }}>{rad.nr}</span>
     if (kol.key === 'status') {
-      const taggar = reknStatus(rad, aktivtSett)
+      const { sett } = hentGjeldande(rad, aktivtSett)
+      const taggar = sett ? reknStatus(rad, sett) : []
       if (!taggar.length) return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>
       return (
         <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
@@ -99,6 +114,11 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
     }
     return undefined
   }, [aktivtSett])
+
+  // Radmeny (☰): «Del fil» — sjå DataTabell sin `radMeny.ekstraVal`.
+  const radMeny = onDelFil ? {
+    ekstraVal: [{ ikon:'✉', namn:'Del fil', onKlikk: (id, rad) => onDelFil(id, rad) }],
+  } : undefined
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', minHeight:300,
@@ -113,6 +133,9 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
         radId={r => r.id}
         onSetVerdi={onSetVerdi}
         onOpneFil={onOpneFil}
+        radMeny={radMeny}
+        merking={merking}
+        innhaldstilpassaBreidd
         prefsKey={`${PREFS_KEY}:${aktivtSett}`}
         itemNamn="dokument"
         defaultSortering={{ key:'nr', dir:'asc' }}

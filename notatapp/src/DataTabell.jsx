@@ -49,6 +49,9 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 //    onSlettKolonne(key)
 //    merking         — valfri; { valde:Set<id>, onEndre(nyttSett) } for fleirval
 //                       av rader med shift-/ctrl-klikk (t.d. massesletting).
+//    innhaldstilpassaBreidd — valfri; standardkolonnebreidd tek då omsyn
+//                       til dei FAKTISKE verdiane i kolonnen (målt via
+//                       hentVerdi), ikkje berre overskrifta.
 //    prefsKey        — unik nøkkel for personleg visingsoppsett i localStorage
 //    itemNamn        — namn brukt i teljetekst/tomt-resultat (t.d. «saker»)
 // ═══════════════════════════════════════════════════════════════════
@@ -89,6 +92,10 @@ function standardKolonnebreidd(label, font) {
   const MARGIN      = 12 // litt ekstra margin, som ønskt
   return Math.ceil(tekstbreidd(label, font)) + PADDING + GAP_PIL + PIL + GAP_CARET + CARET + MARGIN
 }
+// Maks breidd ei innhaldstilpassa kolonne kan få automatisk (sjå
+// innhaldstilpassaBreidd-prop) — ein einskild uvanleg lang verdi skal
+// ikkje kunne blåse opp heile tabellen; brukar kan alltid dra breiare sjølv.
+const MAKS_INNHALDS_BREIDD = 420
 
 export default function DataTabell({
   rader: dataRader, kolonnar,
@@ -98,6 +105,7 @@ export default function DataTabell({
   onOpenRad, onOpneFil, onRowClick, onSetExtra, onSetVerdi, onNyKolonne, onSlettKolonne,
   radMeny, // valfri; sjå kommentar ved render av radmeny-kolonnen under
   merking, // valfri; { valde:Set<id>, onEndre(nyttSett) } — shift/ctrl-klikk for å velje fleire rader
+  innhaldstilpassaBreidd, // valfri; standardbreidd tek då omsyn til FAKTISKE verdiar i kolonnen, ikkje berre overskrifta
   prefsKey, itemNamn = 'rader',
   defaultSortering,
 }) {
@@ -106,9 +114,29 @@ export default function DataTabell({
     const fam = getComputedStyle(document.documentElement).getPropertyValue('--font').trim()
     return `700 12px ${fam || 'sans-serif'}`
   }, [])
-  const standardBreidder = useMemo(() =>
-    Object.fromEntries(kolonnar.map(c => [c.key, standardKolonnebreidd(c.label, font)])),
-    [kolonnar, font])
+  // Innhaldstilpassa breidd (valfri): DTM-matrisa vil at kolonnane frå
+  // start skal vere breie nok til å vise heile SKANNA INNHALDET (t.d. eit
+  // langt firmanamn), ikkje berre overskrifta slik standardmønsteret elles
+  // gjer. Målt med same skjulte <canvas>, men i cella sin eigen skrift
+  // (normal vekt, 13px, sjå .dt-tabell td i CSS-en under).
+  const innhaldsfont = useMemo(() => {
+    if (typeof window === 'undefined') return '400 13px sans-serif'
+    const fam = getComputedStyle(document.documentElement).getPropertyValue('--font').trim()
+    return `400 13px ${fam || 'sans-serif'}`
+  }, [])
+  const standardBreidder = useMemo(() => Object.fromEntries(kolonnar.map(c => {
+    const headerBreidd = standardKolonnebreidd(c.label, font)
+    if (!innhaldstilpassaBreidd || !hentVerdi) return [c.key, headerBreidd]
+    let maksInnhald = 0
+    for (const rad of dataRader || []) {
+      const v = hentVerdi(rad, c.key)
+      if (v === undefined || v === null || v === '') continue
+      const w = tekstbreidd(String(v), innhaldsfont)
+      if (w > maksInnhald) maksInnhald = w
+    }
+    const innhaldsBreidd = Math.ceil(maksInnhald) + 24
+    return [c.key, Math.min(MAKS_INNHALDS_BREIDD, Math.max(headerBreidd, innhaldsBreidd))]
+  })), [kolonnar, font, innhaldsfont, innhaldstilpassaBreidd, dataRader, hentVerdi])
   const standardSkjulte  = useMemo(() => kolonnar.filter(c => c.standardSkjult).map(c => c.key), [kolonnar])
   const standardRekkje   = useMemo(() => kolonnar.map(c => c.key), [kolonnar])
   const standardPrefs = useMemo(() => ({
@@ -547,6 +575,15 @@ export default function DataTabell({
                 <span>Slett</span>
               </button>
             )}
+            {radMeny.ekstraVal?.length > 0 && (<>
+              {(radMeny.onFavoritt || radMeny.onFestTilTopp || radMeny.onArkiver || radMeny.onSlett) && <div className="dt-skilje"/>}
+              {radMeny.ekstraVal.map((val) => (
+                <button key={val.namn} type="button" className="dt-val" onClick={() => { val.onKlikk(meny.key, rad); setMeny(null) }}>
+                  <span className="dt-rmikon">{val.ikon}</span>
+                  <span>{val.namn}</span>
+                </button>
+              ))}
+            </>)}
           </div>
         )
       })()}

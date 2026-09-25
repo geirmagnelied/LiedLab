@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { KATEGORI_LABEL, KATEGORI_FARGE, genererDNummer, genererSDNummer } from './dtmKonstantar'
+import { KATEGORI_LABEL, KATEGORI_FARGE, genererDNummer, genererSDNummer, FERDIGSTILLING_STATUS } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTMImportModal — import-flyten for éin kategori (arbeidsdokument/
@@ -26,8 +26,10 @@ const FELT = [
   { key:'tittel',       namn:'Tittel' },
   { key:'oppdragsgivar',namn:'Oppdragsgivar' },
   { key:'tiltakshavar', namn:'Tiltakshavar' },
+  { key:'tegningsformal', namn:'Tegningsformål' },
   { key:'fase',         namn:'Fase' },
   { key:'delprosjekt',  namn:'Delprosjekt' },
+  { key:'ferdigstillingsstatus', namn:'Status ved ferdigstilling', val:['', ...FERDIGSTILLING_STATUS] },
   { key:'malestokk',    namn:'Målestokk' },
   { key:'format',       namn:'Arkstørrelse' },
   { key:'utarbeida_av', namn:'Utarbeida av' },
@@ -74,7 +76,7 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
         if (kategori === 'styrande_dokument') {
           nr = genererSDNummer([...kjenteNr, ...nye])
         } else if (s.nrUsikker) {
-          nr = genererDNummer([...kjenteNr, ...nye], s.fag)
+          nr = genererDNummer([...kjenteNr, ...nye], s.fagKode || s.fag)
         }
         nye.push(nr)
         return { ...s, nr, fjerna:false }
@@ -217,9 +219,16 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
                         <td style={{ ...tdStil, fontSize:11.5, color:'var(--text3)' }}>{filtype(r.filnamn)}</td>
                         {FELT.map(f => (
                           <td key={f.key} style={tdStil}>
-                            <input value={r[f.key] || ''} onChange={e => oppdaterRad(i, f.key, e.target.value)}
-                              style={{ ...inputStil, width:`${kolonneBreidd[f.key]}ch`,
-                                ...(f.key === 'nr' && r.nrUsikker ? { color:'var(--warn)' } : {}) }}/>
+                            {f.val ? (
+                              <select value={r[f.key] || ''} onChange={e => oppdaterRad(i, f.key, e.target.value)}
+                                style={{ ...inputStil, width:`${kolonneBreidd[f.key]}ch` }}>
+                                {f.val.map(v => <option key={v || '_tom'} value={v}>{v || '—'}</option>)}
+                              </select>
+                            ) : (
+                              <input value={r[f.key] || ''} onChange={e => oppdaterRad(i, f.key, e.target.value)}
+                                style={{ ...inputStil, width:`${kolonneBreidd[f.key]}ch`,
+                                  ...(f.key === 'nr' && r.nrUsikker ? { color:'var(--warn)' } : {}) }}/>
+                            )}
                             {f.key === 'nr' && r.nrUsikker && <span style={{ color:'var(--warn)' }}> *</span>}
                           </td>
                         ))}

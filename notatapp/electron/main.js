@@ -16,7 +16,7 @@
 // kodeendringar i appen elles treng ikkje det — dei kjem automatisk.
 // ─────────────────────────────────────────────────────────────────────
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
@@ -228,6 +228,12 @@ function gjettFag(nr) {
   const fyrsteLedd = String(nr || '').split(/[-_ ]/)[0].toUpperCase()
   return FAG_NAMN[fyrsteLedd] || ''
 }
+// Same oppslag, men gjev att den KORTE koden (t.d. «A»), ikkje det fulle
+// namnet — brukt til Fag-D-<løpenr>-fallback-nummer, som skal vere kort.
+function gjettFagKode(nr) {
+  const fyrsteLedd = String(nr || '').split(/[-_ ]/)[0].toUpperCase()
+  return FAG_NAMN[fyrsteLedd] ? fyrsteLedd : ''
+}
 
 // Ser om `nr` faktisk ser ut som ein gyldig dokumentkode (fagbokstavar +
 // bindestrek, t.d. «A-40-02-02» eller IFC-forma «A-01»), i staden for at
@@ -413,7 +419,7 @@ ipcMain.handle('resultatdokument:legg-til', async (event, { prosjektSti, filPath
 // (tolkRevisjonstabell).
 async function lesLinjerFraSide(pdf, sideNr) {
   try {
-    if (sideNr < 1 || sideNr > pdf.numPages) return []
+    if (sideNr < 1 || sideNr > pdf.numPages) return { linjer: [], tegningsformal: '' }
     const page = await pdf.getPage(sideNr)
     const content = await page.getTextContent()
 
@@ -431,19 +437,33 @@ async function lesLinjerFraSide(pdf, sideNr) {
     const breidd = x1 - x0, høgd = y1 - y0
     const grenseX = x0 + breidd * 0.60
     const grenseY = y0 + høgd * 0.32
-    // Filtrerer vekk ROTERT tekst (t.d. den loddrette «Arbeidstegning»-
-    // labelen langs venstre kant av tittelfeltet). Transform-matrisa sine
-    // b/c-komponentar (transform[1]/[2]) er nær null for vanleg, VASSRETT
-    // tekst — men store for rotert tekst. Utan dette vart t.d. den
-    // loddrette «Arbeidstegning»-teksten limt inn i heilt andre celler
-    // (transform[4]/[5] gjev IKKJE ei visuelt meiningsfull x/y for rotert
-    // tekst når ho vert handsama som om ho var vassrett), og øydela
-    // Oppdragsnummer/Tegningsnummer-rada fullstendig — stadfesta 25. sept.
-    // 2026 med eit diagnostisk skript mot ekte PDF-ar.
-    const heileArket = content.items.filter((item) =>
+    // Skil ROTERT tekst (t.d. den loddrette «Arbeidstegning»-labelen langs
+    // venstre kant av tittelfeltet) frå vassrett tekst. Transform-matrisa
+    // sine b/c-komponentar (transform[1]/[2]) er nær null for vanleg,
+    // VASSRETT tekst — men store for rotert tekst. Utan dette vart t.d.
+    // «Arbeidstegning» limt inn i heilt andre celler (transform[4]/[5] gjev
+    // IKKJE ei visuelt meiningsfull x/y for rotert tekst når ho vert
+    // handsama som om ho var vassrett), og øydela Oppdragsnummer/
+    // Tegningsnummer-rada fullstendig — stadfesta 25. sept. 2026.
+    //
+    // Roterte item INNANFOR same avgrensing (tittelfelt-hjørnet) vert IKKJE
+    // kasta — dei er nettopp denne loddrette «tegningsformål»-labelen
+    // (Arbeidstegning/Søknadstegning/Tilbodstegning osv.), som DTM no hentar
+    // ut særskilt. Roterte item ANDRE stader på arket (t.d. mål-tal på
+    // snitt-/fasadeteikningar) hamnar naturleg utanfor avgrensinga og vert
+    // ignorerte, sidan dei ikkje har noko med tittelfeltet å gjere.
+    const alleVassrette = content.items.filter((item) =>
       item.str && item.str.trim() && Math.abs(item.transform[1]) < 0.05 && Math.abs(item.transform[2]) < 0.05)
-    let aktuelle = heileArket.filter((item) => item.transform[4] >= grenseX && item.transform[5] <= grenseY)
-    if (aktuelle.length < 15) aktuelle = heileArket
+    const alleRoterte = content.items.filter((item) =>
+      item.str && item.str.trim() && (Math.abs(item.transform[1]) >= 0.05 || Math.abs(item.transform[2]) >= 0.05))
+
+    let aktuelle = alleVassrette.filter((item) => item.transform[4] >= grenseX && item.transform[5] <= grenseY)
+    if (aktuelle.length < 15) aktuelle = alleVassrette
+
+    const roterteITittelfeltet = alleRoterte
+      .filter((item) => item.transform[4] >= grenseX && item.transform[5] <= grenseY)
+      .sort((a, b) => a.transform[5] - b.transform[5])
+    const tegningsformal = roterteITittelfeltet.map((item) => item.str.trim()).join(' ')
 
     const rader = []
     for (const item of aktuelle) {
@@ -463,7 +483,7 @@ async function lesLinjerFraSide(pdf, sideNr) {
     // kutte vanlege setningar («Sjøåsan B21 - Detaljprosjekt») i fleire
     // celler. Ein relativ grense skalerer naturleg med skriftstorleiken på
     // ulike stader på sida (stor teikningstittel vs. liten tabelltekst).
-    return rader.map((r) => {
+    const linjer = rader.map((r) => {
       const delar = [...r.delar].sort((a, b) => a.x - b.x)
       const celler = []
       for (const d of delar) {
@@ -481,8 +501,9 @@ async function lesLinjerFraSide(pdf, sideNr) {
       }
       return { y: r.y, celler: celler.map(({ x, xSlutt, tekst }) => ({ x, xSlutt, tekst })) }
     })
+    return { linjer, tegningsformal }
   } catch {
-    return []
+    return { linjer: [], tegningsformal: '' }
   }
 }
 
@@ -728,6 +749,7 @@ async function lesTittelfelt(pdfSti) {
   const resultat = {
     tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '', revisjon: '',
     oppdragsgivar: '', tiltakshavar: '', oppdragsnr: '', tegningsnrFraPdf: '', godkjent_av: '', revisjonsbeskriving: '',
+    tegningsformal: '',
   }
   try {
     const pdfjsLib = await lastPdfjs()
@@ -735,12 +757,16 @@ async function lesTittelfelt(pdfSti) {
     const pdf = await pdfjsLib.getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise
     if (pdf.numPages === 0) return resultat
 
-    let linjer = await lesLinjerFraSide(pdf, pdf.numPages)
+    let { linjer, tegningsformal } = await lesLinjerFraSide(pdf, pdf.numPages)
     if (samletTekstlengd(linjer) < 20 && pdf.numPages > 1) {
-      linjer = [...(await lesLinjerFraSide(pdf, 1)), ...linjer]
+      const førsteSide = await lesLinjerFraSide(pdf, 1)
+      linjer = [...førsteSide.linjer, ...linjer]
+      if (!tegningsformal) tegningsformal = førsteSide.tegningsformal
     }
+    resultat.tegningsformal = tegningsformal
     console.log(`[DTM] ${path.basename(pdfSti)} — lesne linjer:\n` +
-      linjer.map((l) => l.celler.map((c) => c.tekst).join(' | ')).join('\n') + '\n[DTM] ── slutt ──')
+      linjer.map((l) => l.celler.map((c) => c.tekst).join(' | ')).join('\n') +
+      `\n[tegningsformål: "${tegningsformal}"]\n[DTM] ── slutt ──`)
 
     tolkStablaFelt(linjer, resultat)
     tolkRevisjonstabell(linjer, resultat)
@@ -896,6 +922,7 @@ ipcMain.handle('dtm:skann-filer', async (event, { filPathar, kategori }) => {
       let meta = {
         tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '',
         oppdragsgivar: '', tiltakshavar: '', oppdragsnr: '', tegningsnrFraPdf: '', godkjent_av: '', revisjonsbeskriving: '',
+        tegningsformal: '',
       }
       if (ext === '.pdf') {
         meta = await lesTittelfelt(kjeldeSti)
@@ -908,12 +935,12 @@ ipcMain.handle('dtm:skann-filer', async (event, { filPathar, kategori }) => {
       const fann = serUtSomDokumentkode(nr)
       resultat.push({
         kjeldeSti, filnamn, status: 'ok',
-        nr, nrUsikker: !fann, rev: revisjon || '', fag: gjettFag(nr),
+        nr, nrUsikker: !fann, rev: revisjon || '', fag: gjettFag(nr), fagKode: gjettFagKode(nr),
         tittel: meta.tittel || nr, malestokk: meta.malestokk, utarbeida_av: meta.teikna_av,
         ek_person: meta.ek_person, fk_person: meta.fk_person, dato: meta.dato, format: meta.format,
         oppdragsgivar: meta.oppdragsgivar, tiltakshavar: meta.tiltakshavar,
         oppdragsnr: meta.oppdragsnr, godkjent_av: meta.godkjent_av,
-        revisjonsbeskriving: meta.revisjonsbeskriving,
+        revisjonsbeskriving: meta.revisjonsbeskriving, tegningsformal: meta.tegningsformal,
       })
     } catch (e) {
       resultat.push({ kjeldeSti, filnamn, status: 'feil', melding: e.message })
@@ -1013,4 +1040,20 @@ ipcMain.handle('dtm:apne-fil', async (event, { oppdragsSti, kategori, filnamn, a
   if (!fs.existsSync(sti)) return false
   await shell.openPath(sti)
   return true
+})
+
+// «Del fil» (radmeny i DTM): kopierer filstien(ane) til utklippstavla OG
+// opnar systemet sitt standard e-postprogram med stiane lima inn i
+// meldingsteksten (éin per linje). mailto støttar ikkje ekte vedlegg —
+// brukar får difor SJØLVE LENKJA/STIEN i eposten, ikkje fila kopiert med.
+// Fleire filer (fleire markerte rader) hamnar alle i same e-post.
+ipcMain.handle('dtm:del-fil', async (event, { stiar }) => {
+  const gyldige = (stiar || []).filter((s) => s && fs.existsSync(s))
+  if (gyldige.length === 0) return { ok: false, melding: 'Fann ingen av filene.' }
+  const tekst = gyldige.join('\n')
+  clipboard.writeText(tekst)
+  const emne = encodeURIComponent(gyldige.length === 1 ? path.basename(gyldige[0]) : `${gyldige.length} dokument`)
+  const kropp = encodeURIComponent(tekst)
+  await shell.openExternal(`mailto:?subject=${emne}&body=${kropp}`)
+  return { ok: true }
 })

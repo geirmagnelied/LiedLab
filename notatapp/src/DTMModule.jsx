@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from './supabase'
 import DTMTabell from './DTMTabell'
 import DTMImportModal from './DTMImportModal'
-import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE } from './dtmKonstantar'
+import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE, KATEGORI_MAPPE, løysAktivtSett } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTM — Dokument, tegningar og modellar. Erstattar Resultatdokument-
@@ -20,8 +20,11 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   const [loading, setLoading]     = useState(true)
   const [dokumenter, setDokumenter] = useState([])
   const [eigneKolonnar, setEigneKolonnar] = useState([])
-  const [aktivtSett, setAktivtSett] = useState('arbeidsdokument')
+  const [aktivtSett, setAktivtSett] = useState('alle')
   const [importKategori, setImportKategori] = useState(null) // kategori-nøkkel eller null (modal lukka)
+  const [importMenyOpen, setImportMenyOpen] = useState(false)
+  const [valde, setValde] = useState(() => new Set()) // fleirval (shift/ctrl-klikk), sjå DataTabell sin `merking`-prop
+  const importMenyRef = useRef(null)
 
   const harBru = typeof window !== 'undefined' && !!window.resultatdokumentAPI
   const aktivtProsjekt = projects.find(p => p.id === activeProjectId)
@@ -54,12 +57,26 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   }, [harBru, laast, oppdragsSti])
 
   // ── Rader for det aktive settet: dokument som har ei gjeldande fil i
-  // akkurat denne kategorien akkurat no ──
+  // akkurat denne kategorien akkurat no. «alle» syner alt, uavhengig av
+  // kategori — sjå løysAktivtSett()/finnGjeldandeKategori() for korleis
+  // kvar rad då vel KVA kategori sitt filnamn/rev/dato/status ho viser.
   const synlegeDokument = useMemo(
-    () => dokumenter.filter(d => d[aktivtSett]),
+    () => aktivtSett === 'alle' ? dokumenter : dokumenter.filter(d => d[aktivtSett]),
     [dokumenter, aktivtSett])
 
   const tal = useCallback(k => dokumenter.filter(d => d[k]).length, [dokumenter])
+
+  // Fleirval høyrer til det synlege utvalet — byte av sett/fane skal ikkje
+  // halde på eit utval frå ei anna vising.
+  useEffect(() => { setValde(new Set()) }, [aktivtSett])
+
+  // Lukk import-nedtrekksmenyen ved klikk utanfor
+  useEffect(() => {
+    if (!importMenyOpen) return
+    const lukk = (e) => { if (!importMenyRef.current?.contains(e.target)) setImportMenyOpen(false) }
+    document.addEventListener('mousedown', lukk)
+    return () => document.removeEventListener('mousedown', lukk)
+  }, [importMenyOpen])
 
   // ── Eigendefinerte kolonnar (same mønster som Saker/Notat) ─────────
   const addKolonne = async (label, art) => {
@@ -89,11 +106,31 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     await supabase.from('dtm_dokumenter').update({ [felt]: verdi, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
   }
 
-  // ── Opne den gjeldande fila for aktivtSett (klikk på Nr.-kolonna) ───
+  // ── Opne den gjeldande fila (klikk på Dokumentnummer-kolonna) ───────
   const opneFil = (rad) => {
-    const g = rad[aktivtSett]
+    const sett = løysAktivtSett(rad, aktivtSett)
+    const g = sett && rad[sett]
     if (!g?.filnamn || !harBru) return
-    window.resultatdokumentAPI.dtmApneFil(oppdragsSti, aktivtSett, g.filnamn, false)
+    window.resultatdokumentAPI.dtmApneFil(oppdragsSti, sett, g.filnamn, false)
+  }
+
+  // ── «Del fil» (radmeny) — kopierer filstien(ane) til utklippstavla og
+  // opnar e-postprogrammet med dei lima inn. Er fleire rader markerte
+  // (og rada som vart klikka er éin av dei), vert ALLE dei markerte filene
+  // delte samstundes — elles berre den eine rada som vart klikka.
+  const delFil = async (id, rad) => {
+    if (!harBru) return
+    const idAr = valde.has(id) && valde.size > 1 ? [...valde] : [id]
+    const stiar = idAr.map((docId) => {
+      const d = docId === id ? rad : dokumenter.find((x) => x.id === docId)
+      if (!d) return null
+      const sett = løysAktivtSett(d, aktivtSett)
+      const g = sett && d[sett]
+      if (!g?.filnamn) return null
+      return `${oppdragsSti}\\${KATEGORI_MAPPE[sett]}\\${g.filnamn}`
+    }).filter(Boolean)
+    if (stiar.length === 0) { alert('Fann ingen filer å dele.'); return }
+    await window.resultatdokumentAPI.dtmDelFil(stiar)
   }
 
   // ── Sjølve importen: flytt filer (Electron) + skriv til Supabase ───
@@ -127,7 +164,8 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           utarbeida_av: r.utarbeida_av || '', ek_person: r.ek_person || '', fk_person: r.fk_person || '',
           godkjent_av: r.godkjent_av || '', oppdragsgivar: r.oppdragsgivar || '',
           tiltakshavar: r.tiltakshavar || '', oppdragsnr: r.oppdragsnr || '',
-          revisjonsbeskriving: r.revisjonsbeskriving || '',
+          revisjonsbeskriving: r.revisjonsbeskriving || '', tegningsformal: r.tegningsformal || '',
+          ferdigstillingsstatus: r.ferdigstillingsstatus || '',
           lagra_av: userEmail || '', status: [], ekstra: {},
           arbeidsdokument: null, resultatdokument: null, kontrolldokument: null, styrande_dokument: null,
           created_at: no, updated_at: no,
@@ -150,6 +188,8 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           tiltakshavar: r.tiltakshavar || gammalRad.tiltakshavar,
           oppdragsnr: r.oppdragsnr || gammalRad.oppdragsnr,
           revisjonsbeskriving: r.revisjonsbeskriving || gammalRad.revisjonsbeskriving,
+          tegningsformal: r.tegningsformal || gammalRad.tegningsformal,
+          ferdigstillingsstatus: r.ferdigstillingsstatus || gammalRad.ferdigstillingsstatus,
           lagra_av: userEmail || gammalRad.lagra_av, updated_at: no,
           [kategori]: kategoriVerdi,
         }
@@ -189,17 +229,26 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       </div>
 
       <div style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column', padding:'18px 20px' }}>
-        {/* Importknappar — venstrestilt og godt synlege øvst i modulen */}
+        {/* Import — éin blå knapp med nedtrekksmeny, venstrestilt øvst i modulen */}
         {harBru && laast && (
-          <div style={{ display:'flex', gap:8, marginBottom:16, flexShrink:0, flexWrap:'wrap' }}>
-            {KATEGORIAR.map(k => (
-              <button key={k} onClick={() => setImportKategori(k)}
-                style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'none',
-                  background: KATEGORI_FARGE[k], color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
-                  boxShadow:'var(--shadow-sm)' }}>
-                Import {KATEGORI_LABEL[k].toLowerCase()}
-              </button>
-            ))}
+          <div ref={importMenyRef} style={{ position:'relative', marginBottom:16, flexShrink:0 }}>
+            <button onClick={() => setImportMenyOpen(v => !v)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:'var(--r)',
+                border:'none', background:'#2563EB', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
+                boxShadow:'var(--shadow-sm)' }}>
+              + Import <span style={{ fontSize:10 }}>▾</span>
+            </button>
+            {importMenyOpen && (
+              <div className="dt-meny" style={{ left:0, top:'calc(100% + 6px)', position:'absolute', width:220 }}>
+                {KATEGORIAR.map(k => (
+                  <button key={k} type="button" className="dt-val"
+                    onClick={() => { setImportKategori(k); setImportMenyOpen(false) }}>
+                    <span className="dt-rmikon" style={{ color:KATEGORI_FARGE[k] }}>●</span>
+                    <span>Import {KATEGORI_LABEL[k].toLowerCase()}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -220,8 +269,16 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           </Melding>
         ) : (
           <>
-            {/* Sett (faner) */}
+            {/* Sett (faner) — «Alle dokumenter» heilt til venstre, så kategoriane */}
             <div style={{ display:'flex', gap:6, marginBottom:14, flexShrink:0, flexWrap:'wrap' }}>
+              <button onClick={() => setAktivtSett('alle')}
+                style={{ padding:'6px 13px', borderRadius:6, fontSize:12.5, fontWeight:700,
+                  border:'1.5px solid', cursor:'pointer',
+                  borderColor: aktivtSett === 'alle' ? 'var(--brand)' : 'var(--border)',
+                  background:  aktivtSett === 'alle' ? 'var(--brandbg)' : 'transparent',
+                  color:       aktivtSett === 'alle' ? 'var(--brand)' : 'var(--text3)' }}>
+                Alle dokumenter ({dokumenter.length})
+              </button>
               {KATEGORIAR.map(k => (
                 <button key={k} onClick={() => setAktivtSett(k)}
                   style={{ padding:'6px 13px', borderRadius:6, fontSize:12.5, fontWeight:700,
@@ -235,7 +292,8 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
             </div>
 
             <DTMTabell dokumenter={synlegeDokument} aktivtSett={aktivtSett} eigneKolonnar={eigneKolonnar}
-              onSetVerdi={settVerdi} onOpneFil={(rad) => opneFil(rad)}
+              oppdragsSti={oppdragsSti} merking={{ valde, onEndre: setValde }}
+              onSetVerdi={settVerdi} onOpneFil={(rad) => opneFil(rad)} onDelFil={delFil}
               onNyKolonne={addKolonne} onSlettKolonne={slettKolonne} onSetExtra={setExtraVerdi}/>
           </>
         )}

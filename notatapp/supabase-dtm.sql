@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS dtm_dokumenter (
   oppdragsnr       TEXT DEFAULT '',
   godkjent_av      TEXT DEFAULT '',
   revisjonsbeskriving TEXT DEFAULT '',
+  tegningsformal   TEXT DEFAULT '',      -- t.d. Arbeidstegning/Søknadstegning/Tilbodstegning — frå den loddrette labelen i tittelfeltet
+  ferdigstillingsstatus TEXT DEFAULT '', -- Moglegheitsstudie/Skisseprosjekt/Forprosjekt/Tilbodsunderlag/Arbeidsteikning/Som bygd
   status           TEXT[] NOT NULL DEFAULT '{}',
   arbeidsdokument   JSONB,   -- { filnamn, revisjon, dato, lasta_opp } | null
   resultatdokument  JSONB,
