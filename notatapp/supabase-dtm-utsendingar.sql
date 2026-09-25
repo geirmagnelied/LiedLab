@@ -9,7 +9,9 @@ CREATE TABLE IF NOT EXISTS dtm_utsendingar (
   user_id        UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   project_id     BIGINT REFERENCES projects(id) ON DELETE CASCADE,
   mottakar       TEXT DEFAULT '',
-  kanal          TEXT DEFAULT 'epost',   -- 'epost' | 'webhotell' | 'anna'
+  kanal          TEXT[] DEFAULT '{}',   -- fleirval: 'epost' | 'webhotell' | 'anna'
+  emne           TEXT DEFAULT '',
+  utsendingsnr   INTEGER,               -- unikt løpenummer per prosjekt, sjå dtmKonstantar.js
   kommentar      TEXT DEFAULT '',
   status         TEXT NOT NULL DEFAULT 'kladd',  -- 'kladd' | 'sendt'
   dato           TEXT DEFAULT '',
@@ -37,6 +39,7 @@ CREATE TABLE IF NOT EXISTS dtm_utsending_dokument (
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_dtm_utsending_dokument_utsending ON dtm_utsending_dokument(utsending_id);
+CREATE INDEX IF NOT EXISTS idx_dtm_utsending_dokument_dokid ON dtm_utsending_dokument(dokument_id);
 
 ALTER TABLE dtm_utsendingar ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "dtm_utsendingar_select" ON dtm_utsendingar;

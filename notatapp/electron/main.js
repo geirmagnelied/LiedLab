@@ -19,6 +19,8 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const os = require('os')
+const { execFile } = require('child_process')
 
 // ── Dev-only: automatisk restart av Electron ved endring i fil-brua ──
 // electron/main.js og electron/preload.js vert berre lasta éin gong, ved
@@ -1100,6 +1102,103 @@ ipcMain.handle('dtm:del-fil', async (event, { stiar }) => {
   const kropp = encodeURIComponent(tekst)
   await shell.openExternal(`mailto:?subject=${emne}&body=${kropp}`)
   return { ok: true }
+})
+
+// Opnar ein NY, uferdig e-post i skrivebords-Outlook MED DEI EKTE FILENE
+// LAGT VED (mailto: støttar ALDRI vedlegg, uansett e-postprogram — difor
+// COM-automatisering av Outlook i staden). Brukar «Display()», ALDRI
+// «Send()» — brukar skal alltid sjølv sjå over og trykke send i Outlook.
+//
+// USIKKERT (ikkje testa herifrå, sjå claude/dtm-modul.md): (1) krev
+// skrivebords-Outlook installert og registrert som COM-tenar — verken
+// «nye Outlook», Outlook Web eller Mac fungerer; (2) enkelte organisasjonar
+// sin sikkerheitsprogramvare/Exchange-oppsett kan visa eit tryggleiks-
+// popup («eit program prøver...») ved COM-tilgang til Outlook — dette er
+// UTANFOR appen sin kontroll. Fell difor ALLTID tilbake til den kjende,
+// verifiserte mailto-metoden (stiar i e-postteksten, ikkje ekte vedlegg)
+// dersom COM-automatiseringa feilar av nokon grunn.
+function outlookComPs1(dataPath) {
+  // Data vert sendt via ei JSON-fil (ikkje kommandolinje-argument), for å
+  // sleppe all escaping av norske teikn/mellomrom/anførselsteikn i stiar,
+  // mottakar og e-postteksten.
+  return `
+param([string]$DataPath)
+$ErrorActionPreference = 'Stop'
+try {
+  $data = Get-Content -Raw -Path $DataPath -Encoding UTF8 | ConvertFrom-Json
+  $outlook = New-Object -ComObject Outlook.Application
+  $mail = $outlook.CreateItem(0)
+  if ($data.mottakar) { $mail.To = $data.mottakar }
+  if ($data.emne) { $mail.Subject = $data.emne }
+  if ($data.kropp) { $mail.Body = $data.kropp }
+  foreach ($sti in $data.stiar) {
+    if (Test-Path -LiteralPath $sti) { $mail.Attachments.Add($sti) | Out-Null }
+  }
+  $mail.Save()
+  $mail.Display()
+  Write-Output "OK"
+} catch {
+  Write-Error $_.Exception.Message
+  exit 1
+}
+`
+}
+
+ipcMain.handle('dtm:opne-epost-med-vedlegg', async (event, { mottakar, emne, kropp, stiar }) => {
+  const gyldige = (stiar || []).filter((s) => s && fs.existsSync(s))
+
+  const prøvOutlookCom = () => new Promise((resolve) => {
+    let dataPath, scriptPath
+    try {
+      const tmp = os.tmpdir()
+      const stempel = `dtm-epost-${Date.now()}`
+      dataPath = path.join(tmp, `${stempel}.json`)
+      scriptPath = path.join(tmp, `${stempel}.ps1`)
+      fs.writeFileSync(dataPath, JSON.stringify({ mottakar, emne, kropp, stiar: gyldige }), 'utf8')
+      fs.writeFileSync(scriptPath, outlookComPs1(), 'utf8')
+    } catch (e) {
+      resolve({ ok: false, melding: e.message })
+      return
+    }
+    execFile('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath, '-DataPath', dataPath,
+    ], { timeout: 20000 }, (err, stdout, stderr) => {
+      try { fs.unlinkSync(dataPath) } catch { /* uironisk */ }
+      try { fs.unlinkSync(scriptPath) } catch { /* uironisk */ }
+      if (err || !String(stdout).includes('OK')) {
+        resolve({ ok: false, melding: (stderr || err?.message || 'Ukjend feil frå Outlook-automatiseringa').trim() })
+      } else {
+        resolve({ ok: true })
+      }
+    })
+  })
+
+  const outlookResultat = await prøvOutlookCom()
+  if (outlookResultat.ok) {
+    return { ok: true, metode: 'outlook', talVedlegg: gyldige.length }
+  }
+
+  // Fallback: den kjende, verifiserte mailto-metoden (INGEN ekte vedlegg —
+  // stiane vert lista i e-postteksten i staden, same som «Del fil»).
+  console.warn('[DTM] Outlook-automatisering feila, fell tilbake til mailto:', outlookResultat.melding)
+  const kroppMedStiar = gyldige.length
+    ? `${kropp || ''}\n\nVedlegg (kunne ikkje leggjast ved automatisk — legg dei ved manuelt):\n${gyldige.join('\n')}`
+    : (kropp || '')
+  if (gyldige.length) clipboard.writeText(gyldige.join('\n'))
+  await shell.openExternal(`mailto:?to=${encodeURIComponent(mottakar || '')}&subject=${encodeURIComponent(emne || '')}&body=${encodeURIComponent(kroppMedStiar)}`)
+  return { ok: true, metode: 'mailto', melding: outlookResultat.melding }
+})
+
+// Native fil-veljar (IKKJE mappe) — brukt for å velje ei kvitteringsfil
+// (t.d. ein sendt e-post lagra som .msg) utan å vere avhengig av at
+// drag-og-slepp frå Outlook fungerer (usikkert, sjå claude/dtm-modul.md).
+ipcMain.handle('dtm:velg-kvitteringsfil', async () => {
+  const resultat = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'E-post og dokument', extensions: ['msg', 'eml', 'pdf', 'txt'] }, { name: 'Alle filer', extensions: ['*'] }],
+  })
+  if (resultat.canceled || !resultat.filePaths[0]) return null
+  return resultat.filePaths[0]
 })
 
 // ═══════════════════════════════════════════════════════════════════

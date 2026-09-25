@@ -97,4 +97,14 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
     ipcRenderer.invoke('dtm:lagre-kvittering', { oppdragsSti, kjeldeSti }),
   dtmApneKvittering: (oppdragsSti, filnamn) =>
     ipcRenderer.invoke('dtm:apne-kvittering', { oppdragsSti, filnamn }),
+
+  // Opnar ein ny e-post i skrivebords-Outlook MED EKTE VEDLEGG (COM-
+  // automatisering, med fallback til mailto: om Outlook ikkje er
+  // tilgjengeleg/feilar — sjå claude/dtm-modul.md).
+  dtmOpneEpostMedVedlegg: (mottakar, emne, kropp, stiar) =>
+    ipcRenderer.invoke('dtm:opne-epost-med-vedlegg', { mottakar, emne, kropp, stiar }),
+
+  // Native fil-veljar for kvitteringsfil (alternativ til drag-og-slepp,
+  // som ikkje er stadfesta å fungere frå Outlook — sjå claude/dtm-modul.md).
+  dtmVelgKvitteringsfil: () => ipcRenderer.invoke('dtm:velg-kvitteringsfil'),
 })

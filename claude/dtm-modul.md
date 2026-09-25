@@ -694,6 +694,71 @@ TIDSPUNKTET — ei seinare ny revisjon skal ikkje skrive om historia).
 fila vert berre lagra som eit ugjennomsiktig vedlegg, ikkje parsa. Kunne
 leggjast til seinare med eit msg-parsingsbibliotek om ønskt.
 
+## Vidareutvikling 25. sept. 2026 — ekte vedlegg, fleire kanalar, utsendingsnr
+
+Sju justeringar av utsendingsfunksjonen over, alle bygd same dag:
+
+1. **Fleire kanalar samstundes.** `dtm_utsendingar.kanal` migrert frå
+   `TEXT` til `TEXT[]` (migrasjon `dtm_utsendingar_v2`,
+   `supabase-dtm-utsendingar.sql`). `UTSENDING_KANALAR`
+   (`dtmKonstantar.js`: e-post/webhotell/anna) + ei avkryssingsgruppe i
+   `DTMUtsendingModal.jsx` (i staden for éin `<select>`).
+2. **Ekte vedlegg i e-posten.** Ny IPC `dtm:opne-epost-med-vedlegg`
+   (`main.js`) automatiserer skrivebords-Outlook via COM
+   (`New-Object -ComObject Outlook.Application`, køyrd som eit
+   PowerShell-skript via `execFile`, parametrar sendt som ei mellombels
+   JSON-fil for å sleppe escaping av norske teikn). Legg filene ved med
+   `$mail.Attachments.Add()`, kallar `.Save()` + `.Display()` — ALDRI
+   `.Send()`, brukar må sjølv trykke send. **Fell automatisk tilbake**
+   til den kjende mailto-metoden (stiar i teksten + utklippstavle) om
+   COM-automatiseringa feilar av nokon grunn (Outlook ikkje installert,
+   «nye Outlook»/Mac/Web, eller tryggleiksprogramvare som blokkerer
+   Object Model-tilgang) — **denne fallback-vegen er verifisert på
+   kodenivå, men OM sjølve Outlook-COM-vegen faktisk fungerer i
+   Norconsult sitt IT-oppsett er IKKJE testa** (kan ikkje testast frå
+   dette miljøet). `DTMModule.jsx` sin `apneEpostForUtsending()` byggjer
+   no e-postteksten sjølv (dokumentliste + utsendingsnummer nedst) og
+   kallar denne IPC-en i staden for den gamle `dtmDelFil`.
+3. **Emnefelt.** Nytt `emne`-tekstfelt i modalen, lagra som
+   `dtm_utsendingar.emne` (ny kolonne). Fell tilbake til
+   «Oversending av dokument U-xxx» som standard emne om brukar ikkje
+   skriv noko.
+4. **Dokumentveljar i staden for søk.** Det gamle live-søket med ein
+   flytande nedtrekksliste fungerte ikkje pålitileg for brukar. Bytt ut
+   med ein eksplisitt «+ Legg til dokument…»-knapp som opnar eit fast
+   panel: eit filtreringsfelt + ei avkryssingsliste over HEILE
+   prosjektregisteret (minus dei alt inkluderte), med ein eigen
+   «Legg til valde (n)»-knapp. Ingen automatisk lukking/blur-logikk å
+   få gale.
+5. **Unikt utsendingsnummer.** `nesteUtsendingsnummer()`/
+   `utsendingsnrTekst()` (`dtmKonstantar.js`) — same mønster som
+   `nextNoteNumber()`/`nextCaseNumber()` (høgste eksisterande + 1,
+   klientutrekna, ny kolonne `dtm_utsendingar.utsendingsnr`). Format
+   `U-001`, `U-002`, … Vist i modalheadinga, i utsendingslista, OG lima
+   inn heilt nedst i sjølve e-postteksten — slik at ein seinare (t.d. ved
+   å lese ei motteken kvittering eller eit svar) kan sjå kva utsending
+   ein konkret e-post høyrer til.
+6. **Kvittering: fil-veljar attåt drag-og-slepp.** Brukar melde at
+   drag-og-slepp ikkje fungerte. Ny IPC `dtm:velg-kvitteringsfil`
+   (native `dialog.showOpenDialog`, filtypar .msg/.eml/.pdf/.txt) gjev ein
+   pålitileg «Vel fil…»-knapp attåt (ikkje i staden for — kan framleis
+   fungere for nokre) droppsona. **Framleis ikkje verifisert** om sjølve
+   Outlook-til-nettlesar-drag-og-slepp-steget fungerer i praksis; fil-
+   veljaren er den nye, pålitelege hovudvegen.
+7. **Ny «Utsendingar»-kolonne** i DTM-tabellen (`DTMTabell.jsx`) —
+   viser kvart dokument sine STADFESTA sende utsendingar (kladdar tel
+   ikkje) som grøne piller `U-xxx · dato`. `DTMModule.jsx` reknar ut
+   `utsendingarPerDokument` (gruppert på `dokument_id`) med `useMemo` og
+   sender det ned som ny prop.
+
+**Framleis IKKJE verifisert i praksis** (kan ikkje testast frå dette
+miljøet, sjå òg punkt 2/6 over): om Outlook-COM-automatiseringa faktisk
+fungerer i Norconsult sitt konkrete IT-oppsett (tryggleikspopup, COM-
+registrering), og om drag-og-slepp frå Outlook nokon gong fungerer i
+denne Electron/Chromium-konteksten. Fil-veljaren (punkt 6) og mailto-
+fallback (punkt 2) er difor med vilje bygd som dei PÅLITELEGE vegane,
+ikkje berre som reserveløysingar.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

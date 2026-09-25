@@ -1,4 +1,5 @@
 import { fmtDateShort } from './sakerKonstantar'
+import { utsendingsnrTekst } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTMUtsendingarListe — oversikt over alle registrerte utsendingar for
@@ -61,6 +62,7 @@ function UtsendingRad({ u, i, onOpne, onSlett }) {
       <span style={{ fontSize:10.5, fontWeight:700, padding:'2px 8px', borderRadius:20,
         background: sendt ? 'rgba(22,101,52,.12)' : 'var(--brandbg)',
         color: sendt ? 'var(--success)' : 'var(--brand)' }}>{sendt ? 'Sendt' : 'Kladd'}</span>
+      <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--brand)', fontSize:12 }}>{utsendingsnrTekst(u.utsendingsnr)}</span>
       <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{u.mottakar || '(ingen mottakar sett)'}</span>
       <span style={{ fontSize:12, color:'var(--text3)' }}>{(u.dokument || []).length} dokument</span>
       <div style={{ flex:1 }}/>

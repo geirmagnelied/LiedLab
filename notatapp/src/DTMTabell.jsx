@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import DataTabell, { Pille } from './DataTabell'
 import { fmtDateShort } from './sakerKonstantar'
-import { reknStatus, løysAktivtSett, KATEGORI_LABEL, KATEGORI_MAPPE, FERDIGSTILLING_STATUS } from './dtmKonstantar'
+import { reknStatus, løysAktivtSett, KATEGORI_LABEL, KATEGORI_MAPPE, FERDIGSTILLING_STATUS, utsendingsnrTekst } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTM-matrisa — kolonnedefinisjonar og celle-visning for eitt «sett»
@@ -47,6 +47,7 @@ const BASE_COLUMNS = [
   { key:'oppdragsnr',  label:'Oppdragsnr.',  art:'tekst', mono:true },
   { key:'lagra_av',    label:'Lagra av',     art:'val' },
   { key:'lasta_opp',   label:'Lasta opp',    art:'dato',  mono:true },
+  { key:'utsendingar', label:'Utsendingar',  art:'tekst', utanFilter:true },
   { key:'filsti',      label:'Filsti',       art:'tekst', utanFilter:true, mono:true, maksInnhaldsBreidd:Infinity },
 ]
 
@@ -57,7 +58,7 @@ function hentGjeldande(rad, aktivtSett) {
 
 export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFil, onDelFil,
                                      onToggleFavorite, onTogglePinned, onRegistrerUtsending,
-                                     merking, oppdragsSti, eigneKolonnar = [] }) {
+                                     merking, oppdragsSti, eigneKolonnar = [], utsendingarPerDokument = {} }) {
   const hentVerdi = useCallback((rad, key) => {
     const { sett, g } = hentGjeldande(rad, aktivtSett)
     switch (key) {
@@ -87,10 +88,12 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'oppdragsnr':    return rad.oppdragsnr || ''
       case 'lagra_av':    return rad.lagra_av || ''
       case 'lasta_opp':   return fmtDateShort(g.lasta_opp)
+      case 'utsendingar': return (utsendingarPerDokument[rad.id] || [])
+        .map(u => `${utsendingsnrTekst(u.utsendingsnr)} (${fmtDateShort(u.dato)})`).join(', ')
       case 'filsti':       return (sett && g.filnamn && oppdragsSti) ? `${oppdragsSti}\\${KATEGORI_MAPPE[sett]}\\${g.filnamn}` : ''
       default:            return String(rad.ekstra?.[key] ?? '')
     }
-  }, [aktivtSett, oppdragsSti])
+  }, [aktivtSett, oppdragsSti, utsendingarPerDokument])
 
   const hentSorteringsverdi = useCallback((rad, key) => {
     const { g } = hentGjeldande(rad, aktivtSett)
@@ -113,8 +116,19 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
         </div>
       )
     }
+    if (kol.key === 'utsendingar') {
+      const liste = utsendingarPerDokument[rad.id] || []
+      if (!liste.length) return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>
+      return (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+          {liste.map(u => (
+            <Pille key={u.id} tekst={`${utsendingsnrTekst(u.utsendingsnr)} · ${fmtDateShort(u.dato)}`} farge="var(--success)"/>
+          ))}
+        </div>
+      )
+    }
     return undefined
-  }, [aktivtSett])
+  }, [aktivtSett, utsendingarPerDokument])
 
   // Radmeny (☰): favoritt/fest-til-topp (same generiske mønster som
   // notat-tabellen) + «Del fil»/«Registrer utsending» (via radMeny.ekstraVal).

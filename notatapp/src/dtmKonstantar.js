@@ -27,6 +27,26 @@ export const KATEGORI_MAPPE = {
   styrande_dokument: '6 Styrande dokument',
 }
 
+// Kanalar ei utsending kan gå via — fleirval, sjå DTMUtsendingModal.jsx.
+export const UTSENDING_KANALAR = [
+  { key:'epost', namn:'E-post' },
+  { key:'webhotell', namn:'Webhotell' },
+  { key:'anna', namn:'Anna' },
+]
+
+// Unikt, klientutrekna løpenummer per prosjekt for utsendingar — same
+// mønster som nextNoteNumber()/nextCaseNumber() elles i appen (høgste
+// eksisterande + 1, ikkje ein Postgres-sekvens). Vert lima inn i sjølve
+// e-posten (sjå DTMModule.jsx) slik at ein seinare — t.d. ved å lese ein
+// motteken kvittering — kan slå opp att kva utsending han høyrer til.
+export function nesteUtsendingsnummer(alleUtsendingar) {
+  const nrs = alleUtsendingar.map(u => u.utsendingsnr).filter(n => typeof n === 'number' && !isNaN(n))
+  return (nrs.length ? Math.max(...nrs) : 0) + 1
+}
+export function utsendingsnrTekst(n) {
+  return n ? `U-${String(n).padStart(3, '0')}` : ''
+}
+
 // Predefinerte statusar for kor langt prosjektet/dokumentet er kome —
 // fritt redigerbart per dokument, sjå «Status ved ferdigstilling»-kolonna.
 export const FERDIGSTILLING_STATUS = [

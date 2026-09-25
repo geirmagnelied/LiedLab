@@ -4,7 +4,8 @@ import DTMTabell from './DTMTabell'
 import DTMImportModal from './DTMImportModal'
 import DTMUtsendingModal from './DTMUtsendingModal'
 import DTMUtsendingarListe from './DTMUtsendingarListe'
-import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE, KATEGORI_MAPPE, løysAktivtSett, namnFraEpost } from './dtmKonstantar'
+import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE, KATEGORI_MAPPE, løysAktivtSett, namnFraEpost,
+  nesteUtsendingsnummer, utsendingsnrTekst } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTM — Dokument, tegningar og modellar. Erstattar Resultatdokument-
@@ -77,6 +78,21 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     [dokumenter, aktivtSett])
 
   const tal = useCallback(k => dokumenter.filter(d => d[k]).length, [dokumenter])
+
+  // Grupperer SENDTE utsendingar per dokument (via dokument_id), til den
+  // nye «Utsendingar»-kolonna i DTMTabell — kladdar tel ikkje med, sidan
+  // dei enno ikkje er stadfesta faktisk sende.
+  const utsendingarPerDokument = useMemo(() => {
+    const m = {}
+    for (const u of utsendingar) {
+      if (u.status !== 'sendt') continue
+      for (const d of u.dokument) {
+        if (!d.dokument_id) continue
+        ;(m[d.dokument_id] ??= []).push(u)
+      }
+    }
+    return m
+  }, [utsendingar])
 
   // Fleirval høyrer til det synlege utvalet — byte av sett/fane skal ikkje
   // halde på eit utval frå ei anna vising.
@@ -177,7 +193,8 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     const utsendingId = Date.now()
     const nyUtsending = {
       id: utsendingId, user_id: userId, project_id: activeProjectId,
-      mottakar: '', kanal: 'epost', kommentar: '', status: 'kladd',
+      mottakar: '', kanal: [], emne: '', utsendingsnr: nesteUtsendingsnummer(utsendingar),
+      kommentar: '', status: 'kladd',
       dato: no.slice(0, 10), oppretta_av: namnFraEpost(userEmail), bekrefta_av: '', bekrefta_tid: null,
       kvittering_fil: '', created_at: no, updated_at: no,
     }
@@ -218,13 +235,24 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     setUtsendingar(us => us.map(u => ({ ...u, dokument: u.dokument.filter(d => d.id !== utsendingDokumentId) })))
   }
 
+  // Opnar utsendinga sin e-post med EKTE VEDLEGG via Outlook-COM (fell
+  // automatisk attende til mailto: viss det feilar — sjå dtm:opne-epost-
+  // med-vedlegg i main.js). Utsendingsnummeret vert lima inn nedst i
+  // e-postteksten slik at ein seinare kan slå opp att kva utsending ein
+  // motteken kvittering høyrer til.
   const apneEpostForUtsending = async (utsendingId) => {
-    if (!harBru) return
+    if (!harBru) return null
     const u = utsendingar.find(x => x.id === utsendingId)
-    if (!u) return
+    if (!u) return null
     const stiar = u.dokument.map(d => d.filnamn ? `${oppdragsSti}\\${KATEGORI_MAPPE[d.kategori]}\\${d.filnamn}` : null).filter(Boolean)
-    if (stiar.length === 0) { alert('Ingen dokument med fil å opne e-post for.'); return }
-    await window.resultatdokumentAPI.dtmDelFil(stiar)
+    if (stiar.length === 0) { alert('Ingen dokument med fil å opne e-post for.'); return null }
+
+    const nrTekst = utsendingsnrTekst(u.utsendingsnr)
+    const dokListe = u.dokument.map(d => `- ${d.nr}${d.revisjon ? ` (rev. ${d.revisjon})` : ''}`).join('\n')
+    const kropp = `Oversending av følgjande dokument:\n\n${dokListe}\n\n\n${nrTekst}`
+    const emne = u.emne || `Oversending av dokument ${nrTekst}`
+
+    return await window.resultatdokumentAPI.dtmOpneEpostMedVedlegg(u.mottakar || '', emne, kropp, stiar)
   }
 
   const bekreftUtsendingSendt = async (utsendingId) => {
@@ -440,7 +468,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
               oppdragsSti={oppdragsSti} merking={{ valde, onEndre: setValde }}
               onSetVerdi={settVerdi} onOpneFil={(rad) => opneFil(rad)} onDelFil={delFil}
               onToggleFavorite={toggleFavorite} onTogglePinned={togglePinned}
-              onRegistrerUtsending={registrerUtsending}
+              onRegistrerUtsending={registrerUtsending} utsendingarPerDokument={utsendingarPerDokument}
               onNyKolonne={addKolonne} onSlettKolonne={slettKolonne} onSetExtra={setExtraVerdi}/>
           </>
         )}
