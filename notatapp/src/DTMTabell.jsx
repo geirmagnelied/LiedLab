@@ -47,7 +47,7 @@ const BASE_COLUMNS = [
   { key:'oppdragsnr',  label:'Oppdragsnr.',  art:'tekst', mono:true },
   { key:'lagra_av',    label:'Lagra av',     art:'val' },
   { key:'lasta_opp',   label:'Lasta opp',    art:'dato',  mono:true },
-  { key:'filsti',      label:'Filsti',       art:'tekst', utanFilter:true, mono:true },
+  { key:'filsti',      label:'Filsti',       art:'tekst', utanFilter:true, mono:true, maksInnhaldsBreidd:Infinity },
 ]
 
 function hentGjeldande(rad, aktivtSett) {
@@ -56,6 +56,7 @@ function hentGjeldande(rad, aktivtSett) {
 }
 
 export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFil, onDelFil,
+                                     onToggleFavorite, onTogglePinned,
                                      merking, oppdragsSti, eigneKolonnar = [] }) {
   const hentVerdi = useCallback((rad, key) => {
     const { sett, g } = hentGjeldande(rad, aktivtSett)
@@ -115,10 +116,15 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
     return undefined
   }, [aktivtSett])
 
-  // Radmeny (☰): «Del fil» — sjå DataTabell sin `radMeny.ekstraVal`.
-  const radMeny = onDelFil ? {
-    ekstraVal: [{ ikon:'✉', namn:'Del fil', onKlikk: (id, rad) => onDelFil(id, rad) }],
-  } : undefined
+  // Radmeny (☰): favoritt/fest-til-topp (same generiske mønster som
+  // notat-tabellen) + «Del fil» (eige val via radMeny.ekstraVal).
+  const radMeny = {
+    erFavoritt:    (rad) => !!rad.favorite,
+    onFavoritt:    (id) => onToggleFavorite?.(id),
+    erFesta:       (rad) => !!rad.pinned,
+    onFestTilTopp: (id) => onTogglePinned?.(id),
+    ekstraVal: onDelFil ? [{ ikon:'✉', namn:'Del fil', onKlikk: (id, rad) => onDelFil(id, rad) }] : [],
+  }
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', minHeight:300,

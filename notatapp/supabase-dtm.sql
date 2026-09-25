@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS dtm_dokumenter (
   revisjonsbeskriving TEXT DEFAULT '',
   tegningsformal   TEXT DEFAULT '',      -- t.d. Arbeidstegning/Søknadstegning/Tilbodstegning — frå den loddrette labelen i tittelfeltet
   ferdigstillingsstatus TEXT DEFAULT '', -- Moglegheitsstudie/Skisseprosjekt/Forprosjekt/Tilbodsunderlag/Arbeidsteikning/Som bygd
+  favorite         BOOLEAN NOT NULL DEFAULT false,
+  pinned           BOOLEAN NOT NULL DEFAULT false,
   status           TEXT[] NOT NULL DEFAULT '{}',
   arbeidsdokument   JSONB,   -- { filnamn, revisjon, dato, lasta_opp } | null
   resultatdokument  JSONB,
@@ -63,6 +65,7 @@ CREATE TABLE IF NOT EXISTS dtm_columns (
   key         TEXT NOT NULL,
   label       TEXT NOT NULL,
   art         TEXT DEFAULT 'tekst',
+  val_liste   JSONB,  -- valfri: fast verdiliste (nedtrekksmeny) i staden for fritekst
   sortering   INT  DEFAULT 0,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );

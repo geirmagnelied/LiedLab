@@ -246,18 +246,41 @@ function serUtSomDokumentkode(nr) {
 }
 
 // Flytt ei fil — prøver rename (raskt), fell tilbake til kopi+slett
-// viss kjelde og mål ligg på ulike stasjonar/delte område (EXDEV).
+// viss kjelde og mål ligg på ulike stasjonar/delte område (EXDEV), ELLER
+// viss kjelda er open i eit anna program (rename feilar då òg på Windows).
 // Kjelda kan vere skriveverna (sjå gjerSkriveverna() under) — det stoppar
 // ikkje rename (ei rein katalog-operasjon), men copy+slett-fallbacken må
 // fjerne skriveverninga frå kjelda fyrst, elles feilar unlink på Windows.
+//
+// VIKTIG (25. sept. 2026): dersom kjelda er OPEN I EIT ANNA PROGRAM (t.d.
+// ein PDF-lesar), tillèt Windows vanlegvis framleis LESING (kopiering),
+// men ikkje SLETTING av originalen. Å kaste eit unntak i det tilfellet
+// ville feilstempla HEILE importen sjølv om fila faktisk vart kopiert inn
+// i DTM-mappa. Kopieringa (den delen brukar faktisk bryr seg om) tel difor
+// som suksess sjølv om sjølve sletting av kjelda ikkje lét seg gjere —
+// originalen ligg då berre att der ho var, urørt.
 function flyttFil(kjelde, mål) {
   try {
     fs.renameSync(kjelde, mål)
+    return
   } catch (e) {
-    fs.copyFileSync(kjelde, mål)
-    try { fs.chmodSync(kjelde, 0o666) } catch { /* uironisk om det feilar */ }
-    fs.unlinkSync(kjelde)
+    // rename kan feile av mange grunnar (EXDEV, open fil, osv.) — prøv
+    // kopiering i staden uansett kva som var årsaka.
   }
+  fs.copyFileSync(kjelde, mål) // krev berre LESETILGANG — feilar difor sjeldan pga. open fil
+  try { fs.chmodSync(kjelde, 0o666) } catch { /* uironisk om det feilar */ }
+  try {
+    fs.unlinkSync(kjelde)
+  } catch (e) {
+    console.warn(`[DTM] Kunne ikkje slette opphavsfila (truleg open i eit anna program): ${kjelde} — ${e.message}. Fila er likevel kopiert inn, så importen held fram som normalt.`)
+  }
+}
+
+// Sant dersom feilen ser ut til å skuldast at fila er open/låst av eit
+// anna program — brukt til å gje ei forståeleg feilmelding i staden for
+// eit rått Node-feilkodenamn.
+function erFillasFeil(e) {
+  return e && (e.code === 'EBUSY' || e.code === 'EPERM' || e.code === 'EACCES' || e.code === 'ENOTEMPTY')
 }
 
 // Gjer ei fil skriveverna (t.d. på Windows: set berre-lesing-attributtet).
@@ -943,15 +966,23 @@ ipcMain.handle('dtm:skann-filer', async (event, { filPathar, kategori }) => {
         revisjonsbeskriving: meta.revisjonsbeskriving, tegningsformal: meta.tegningsformal,
       })
     } catch (e) {
-      resultat.push({ kjeldeSti, filnamn, status: 'feil', melding: e.message })
+      const melding = erFillasFeil(e)
+        ? 'Fila er open i eit anna program (eller på annan måte låst). Lukk fila og prøv igjen.'
+        : e.message
+      resultat.push({ kjeldeSti, filnamn, status: 'feil', melding })
     }
   }
   return resultat
 })
 
 // Bekreftar import: flyttar dei (evt. retta) dokumenta til rett
-// kategorimappe med _REV<revisjon>-namngjeving (eller _REV<dato-
-// tidsstempel> om ingen revisjon vart funnen), og arkiverer eventuell
+// kategorimappe MED SITT OPPHAVLEGE FILNAMN UENDRA (brukar sitt krav
+// 25. sept. 2026 — filnamnet skal IKKJE endrast ved import). Berre den
+// fila som vert FORTRENGT (ei eldre gjeldande fil for same dokumentnummer,
+// identifisert via filnamnet Supabase alt har lagra for denne kategorien —
+// «gammalFilnamn»/«gammalRevisjon» sendt av renderar-koden) får eit
+// _REV<revisjon eller dato-tidsstempel>-tillegg, i det han vert arkivert.
+// Sjå claude/dtm-modul.md for grunngjevinga. Arkiverer eventuell
 // eksisterande gjeldande fil for same dokumentnummer i kategorien sin
 // Arkiv-undermappe fyrst. «dokument» er lista frå matrisa AKKURAT SLIK
 // brukar har retta ho (kan ha andre nr/rev enn det skanninga fann).
@@ -972,37 +1003,50 @@ ipcMain.handle('dtm:bekreft-import', async (event, { oppdragsSti, kategori, doku
         continue
       }
       const ext = path.extname(d.kjeldeSti)
-      const trygtNr = String(d.nr || 'ukjend').replace(/[\\/:*?"<>|]/g, '_')
-      const revEllerTidsstempel = d.rev ? String(d.rev).toUpperCase() : formatTidsstempel(new Date())
 
-      let nyttFilnamn = `${trygtNr}_REV${revEllerTidsstempel}${ext}`
+      // Arkiver den EKSISTERANDE gjeldande fila for same dokumentnummer i
+      // denne kategorien FYRST (om nokon — kjend frå Supabase, ikkje frå
+      // eit filnamn-mønster, sidan filnamnet ikkje lenger inneheld
+      // dokumentnummeret). DENNE fila (ikkje den nye) får _REV-tillegget.
+      if (d.gammalFilnamn) {
+        const gammalSti = path.join(mappeSti, d.gammalFilnamn)
+        if (fs.existsSync(gammalSti)) {
+          const gammalExt = path.extname(d.gammalFilnamn)
+          const gammalStem = path.basename(d.gammalFilnamn, gammalExt)
+          const gammalRevEllerTid = d.gammalRevisjon ? String(d.gammalRevisjon).toUpperCase() : formatTidsstempel(new Date())
+          let arkivNamn = `${gammalStem}_REV${gammalRevEllerTid}${gammalExt}`
+          let arkivMål = path.join(arkivSti, arkivNamn)
+          let t2 = 2
+          while (fs.existsSync(arkivMål)) {
+            arkivNamn = `${gammalStem}_REV${gammalRevEllerTid}(${t2})${gammalExt}`
+            arkivMål = path.join(arkivSti, arkivNamn)
+            t2++
+          }
+          flyttFil(gammalSti, arkivMål)
+        }
+      }
+
+      // Den NYE, gjeldande fila skal HALDE SITT OPPHAVLEGE FILNAMN — berre
+      // ledig-gjer namnet om ei HEILT ANNA fil (uheldig namnekollisjon)
+      // alt ligg der (kan ikkje vere «same dokument sin gamle versjon»,
+      // sidan DEN alt vart flytta til Arkiv over).
+      let nyttFilnamn = path.basename(d.kjeldeSti)
+      const opphavStem = path.basename(nyttFilnamn, ext)
       let målSti = path.join(mappeSti, nyttFilnamn)
       let teller = 2
       while (fs.existsSync(målSti)) {
-        nyttFilnamn = `${trygtNr}_REV${revEllerTidsstempel}(${teller})${ext}`
+        nyttFilnamn = `${opphavStem}(${teller})${ext}`
         målSti = path.join(mappeSti, nyttFilnamn)
         teller++
       }
 
-      // Finst det alt ei gjeldande fil for same dokumentnummer direkte i
-      // kategorimappa (ikkje i Arkiv frå før)? Arkiver ho fyrst.
-      const eksisterande = fs.readdirSync(mappeSti, { withFileTypes: true })
-        .filter((f) => f.isFile() && f.name.startsWith(trygtNr + '_REV'))
-      for (const gammalFil of eksisterande) {
-        let arkivMål = path.join(arkivSti, gammalFil.name)
-        let t2 = 2
-        while (fs.existsSync(arkivMål)) {
-          const gammalExt = path.extname(gammalFil.name)
-          arkivMål = path.join(arkivSti, `${path.basename(gammalFil.name, gammalExt)}(${t2})${gammalExt}`)
-          t2++
-        }
-        flyttFil(path.join(mappeSti, gammalFil.name), arkivMål)
-      }
-
       flyttFil(d.kjeldeSti, målSti)
-      resultat.push({ ...d, status: 'ok', filnamn: nyttFilnamn, rev: revEllerTidsstempel })
+      resultat.push({ ...d, status: 'ok', filnamn: nyttFilnamn })
     } catch (e) {
-      resultat.push({ ...d, status: 'feil', melding: e.message })
+      const melding = erFillasFeil(e)
+        ? 'Fila er open i eit anna program (eller på annan måte låst). Lukk fila og prøv igjen.'
+        : e.message
+      resultat.push({ ...d, status: 'feil', melding })
     }
   }
   return resultat

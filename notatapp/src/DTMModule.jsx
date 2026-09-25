@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from './supabase'
 import DTMTabell from './DTMTabell'
 import DTMImportModal from './DTMImportModal'
-import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE, KATEGORI_MAPPE, løysAktivtSett } from './dtmKonstantar'
+import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE, KATEGORI_MAPPE, løysAktivtSett, namnFraEpost } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTM — Dokument, tegningar og modellar. Erstattar Resultatdokument-
@@ -42,7 +42,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     ])
     setDetails(pData?.details || {})
     setDokumenter(dData || [])
-    setEigneKolonnar((colData || []).map(k => ({ key:k.key, label:k.label, art:k.art || 'tekst' })))
+    setEigneKolonnar((colData || []).map(k => ({ key:k.key, label:k.label, art:k.art || 'tekst', val:k.val_liste || undefined })))
     setLoading(false)
   }, [userId, activeProjectId])
 
@@ -79,12 +79,17 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   }, [importMenyOpen])
 
   // ── Eigendefinerte kolonnar (same mønster som Saker/Notat) ─────────
-  const addKolonne = async (label, art) => {
+  // «valListe» (valfri) gjer kolonnen om til ei nedtrekksliste med faste
+  // val i staden for fritekst — sjå DataTabell sitt Ny kolonne-skjema.
+  const addKolonne = async (label, art, valListe) => {
     const key = 'eigen_' + Date.now().toString(36)
-    const rad = { id: Date.now(), user_id: userId, project_id: activeProjectId, key, label, art, sortering: eigneKolonnar.length, created_at: new Date().toISOString() }
+    const rad = {
+      id: Date.now(), user_id: userId, project_id: activeProjectId, key, label, art,
+      val_liste: valListe || null, sortering: eigneKolonnar.length, created_at: new Date().toISOString(),
+    }
     const { error } = await supabase.from('dtm_columns').insert(rad)
     if (error) { alert('Klarte ikkje lagre kolonnen: ' + error.message); return null }
-    setEigneKolonnar(prev => [...prev, { key, label, art }])
+    setEigneKolonnar(prev => [...prev, { key, label, art, val: valListe }])
     return key
   }
   const slettKolonne = async (key) => {
@@ -104,6 +109,18 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   const settVerdi = async (id, felt, verdi) => {
     setDokumenter(ds => ds.map(d => d.id === id ? { ...d, [felt]: verdi } : d))
     await supabase.from('dtm_dokumenter').update({ [felt]: verdi, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+  }
+
+  // ── Favoritt / fest til toppen (radmeny) ────────────────────────────
+  const toggleFavorite = async (id) => {
+    const d = dokumenter.find(x => x.id === id)
+    if (!d) return
+    await settVerdi(id, 'favorite', !d.favorite)
+  }
+  const togglePinned = async (id) => {
+    const d = dokumenter.find(x => x.id === id)
+    if (!d) return
+    await settVerdi(id, 'pinned', !d.pinned)
   }
 
   // ── Opne den gjeldande fila (klikk på Dokumentnummer-kolonna) ───────
@@ -141,7 +158,14 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     const kategori = importKategori
     const filResultat = await window.resultatdokumentAPI.dtmBekreftImport(
       oppdragsSti, kategori,
-      rader.map(r => ({ kjeldeSti: r.kjeldeSti, nr: r.nr, rev: r.rev })),
+      rader.map(r => {
+        const gammalKategoriVerdi = dokumenter.find(d => d.nr === r.nr)?.[kategori]
+        return {
+          kjeldeSti: r.kjeldeSti, nr: r.nr, rev: r.rev,
+          gammalFilnamn: gammalKategoriVerdi?.filnamn || null,
+          gammalRevisjon: gammalKategoriVerdi?.revisjon || null,
+        }
+      }),
     )
 
     const no = new Date().toISOString()
@@ -166,7 +190,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           tiltakshavar: r.tiltakshavar || '', oppdragsnr: r.oppdragsnr || '',
           revisjonsbeskriving: r.revisjonsbeskriving || '', tegningsformal: r.tegningsformal || '',
           ferdigstillingsstatus: r.ferdigstillingsstatus || '',
-          lagra_av: userEmail || '', status: [], ekstra: {},
+          lagra_av: namnFraEpost(userEmail), status: [], ekstra: {}, favorite: false, pinned: false,
           arbeidsdokument: null, resultatdokument: null, kontrolldokument: null, styrande_dokument: null,
           created_at: no, updated_at: no,
           [kategori]: kategoriVerdi,
@@ -190,7 +214,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           revisjonsbeskriving: r.revisjonsbeskriving || gammalRad.revisjonsbeskriving,
           tegningsformal: r.tegningsformal || gammalRad.tegningsformal,
           ferdigstillingsstatus: r.ferdigstillingsstatus || gammalRad.ferdigstillingsstatus,
-          lagra_av: userEmail || gammalRad.lagra_av, updated_at: no,
+          lagra_av: namnFraEpost(userEmail) || gammalRad.lagra_av, updated_at: no,
           [kategori]: kategoriVerdi,
         }
         const { error } = await supabase.from('dtm_dokumenter').update(endring).eq('id', gammalRad.id).eq('user_id', userId)
@@ -294,6 +318,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
             <DTMTabell dokumenter={synlegeDokument} aktivtSett={aktivtSett} eigneKolonnar={eigneKolonnar}
               oppdragsSti={oppdragsSti} merking={{ valde, onEndre: setValde }}
               onSetVerdi={settVerdi} onOpneFil={(rad) => opneFil(rad)} onDelFil={delFil}
+              onToggleFavorite={toggleFavorite} onTogglePinned={togglePinned}
               onNyKolonne={addKolonne} onSlettKolonne={slettKolonne} onSetExtra={setExtraVerdi}/>
           </>
         )}

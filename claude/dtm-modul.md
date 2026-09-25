@@ -589,6 +589,56 @@ runde forbetringar basert på faktisk bruk:
    `gjettFagKode()` i `main.js`, som skanninga no returnerer som eit eige
    `fagKode`-felt attåt det fulle namnet i `fag`.
 
+## Utvida 25. sept. 2026 (runde 5) — filhandtering, favoritt/fest, eigne nedtrekkskolonnar
+
+1. **Import feilar ikkje lenger berre fordi kjeldefila er open andre stader.**
+   `flyttFil()` prøvde før `rename` → fall attende til kopi+slett — men
+   sjølve SLETTINGA av kjelda etter kopiering kasta eit ufanga unntak
+   dersom kjelda var open i eit anna program (t.d. ein PDF-lesar), sjølv
+   om SJØLVE KOPIERINGA (det som faktisk tel for importen) lukkast fint.
+   Denne feilen stoppa heile importen av den fila unødig. Retta: mislukka
+   sletting av kjelda vert no berre logga som ei åtvaring — importen tel
+   som vellukka så lenge kopieringa til DTM-mappa gjekk bra (originalen
+   ligg då urørt att der ho var). Genuint LÅSTE filer (der sjølve LESINGA
+   feilar) gjev no ei forståeleg feilmelding («Fila er open i eit anna
+   program…») i staden for eit rått Node-feilnamn, og
+   `DTMImportModal.jsx` har fått ein **«Prøv igjen»**-knapp på
+   ferdig-skjermen som berre gjer om att DEI FEILA dokumenta (dei som alt
+   lukkast vert ikkje rørte).
+2. **Filsti-kolonna er ikkje lenger avkutta.** Ny kolonnedefinisjon-
+   eigenskap `maksInnhaldsBreidd` i `DataTabell.jsx` — DTM sin Filsti-
+   kolonne set denne til `Infinity`, som overstyrer den vanlege
+   420px-grensa for innhaldstilpassa breidd.
+3. **Filnamnet vert IKKJE lenger endra ved import.** Rota om
+   `dtm:bekreft-import` fullstendig: den NYE, gjeldande fila held sitt
+   opphavlege filnamn uendra. Berre den GAMLE fila (som vert fortrengt,
+   funnen via `gammalFilnamn`/`gammalRevisjon` — no sendt frå
+   `DTMModule.jsx` sin `importer()`, henta frå Supabase-raden, IKKJE frå
+   eit filnamn-mønster sidan filnamnet ikkje lenger ber dokumentnummeret)
+   får eit `_REV<revisjon eller dato-tidsstempel>`-tillegg, i det ho vert
+   arkivert. Sidan kollisjonsdeteksjon («finst det alt ei fil for dette
+   dokumentnummeret?») no skjer via Supabase-raden i staden for filnamn-
+   mønster på disk, er dette ei føresetnad brukar må vere merksam på:
+   `dtm_dokumenter`-raden ER sanninga om kva som er «den gjeldande fila»
+   for eit dokumentnummer, ikkje filnamnet på disk.
+4. **Favoritt/fest-til-topp i radmenyen** — same generiske mønster som
+   notat-tabellen (nye kolonnar `favorite`/`pinned` på `dtm_dokumenter`).
+5. **Eigne kolonnar kan no avgrensast til ei fast nedtrekksliste.** Nytt
+   avkryssingsval i «Ny kolonne»-skjemaet (delt kode, `DataTabell.jsx`) —
+   brukar skriv éin verdi per linje. Kravde ei generell utviding: DataTabell
+   sin «eigen kolonne»-redigering brukte FØR alltid eit reint tekstfelt,
+   uavhengig av om kolonnen hadde ei verdiliste — no vert ein `<select>`
+   vist når kolonnen har `val`. Persistert i ny `dtm_columns.val_liste`
+   (jsonb) — berre kopla opp for DTM så langt, ikkje Saker/Notat.
+6. **«+ Kolonnar»-menyen** viser no opptil 70 % av skjermhøgda (var fast
+   210px) — dekker normalt alle vala utan intern rulling.
+7. **«Lagra av» viser no eit gjetta NAMN, ikkje e-postadressa.** Appen har
+   ikkje noko eige lagra visingsnamn for brukaren — `namnFraEpost()`
+   (`dtmKonstantar.js`) gjettar eit namn frå den lokale delen av e-posten
+   (fornamn.etternamn@… → «Fornamn Etternamn»). Dette er ei GJETTING, ikkje
+   eit verifisert namn — fungerer bra for vanleg firma-e-postkonvensjon,
+   dårlegare for t.d. reine gmail-adresser utan punktum.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

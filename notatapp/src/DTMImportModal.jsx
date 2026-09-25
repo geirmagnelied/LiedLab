@@ -122,6 +122,27 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
     }
   }
 
+  // «Prøv igjen» — for feila dokument (t.d. fila var open i eit anna
+  // program) skal brukar kunne lukke fila og prøve akkurat DEI på nytt,
+  // i staden for å måtte starte heile importen om att frå draging av filer.
+  const feila = resultat.filter(r => r.status !== 'ok')
+  const prøvIgjen = async () => {
+    if (feila.length === 0) return
+    setSteg('importerer')
+    try {
+      const svar = await onImporter(feila)
+      setResultat(rs => rs.map(r => {
+        if (r.status === 'ok') return r
+        const nytt = svar?.find(s => s.nr === r.nr)
+        return nytt || r
+      }))
+      setSteg('ferdig')
+    } catch (e2) {
+      setFeil('Prøv-igjen feila: ' + e2.message)
+      setSteg('ferdig')
+    }
+  }
+
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.42)', display:'flex',
       alignItems:'center', justifyContent:'center', zIndex:200 }}>
@@ -267,6 +288,13 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
                   </div>
                 ))}
               </div>
+              {feila.length > 0 && (
+                <div style={{ marginTop:14, fontSize:12, color:'var(--text3)' }}>
+                  {feila.length} dokument feila. Lukk fila(ne) i det andre programmet om det er årsaka, og
+                  trykk «Prøv igjen» — dei som alt lukkast vert ikkje importerte på nytt.
+                </div>
+              )}
+              {feil && <div style={{ marginTop:12, fontSize:12, color:'var(--danger)' }}>{feil}</div>}
             </div>
           )}
         </div>
@@ -284,7 +312,12 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
                 </button>
               </>
             ) : (
-              <button onClick={onLukk} className="dt-knapp hovud">Lukk</button>
+              <>
+                {feila.length > 0 && (
+                  <button onClick={prøvIgjen} className="dt-knapp hovud">Prøv igjen ({feila.length})</button>
+                )}
+                <button onClick={onLukk} className="dt-knapp">Lukk</button>
+              </>
             )}
           </div>
         )}

@@ -135,7 +135,10 @@ export default function DataTabell({
       if (w > maksInnhald) maksInnhald = w
     }
     const innhaldsBreidd = Math.ceil(maksInnhald) + 24
-    return [c.key, Math.min(MAKS_INNHALDS_BREIDD, Math.max(headerBreidd, innhaldsBreidd))]
+    // Kolonnedefinisjonen kan overstyre maksgrensa (t.d. DTM sin Filsti-
+    // kolonne, der brukar uttrykkeleg vil sjå HEILE stien, ikkje avkutta).
+    const grense = c.maksInnhaldsBreidd ?? MAKS_INNHALDS_BREIDD
+    return [c.key, Math.min(grense, Math.max(headerBreidd, innhaldsBreidd))]
   })), [kolonnar, font, innhaldsfont, innhaldstilpassaBreidd, dataRader, hentVerdi])
   const standardSkjulte  = useMemo(() => kolonnar.filter(c => c.standardSkjult).map(c => c.key), [kolonnar])
   const standardRekkje   = useMemo(() => kolonnar.map(c => c.key), [kolonnar])
@@ -171,7 +174,7 @@ export default function DataTabell({
   // ── Kolonner ────────────────────────────────────────────────────
   const alleKolonner = useMemo(() => ([
     ...kolonnar,
-    ...eigne.map(e => ({ key:e.key, label:e.label, w:e.w || 140, art:e.art, eigen:true })),
+    ...eigne.map(e => ({ key:e.key, label:e.label, w:e.w || 140, art:e.art, val:e.val, eigen:true })),
   ]), [kolonnar, eigne])
   const kolMap = useMemo(() => Object.fromEntries(alleKolonner.map(c => [c.key, c])), [alleKolonner])
 
@@ -285,10 +288,10 @@ export default function DataTabell({
   const vis       = (key) => setPrefs(p => ({ ...p, skjulte: p.skjulte.filter(k => k !== key) }))
   const nullstill = () => { slett(prefsKey); setPrefsRaw({ ...standardPrefs, breidder: { ...standardPrefs.breidder } }) }
 
-  const leggTilKolonne = async (label, art) => {
+  const leggTilKolonne = async (label, art, valListe) => {
     const namn = (label || '').trim()
     if (!namn || !onNyKolonne) return
-    const key = await onNyKolonne(namn, art)
+    const key = await onNyKolonne(namn, art, valListe)
     setMeny(null)
     if (!key) return
     setPrefs(p => ({
@@ -497,14 +500,24 @@ export default function DataTabell({
                       }}>
                       {redigerast ? (
                         kol.eigen ? (
-                          <input autoFocus defaultValue={r.ekstra?.[k] ?? ''} className="dt-input"
-                            type={kol.art === 'dato' ? 'date' : kol.art === 'tal' ? 'number' : 'text'}
-                            onClick={e => e.stopPropagation()}
-                            onBlur={e => { onSetExtra?.(id, k, e.target.value); setRedigerer(null) }}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') e.target.blur()
-                              if (e.key === 'Escape') setRedigerer(null)
-                            }}/>
+                          kol.val ? (
+                            <select autoFocus defaultValue={r.ekstra?.[k] ?? ''} className="dt-input"
+                              onClick={e => e.stopPropagation()}
+                              onChange={e => { onSetExtra?.(id, k, e.target.value); setRedigerer(null) }}
+                              onBlur={() => setRedigerer(null)}>
+                              <option value="">—</option>
+                              {kol.val.map(v => <option key={v} value={v}>{v}</option>)}
+                            </select>
+                          ) : (
+                            <input autoFocus defaultValue={r.ekstra?.[k] ?? ''} className="dt-input"
+                              type={kol.art === 'dato' ? 'date' : kol.art === 'tal' ? 'number' : 'text'}
+                              onClick={e => e.stopPropagation()}
+                              onBlur={e => { onSetExtra?.(id, k, e.target.value); setRedigerer(null) }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') e.target.blur()
+                                if (e.key === 'Escape') setRedigerer(null)
+                              }}/>
+                          )
                         ) : (
                           <RedigerCelle kol={kol}
                             startverdi={hentRedigerVerdi ? hentRedigerVerdi(r, k) : tekst(r, k)}
@@ -591,7 +604,11 @@ export default function DataTabell({
       {meny?.slag === 'kolonnar' && (
         <div className="dt-meny" style={{ left:meny.left, top:meny.top }}>
           <div className="dt-menyhovud">Vis kolonnar</div>
-          <div className="dt-menyliste">
+          <div className="dt-menyliste" style={{ maxHeight:'70vh' }}>
+            {/* Høgda skal dekke alle vala (brukar sitt krav) — 70vh er
+                framleis avgrensa av skjermhøgda, så menyen kan ALDRI
+                strekke seg utanfor synsfeltet uansett kor mange kolonnar
+                tabellen har. */}
             {rekkje.map(k => {
               const på = !prefs.skjulte.includes(k)
               return (
@@ -803,23 +820,42 @@ function KolonneMeny({ kol, left, top, sortering, filter, rader, alle, tekst, so
 
 // ── Skjema for ny kolonne ──────────────────────────────────────────
 function NyKolonneSkjema({ left, top, onAvbryt, onLagre }) {
-  const [namn, setNamn] = useState('')
-  const [art, setArt]   = useState('tekst')
+  const [namn, setNamn]     = useState('')
+  const [art, setArt]       = useState('tekst')
+  const [nedtrekk, setNedtrekk] = useState(false)
+  const [valTekst, setValTekst] = useState('')
+
+  const lagre = () => {
+    const valListe = nedtrekk
+      ? valTekst.split('\n').map(v => v.trim()).filter(Boolean)
+      : undefined
+    onLagre(namn, art, valListe?.length ? valListe : undefined)
+  }
+
   return (
     <div className="dt-meny" style={{ left, top, width:250 }}>
       <div className="dt-menyhovud">Ny kolonne</div>
       <div style={{ padding:'2px 8px 8px', display:'flex', flexDirection:'column', gap:8 }}>
         <input autoFocus className="dt-input" placeholder="Namn på kolonnen" value={namn}
           onChange={e => setNamn(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') onLagre(namn, art) }}/>
+          onKeyDown={e => { if (e.key === 'Enter' && !nedtrekk) lagre() }}/>
         <select className="dt-input" value={art} onChange={e => setArt(e.target.value)}>
           <option value="tekst">Tekst</option>
           <option value="tal">Tal</option>
           <option value="dato">Dato</option>
         </select>
+        <label style={{ display:'flex', alignItems:'center', gap:7, fontSize:12, color:'var(--text2)', cursor:'pointer' }}>
+          <input type="checkbox" checked={nedtrekk} onChange={e => setNedtrekk(e.target.checked)}/>
+          Avgrens til faste val (nedtrekksliste)
+        </label>
+        {nedtrekk && (
+          <textarea className="dt-input" rows={4} placeholder={'Eitt val per linje, t.d.:\nIkkje starta\nPågår\nFerdig'}
+            value={valTekst} onChange={e => setValTekst(e.target.value)}
+            style={{ resize:'vertical', fontFamily:'var(--font)' }}/>
+        )}
         <div style={{ display:'flex', gap:6 }}>
           <button type="button" className="dt-knapp" style={{ flex:1 }} onClick={onAvbryt}>Avbryt</button>
-          <button type="button" className="dt-knapp hovud" style={{ flex:1 }} onClick={() => onLagre(namn, art)}>
+          <button type="button" className="dt-knapp hovud" style={{ flex:1 }} onClick={lagre}>
             Legg til
           </button>
         </div>

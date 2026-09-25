@@ -126,3 +126,18 @@ export function genererSDNummer(alleNr) {
   const neste = nesteLøpenummer(alleNr, 'SD-')
   return `SD-${String(neste).padStart(3, '0')}`
 }
+
+// Appen har ikkje noko eige «visingsnamn»-felt for brukaren (berre
+// e-postadressa) — brukar sitt krav 25. sept. 2026 var at «Lagra av» skal
+// vise eit NAMN, ikkje e-postadressa. Gjettar eit lesbart namn frå den
+// lokale delen av e-posten (før @), som fungerer bra for føretak sin
+// vanlege konvensjon (fornamn.etternamn@domene) — men er ei GJETTING, ikkje
+// eit lagra, verifisert namn. Fell tilbake til heile e-posten om han ikkje
+// har noko å dele opp (t.d. reine, uformaterte e-postadresser).
+export function namnFraEpost(epost) {
+  if (!epost) return ''
+  const lokalDel = String(epost).split('@')[0]
+  const delar = lokalDel.split(/[._-]+/).filter(Boolean)
+  if (delar.length < 2) return epost
+  return delar.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(' ')
+}
