@@ -431,7 +431,17 @@ async function lesLinjerFraSide(pdf, sideNr) {
     const breidd = x1 - x0, høgd = y1 - y0
     const grenseX = x0 + breidd * 0.60
     const grenseY = y0 + høgd * 0.32
-    const heileArket = content.items.filter((item) => item.str && item.str.trim())
+    // Filtrerer vekk ROTERT tekst (t.d. den loddrette «Arbeidstegning»-
+    // labelen langs venstre kant av tittelfeltet). Transform-matrisa sine
+    // b/c-komponentar (transform[1]/[2]) er nær null for vanleg, VASSRETT
+    // tekst — men store for rotert tekst. Utan dette vart t.d. den
+    // loddrette «Arbeidstegning»-teksten limt inn i heilt andre celler
+    // (transform[4]/[5] gjev IKKJE ei visuelt meiningsfull x/y for rotert
+    // tekst når ho vert handsama som om ho var vassrett), og øydela
+    // Oppdragsnummer/Tegningsnummer-rada fullstendig — stadfesta 25. sept.
+    // 2026 med eit diagnostisk skript mot ekte PDF-ar.
+    const heileArket = content.items.filter((item) =>
+      item.str && item.str.trim() && Math.abs(item.transform[1]) < 0.05 && Math.abs(item.transform[2]) < 0.05)
     let aktuelle = heileArket.filter((item) => item.transform[4] >= grenseX && item.transform[5] <= grenseY)
     if (aktuelle.length < 15) aktuelle = heileArket
 
@@ -490,7 +500,12 @@ const STABLA_FELT = [
   { m: /^oppdragsgiver$/i, felt: 'oppdragsgivar' },
   { m: /^tiltakshaver$/i, felt: 'tiltakshavar' },
   { m: /^tegningsnavn$/i, felt: 'tittel' },
-  { m: /^m[aå]lestokk\b/i, felt: 'malestokk' },
+  // Målestokk-boksen kan vere TOM på dokument utan reell teiknings-
+  // målestokk (t.d. eit dørskjema) — då kan vindauge-søket ved eit uhell
+  // fange ein urelatert verdi lenger nede (t.d. arkstørrelse-boksen sin
+  // eigen tekst, «A1»). `valider` avviser alt som ikkje ser ut som ein
+  // ekte målestokk («N:M»), stadfesta 25. sept. 2026.
+  { m: /^m[aå]lestokk\b/i, felt: 'malestokk', valider: (v) => /^\d+\s*:\s*\d+$/.test(v) },
   { m: /^oppdragsnummer$/i, felt: 'oppdragsnr' },
   { m: /^tegningsnummer$/i, felt: 'tegningsnrFraPdf' },
   { m: /^revisjon$/i, felt: 'revisjon' },
@@ -518,31 +533,46 @@ function tolkStablaFelt(linjer, resultat) {
       const grenseTil = mi + 1 < merkelappar.length ? (celle.x + merkelappar[mi + 1].c.x) / 2 : Infinity
 
       // Verdien kan vere FRAGMENTERT i fleire celler (t.d. eit langt
-      // firmanamn) — vel linja med FLEST celler innanfor kolonneområdet
-      // blant dei næraste, og set saman alle cellene i x-rekkjefølgje, i
-      // staden for å berre plukke den EINE cella som ligg næraste.
-      let bestLinje = -1, bestTal = 0
+      // firmanamn) — set saman ALLE celler innanfor kolonneområdet på den
+      // linja som ser riktigast ut, i staden for å berre plukke éi celle.
+      // «Riktigast ut» = den VENSTRASTE cella i området startar NÆRAST
+      // same x-posisjon som sjølve merkelappen (verdien er venstrejustert
+      // rett under han). Utan denne avstandssjekka kunne t.d. eit
+      // fritståande einslinje-felt (grenseTil=Infinity, ingen øvre grense)
+      // ved eit uhell fange ein HEILT URELATERT verdi lenger til høgre på
+      // ei nærliggande linje (stadfesta 25. sept. 2026: «Tiltakshaver»
+      // fanga arkstørrelse-boksen sin verdi «A1» i staden for firmanamnet,
+      // sidan begge tilfredsstilte det opne x-området).
+      let bestLinje = -1, bestAvstand = Infinity
       for (let j = i + 1; j < Math.min(linjer.length, i + 1 + VINDAUGE); j++) {
-        const tal = linjer[j].celler.filter((v) => v.tekst.trim() && v.x >= grenseFrå && v.x < grenseTil).length
-        if (tal > bestTal) { bestTal = tal; bestLinje = j }
+        const iOmråde = linjer[j].celler.filter((v) => v.tekst.trim() && v.x >= grenseFrå && v.x < grenseTil)
+        if (iOmråde.length === 0) continue
+        const venstreX = Math.min(...iOmråde.map((v) => v.x))
+        const avstand = Math.abs(venstreX - celle.x)
+        if (avstand < bestAvstand && avstand < 100) { bestAvstand = avstand; bestLinje = j }
       }
       if (bestLinje === -1) continue
       const verdiCeller = linjer[bestLinje].celler
         .filter((v) => v.tekst.trim() && v.x >= grenseFrå && v.x < grenseTil)
         .sort((a, b) => a.x - b.x)
-      if (verdiCeller.length) resultat[treff.felt] = verdiCeller.map((v) => v.tekst.trim()).join(' ')
+      if (!verdiCeller.length) continue
+      const verdi = verdiCeller.map((v) => v.tekst.trim()).join(' ')
+      if (!treff.valider || treff.valider(verdi)) resultat[treff.felt] = verdi
     }
   }
 
   // Forsvar mot celler som slo seg saman på tvers av kolonnegrensa (t.d.
-  // «52406865 A-60-02» i staden for to åtskilde celler, dersom gapet
-  // mellom dei var mindre enn cella-grensa i lesLinjerFraSide()) — splittar
-  // oppdragsnummer frå eit tegningsnummer som heng med på slutten.
+  // «52406865 A-45-01-02 H02» i staden for tre åtskilde celler, dersom
+  // gapet mellom dei var mindre enn cella-grensa i lesLinjerFraSide()) —
+  // splittar oppdragsnummer frå eit tegningsnummer (og ev. ein revisjons-
+  // kode) som heng med på slutten. Stadfesta 25. sept. 2026 — kor mange av
+  // dei tre verdiane som slo seg saman varierte mellom to elles like PDF-ar.
   if (resultat.oppdragsnr) {
-    const m = resultat.oppdragsnr.match(/^(\d{3,})\s+([A-Za-zÆØÅæøå]{1,4}-\S+)$/)
+    const m = resultat.oppdragsnr.match(/^(\d{3,})\s+([A-Za-zÆØÅæøå]{1,4}-[\w-]+?)(?:\s+([A-ZÆØÅ]{1,2}\d{0,2}))?$/i)
     if (m) {
       resultat.oppdragsnr = m[1]
       if (!resultat.tegningsnrFraPdf) resultat.tegningsnrFraPdf = m[2]
+      if (m[3] && !resultat.revisjon) resultat.revisjon = m[3].toUpperCase()
     }
   }
 }
@@ -568,14 +598,27 @@ const REVISJONSKOL = [
 ]
 
 function lesRadEtterKolonneOmråde(celler, kolonnar) {
+  const ikkjeTome = celler.filter((c) => c.tekst.trim()).sort((a, b) => a.x - b.x)
+
+  // Har denne rada NØYAKTIG like mange celler som det er kolonnar? Då er
+  // det tryggast å para dei saman i x-rekkjefølgje (ordinal) i staden for
+  // å bruke kolonne-OMRÅDE (midtpunkt mellom naboetikettar) — ei brei
+  // fritekst-verdi (t.d. «Arbeidstegninger for bruk» i Beskrivelse) kan
+  // starte til VENSTRE for midtpunktet mot naboetiketten og då hamne i
+  // feil kolonne, sjølv om sjølve celleoppdelinga var heilt korrekt.
+  // Stadfesta med eit diagnostisk skript mot ekte PDF-ar 25. sept. 2026.
+  if (ikkjeTome.length === kolonnar.length) {
+    const verdiar = {}
+    kolonnar.forEach((k, i) => { verdiar[k.namn] = ikkjeTome[i].tekst.trim() })
+    return verdiar
+  }
+
   const verdiar = {}
-  for (const c of celler) {
-    const tekst = c.tekst.trim()
-    if (!tekst) continue
+  for (const c of ikkjeTome) {
     const i = kolonnar.findIndex((k) => c.x >= k.frå && c.x < k.til)
     if (i === -1) continue
     const namn = kolonnar[i].namn
-    verdiar[namn] = verdiar[namn] ? `${verdiar[namn]} ${tekst}` : tekst
+    verdiar[namn] = verdiar[namn] ? `${verdiar[namn]} ${c.tekst.trim()}` : c.tekst.trim()
   }
   return verdiar
 }
@@ -619,7 +662,14 @@ function tolkRevisjonstabell(linjer, resultat) {
   ]
   if (rader.length === 0) return
 
-  const rad = (resultat.revisjon && rader.find((r) => r.rev === resultat.revisjon.toUpperCase())) || rader[rader.length - 1]
+  // Fell tilbake til rada med NYASTE DATO (ikkje berre siste element i
+  // lista) når revisjonen ikkje alt er kjend — rekkjefølgja i `rader` er
+  // ikkje pålitande nok til å seie kva som er «siste» (stadfesta 25. sept.
+  // 2026: rada øvst-i-tabellen — den NYASTE — enda opp sist i lista etter
+  // reverse()-en over, som gjorde at fallbacken plukka den ELDSTE
+  // revisjonen i staden for den gjeldande).
+  const rad = (resultat.revisjon && rader.find((r) => r.rev === resultat.revisjon.toUpperCase()))
+    || rader.reduce((nyast, r) => (!nyast || r.dato > nyast.dato ? r : nyast), null)
   if (!resultat.revisjon) resultat.revisjon = rad.rev
   if (!resultat.dato) resultat.dato = rad.dato
   if (!resultat.revisjonsbeskriving) resultat.revisjonsbeskriving = rad.beskriving

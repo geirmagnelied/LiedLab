@@ -492,6 +492,46 @@ PDF-ar, eller at cella-fragmenteringa i praksis oppfører seg som testane
 antek. Send `[DTM] ... — lesne linjer:`-loggen på nytt om noko framleis
 er feil.
 
+## Retta 25. sept. 2026 (runde 3) — VERIFISERT KORREKT mot dei to ekte PDF-ane
+
+Runde 2 gjorde det VERRE på nokre felt («resultatet no vart dårlegare enn
+i stad»). I staden for å halde fram med gjetting, køyrde eg denne gongen
+DEN FAKTISKE parsing-koda frå `main.js` (kopiert til eit mellombels
+Node-skript, sletta etter bruk) direkte mot dei to ekte PDF-ane —
+`pdfjs-dist` køyrer i vanleg Node utan Electron, så dette gav EKTE
+koordinatdata i staden for gjetting. Fann to konkrete, stadfesta feil:
+
+1. **Rotert tekst vart handsama som vassrett.** Den loddrette
+   «Arbeidstegning»-labelen (langs venstre kant av tittelfeltet) har ei
+   transform-matrise med rotasjonskomponentar — brukt som om ho var vanleg
+   vassrett tekst, limte ho seg inn i HEILT ANDRE celler (øydela
+   Oppdragsnummer/Tegningsnummer/Revisjon-rada fullstendig: vart til
+   `ArbeidstegningARKITEKTUR - BODØ 52406865 A-60-02`). Retta: filtrerer
+   no vekk alle tekst-item med ikkje-neglisjerbar rotasjon
+   (`transform[1]`/`[2]`) FØR linje/celle-oppdelinga.
+2. **Revisjonstabellen sin «siste rad»-fallback var feil veg.** Når
+   revisjonen ikkje alt var kjend, fall koden tilbake til `rader[siste
+   element]` — men etter ein intern `.reverse()` var «siste element» den
+   ELDSTE revisjonen (H01), ikkje den gjeldande (H02). Dette gav feil
+   fagkontroll-person, dato og revisjonsskildring. Retta: fell no tilbake
+   til rada med NYASTE DATO (strengsamanlikning på `YYYY-MM-DD`-format),
+   ikkje ein antatt listeposisjon.
+3. **To mindre presiseringar**: (a) `tolkStablaFelt()` sitt vindauge-søk
+   kravde no i tillegg at verdien startar NÆRT merkelappen sin eigen
+   x-posisjon (< 100 pt) — utan dette kunne eit fritståande felt (ingen
+   nabo-merkelapp, difor inga øvre grense) ved eit uhell fange ein
+   urelatert verdi lenger nede på sida (stadfesta: «Tiltakshaver» fanga
+   arkstørrelse-boksen sin «A1» i staden for firmanamnet). (b) Målestokk
+   godtek no berre verdiar som faktisk ser ut som ein målestokk (`N:M`) —
+   elles ståande tom, som er korrekt for dokument utan reell teiknings-
+   målestokk (t.d. eit dørskjema).
+
+**Verifisert direkte** (ikkje syntetiske testar denne gongen) — begge
+filene gav no 100 % korrekt resultat for ALLE felt: tittel, målestokk
+(tom for dørskjema, «1:100» for fasaden), utarbeida av, fagkontroll,
+godkjent, dato, arkstørrelse, revisjon, oppdragsgivar, tiltakshavar,
+oppdragsnummer, tegningsnummer og revisjonsskildring.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i
