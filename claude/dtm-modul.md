@@ -447,6 +447,51 @@ ikkje er tilgjengeleg i dette miljøet). Send `[DTM] ... — lesne
 linjer:`-loggen frå konsollen om noko framleis er feil, så kan grensene
 justerast mot faktiske tal.
 
+## Retta 25. sept. 2026 (runde 2) — framleis feil på fleire felt
+
+Etter runde 1-fiksane var enkelte felt framleis feil/tomme (revisjons-
+skildring, oppdragsgivar inkonsekvent, tiltakshavar, oppdragsnummer).
+Tre djupare rotårsaker vart identifiserte og retta:
+
+1. **Heile sida vart lese, ikkje berre tittelfeltet.** `lesLinjerFraSide()`
+   prosesserte ALLE tekstelement på arket — på ei full arbeidsteikning
+   (mål, romnamn, tegnforklaring osv.) fleire hundre stykk — som la støy
+   inn i linje/celle-oppdelinga akkurat i det området det monar mest.
+   Retta: **avgrensar no til nedre høgre hjørne** av arket (same
+   konvensjon som det opphavlege `pdf_vaktar.py` brukte — sjå
+   `claude/prosjektplan-tegningskontroll.md`), med automatisk fallback
+   til heile sida om avgrensinga gav for lite tekst att (uvanleg
+   sideoppsett).
+2. **«Næraste EINE celle» var for skjørt for fleirords-verdiar.** Eit
+   firmanamn som «Gunvald Johansen Bygg AS» kan hamne som fleire separate
+   celler (om interne ordmellomrom vart tolka som cellegrenser), og då
+   fanga det gamle «vel den næraste eine cella»-oppslaget berre eitt ord,
+   eller bomma heilt. Retta: **`tolkStablaFelt()` reknar no ut eit
+   KOLONNE-OMRÅDE** (avgrensa av neste merkelapp på same rad, t.d.
+   Oppdragsgiver vs. Målestokk som deler ei rad) og **set saman ALLE
+   celler** innanfor det området, i staden for å plukke éi.
+3. **Same prinsipp gjeld revisjonstabellen** — `tolkRevisjonstabell()`
+   brukar no òg kolonne-område (via `REVISJONSKOL`) i staden for
+   «næraste eine celle», som fiksar revisjonsskildringa av same grunn.
+
+**Andre justeringar:**
+- «Nr.»-kolonna heiter no **«Dokumentnummer»**.
+- **EK-kolonna er fjerna** (både i registeret og gjennomgangsmatrisa) —
+  `ek_person`-feltet i databasen/skanninga ligg urørt, berre ikkje vist.
+
+**Verifisert** med tre offline Node-testskript (framleis handlaga
+«linjer/celler»-strukturar, ikkje ekte PDF-koordinatar): kolonne-område-
+logikken set korrekt saman fragmenterte fleirords-verdiar, skil rett
+mellom to merkelappar på same rad (Oppdragsgiver/Målestokk), og
+revisjonstabellen si nye kolonne-område-lesing gjev same resultat som før
+for det enkle tilfellet, men handterer no ei splitta Beskrivelse-verdi
+riktig. **IKKJE verifisert**: at avgrensinga til nedre høgre hjørne
+(`grenseX`/`grenseY` i `lesLinjerFraSide()`, sett til 60 %/32 % av
+sidebreidd/-høgd) faktisk fangar heile Norconsult-tittelfeltet på ekte
+PDF-ar, eller at cella-fragmenteringa i praksis oppfører seg som testane
+antek. Send `[DTM] ... — lesne linjer:`-loggen på nytt om noko framleis
+er feil.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

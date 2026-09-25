@@ -20,7 +20,7 @@ const STATUS_FARGE = {
 }
 
 const BASE_COLUMNS = [
-  { key:'nr',          label:'Nr.',          w:110, art:'tekst', mono:true, opnaFil:true },
+  { key:'nr',          label:'Dokumentnummer', w:130, art:'tekst', mono:true, opnaFil:true },
   { key:'tittel',      label:'Tittel',       w:240, art:'tekst', utanFilter:true },
   { key:'status',      label:'Status',       w:190, art:'val',   utanFilter:true },
   { key:'filtype',     label:'Filtype',      w:80,  art:'val',   mono:true, standardSkjult:true },
@@ -37,7 +37,6 @@ const BASE_COLUMNS = [
   { key:'utarbeida_av',label:'Utarbeida av', w:126, art:'val' },
   { key:'fk_person',   label:'Fagkontroll',  w:110, art:'val',   standardSkjult:true },
   { key:'godkjent_av', label:'Godkjent',     w:110, art:'val',   standardSkjult:true },
-  { key:'ek_person',   label:'EK',           w:64,  art:'val',   standardSkjult:true },
   { key:'oppdragsnr',  label:'Oppdragsnr.',  w:110, art:'tekst', mono:true, standardSkjult:true },
   { key:'lagra_av',    label:'Lagra av',     w:170, art:'val',   standardSkjult:true },
   { key:'lasta_opp',   label:'Lasta opp',    w:112, art:'dato',  mono:true },
@@ -67,7 +66,6 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'malestokk':   return rad.malestokk || ''
       case 'format':      return rad.format || ''
       case 'utarbeida_av':return rad.utarbeida_av || ''
-      case 'ek_person':   return rad.ek_person || ''
       case 'fk_person':   return rad.fk_person || ''
       case 'godkjent_av': return rad.godkjent_av || ''
       case 'oppdragsgivar': return rad.oppdragsgivar || ''

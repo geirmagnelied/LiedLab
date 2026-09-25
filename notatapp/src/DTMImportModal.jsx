@@ -18,7 +18,7 @@ import { KATEGORI_LABEL, KATEGORI_FARGE, genererDNummer, genererSDNummer } from 
 // ═══════════════════════════════════════════════════════════════════
 
 const FELT = [
-  { key:'nr',           namn:'Nr.' },
+  { key:'nr',           namn:'Dokumentnummer' },
   { key:'rev',          namn:'Rev.' },
   { key:'dato',         namn:'Dato' },
   { key:'revisjonsbeskriving', namn:'Revisjonsskildring' },
@@ -33,7 +33,6 @@ const FELT = [
   { key:'utarbeida_av', namn:'Utarbeida av' },
   { key:'fk_person',    namn:'Fagkontroll' },
   { key:'godkjent_av',  namn:'Godkjent' },
-  { key:'ek_person',    namn:'EK' },
   { key:'oppdragsnr',   namn:'Oppdragsnr.' },
 ]
 

@@ -416,9 +416,27 @@ async function lesLinjerFraSide(pdf, sideNr) {
     if (sideNr < 1 || sideNr > pdf.numPages) return []
     const page = await pdf.getPage(sideNr)
     const content = await page.getTextContent()
+
+    // Avgrensar til tittelfeltet (nedre høgre hjørne av arket), same
+    // konvensjon som pdf_vaktar.py brukte (sjå
+    // claude/prosjektplan-tegningskontroll.md). Lagt til 25. sept. 2026:
+    // utan denne avgrensinga vart ALLE tekstelementa på heile arket (mål-
+    // setjingar, romnamn, tegnforklaring osv. — på ei full arbeidsteikning
+    // fort fleire hundre) blanda inn i linje/celle-oppdelinga saman med
+    // sjølve tittelfeltet, som gjorde celle-grensene upålitelege akkurat
+    // der det monar mest (Oppdragsgiver/Tiltakshaver/Oppdragsnummer).
+    // Fell tilbake til HEILE sida om avgrensinga ikkje gav nok tekst att
+    // (t.d. uvanleg sideoppsett), slik at ingenting går heilt i stykke.
+    const [x0, y0, x1, y1] = page.view
+    const breidd = x1 - x0, høgd = y1 - y0
+    const grenseX = x0 + breidd * 0.60
+    const grenseY = y0 + høgd * 0.32
+    const heileArket = content.items.filter((item) => item.str && item.str.trim())
+    let aktuelle = heileArket.filter((item) => item.transform[4] >= grenseX && item.transform[5] <= grenseY)
+    if (aktuelle.length < 15) aktuelle = heileArket
+
     const rader = []
-    for (const item of content.items) {
-      if (!item.str || !item.str.trim()) continue
+    for (const item of aktuelle) {
       const y = item.transform[5]
       let rad = rader.find((r) => Math.abs(r.y - y) <= 2.5)
       if (!rad) { rad = { y, delar: [] }; rader.push(rad) }
@@ -483,22 +501,36 @@ function tolkStablaFelt(linjer, resultat) {
   // nesten-tom linje mellom dei), så éi fast linje under held ikkje alltid.
   const VINDAUGE = 3
   for (let i = 0; i < linjer.length - 1; i++) {
-    for (const celle of linjer[i].celler) {
-      const tekst = celle.tekst.trim()
-      const treff = STABLA_FELT.find((f) => f.m.test(tekst))
-      if (!treff || resultat[treff.felt]) continue
-      // Verdien står i den cella (i éi av dei næraste linjene under) som
-      // ligg nærast same x-posisjon som merkelapp-cella (rett under, i
-      // same rute) — vel den med lågast (linjeavstand, x-avstand).
-      let næraste = null, bestScore = Infinity
+    // Alle KJENDE merkelappar PÅ DENNE linja, sortert etter x — brukt til
+    // å avgrense KOR LANGT TIL HØGRE éin verdi skal strekke seg før han
+    // høyrer til NESTE merkelapp si eiga kolonne (t.d. Oppdragsgiver og
+    // Målestokk ligg på same rad, med kvar sin verdi rett under seg).
+    const merkelappar = linjer[i].celler
+      .map((c) => ({ c, treff: STABLA_FELT.find((f) => f.m.test(c.tekst.trim())) }))
+      .filter((x) => x.treff)
+      .sort((a, b) => a.c.x - b.c.x)
+    if (merkelappar.length === 0) continue
+
+    for (let mi = 0; mi < merkelappar.length; mi++) {
+      const { c: celle, treff } = merkelappar[mi]
+      if (resultat[treff.felt]) continue
+      const grenseFrå = celle.x - 15
+      const grenseTil = mi + 1 < merkelappar.length ? (celle.x + merkelappar[mi + 1].c.x) / 2 : Infinity
+
+      // Verdien kan vere FRAGMENTERT i fleire celler (t.d. eit langt
+      // firmanamn) — vel linja med FLEST celler innanfor kolonneområdet
+      // blant dei næraste, og set saman alle cellene i x-rekkjefølgje, i
+      // staden for å berre plukke den EINE cella som ligg næraste.
+      let bestLinje = -1, bestTal = 0
       for (let j = i + 1; j < Math.min(linjer.length, i + 1 + VINDAUGE); j++) {
-        for (const v of linjer[j].celler) {
-          if (!v.tekst.trim()) continue
-          const score = (j - i) * 1000 + Math.abs(v.x - celle.x)
-          if (score < bestScore) { bestScore = score; næraste = v }
-        }
+        const tal = linjer[j].celler.filter((v) => v.tekst.trim() && v.x >= grenseFrå && v.x < grenseTil).length
+        if (tal > bestTal) { bestTal = tal; bestLinje = j }
       }
-      if (næraste && Math.abs(næraste.x - celle.x) < 60) resultat[treff.felt] = næraste.tekst.trim()
+      if (bestLinje === -1) continue
+      const verdiCeller = linjer[bestLinje].celler
+        .filter((v) => v.tekst.trim() && v.x >= grenseFrå && v.x < grenseTil)
+        .sort((a, b) => a.x - b.x)
+      if (verdiCeller.length) resultat[treff.felt] = verdiCeller.map((v) => v.tekst.trim()).join(' ')
     }
   }
 
@@ -516,44 +548,48 @@ function tolkStablaFelt(linjer, resultat) {
 }
 
 // Revisjonstabellen (Rev. | Dato | Beskrivelse | ... | Utarbeidet |
-// Fagkontroll | Godkjent) — finn header-rada, og les kvar data-rad ved å
-// slå opp cella som ligg NÆRAST SAME X-POSISJON som kvar header-kolonne
-// (IKKJE ved ordinal celle-indeks — ei data-rad kan ha eit anna tal
-// celler enn header-rada, t.d. om to verdiar slo seg saman eller ein
-// tekst delte seg i to, og då hamnar alt etter feilpunktet på feil
-// kolonne om ein berre tel celle-indeksar). Plukkar til slutt ut rada
-// som samsvarar med revisjonen tolkStablaFelt() over fann (fell tilbake
-// til siste rad i tabellen om revisjonen ikkje vart funnen der).
+// Fagkontroll | Godkjent) — finn header-rada, reknar ut KOLONNE-OMRÅDE
+// (x-intervall) frå header-cellene sine x-posisjonar, og les kvar data-rad
+// ved å SAMLE ALLE celler som fell innanfor kvart områd (IKKJE berre den
+// eine cella som ligg næraste, og IKKJE ved ordinal celle-indeks). Dette
+// er naudsynt for fleirords-verdiar som «Arbeidstegninger for bruk» i
+// Beskrivelse-kolonna — dei kan hamne som FLEIRE separate celler (om
+// ordmellomromma innanfor verdien vart tolka som cellegrenser), og då
+// ville «næraste eine celle» berre fanga det fyrste ordet eller bomme
+// heilt. Kolonne-områda strekk seg til midtvegs til næraste kolonne.
 //
 // MERK: data-rada(ne) kan liggje BÅDE over og under header-rada, avhengig
 // av malen — i Norconsult sitt oppsett (verifisert mot eit ekte tittelfelt
 // 24. sept. 2026) ligg t.d. den siste revisjonen RETT OVER header-rada,
 // ikkje under. Skannar difor i BÅDE retningar frå header-rada.
-function finnVedX(celler, x) {
-  let næraste = null, minDiff = Infinity
+const REVISJONSKOL = [
+  { namn: 'rev', m: /^rev\.?$/i }, { namn: 'dato', m: /^dato$/i }, { namn: 'beskriving', m: /beskriv/i },
+  { namn: 'utarbeidd', m: /utarbeid/i }, { namn: 'fagkontroll', m: /fagkontroll/i }, { namn: 'godkjent', m: /godkjent/i },
+]
+
+function lesRadEtterKolonneOmråde(celler, kolonnar) {
+  const verdiar = {}
   for (const c of celler) {
-    const diff = Math.abs(c.x - x)
-    if (diff < minDiff) { minDiff = diff; næraste = c }
+    const tekst = c.tekst.trim()
+    if (!tekst) continue
+    const i = kolonnar.findIndex((k) => c.x >= k.frå && c.x < k.til)
+    if (i === -1) continue
+    const namn = kolonnar[i].namn
+    verdiar[namn] = verdiar[namn] ? `${verdiar[namn]} ${tekst}` : tekst
   }
-  return næraste && minDiff < 45 ? næraste.tekst.trim() : ''
+  return verdiar
 }
 
-function samleRevisjonsrader(linjer, headerIdx, kolX, retning) {
+function samleRevisjonsrader(linjer, headerIdx, kolonnar, retning) {
   const rader = []
   for (let i = headerIdx + retning; i >= 0 && i < linjer.length; i += retning) {
-    const celler = linjer[i].celler
-    const revTekst = finnVedX(celler, kolX.rev)
+    const verdiar = lesRadEtterKolonneOmråde(linjer[i].celler, kolonnar)
+    const revTekst = (verdiar.rev || '').toUpperCase()
     // Stopp ved fyrste rad som ikkje ser ut som ein revisjonskode — t.d.
     // ei tom rad eller den lovpålagde brødteksten ved sida av tabellen.
-    if (!revTekst || !/^[A-ZÆØÅ]{0,2}\d{0,2}$/i.test(revTekst)) break
-    rader.push({
-      rev: revTekst.toUpperCase(),
-      dato: finnVedX(celler, kolX.dato),
-      beskriving: finnVedX(celler, kolX.beskriving),
-      utarbeidd: finnVedX(celler, kolX.utarbeidd),
-      fagkontroll: finnVedX(celler, kolX.fagkontroll),
-      godkjent: finnVedX(celler, kolX.godkjent),
-    })
+    if (!revTekst || !/^[A-ZÆØÅ]{0,2}\d{0,2}$/.test(revTekst)) break
+    rader.push({ rev: revTekst, dato: verdiar.dato || '', beskriving: verdiar.beskriving || '',
+      utarbeidd: verdiar.utarbeidd || '', fagkontroll: verdiar.fagkontroll || '', godkjent: verdiar.godkjent || '' })
   }
   return rader
 }
@@ -564,15 +600,22 @@ function tolkRevisjonstabell(linjer, resultat) {
     l.celler.some((c) => /^dato$/i.test(c.tekst.trim())))
   if (headerIdx === -1) return
   const header = linjer[headerIdx].celler
-  const finnKolX = (re) => header.find((c) => re.test(c.tekst.trim()))?.x
-  const kolX = {
-    rev: finnKolX(/^rev\.?$/i), dato: finnKolX(/^dato$/i), beskriving: finnKolX(/beskriv/i),
-    utarbeidd: finnKolX(/utarbeid/i), fagkontroll: finnKolX(/fagkontroll/i), godkjent: finnKolX(/godkjent/i),
+
+  const kolonnar = []
+  for (const c of header) {
+    const treff = REVISJONSKOL.find((k) => k.m.test(c.tekst.trim()))
+    if (treff) kolonnar.push({ namn: treff.namn, x: c.x })
   }
+  if (kolonnar.length === 0) return
+  kolonnar.sort((a, b) => a.x - b.x)
+  kolonnar.forEach((k, i) => {
+    k.frå = i === 0 ? -Infinity : (kolonnar[i - 1].x + k.x) / 2
+    k.til = i === kolonnar.length - 1 ? Infinity : (k.x + kolonnar[i + 1].x) / 2
+  })
 
   const rader = [
-    ...samleRevisjonsrader(linjer, headerIdx, kolX, -1).reverse(),
-    ...samleRevisjonsrader(linjer, headerIdx, kolX, 1),
+    ...samleRevisjonsrader(linjer, headerIdx, kolonnar, -1).reverse(),
+    ...samleRevisjonsrader(linjer, headerIdx, kolonnar, 1),
   ]
   if (rader.length === 0) return
 
