@@ -67,27 +67,50 @@ sjølv set denne propen — utan han oppfører DataTabell seg nøyaktig som før
 Med `rutenettRedigering` slege på:
 - Eit «Redigering»-av/på-val dukkar opp i verktøylinja, like til venstre for
   «Fargekode»-etiketten.
-- Med det PÅ kan ALLE celler redigerast med dobbeltklikk — ikkje berre
-  kolonnar merkt `redigerbar:true` — MED UNNTAK av kolonnar merkt
-  `opnaFil:true` (opnar fil, ikkje redigering) eller **`beregna:true`**
-  (kolonnen sin verdi er UTREKNA, ikkje eit flatt felt på rada — t.d. eit
-  join/derivert felt — og skal ALDRI kunne skrivast til generisk, sjølv om
-  modus er på). **Kvar tabell som slår på `rutenettRedigering` MÅ sjølv
-  merkje sine utrekna/nøsta kolonnar med `beregna:true`** — elles vil eit
-  klikk kalle `onSetVerdi(id, key, verdi)` med ein nøkkel som ikkje finst
-  som ekte kolonne i databasen.
-- Dobbeltklikk på ein slik (ikkje enno redigerbar) celle når modus er AV
-  slår sjølv PÅ modus fyrst, som ein snarveg.
-- Eit lite Excel-liknande dra-handtak (firkant nede til høgre) dukkar opp i
-  den sist valde/redigerte cella når modus er på — å dra det ned/opp over
-  andre rader fyller startverdien inn i alle radene ein dreg over, med
+- **Modus AV** (uendra frå før): berre kolonnar merkt `redigerbar:true`
+  kan redigerast, med DOBBELTKLIKK. Eit dobbeltklikk på ein IKKJE ENNO
+  redigerbar celle (som ville blitt redigerbar OM modus var på) slår sjølv
+  PÅ modus fyrst, og opnar so redigering med det same — ein snarveg forbi
+  den dedikerte knappen.
+- **Modus PÅ**: eitt einstaka KLIKK er nok til å opne redigering, i ALLE
+  celler — ikkje berre kolonnar merkt `redigerbar:true` — MED UNNTAK av
+  kolonnar merkt `opnaFil:true` (opnar fil, ikkje redigering) eller
+  **`beregna:true`** (kolonnen sin verdi er UTREKNA, ikkje eit flatt felt
+  på rada — t.d. eit join/derivert felt — og skal ALDRI kunne skrivast til
+  generisk, sjølv om modus er på). **Kvar tabell som slår på
+  `rutenettRedigering` MÅ sjølv merkje sine utrekna/nøsta kolonnar med
+  `beregna:true`** — elles vil eit klikk kalle `onSetVerdi(id, key, verdi)`
+  med ein nøkkel som ikkje finst som ekte kolonne i databasen.
+- **Fleire-celler-val**: eit klikk-og-DRA (rørsle forbi ein liten terskel,
+  skil det frå eit reint klikk) over fleire rader i SAME kolonne vel heile
+  området (blå kant/bakgrunn), utan å opne redigering. Talet på celler i
+  utvalet vert kjelda for dra-og-fyll under.
+- **Excel-liknande dra-og-fyll**: eit lite handtak (firkant nede til høgre)
+  dukkar opp i BOTN-cella av det valde området. Å dra det nedover/oppover
+  fyller/GJENTEK mønsteret av verdiar frå kjeldeutvalet syklisk inn i radene
+  ein dreg over (nøyaktig éin kjeldeverdi → same åtferd som før: rein
+  kopiering begge vegar). Måleraden vert funne med
   `document.elementFromPoint` (robust mot sortering/filter/tettleik).
 - Eit «↶ Angre»-tastar dukkar opp i verktøylinja så snart det finst minst
   éi endring å angre — både enkeltredigeringar og heile dra-og-fyll-
   operasjonar (dra-og-fyll tel som ÉI angre-gruppe). Angre-historikken er
   BERRE i minnet (ikkje lagra), og forsvinn ved sideoppdatering — det er
-  meint som eit tryggingsnett mot eit uheldig dobbeltklikk/dra, ikkje ein
-  full versjonshistorikk.
+  meint som eit tryggingsnett mot eit uheldig klikk/dra, ikkje ein full
+  versjonshistorikk.
+- Eigne kolonnar (`kol.eigen`, t.d. brukardefinerte kolonnar) er IKKJE med
+  i fleire-celler-val/dra-og-fyll — dei har alt sin eigen enkeltklikk-
+  redigeringsflyt, uendra.
+
+## Totalrad — 25. sept. 2026, alltid tilgjengeleg (ikkje bak nokon prop)
+
+Eit «Totalrad»-av/på-val dukkar opp i verktøylinja (attmed Tettleik) i KVAR
+tabell som har minst éin synleg kolonne med `art:'tal'`. Slått på legg det
+ei fast rad (`<tfoot>`, sticky nede i scroll-området, same mønster som
+`<thead>` sin sticky topp) nedst i tabellen, som viser SUMMEN av kvar synleg
+talkolonne for dei FILTRERTE/synlege radene (ikkje eit skjult totaltal for
+heile registeret). Det er ei rein VISINGSINNSTILLING (lagra i
+`prefs.totalrad`, same localStorage-mønster som Fargekode/Tettleik) — ingen
+ny prop, ingen databaseendring.
 
 ## Prototype
 

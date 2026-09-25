@@ -165,6 +165,7 @@ export default function DataTabell({
   const standardPrefs = useMemo(() => ({
     farge: false,
     tettleik: 'normal',
+    totalrad: false,
     rekkje: standardRekkje,
     skjulte: standardSkjulte,
     breidder: standardBreidder,
@@ -185,11 +186,14 @@ export default function DataTabell({
 
   // ── Rutenettvisning (grid-redigering), sjå prop-kommentaren øvst ────
   const [redigeringsmodus, setRedigeringsmodus] = useState(false)
-  const [aktivCelle, setAktivCelle] = useState(null) // { id, key } — syner Excel-dra-handtaket
-  const [fyllOmråde, setFyllOmråde] = useState(null) // { key, frå, til } radindeksar, under aktiv drahandling
+  // cellOmråde: { key, frå, til } — det VALDE området (radindeksar) i éin
+  // kolonne. Ei enkelt-celle er frå===til. Syner Excel-dra-handtaket nede
+  // i «til»-rada, og er kjelda dra-og-fyll kopierer/gjentek mønsteret frå.
+  const [cellOmråde, setCellOmråde] = useState(null)
+  const [fyllOmråde, setFyllOmråde] = useState(null) // { key, frå, til } — FØREHANDSVISING under ei aktiv dra-og-fyll-handling
   const [angreStabel, setAngreStabel] = useState([]) // stack av { endringar:[{type,id,key,gammal}] }
 
-  useEffect(() => { if (!redigeringsmodus) setAktivCelle(null) }, [redigeringsmodus])
+  useEffect(() => { if (!redigeringsmodus) setCellOmråde(null) }, [redigeringsmodus])
 
   const erModusRedigerbar = useCallback((kol) =>
     rutenettRedigering && !kol.opnaFil && !kol.eigen && !kol.beregna,
@@ -273,13 +277,11 @@ export default function DataTabell({
   const settVerdiMedAngre = useCallback((id, key, gammalVerdi, nyVerdi) => {
     if (nyVerdi !== gammalVerdi) setAngreStabel(s => [...s, { endringar:[{ type:'normal', id, key, gammal:gammalVerdi }] }])
     onSetVerdi?.(id, key, nyVerdi)
-    setAktivCelle({ id, key })
   }, [onSetVerdi])
 
   const settExtraMedAngre = useCallback((id, key, gammalVerdi, nyVerdi) => {
     if (nyVerdi !== gammalVerdi) setAngreStabel(s => [...s, { endringar:[{ type:'eigen', id, key, gammal:gammalVerdi }] }])
     onSetExtra?.(id, key, nyVerdi)
-    setAktivCelle({ id, key })
   }, [onSetExtra])
 
   const angre = useCallback(() => {
@@ -294,50 +296,100 @@ export default function DataTabell({
     })
   }, [onSetExtra, onSetVerdi])
 
-  // Excel-liknande dra-og-fyll frå handtaket nede til høgre i den aktive
-  // cella. Finn måleraden via document.elementFromPoint (robust mot
-  // sortering/filter/tettleik, treng ikkje faste pikselhøgder), fyller
-  // startverdien inn i ALLE radene mellom start og slepp, og lagrar det
-  // heile som ÉI Angre-gruppe.
-  const startFyll = useCallback((id, key, verdi, e) => {
+  const finnRadIndeks = useCallback((radIdVerdi) =>
+    rader.findIndex(r => String(radId(r)) === String(radIdVerdi)),
+  [rader, radId])
+
+  const lesRåVerdi = useCallback((rad, key, kol) =>
+    kol.eigen ? (rad.ekstra?.[key] ?? '') : (hentRedigerVerdi ? hentRedigerVerdi(rad, key) : tekst(rad, key)),
+  [hentRedigerVerdi, tekst])
+
+  const lagreVerdi = useCallback((rad, key, kol, verdi, endringar) => {
+    const målId = radId(rad)
+    const gammalVerdi = lesRåVerdi(rad, key, kol)
+    if (gammalVerdi === verdi) return
+    endringar.push({ type: kol.eigen ? 'eigen' : 'normal', id:målId, key, gammal:gammalVerdi })
+    if (kol.eigen) onSetExtra?.(målId, key, verdi); else onSetVerdi?.(målId, key, verdi)
+  }, [radId, lesRåVerdi, onSetExtra, onSetVerdi])
+
+  // ── Klikk-og-dra for å VELJE eit område av celler i éin kolonne ─────
+  // Skil klikk (ingen rørsle → vel + opnar redigering direkte, sjå
+  // krav om at eitt klikk skal vere nok i redigeringsmodus) frå eit reelt
+  // dra (rørsle over ein terskel → byggjer eit fleire-rader-utval, som
+  // sidan kan dragast-og-fyllast med handtaket, sjå startFyll under).
+  const startCelleVal = useCallback((id, key, e) => {
+    if (!redigeringsmodus) return
+    const startIndeks = finnRadIndeks(id)
+    if (startIndeks === -1) return
+    e.preventDefault() // hindrar nettlesaren sin native tekst-drag-markering under draget
+    let sluttIndeks = startIndeks
+    let vartDrege = false
+    const startX = e.clientX, startY = e.clientY
+    const flytt = (ev) => {
+      if (!vartDrege && (Math.abs(ev.clientX - startX) > 4 || Math.abs(ev.clientY - startY) > 4)) vartDrege = true
+      if (!vartDrege) return
+      const el = document.elementFromPoint(ev.clientX, ev.clientY)
+      const tr = el?.closest?.('tr[data-radid]')
+      if (!tr) return
+      const idx = finnRadIndeks(tr.getAttribute('data-radid'))
+      if (idx !== -1) { sluttIndeks = idx; setCellOmråde({ key, frå:Math.min(startIndeks, idx), til:Math.max(startIndeks, idx) }) }
+    }
+    const slepp = () => {
+      window.removeEventListener('mousemove', flytt)
+      window.removeEventListener('mouseup', slepp)
+      if (vartDrege) {
+        setCellOmråde({ key, frå:Math.min(startIndeks, sluttIndeks), til:Math.max(startIndeks, sluttIndeks) })
+      } else {
+        // Reint klikk, ingen drag — vel berre denne eine cella OG opne
+        // redigering med det same (eitt klikk er nok når modus er på).
+        setCellOmråde({ key, frå:startIndeks, til:startIndeks })
+        setRedigerer({ id, key })
+      }
+    }
+    window.addEventListener('mousemove', flytt)
+    window.addEventListener('mouseup', slepp)
+  }, [redigeringsmodus, finnRadIndeks])
+
+  // Excel-liknande dra-og-fyll frå handtaket nede i botnen av det valde
+  // området (cellOmråde). Dreg ein NEDOVER (forbi «til»), gjentek verdi-
+  // mønsteret frå kjelda syklisk nedover; dreg ein OPPOVER (forbi «frå»),
+  // gjentek det syklisk oppover. Cellene i sjølve kjeldeområdet vert aldri
+  // rørte. Heile operasjonen tel som ÉI Angre-gruppe.
+  const startFyll = useCallback((kjeldeFrå, kjeldeTil, key, e) => {
     e.preventDefault(); e.stopPropagation()
     const kol = kolMap[key]
-    const startIndeks = rader.findIndex(r => String(radId(r)) === String(id))
-    if (startIndeks === -1) return
-    let sluttIndeks = startIndeks
+    const kjeldeLengde = kjeldeTil - kjeldeFrå + 1
+    const kjeldeVerdiar = []
+    for (let i = kjeldeFrå; i <= kjeldeTil; i++) kjeldeVerdiar.push(lesRåVerdi(rader[i], key, kol))
+    let sluttIndeks = kjeldeTil
     const flytt = (ev) => {
       const el = document.elementFromPoint(ev.clientX, ev.clientY)
       const tr = el?.closest?.('tr[data-radid]')
       if (!tr) return
-      const idx = rader.findIndex(r => String(radId(r)) === tr.getAttribute('data-radid'))
-      if (idx !== -1) {
-        sluttIndeks = idx
-        setFyllOmråde({ key, frå:Math.min(startIndeks, idx), til:Math.max(startIndeks, idx) })
-      }
+      const idx = finnRadIndeks(tr.getAttribute('data-radid'))
+      if (idx !== -1) { sluttIndeks = idx; setFyllOmråde({ key, frå:Math.min(kjeldeFrå, idx), til:Math.max(kjeldeTil, idx) }) }
     }
     const slepp = () => {
       window.removeEventListener('mousemove', flytt)
       window.removeEventListener('mouseup', slepp)
       document.body.style.cursor = ''
       setFyllOmråde(null)
-      const frå = Math.min(startIndeks, sluttIndeks), til = Math.max(startIndeks, sluttIndeks)
-      if (frå === til) return
+      const frå = Math.min(kjeldeFrå, sluttIndeks), til = Math.max(kjeldeTil, sluttIndeks)
       const endringar = []
       for (let i = frå; i <= til; i++) {
-        const rad = rader[i]
-        const målId = radId(rad)
-        if (String(målId) === String(id)) continue
-        const gammalVerdi = kol.eigen ? (rad.ekstra?.[key] ?? '') : (hentRedigerVerdi ? hentRedigerVerdi(rad, key) : tekst(rad, key))
-        if (gammalVerdi === verdi) continue
-        endringar.push({ type: kol.eigen ? 'eigen' : 'normal', id:målId, key, gammal:gammalVerdi })
-        if (kol.eigen) onSetExtra?.(målId, key, verdi); else onSetVerdi?.(målId, key, verdi)
+        if (i >= kjeldeFrå && i <= kjeldeTil) continue // kjeldeområdet sjølv, urørt
+        const verdi = i > kjeldeTil
+          ? kjeldeVerdiar[(i - kjeldeTil - 1) % kjeldeLengde]
+          : kjeldeVerdiar[kjeldeLengde - 1 - ((kjeldeFrå - 1 - i) % kjeldeLengde)]
+        lagreVerdi(rader[i], key, kol, verdi, endringar)
       }
       if (endringar.length) setAngreStabel(s => [...s, { endringar }])
+      setCellOmråde({ key, frå, til })
     }
     document.body.style.cursor = 'crosshair'
     window.addEventListener('mousemove', flytt)
     window.addEventListener('mouseup', slepp)
-  }, [kolMap, rader, radId, hentRedigerVerdi, tekst, onSetExtra, onSetVerdi])
+  }, [kolMap, rader, finnRadIndeks, lesRåVerdi, lagreVerdi])
 
   // Kolonnenøklar som BERRE er redigerbare fordi rutenettvisninga er på —
   // brukt til Tab/Shift+Tab-navigasjon i RedigerCelle saman med dei vanleg
@@ -490,6 +542,7 @@ export default function DataTabell({
 
   const aktiveFilter = Object.entries(prefs.filter).filter(([, v]) => v && v.length)
   const radhøgd = prefs.tettleik === 'tett' ? 30 : prefs.tettleik === 'luftig' ? 48 : 38
+  const harTalKolonne = useMemo(() => synlege.some(k => kolMap[k]?.art === 'tal'), [synlege, kolMap])
   const cellePad = prefs.tettleik === 'tett' ? '0 8px' : '0 11px'
 
   return (
@@ -518,6 +571,10 @@ export default function DataTabell({
               className={prefs.tettleik === v ? 'på' : ''}>{t}</button>
           ))}
         </div>
+        {harTalKolonne && (<>
+          <span className="dt-etikett" style={{ marginLeft:6 }}>Totalrad</span>
+          <Segment val={prefs.totalrad} sett={v => setPrefs({ totalrad:v })} val1={[false, 'Av']} val2={[true, 'På']}/>
+        </>)}
 
         {aktiveFilter.map(([k, v]) => (
           <span key={k} className="dt-chip">
@@ -597,22 +654,22 @@ export default function DataTabell({
                   const kol = kolMap[k]
                   const alleredeRedigerbar = kol.redigerbar
                   const modusKanRedigere = erModusRedigerbar(kol)
-                  const kanRedigere = kol.eigen || alleredeRedigerbar || (modusKanRedigere && redigeringsmodus)
+                  const kanRedigere = kol.eigen || alleredeRedigerbar || modusKanRedigere
+                  const kanValjastIModus = !kol.eigen && kanRedigere // fleire-celle-val/dra-og-fyll gjeld ikkje eigne kolonnar
                   const redigerast = kanRedigere && redigerer?.id === id && redigerer?.key === k
+                  const iCellOmråde = redigeringsmodus && cellOmråde && cellOmråde.key === k
+                    && radIndeks >= cellOmråde.frå && radIndeks <= cellOmråde.til
                   const iFyllOmråde = fyllOmråde && fyllOmråde.key === k
                     && radIndeks >= fyllOmråde.frå && radIndeks <= fyllOmråde.til
-                  const erAktivFyllCelle = redigeringsmodus && modusKanRedigere && !redigerast
-                    && aktivCelle?.id === id && aktivCelle?.key === k
-                  const startverdi = (redigerast || erAktivFyllCelle)
-                    ? (kol.eigen ? (r.ekstra?.[k] ?? '') : (hentRedigerVerdi ? hentRedigerVerdi(r, k) : tekst(r, k)))
-                    : undefined
+                  const visFyllHandtak = redigeringsmodus && kanValjastIModus && !redigerast
+                    && cellOmråde && cellOmråde.key === k && radIndeks === cellOmråde.til
                   return (
                     <td key={k} style={{ height:radhøgd, padding:cellePad, position:'relative',
                         cursor: kol.opnaFil ? 'pointer' : undefined,
-                        ...(iFyllOmråde ? { boxShadow:'inset 0 0 0 1.5px var(--brand)', background:'var(--brandbg)' } : undefined) }}
+                        ...((iCellOmråde || iFyllOmråde) ? { boxShadow:'inset 0 0 0 1.5px var(--brand)', background:'var(--brandbg)' } : undefined) }}
                       className={(kol.mono ? 'mono ' : '') + (kol.art === 'tal' ? 'tal ' : '') + (kanRedigere ? 'eigen' : '')}
                       title={kol.opnaFil ? (alleredeRedigerbar ? 'Klikk for å opne, dobbeltklikk for å redigere' : 'Klikk for å opne')
-                        : kanRedigere ? (kol.eigen ? 'Klikk for å redigere' : 'Dobbeltklikk for å redigere') : tekst(r, k)}
+                        : kanRedigere ? (kol.eigen || redigeringsmodus ? 'Klikk for å redigere' : 'Dobbeltklikk for å redigere') : tekst(r, k)}
                       onClick={() => {
                         if (kol.eigen) { setRedigerer({ id, key:k }); return }
                         if (kol.opnaFil) {
@@ -622,16 +679,16 @@ export default function DataTabell({
                           } else {
                             onOpneFil?.(r, k)
                           }
-                          return
                         }
-                        if (redigeringsmodus && modusKanRedigere) setAktivCelle({ id, key:k })
                       }}
+                      onMouseDown={e => { if (!redigerast && kanValjastIModus) startCelleVal(id, k, e) }}
                       onDoubleClick={e => {
                         if (kol.eigen || kol.opnaFil) return
                         if (!alleredeRedigerbar && !modusKanRedigere) return
                         if (klikkTimerRef.current) { clearTimeout(klikkTimerRef.current); klikkTimerRef.current = null }
                         e.stopPropagation()
                         if (modusKanRedigere && !redigeringsmodus) setRedigeringsmodus(true)
+                        setCellOmråde({ key:k, frå:radIndeks, til:radIndeks })
                         setRedigerer({ id, key:k })
                       }}>
                       {redigerast ? (
@@ -659,16 +716,19 @@ export default function DataTabell({
                             startverdi={hentRedigerVerdi ? hentRedigerVerdi(r, k) : tekst(r, k)}
                             synlege={synlege} kolMap={kolMap} modusRedigerbareKeys={modusRedigerbareKeys}
                             onLagre={verdi => settVerdiMedAngre(id, k, hentRedigerVerdi ? hentRedigerVerdi(r, k) : tekst(r, k), verdi)}
-                            onFlytt={nesteKey => setRedigerer(nesteKey ? { id, key:nesteKey } : null)}
+                            onFlytt={nesteKey => {
+                              if (nesteKey) { setCellOmråde({ key:nesteKey, frå:radIndeks, til:radIndeks }); setRedigerer({ id, key:nesteKey }) }
+                              else setRedigerer(null)
+                            }}
                             onLukk={() => setRedigerer(null)}/>
                         )
                       ) : (
                         <Celle rad={r} kol={kol} tekst={tekst} farge={prefs.farge} lagCelle={lagCelle}/>
                       )}
-                      {erAktivFyllCelle && (
+                      {visFyllHandtak && (
                         <span className="dt-fyllhandtak"
-                          onMouseDown={e => startFyll(id, k, startverdi, e)}
-                          title="Dra for å fylle verdien inn i radene under/over, som i Excel"/>
+                          onMouseDown={e => startFyll(cellOmråde.frå, cellOmråde.til, k, e)}
+                          title="Dra for å fylle/gjenta verdien(e) i radene under/over, som i Excel"/>
                       )}
                     </td>
                   )
@@ -676,6 +736,23 @@ export default function DataTabell({
               </tr>
             )})}
           </tbody>
+          {prefs.totalrad && harTalKolonne && (
+            <tfoot>
+              <tr className="dt-totalrad">
+                {radMeny && <td className="dt-totalrad-etikett" style={{ height:radhøgd, padding:cellePad }}>Totalt</td>}
+                {synlege.map((k, i) => {
+                  const kol = kolMap[k]
+                  if (!radMeny && i === 0) return <td key={k} className="dt-totalrad-etikett" style={{ height:radhøgd, padding:cellePad }}>Totalt</td>
+                  if (kol.art !== 'tal') return <td key={k} style={{ height:radhøgd, padding:cellePad }}/>
+                  const sum = rader.reduce((s, r) => {
+                    const v = sorteringsverdi(r, k)
+                    return s + (typeof v === 'number' && isFinite(v) ? v : 0)
+                  }, 0)
+                  return <td key={k} className="tal" style={{ height:radhøgd, padding:cellePad }}>{Math.round(sum * 100) / 100}</td>
+                })}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
@@ -830,6 +907,7 @@ function RedigerCelle({ kol, startverdi, synlege, kolMap, modusRedigerbareKeys =
   return (
     <input autoFocus className="dt-input" value={v}
       type={kol.art === 'tal' ? 'number' : 'text'}
+      min={kol.min} max={kol.max}
       onChange={e => setV(e.target.value)}
       onClick={e => e.stopPropagation()}
       onBlur={e => onLagre(e.target.value)}
@@ -1063,6 +1141,9 @@ const CSS = `
 .dt-tabell td.eigen:hover { box-shadow:inset 0 0 0 1.5px var(--border2) }
 .dt-fyllhandtak { position:absolute; right:1px; bottom:1px; width:6px; height:6px;
   background:var(--brand); border:1px solid var(--bg2); cursor:crosshair; z-index:2 }
+.dt-totalrad td { position:sticky; bottom:0; z-index:4; background:var(--bg3); border-top:2px solid var(--border);
+  border-right:1px solid var(--border); font-weight:800; color:var(--text); font-variant-numeric:tabular-nums }
+.dt-totalrad-etikett { font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); font-weight:700 }
 
 .dt-input { width:100%; padding:5px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12.5px;
   font-family:var(--font); background:var(--bg2); color:var(--text); outline:none }

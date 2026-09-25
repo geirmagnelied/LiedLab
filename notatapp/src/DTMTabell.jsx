@@ -39,6 +39,9 @@ const BASE_COLUMNS = [
   { key:'fase',        label:'Fase',         art:'val' },
   { key:'delprosjekt', label:'Delprosjekt',  art:'tekst', redigerbar:true },
   { key:'ferdigstillingsstatus', label:'Status ved ferdigstilling', art:'val', redigerbar:true, val:['', ...FERDIGSTILLING_STATUS] },
+  { key:'ferdigstillelse', label:'Ferdigstillelse', art:'tal', redigerbar:true, minW:60, min:0, max:100 },
+  { key:'timebudsjett',   label:'Timebudsjett', art:'tal', redigerbar:true, minW:60 },
+  { key:'gjenstaande_timer', label:'Gjenståande timer', art:'tal', beregna:true, minW:60 },
   { key:'malestokk',   label:'Målestokk',    art:'tekst' },
   { key:'format',      label:'Arkstørrelse', art:'val' },
   { key:'utarbeida_av',label:'Utarbeida av', art:'val' },
@@ -78,6 +81,12 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'fase':        return rad.fase || ''
       case 'delprosjekt': return rad.delprosjekt || ''
       case 'ferdigstillingsstatus': return rad.ferdigstillingsstatus || ''
+      case 'ferdigstillelse': return rad.ferdigstillelse != null ? rad.ferdigstillelse : ''
+      case 'timebudsjett':    return rad.timebudsjett != null ? rad.timebudsjett : ''
+      case 'gjenstaande_timer': {
+        if (rad.timebudsjett == null || rad.ferdigstillelse == null) return ''
+        return Math.round(rad.timebudsjett * (1 - rad.ferdigstillelse / 100) * 10) / 10
+      }
       case 'malestokk':   return rad.malestokk || ''
       case 'format':      return rad.format || ''
       case 'utarbeida_av':return rad.utarbeida_av || ''
@@ -115,6 +124,16 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
           {taggar.map(t => <Pille key={t} tekst={t} farge={STATUS_FARGE[t]}/>)}
         </div>
       )
+    }
+    if (kol.key === 'ferdigstillelse') {
+      if (rad.ferdigstillelse == null || rad.ferdigstillelse === '') return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>
+      return <span style={{ fontVariantNumeric:'tabular-nums' }}>{rad.ferdigstillelse} %</span>
+    }
+    if (kol.key === 'timebudsjett' || kol.key === 'gjenstaande_timer') {
+      const v = kol.key === 'timebudsjett' ? rad.timebudsjett
+        : (rad.timebudsjett == null || rad.ferdigstillelse == null ? null : Math.round(rad.timebudsjett * (1 - rad.ferdigstillelse / 100) * 10) / 10)
+      if (v == null || v === '') return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>
+      return <span style={{ fontVariantNumeric:'tabular-nums' }}>{v} t</span>
     }
     if (kol.key === 'utsendingar') {
       const liste = utsendingarPerDokument[rad.id] || []

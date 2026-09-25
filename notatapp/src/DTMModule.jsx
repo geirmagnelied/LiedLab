@@ -134,9 +134,15 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   }
 
   // ── Rediger éi celle direkte i registeret (t.d. Delprosjekt) ────────
+  // «Ferdigstillelse»/«Timebudsjett» er ekte NUMERIC/INTEGER-kolonnar i
+  // Supabase (til skilnad frå tekstfelta, som brukar '' som tomt-verdi) —
+  // ein tom streng ville feila mot databasen, så tomming skal lagrast som
+  // NULL for desse to i staden.
+  const NUMERISKE_FELT = new Set(['ferdigstillelse', 'timebudsjett'])
   const settVerdi = async (id, felt, verdi) => {
-    setDokumenter(ds => ds.map(d => d.id === id ? { ...d, [felt]: verdi } : d))
-    await supabase.from('dtm_dokumenter').update({ [felt]: verdi, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+    const lagra = NUMERISKE_FELT.has(felt) && verdi === '' ? null : verdi
+    setDokumenter(ds => ds.map(d => d.id === id ? { ...d, [felt]: lagra } : d))
+    await supabase.from('dtm_dokumenter').update({ [felt]: lagra, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
   }
 
   // ── Favoritt / fest til toppen (radmeny) ────────────────────────────

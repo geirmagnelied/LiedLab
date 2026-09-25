@@ -769,23 +769,55 @@ Tre justeringar av sjølve DTM-tabellen same dag:
 2. **Rutenettvisning / grid-redigering**: bygd generisk i `DataTabell.jsx`
    bak ein ny, opt-in `rutenettRedigering`-prop (sjå
    `claude/saksmodul-tabell.md` for den fulle spesifikasjonen — Angre,
-   dra-og-fyll, `beregna`-kolonneflagget osb.). DTM er den einaste tabellen
-   som slår han på (`DTMTabell.jsx`). Kolonnane Kategori/Status/Filtype/
-   Rev./Dato/Lasta opp/Utsendingar/Filsti/Lagra av er UTREKNA (nøsta i
-   kategori-JSON-en eller reint avleia) og difor merkt `beregna:true` — dei
-   kan ALDRI redigerast generisk, uansett modus. Alle andre kolonnar (Fag,
-   Oppdragsgivar, Tiltakshavar, Fase, Målestokk, Format, osb.) kan no
-   redigerast direkte i tabellen når modus er på, i tillegg til dei som alt
-   var det (Delprosjekt, Status ved ferdigstilling).
+   fleire-celler-val, dra-og-fyll, `beregna`-kolonneflagget osb.). DTM er
+   den einaste tabellen som slår han på (`DTMTabell.jsx`). Kolonnane
+   Kategori/Status/Filtype/Rev./Dato/Lasta opp/Utsendingar/Filsti/Lagra av
+   er UTREKNA (nøsta i kategori-JSON-en eller reint avleia) og difor merkt
+   `beregna:true` — dei kan ALDRI redigerast generisk, uansett modus. Alle
+   andre kolonnar (Fag, Oppdragsgivar, Tiltakshavar, Fase, Målestokk,
+   Format, osb.) kan no redigerast direkte i tabellen når modus er på, i
+   tillegg til dei som alt var det (Delprosjekt, Status ved ferdigstilling).
 3. **Redigeringsmodus-knapp + Angre** i verktøylinja, like til venstre for
    «Fargekode».
 
+## Vidareutvikling 25. sept. 2026 (3) — eitt klikk, fleire-celler-val, nye kolonnar
+
+Brukarfeedback etter (2): eitt klikk skal vere nok til å redigere når modus
+er PÅ (dobbeltklikk sin einaste jobb no er å SLÅ PÅ modus, som ein snarveg,
+frå av-tilstanden); i tillegg skal ein kunne VELJE FLEIRE CELLER (klikk-og-
+dra i éin kolonne) og dra det valde området vidare opp/ned for å gjenta
+mønsteret av verdiar (ikkje berre kopiere éin einskild verdi) — sjå
+`claude/saksmodul-tabell.md` for den fulle interaksjonsspesifikasjonen.
+
+Samstundes, tre nye kolonnar i DTM-matrisa (`DTMTabell.jsx`):
+- **Ferdigstillelse** — prosent ferdig (0–100), fritt tal sett av brukar.
+  EIGEN, uavhengig av «Status ved ferdigstilling» (som er eit fast steg-namn,
+  ikkje ein prosent). Ny kolonne `dtm_dokumenter.ferdigstillelse INTEGER`.
+- **Timebudsjett** — timebudsjett for DETTE dokumentet. Ny kolonne
+  `dtm_dokumenter.timebudsjett NUMERIC`.
+- **Gjenståande timer** — `timebudsjett * (1 - ferdigstillelse/100)`,
+  RIEN UTREKNA i UI-en (`beregna:true`, IKKJE lagra i databasen — endrar
+  seg automatisk når anten Ferdigstillelse eller Timebudsjett vert endra).
+
+Migrasjon `dtm_ferdigstillelse_timebudsjett` (Supabase MCP) +
+`supabase-dtm.sql` oppdatert. Merk: sidan desse to ER ekte NUMERIC/INTEGER-
+kolonnar (til skilnad frå tekstfelta som brukar `''` som tomt-verdi), måtte
+`DTMModule.jsx` sin generiske `settVerdi()` få eit unntak som lagrar `null`
+i staden for `''` for akkurat desse to feltnamna når brukar tømmer cella —
+elles ville Postgres avvist ein tom streng mot ein talkolonne.
+
+**Totalrad**: DTM-matrisa (som no har fleire talkolonnar) er ein naturleg
+brukar av den nye, generelle Totalrad-funksjonen i `DataTabell.jsx` (sjå
+`claude/saksmodul-tabell.md`) — ingen eigen DTM-kode kravd, kjem gratis med
+Ferdigstillelse/Timebudsjett/Gjenståande timer-kolonnane.
+
 **IKKJE verifisert i praksis** (krev innlogging, kunne ikkje testast frå
-dette miljøet): sjølve dra-og-fyll-interaksjonen (mouse-drag +
-`elementFromPoint`) og at Angre faktisk gjenopprettar rett verdi i Supabase
-for alle kolonnetypar. Bygget går gjennom utan feil, og logikken er
-gjennomgått nøye, men bør prøvast i skrivebordsappen før ein stolar heilt
-på han i produksjon.
+dette miljøet): sjølve klikk-og-dra-interaksjonane (mouse-drag +
+`elementFromPoint`, både for fleire-celler-val og for sjølve dra-og-fyll-
+handtaket) og at Angre faktisk gjenopprettar rett verdi i Supabase for alle
+kolonnetypar. Bygget går gjennom utan feil, og logikken er gjennomgått
+nøye, men bør prøvast i skrivebordsappen før ein stolar heilt på han i
+produksjon.
 
 ## Oppgåveliste / fasar
 

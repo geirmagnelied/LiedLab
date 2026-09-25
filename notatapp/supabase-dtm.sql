@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS dtm_dokumenter (
   revisjonsbeskriving TEXT DEFAULT '',
   tegningsformal   TEXT DEFAULT '',      -- t.d. Arbeidstegning/Søknadstegning/Tilbodstegning — frå den loddrette labelen i tittelfeltet
   ferdigstillingsstatus TEXT DEFAULT '', -- Moglegheitsstudie/Skisseprosjekt/Forprosjekt/Tilbodsunderlag/Arbeidsteikning/Som bygd
+  ferdigstillelse  INTEGER,              -- prosent ferdig (0–100), fritt sett av brukar — IKKJE avleidd av ferdigstillingsstatus
+  timebudsjett     NUMERIC,              -- timebudsjett for DETTE dokumentet. Gjenståande timer = timebudsjett * (1 - ferdigstillelse/100), utrekna i UI-en (DTMTabell.jsx), ikkje lagra
   favorite         BOOLEAN NOT NULL DEFAULT false,
   pinned           BOOLEAN NOT NULL DEFAULT false,
   status           TEXT[] NOT NULL DEFAULT '{}',
