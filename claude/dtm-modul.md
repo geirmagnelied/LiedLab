@@ -852,6 +852,53 @@ den nye tre-stegs klikk-sekvensen (særleg om browser-native dblclick-
 handteringa faktisk oppfører seg som venta saman med den skreddarsydde
 mousedown-dra-logikken).
 
+## Vidareutvikling 26. sept. 2026 (2) — brukartesting, runde 3
+
+Brukar testa runde 2 vidare og meldte attende seks ting. Sjå
+`claude/saksmodul-tabell.md` for den fulle, oppdaterte spesifikasjonen —
+denne seksjonen listar berre KVA som endra seg:
+
+1. **Dobbeltklikk-basert steg 2 var ein «mellomstadie som ikkje er
+   formålstenleg».** Bytt heilt ut med ein REIN klikk-teljar (`steg1Celle`-
+   state), null tidsavhengnad — eit klikk tel same kor lenge etter det
+   førre det kjem. Dette var den underliggjande årsaka til at dra-og-fyll
+   verka upåliteleg: cellOmråde vart for sjeldan sett i praksis så lenge
+   steg 2 kravde eit ekte, raskt dobbeltklikk.
+2. Presisert tre-stegs-rekkjefølgja (klikk→rad, klikk→celle(r)/dra,
+   klikk→skriv) — sjølve modellen var alt tiltenkt slik, men no ER han det.
+3. Klikk KVAR SOM HELST ELLERS (anna celle ELLER heilt utanfor tabellen)
+   avsluttar eit utval — ny `document`-mousedown-lyttar for
+   utanfor-tabellen-tilfellet.
+4. **Dokumentnummer OG Kategori er no òg redigerbare** — begge kan
+   potensielt vere feil, og brukar (profesjonell) skal kunne rette dei:
+   - **Dokumentnummer** (`nr`): fekk `redigerbar:true` attåt det
+     eksisterande `opnaFil:true` — kombinasjonen krev at fil-opning (kort
+     forseinka, som før) OG den tre-stegs klikk-modellen deler same celle
+     utan å kollidere (sjå eige avsnitt i saksmodul-tabell.md). Har ein
+     UNIK-indeks i Supabase (`user_id, project_id, nr`) — eit duplikat gjev
+     no ei tydeleg åtvaring i staden for ein stille feil, og lokal state
+     vert rulla attende.
+   - **Kategori**: fekk `redigerbar:true` + ei fast nedtrekksliste (dei
+     fire kategorinamna). Å endre han FLYTTAR sjølve metadata-objektet
+     (filnamn/revisjon/dato/lasta_opp) frå det gamle til det nye kategori-
+     slottet i `dtm_dokumenter` (ny funksjon `settKategori()` i
+     `DTMModule.jsx`) — MEN rører ALDRI den fysiske fila på disken, som
+     vert liggjande i den opphavlege kategorimappa. Viss målkategorien
+     alt har eit aktivt dokument, avviser han endringa med ei tydeleg
+     åtvaring i staden for å skrive over stille.
+5. Endå tydelegare, ULIK fargetone for rad- vs. celle-val (rav/oransje for
+   celle, appen sin vanlege merkefarge for rad) — sjå eige avsnitt i
+   saksmodul-tabell.md.
+6. Hyperlink-peikaren (Dokumentnummer/Tittel) dekkjer no berre sjølve
+   teksten, ikkje heile celleflata — sjå eige avsnitt i saksmodul-tabell.md.
+
+**Framleis IKKJE verifisert i praksis**: heile den nye, reint klikk-talde
+sekvensen, særleg samspelet mellom fil-opning-forseinkinga og steg 1↔2 for
+Dokumentnummer-kolonna, og om `color-mix()`-CSS-funksjonen faktisk
+rendrar rett i den bunta Electron/Chromium-versjonen (bør vere trygt —
+støtta sidan Chrome 111, Electron 36 brukar ein nyare Chromium — men ikkje
+sett med eigne auge frå dette miljøet).
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

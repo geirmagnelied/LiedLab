@@ -198,14 +198,37 @@ export default function DataTabell({
   // ── Rutenettvisning (grid-redigering), sjå prop-kommentaren øvst ────
   // Ingen eigen av/på-brytar lenger — rutenettRedigering er anten heilt
   // avslegen for tabellen (default) eller alltid «på» når propen er sett.
-  // cellOmråde: { key, frå, til, redigerbar } — det VALDE området (rad-
-  // indeksar) i éin kolonne. Ei enkelt-celle er frå===til. `redigerbar`
-  // er FALSE like etter eit dobbeltklikk (cella er berre VALT enno, ikkje
-  // i skrivemodus) og vert TRUE ved eit tredje klikk (då opnar sjølve
-  // skrivemodus). Syner Excel-dra-handtaket nede i «til»-rada.
+  //
+  // Tre-stegs klikk-modell, BERRE styrt av ein REIN klikk-teljar — ALDRI
+  // av tidsavstanden mellom klikka (brukar sitt eige krav: eit klikk skal
+  // telje sjølv om det kjem lenge etter det førre):
+  //   steg1Celle  { id, key } — cella fekk NETTOPP sitt FYRSTE klikk (rada
+  //               er alt vald via den vanlege `merking`-bobling til <tr>).
+  //   cellOmråde  { key, frå, til } — cella (eller fleire, ved klikk-og-
+  //               dra) fekk sitt ANDRE klikk/eit reelt dra — no VALT, men
+  //               endå ikkje i skrivemodus. Ei enkelt-celle er frå===til.
+  //               Syner Excel-dra-handtaket nede i «til»-rada.
+  //   redigerer   (eksisterande state) — sett ved eit TREDJE klikk på ei
+  //               alt cellOmråde-valt celle → skrivemodus.
+  // Eit klikk ein annan stad (anna celle ELLER heilt utanfor tabellen)
+  // nullstiller begge dei to fyrste stega att til «ingenting valt».
+  const [steg1Celle, setSteg1Celle] = useState(null)
   const [cellOmråde, setCellOmråde] = useState(null)
   const [fyllOmråde, setFyllOmråde] = useState(null) // { key, frå, til } — FØREHANDSVISING under ei aktiv dra-og-fyll-handling
   const [angreStabel, setAngreStabel] = useState([]) // stack av { endringar:[{type,id,key,gammal}] }
+  const tabellRef = useRef(null) // heile komponenten sin ytre wrapper, for å oppdage klikk HEILT UTANFOR tabellen
+
+  useEffect(() => {
+    if (!steg1Celle && !cellOmråde) return
+    const lukk = (e) => {
+      if (tabellRef.current && !tabellRef.current.contains(e.target)) {
+        setSteg1Celle(null)
+        setCellOmråde(null)
+      }
+    }
+    document.addEventListener('mousedown', lukk)
+    return () => document.removeEventListener('mousedown', lukk)
+  }, [steg1Celle, cellOmråde])
 
   const erModusRedigerbar = useCallback((kol) =>
     rutenettRedigering && !kol.opnaFil && !kol.eigen && !kol.beregna,
@@ -341,7 +364,10 @@ export default function DataTabell({
     let vartDrege = false
     const startX = e.clientX, startY = e.clientY
     const flytt = (ev) => {
-      if (!vartDrege && (Math.abs(ev.clientX - startX) > 4 || Math.abs(ev.clientY - startY) > 4)) vartDrege = true
+      if (!vartDrege && (Math.abs(ev.clientX - startX) > 4 || Math.abs(ev.clientY - startY) > 4)) {
+        vartDrege = true
+        setSteg1Celle(null) // eit reelt dra hoppar rett til celle-val, uavhengig av steg1
+      }
       if (!vartDrege) return
       const el = document.elementFromPoint(ev.clientX, ev.clientY)
       const tr = el?.closest?.('tr[data-radid]')
@@ -560,7 +586,7 @@ export default function DataTabell({
     'Denne verdien vart lesen automatisk frå fila ved import. Er du sikker på at du vil endre han manuelt?')
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
+    <div ref={tabellRef} style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
       <style>{CSS}</style>
 
       {/* ── Tabellverktøy ── */}
@@ -650,7 +676,7 @@ export default function DataTabell({
                 onClick={e => { handterMerkKlikk(id, e); onRowClick?.(id, r) }}
                 onDoubleClick={() => onOpenRad?.(id, r)}
                 title={onOpenRad ? 'Dobbeltklikk for å opne' : undefined}
-                style={{ ...(radStil ? radStil(r) : undefined), ...(merkt ? { background:'var(--brandbg)', boxShadow:'inset 0 0 0 2px var(--brand2)' } : undefined) }}>
+                style={{ ...(radStil ? radStil(r) : undefined), ...(merkt ? { background:'var(--brandbg2)', boxShadow:'inset 0 0 0 2.5px var(--brand2)' } : undefined) }}>
                 {radMeny && (
                   <td style={{ height:radhøgd, padding:0, textAlign:'center' }}
                     onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
@@ -672,6 +698,7 @@ export default function DataTabell({
                   // for sine `redigerbar`-kolonnar, uendra.
                   const kanValjastIModus = rutenettRedigering && !kol.eigen && kanRedigere
                   const redigerast = kanRedigere && redigerer?.id === id && redigerer?.key === k
+                  const denneErSteg1 = steg1Celle?.id === id && steg1Celle?.key === k
                   const denneCellaErValt = cellOmråde && cellOmråde.key === k
                     && cellOmråde.frå === radIndeks && cellOmråde.til === radIndeks
                   const iCellOmråde = cellOmråde && cellOmråde.key === k
@@ -682,42 +709,62 @@ export default function DataTabell({
                     && cellOmråde && cellOmråde.key === k && radIndeks === cellOmråde.til
                   return (
                     <td key={k} style={{ height:radhøgd, padding:cellePad, position:'relative',
-                        cursor: kol.opnaFil ? 'pointer' : undefined,
-                        ...((iCellOmråde || iFyllOmråde) ? { boxShadow:'inset 0 0 0 2.5px var(--brand)', background:'var(--brandbg2)' } : undefined) }}
+                        ...((iCellOmråde || iFyllOmråde)
+                          ? { boxShadow:'inset 0 0 0 3px var(--warn)', background:'color-mix(in srgb, var(--warn) 20%, transparent)' }
+                          : undefined) }}
                       className={(kol.mono ? 'mono ' : '') + (kol.art === 'tal' ? 'tal ' : '') + (kanRedigere ? 'eigen' : '')}
-                      title={kol.opnaFil ? (alleredeRedigerbar ? 'Klikk for å opne, dobbeltklikk for å redigere' : 'Klikk for å opne')
+                      title={kol.opnaFil ? (alleredeRedigerbar ? 'Klikk for å opne, klikk igjen for å velje/redigere' : 'Klikk for å opne')
                         : !kanRedigere ? tekst(r, k)
                         : kol.eigen ? 'Klikk for å redigere'
-                        : kanValjastIModus ? 'Klikk: vel rad · Dobbeltklikk: vel celle · Klikk igjen: skriv'
+                        : kanValjastIModus ? 'Klikk: vel rad · Klikk igjen: vel celle · Klikk igjen: skriv'
                         : 'Dobbeltklikk for å redigere'}
                       onClick={() => {
-                        if (cellOmråde && !denneCellaErValt) setCellOmråde(null)
-                        if (kol.eigen) { setRedigerer({ id, key:k }); return }
+                        // Klikk ein annan stad enn det som alt er i gang —
+                        // uavhengig av om DENNE cella kan redigerast — skal
+                        // alltid nullstille eit gammalt utval (brukar sitt
+                        // krav: eitt klikk annan stad er nok for å avslutte).
+                        if (!denneErSteg1 && steg1Celle) setSteg1Celle(null)
+                        if (!denneCellaErValt && cellOmråde) setCellOmråde(null)
+
                         if (kol.opnaFil) {
-                          if (alleredeRedigerbar) {
-                            if (klikkTimerRef.current) return
+                          if (!alleredeRedigerbar) { onOpneFil?.(r, k); return }
+                          const alleredeIGang = denneErSteg1 || denneCellaErValt || redigerast
+                          if (klikkTimerRef.current) { clearTimeout(klikkTimerRef.current); klikkTimerRef.current = null }
+                          if (!alleredeIGang) {
+                            // Fyrste klikk på ein hyperlenke+redigerbar-kombinasjon
+                            // (t.d. Dokumentnummer): vent kort for å sjå om eit nytt
+                            // klikk kjem (då VEL me cella i staden for å opne fila).
                             klikkTimerRef.current = setTimeout(() => { klikkTimerRef.current = null; onOpneFil?.(r, k) }, 220)
-                          } else {
-                            onOpneFil?.(r, k)
+                            setSteg1Celle({ id, key:k })
+                            return
                           }
-                          return
+                          // Elles: eit oppfølgingsklikk (uansett kor lenge etter) —
+                          // IKKJE planlegg ny fil-opning, gå vidare til vanleg steg-logikk.
                         }
-                        if (kanValjastIModus && denneCellaErValt && !redigerast) {
+                        if (kol.eigen) { setRedigerer({ id, key:k }); return }
+                        if (!kanValjastIModus) return
+                        if (denneErSteg1) {
+                          setSteg1Celle(null)
+                          setCellOmråde({ key:k, frå:radIndeks, til:radIndeks })
+                        } else if (denneCellaErValt && !redigerast) {
                           if (!sjekkMaskinlest(kol)) return
                           setRedigerer({ id, key:k })
+                        } else if (!denneCellaErValt) {
+                          setSteg1Celle({ id, key:k })
                         }
                       }}
                       onMouseDown={e => { if (!redigerast && kanValjastIModus) startCelleVal(id, k, e) }}
                       onDoubleClick={e => {
-                        if (kol.eigen || kol.opnaFil) return
-                        if (!alleredeRedigerbar && !modusKanRedigere) return
+                        // Native dobbeltklikk vert IKKJE brukt til noko eige i
+                        // rutenett-tabellar lenger (tre-stegs-modellen over er
+                        // reint klikk-talde, tidsuavhengig) — men for tabellar
+                        // UTAN rutenettRedigering (Saker/Kvalitet) er dette
+                        // framleis den einaste vegen inn i redigering, uendra.
+                        if (rutenettRedigering || kol.eigen) return
+                        if (!alleredeRedigerbar) return
                         if (klikkTimerRef.current) { clearTimeout(klikkTimerRef.current); klikkTimerRef.current = null }
                         e.stopPropagation()
-                        if (rutenettRedigering) {
-                          setCellOmråde({ key:k, frå:radIndeks, til:radIndeks })
-                        } else {
-                          setRedigerer({ id, key:k }) // gamal åtferd, uendra, for tabellar utan rutenettRedigering
-                        }
+                        setRedigerer({ id, key:k })
                       }}>
                       {redigerast ? (
                         kol.eigen ? (
@@ -895,6 +942,12 @@ function Celle({ rad, kol, tekst, farge, lagCelle }) {
     if (eigen !== undefined) return eigen
   }
   const t = tekst(rad, kol.key)
+  // «opnaFil»-kolonnar: peikaren skal BERRE visast som ei hand over sjølve
+  // teksten, ikkje over heile celleflata (padding/tomrom til høgre for ein
+  // kort verdi) — difor pakka inn i eit eige <span> som berre tek den
+  // plassen teksten faktisk treng (i staden for cursor på sjølve <td>-en).
+  if (kol.opnaFil) return <span style={{ fontFamily: kol.mono ? 'var(--mono)' : undefined,
+    fontWeight: kol.mono ? 600 : undefined, cursor:'pointer' }}>{t}</span>
   if (kol.mono) return <span style={{ fontFamily:'var(--mono)', fontWeight:600 }}>{t}</span>
   if (kol.eigen) {
     if (!t) return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>
@@ -1168,8 +1221,8 @@ const CSS = `
 .dt-tabell td.mono { font-family:var(--mono) }
 .dt-tabell td.eigen { cursor:text }
 .dt-tabell td.eigen:hover { box-shadow:inset 0 0 0 1.5px var(--border2) }
-.dt-fyllhandtak { position:absolute; right:1px; bottom:1px; width:6px; height:6px;
-  background:var(--brand); border:1px solid var(--bg2); cursor:crosshair; z-index:2 }
+.dt-fyllhandtak { position:absolute; right:1px; bottom:1px; width:7px; height:7px;
+  background:var(--warn); border:1px solid var(--bg2); cursor:crosshair; z-index:2 }
 .dt-totalrad td { position:sticky; bottom:0; z-index:4; background:var(--bg3); border-top:2px solid var(--border);
   border-right:1px solid var(--border); font-weight:800; color:var(--text); font-variant-numeric:tabular-nums }
 .dt-totalrad-etikett { font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); font-weight:700 }

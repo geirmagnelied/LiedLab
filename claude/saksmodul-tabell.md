@@ -72,15 +72,25 @@ knapp i verktøylinja, men brukar bad om at han vart fjerna att: er
 aktiv, og kva som kan redigerast vert styrt reint gjennom kva kolonnen er
 merkt med (`redigerbar`/`beregna`/`opnaFil`), ikkje ein runtime-brytar.
 
-**Tre-stegs klikk-modell** (skil tydeleg mellom «rad valt», «celle valt» og
-«skriv i cella» — brukar sitt eige krav, for å unngå at eit malplassert
-klikk endrar innhald ved eit uhell):
-1. **Eitt klikk** på ei celle vel RADA (den vanlege `merking`-mekanismen,
+**Tre-stegs klikk-modell** (skil tydeleg mellom «rad valt», «celle(r) valt»
+og «skriv i cella» — brukar sitt eige krav, for å unngå at eit malplassert
+klikk endrar innhald ved eit uhell). **VIKTIG, retta 26. sept. 2026**: dette
+er EIN REIN KLIKK-TELJAR, IKKJE basert på nettlesaren sin native
+`dblclick`-hending — tidsavstanden mellom klikka har ingenting å seie, eit
+klikk tel sjølv om det kjem lenge etter det førre. (Fyrste utkast brukte
+native dobbeltklikk for steg 2, som viste seg upraktisk: eit «for seint»
+andre klikk vart då berre tolka som eit nytt, ordinært fyrsteklikk.)
+1. **Fyrste klikk** på ei celle vel RADA (den vanlege `merking`-mekanismen,
    brukt til fleirval/massehandlingar andre stader i appen òg) — inga
-   celle vert vald enno.
-2. **Dobbeltklikk** på SAME celle vel den EKSAKTE cella (eige, sterkare
-   visuelt utheva — sjå kontrastavsnittet under) — enno IKKJE i skrivemodus.
-3. **Eit tredje, separat klikk** på ei celle som ALT er cella-vald opnar
+   celle vert vald enno. Internt hugsa som `steg1Celle:{id,key}`.
+2. **Eit ANNA klikk på SAME celle** (kor lenge etter som helst) vel den
+   EKSAKTE cella (`cellOmråde:{key,frå,til}`, `frå===til` for éi celle) —
+   enno IKKJE i skrivemodus, men syner Excel-dra-handtaket (sjå under).
+   **Klikk-og-DRA** (rørsle forbi ein liten terskel, skil det frå eit reint
+   klikk) over fleire rader i SAME kolonne hoppar RETT til eit fleire-
+   celler-`cellOmråde` i staden — fungerer likt anten ein startar draget
+   frå ei fersk celle eller ei som alt er i steg 1.
+3. **Eit tredje klikk** på ei celle som ALT er `cellOmråde`-valt opnar
    SKRIVEMODUS (viser sjølve inndatafeltet). For kolonnar merkt
    `kol.maskinlest:true` (sjå under) kjem eit `window.confirm`-åtvarings-
    vindauge FØRST — avbryt brukar det, vert cella verande i «celle valt»,
@@ -93,16 +103,19 @@ klikk endrar innhald ved eit uhell):
      (steg 2), ikkje heilt attende til «ingenting valt».
    - Å klikke UT AV cella (blur) er einaste vegen ut av skrivemodus elles —
      ingen eigen «lukk»-knapp.
-- **Klikk-og-DRA** (rørsle forbi ein liten terskel, skil det frå eit reint
-  klikk) over fleire rader i SAME kolonne hoppar RETT til eit fleire-
-  celler-utval (steg 2 sitt fleircelle-motstykke) UTAN å gå vegen om steg 1
-  fyrst — fungerer likt anten ein startar draget frå ei allereie enkelt-
-  cella-vald celle eller ei heilt uvald celle.
+- **Eit klikk KVAR SOM HELST ELLERS** — ei anna celle, ELLER HEILT UTANFOR
+  SJØLVE TABELLEN (verktøylinja, resten av sida) — nullstiller `steg1Celle`
+  og `cellOmråde` att til «ingenting valt» (brukar sitt eige krav: eitt
+  klikk annan stad er nok). Utanfor-tabellen-tilfellet krev ein eigen
+  `document`-nivå `mousedown`-lyttar (same mønster som kolonnemenyen alt
+  brukte), sidan eit klikk utanfor sjølve DOM-treet aldri når nokon av
+  cellene sine eigne handterarar.
 - **Excel-liknande dra-og-fyll**: eit lite handtak (firkant nede til høgre)
   dukkar opp i BOTN-cella av det valde området (steg 2 eller eit
-  klikk-og-dra-utval). Å dra det nedover/oppover fyller/GJENTEK mønsteret
-  av verdiar frå kjeldeutvalet syklisk inn i radene ein dreg over (éin
-  kjeldeverdi → rein kopiering begge vegar). Måleraden vert funne med
+  klikk-og-dra-utval) — og fungerer likeins for BÅDE eit enkelt-cella-utval
+  OG eit fleire-celler-utval. Å dra det nedover/oppover fyller/GJENTEK
+  mønsteret av verdiar frå kjeldeutvalet syklisk inn i radene ein dreg over
+  (éin kjeldeverdi → rein kopiering begge vegar). Måleraden vert funne med
   `document.elementFromPoint` (robust mot sortering/filter/tettleik).
 - Eit «↶ Angre»-tastar dukkar opp i verktøylinja så snart det finst minst
   éi endring å angre — både enkeltredigeringar og heile dra-og-fyll-
@@ -110,6 +123,16 @@ klikk endrar innhald ved eit uhell):
   BERRE i minnet (ikkje lagra), og forsvinn ved sideoppdatering.
 - Eigne kolonnar (`kol.eigen`) er IKKJE med i tre-stegs-modellen/fleire-
   celler-val/dra-og-fyll — dei har sin eigen enkeltklikk-redigeringsflyt.
+- **`opnaFil` + `redigerbar` i kombinasjon** (t.d. DTM sin Dokumentnummer-
+  kolonne, sjå under): fyrste klikk planlegg ei 220ms-forseinka fil-opning
+  (som før dette heile), MEN reknar SAMSTUNDES som steg 1. Eit oppfølgings-
+  klikk (innanfor dei 220ms) kansellerer fil-opninga og hoppar rett til
+  steg 2 (cellOmråde) i staden for å opne redigering direkte — resten av
+  sekvensen (steg 2→3) er heilt tidsuavhengig som elles. Kjem klikk nr. 2
+  FØR fila rekk å opne seg IKKJE i tide, opnar fila seg som vanleg, men eit
+  SEINARE klikk på same celle hoppar likevel rett til steg 2 (ikkje attende
+  til steg 1) — sjølve fil-opninga «brukar opp» berre det aller fyrste
+  klikket, aldri meir enn det.
 
 **Kolonneflagg som styrer kva som kan redigerast:**
 - `kol.beregna:true` — verdien er UTREKNA, IKKJE eit flatt, skrivbart felt
@@ -121,23 +144,39 @@ klikk endrar innhald ved eit uhell):
 - `kol.maskinlest:true` — verdien vart lesen AUTOMATISK (t.d. skanna frå
   eit PDF-tittelfelt ved import). Framleis fullt redigerbar (brukar sitt
   eige krav 26. sept.: «profesjonelle brukarar skal kunne redigere ALLE
-  celler, også dei maskinlesne») — men syner ei åtvaring («er du sikker på
-  at du vil endre han manuelt?») FØR skrivemodus opnar, både ved tredje
-  klikk og ved Tab-navigasjon inn i cella.
+  celler, også dei maskinlesne, dokumentnummer og kategori inkludert») —
+  men syner ei åtvaring («er du sikker på at du vil endre han manuelt?»)
+  FØR skrivemodus opnar, både ved tredje klikk og ved Tab-navigasjon.
 
-## Kontrast mellom rad-val og celle-val — 26. sept. 2026
+## Kontrast mellom rad-val og celle-val — 26. sept. 2026 (retta to gonger)
 
 Brukar melde at den fyrste utgåva av rad-/celle-utheving hadde for lite
-kontrast til å skilje dei to tydeleg frå kvarandre. No:
-- **Rad valt** (`merking`): `var(--brandbg)` bakgrunn (10 % dekning) +
-  `inset 0 0 0 2px var(--brand2)` kant.
-- **Celle valt/i utval** (`cellOmråde`/`fyllOmråde`): sterkare
-  `var(--brandbg2)` bakgrunn (18 % dekning) + tjukkare
-  `inset 0 0 0 2.5px var(--brand)` kant. Sidan cella sin bakgrunnsfarge vert
-  måla OVANPÅ rada sin (begge er delvis gjennomsiktige), vert ei cella-valt
-  celle INNI ei rad-vald rad synleg endå sterkare utheva enn kvar av dei
-  åleine — ei naturleg, tydeleg opptrapping i staden for at dei to
-  tilstandane flyt saman.
+kontrast til å skilje dei to tydeleg frå kvarandre — retta med endå
+tydelegare skilnad andre runde (ikkje berre sterkare av same fargetone,
+men EIN HEILT ANNA FARGE for kvar av dei to):
+- **Rad valt** (`merking`): `var(--brandbg2)` bakgrunn (18 % dekning) +
+  `inset 0 0 0 2.5px var(--brand2)` kant — appen sin vanlege merke-farge
+  (grøn/blå/oransje etter tema).
+- **Celle(r) valt/i utval** (`cellOmråde`/`fyllOmråde`): HEILT ANNA
+  fargetone — `color-mix(in srgb, var(--warn) 20%, transparent)` bakgrunn
+  (rav/oransje-gul, alltid lik uansett tema) + tjukk
+  `inset 0 0 0 3px var(--warn)` kant. Sidan dette er ein annan HUE enn
+  rad-valet (ikkje berre sterkare/svakare av same farge), er dei to
+  tilstandane no umogleg å forveksle, sjølv om ei cella-vald celle ligg
+  inni ei rad-vald rad (dei to fargelaga stig ikkje lenger i same skala).
+  Sjølve dra-og-fyll-handtaket (`.dt-fyllhandtak`) brukar same `--warn`-
+  fargen, for eit samanhengande visuelt spor.
+
+## Hyperlink-peikaren skal berre dekkje sjølve teksten — 26. sept. 2026
+
+`opnaFil`-kolonnar (t.d. DTM sin Dokumentnummer) synte tidlegare peikaren
+som ei hand over HEILE celleflata, inkludert tomrommet til høgre for ein
+kort verdi i ein brei kolonne — misvisande, sidan berre teksten er
+«lenkja». Retta ved å FLYTTE `cursor:pointer` frå sjølve `<td>`-en til eit
+`<span>` som berre pakkar inn den faktiske teksten (både i den generiske
+`Celle`-komponenten og i DTM sine eigne `lagCelle`-overstyringar for Tittel/
+Dokumentnummer) — eit `<span>` tek berre den plassen innhaldet krev
+(shrink-to-fit), så peikaren viser hand-forma BERRE over glyfane.
 
 ## Totalrad — 25. sept. 2026, alltid tilgjengeleg (ikkje bak nokon prop)
 

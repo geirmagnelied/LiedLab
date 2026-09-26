@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import DataTabell, { Pille } from './DataTabell'
 import { fmtDateShort } from './sakerKonstantar'
-import { reknStatus, løysAktivtSett, KATEGORI_LABEL, KATEGORI_MAPPE, FERDIGSTILLING_STATUS, utsendingsnrTekst } from './dtmKonstantar'
+import { reknStatus, løysAktivtSett, KATEGORIAR, KATEGORI_LABEL, KATEGORI_MAPPE, FERDIGSTILLING_STATUS, utsendingsnrTekst } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTM-matrisa — kolonnedefinisjonar og celle-visning for eitt «sett»
@@ -24,9 +24,9 @@ const STATUS_FARGE = {
 // 2026: «legg inn alle kolonnene med info frå skanninga inn i tabellen
 // som standard visning») — ingen `standardSkjult` lenger.
 const BASE_COLUMNS = [
-  { key:'nr',          label:'Dokumentnummer', art:'tekst', mono:true, opnaFil:true },
+  { key:'nr',          label:'Dokumentnummer', art:'tekst', mono:true, opnaFil:true, redigerbar:true, maskinlest:true },
   { key:'tittel',      label:'Tittel',       art:'tekst', utanFilter:true, opnaFil:true },
-  { key:'kategori',    label:'Kategori',     art:'val',   beregna:true },
+  { key:'kategori',    label:'Kategori',     art:'val',   redigerbar:true, val:KATEGORIAR.map(k => KATEGORI_LABEL[k]) },
   { key:'status',      label:'Status',       art:'val',   utanFilter:true, beregna:true },
   { key:'filtype',     label:'Filtype',      art:'val',   mono:true, beregna:true },
   { key:'rev',         label:'Rev.',         art:'tekst', mono:true, redigerbar:true, maskinlest:true },
@@ -112,9 +112,9 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
 
   const lagCelle = useCallback((rad, kol) => {
     if (kol.key === 'tittel')
-      return <span style={{ fontWeight:600, color:'var(--text)' }}>{rad.tittel || rad.nr}</span>
+      return <span style={{ fontWeight:600, color:'var(--text)', cursor:'pointer' }}>{rad.tittel || rad.nr}</span>
     if (kol.key === 'nr')
-      return <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--brand)' }}>{rad.nr}</span>
+      return <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--brand)', cursor:'pointer' }}>{rad.nr}</span>
     if (kol.key === 'status') {
       const { sett } = hentGjeldande(rad, aktivtSett)
       const taggar = sett ? reknStatus(rad, sett) : []

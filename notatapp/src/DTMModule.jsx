@@ -144,19 +144,66 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   // hentGjeldande() i DTMTabell.jsx). Redigering her må difor skrive inn i
   // heile det objektet, ikkje som eit topp-nivå Supabase-felt.
   const NØSTA_FELT = { rev:'revisjon', dato:'dato' }
+
+  // «Kategori» er kva av dei fire kategori-slotta (arbeidsdokument/
+  // resultatdokument/kontrolldokument/styrande_dokument) som er den
+  // GJELDANDE for rada — å endre han FLYTTAR sjølve metadata-objektet
+  // (filnamn/revisjon/dato/lasta_opp) frå det gamle til det nye slottet.
+  // IKKJE den fysiske fila på disken, som vert liggjande urørt i den
+  // opphavlege kategorimappa — brukar må evt. importere på nytt i rett
+  // kategori om filplasseringa òg skal rettast. Sjå claude/dtm-modul.md.
+  const settKategori = async (id, nyLabel) => {
+    const d = dokumenter.find(x => x.id === id)
+    if (!d) return
+    const gammalSett = løysAktivtSett(d, aktivtSett)
+    const nyttSett = KATEGORIAR.find(k => KATEGORI_LABEL[k] === nyLabel)
+    if (!gammalSett || !nyttSett || gammalSett === nyttSett) return
+    if (d[nyttSett]) {
+      alert(`Dokumentet har alt eit aktivt «${KATEGORI_LABEL[nyttSett]}»-dokument — fjern det derifrå fyrst, eller importer på nytt i rett kategori.`)
+      return
+    }
+    const endring = { [gammalSett]: null, [nyttSett]: d[gammalSett] }
+    setDokumenter(ds => ds.map(x => x.id === id ? { ...x, ...endring } : x))
+    const { error } = await supabase.from('dtm_dokumenter').update({ ...endring, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+    if (error) {
+      alert('Klarte ikkje endre kategori: ' + error.message)
+      setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [gammalSett]: d[gammalSett], [nyttSett]: d[nyttSett] ?? null } : x))
+    }
+  }
+
   const settVerdi = async (id, felt, verdi) => {
+    if (felt === 'kategori') { await settKategori(id, verdi); return }
+
     if (NØSTA_FELT[felt]) {
       const d = dokumenter.find(x => x.id === id)
       const sett = d && løysAktivtSett(d, aktivtSett)
       if (!sett) return
-      const nyttSett = { ...(d[sett] || {}), [NØSTA_FELT[felt]]: verdi }
+      const gammalSettVerdi = d[sett] || {}
+      const nyttSett = { ...gammalSettVerdi, [NØSTA_FELT[felt]]: verdi }
       setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [sett]: nyttSett } : x))
-      await supabase.from('dtm_dokumenter').update({ [sett]: nyttSett, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+      const { error } = await supabase.from('dtm_dokumenter').update({ [sett]: nyttSett, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+      if (error) {
+        alert('Klarte ikkje lagre endringa: ' + error.message)
+        setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [sett]: gammalSettVerdi } : x))
+      }
       return
     }
+
+    // «nr» (dokumentnummer) er no òg redigerbar (brukar sitt krav 26. sept.
+    // 2026: «kan potensielt vere feil») — men har ein UNIK-indeks per
+    // prosjekt (user_id, project_id, nr), så eit duplikat gjev ein ekte
+    // databasefeil me må fange og melde tydeleg, ikkje berre la forsvinne.
+    const gammalRad = dokumenter.find(x => x.id === id)
     const lagra = NUMERISKE_FELT.has(felt) && verdi === '' ? null : verdi
     setDokumenter(ds => ds.map(d => d.id === id ? { ...d, [felt]: lagra } : d))
-    await supabase.from('dtm_dokumenter').update({ [felt]: lagra, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('dtm_dokumenter').update({ [felt]: lagra, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+    if (error) {
+      const melding = felt === 'nr' && /duplicate key|unique constraint/i.test(error.message)
+        ? `Dokumentnummeret «${verdi}» er alt i bruk av eit anna dokument i dette prosjektet.`
+        : 'Klarte ikkje lagre endringa: ' + error.message
+      alert(melding)
+      if (gammalRad) setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [felt]: gammalRad[felt] } : x))
+    }
   }
 
   // ── Favoritt / fest til toppen (radmeny) ────────────────────────────
