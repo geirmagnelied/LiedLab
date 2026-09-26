@@ -57,49 +57,87 @@ Slettar du ei eiga kolonne, blir definisjonen borte for prosjektet, medan
 verdiane blir liggjande i `cases.ekstra` (uskadelege, og kjem attende dersom
 kolonnen blir laga med same nøkkel).
 
-## Rutenettvisning (grid-redigering) — 25. sept. 2026, valfri per tabell
+## Rutenettvisning (grid-redigering) — 25.–26. sept. 2026, valfri per tabell
 
 Bygd for DTM-matrisa (sjå `claude/dtm-modul.md`), men implementert generisk i
-`DataTabell.jsx` bak ein NY, opt-in prop: `rutenettRedigering` (default av).
+`DataTabell.jsx` bak ein opt-in prop: `rutenettRedigering` (default av).
 Andre tabellar (Saker, Notat, Kvalitet) er **heilt upåverka** med mindre dei
-sjølv set denne propen — utan han oppfører DataTabell seg nøyaktig som før.
+sjølv set denne propen — utan han oppfører DataTabell seg nøyaktig som før
+(kolonnar merkt `redigerbar:true` vert framleis redigert med reint
+dobbeltklikk, ingen av dei nye tre-stega under gjeld).
 
-Med `rutenettRedigering` slege på:
-- Eit «Redigering»-av/på-val dukkar opp i verktøylinja, like til venstre for
-  «Fargekode»-etiketten.
-- **Modus AV** (uendra frå før): berre kolonnar merkt `redigerbar:true`
-  kan redigerast, med DOBBELTKLIKK. Eit dobbeltklikk på ein IKKJE ENNO
-  redigerbar celle (som ville blitt redigerbar OM modus var på) slår sjølv
-  PÅ modus fyrst, og opnar so redigering med det same — ein snarveg forbi
-  den dedikerte knappen.
-- **Modus PÅ**: eitt einstaka KLIKK er nok til å opne redigering, i ALLE
-  celler — ikkje berre kolonnar merkt `redigerbar:true` — MED UNNTAK av
-  kolonnar merkt `opnaFil:true` (opnar fil, ikkje redigering) eller
-  **`beregna:true`** (kolonnen sin verdi er UTREKNA, ikkje eit flatt felt
-  på rada — t.d. eit join/derivert felt — og skal ALDRI kunne skrivast til
-  generisk, sjølv om modus er på). **Kvar tabell som slår på
-  `rutenettRedigering` MÅ sjølv merkje sine utrekna/nøsta kolonnar med
-  `beregna:true`** — elles vil eit klikk kalle `onSetVerdi(id, key, verdi)`
-  med ein nøkkel som ikkje finst som ekte kolonne i databasen.
-- **Fleire-celler-val**: eit klikk-og-DRA (rørsle forbi ein liten terskel,
-  skil det frå eit reint klikk) over fleire rader i SAME kolonne vel heile
-  området (blå kant/bakgrunn), utan å opne redigering. Talet på celler i
-  utvalet vert kjelda for dra-og-fyll under.
+**INGEN av/på-brytar** — dette var i fyrste utkast (25. sept.) ein eigen
+knapp i verktøylinja, men brukar bad om at han vart fjerna att: er
+`rutenettRedigering` sett i det heile, er tre-stegs-modellen under ALLTID
+aktiv, og kva som kan redigerast vert styrt reint gjennom kva kolonnen er
+merkt med (`redigerbar`/`beregna`/`opnaFil`), ikkje ein runtime-brytar.
+
+**Tre-stegs klikk-modell** (skil tydeleg mellom «rad valt», «celle valt» og
+«skriv i cella» — brukar sitt eige krav, for å unngå at eit malplassert
+klikk endrar innhald ved eit uhell):
+1. **Eitt klikk** på ei celle vel RADA (den vanlege `merking`-mekanismen,
+   brukt til fleirval/massehandlingar andre stader i appen òg) — inga
+   celle vert vald enno.
+2. **Dobbeltklikk** på SAME celle vel den EKSAKTE cella (eige, sterkare
+   visuelt utheva — sjå kontrastavsnittet under) — enno IKKJE i skrivemodus.
+3. **Eit tredje, separat klikk** på ei celle som ALT er cella-vald opnar
+   SKRIVEMODUS (viser sjølve inndatafeltet). For kolonnar merkt
+   `kol.maskinlest:true` (sjå under) kjem eit `window.confirm`-åtvarings-
+   vindauge FØRST — avbryt brukar det, vert cella verande i «celle valt»,
+   ikkje skrivemodus.
+   - **Tab** i skrivemodus lagrar og går RETT til neste redigerbare kolonne
+     i same rad, OGSÅ rett i skrivemodus (hoppar over steg 2 for den neste
+     cella) — men syner framleis åtvaringa fyrst om DEN kolonnen er
+     `maskinlest`.
+   - **Escape** avbryt utan å lagre, og går attende til «celle valt»
+     (steg 2), ikkje heilt attende til «ingenting valt».
+   - Å klikke UT AV cella (blur) er einaste vegen ut av skrivemodus elles —
+     ingen eigen «lukk»-knapp.
+- **Klikk-og-DRA** (rørsle forbi ein liten terskel, skil det frå eit reint
+  klikk) over fleire rader i SAME kolonne hoppar RETT til eit fleire-
+  celler-utval (steg 2 sitt fleircelle-motstykke) UTAN å gå vegen om steg 1
+  fyrst — fungerer likt anten ein startar draget frå ei allereie enkelt-
+  cella-vald celle eller ei heilt uvald celle.
 - **Excel-liknande dra-og-fyll**: eit lite handtak (firkant nede til høgre)
-  dukkar opp i BOTN-cella av det valde området. Å dra det nedover/oppover
-  fyller/GJENTEK mønsteret av verdiar frå kjeldeutvalet syklisk inn i radene
-  ein dreg over (nøyaktig éin kjeldeverdi → same åtferd som før: rein
-  kopiering begge vegar). Måleraden vert funne med
+  dukkar opp i BOTN-cella av det valde området (steg 2 eller eit
+  klikk-og-dra-utval). Å dra det nedover/oppover fyller/GJENTEK mønsteret
+  av verdiar frå kjeldeutvalet syklisk inn i radene ein dreg over (éin
+  kjeldeverdi → rein kopiering begge vegar). Måleraden vert funne med
   `document.elementFromPoint` (robust mot sortering/filter/tettleik).
 - Eit «↶ Angre»-tastar dukkar opp i verktøylinja så snart det finst minst
   éi endring å angre — både enkeltredigeringar og heile dra-og-fyll-
   operasjonar (dra-og-fyll tel som ÉI angre-gruppe). Angre-historikken er
-  BERRE i minnet (ikkje lagra), og forsvinn ved sideoppdatering — det er
-  meint som eit tryggingsnett mot eit uheldig klikk/dra, ikkje ein full
-  versjonshistorikk.
-- Eigne kolonnar (`kol.eigen`, t.d. brukardefinerte kolonnar) er IKKJE med
-  i fleire-celler-val/dra-og-fyll — dei har alt sin eigen enkeltklikk-
-  redigeringsflyt, uendra.
+  BERRE i minnet (ikkje lagra), og forsvinn ved sideoppdatering.
+- Eigne kolonnar (`kol.eigen`) er IKKJE med i tre-stegs-modellen/fleire-
+  celler-val/dra-og-fyll — dei har sin eigen enkeltklikk-redigeringsflyt.
+
+**Kolonneflagg som styrer kva som kan redigerast:**
+- `kol.beregna:true` — verdien er UTREKNA, IKKJE eit flatt, skrivbart felt
+  på rada (t.d. eit join/derivert felt) — kan ALDRI redigerast generisk.
+  **Kvar tabell som slår på `rutenettRedigering` MÅ sjølv merkje sine
+  utrekna/nøsta kolonnar med `beregna:true`** — elles vil eit klikk kalle
+  `onSetVerdi(id, key, verdi)` med ein nøkkel som ikkje finst som ekte
+  kolonne i databasen.
+- `kol.maskinlest:true` — verdien vart lesen AUTOMATISK (t.d. skanna frå
+  eit PDF-tittelfelt ved import). Framleis fullt redigerbar (brukar sitt
+  eige krav 26. sept.: «profesjonelle brukarar skal kunne redigere ALLE
+  celler, også dei maskinlesne») — men syner ei åtvaring («er du sikker på
+  at du vil endre han manuelt?») FØR skrivemodus opnar, både ved tredje
+  klikk og ved Tab-navigasjon inn i cella.
+
+## Kontrast mellom rad-val og celle-val — 26. sept. 2026
+
+Brukar melde at den fyrste utgåva av rad-/celle-utheving hadde for lite
+kontrast til å skilje dei to tydeleg frå kvarandre. No:
+- **Rad valt** (`merking`): `var(--brandbg)` bakgrunn (10 % dekning) +
+  `inset 0 0 0 2px var(--brand2)` kant.
+- **Celle valt/i utval** (`cellOmråde`/`fyllOmråde`): sterkare
+  `var(--brandbg2)` bakgrunn (18 % dekning) + tjukkare
+  `inset 0 0 0 2.5px var(--brand)` kant. Sidan cella sin bakgrunnsfarge vert
+  måla OVANPÅ rada sin (begge er delvis gjennomsiktige), vert ei cella-valt
+  celle INNI ei rad-vald rad synleg endå sterkare utheva enn kvar av dei
+  åleine — ei naturleg, tydeleg opptrapping i staden for at dei to
+  tilstandane flyt saman.
 
 ## Totalrad — 25. sept. 2026, alltid tilgjengeleg (ikkje bak nokon prop)
 

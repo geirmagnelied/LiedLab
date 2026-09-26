@@ -54,25 +54,36 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 //                       hentVerdi), ikkje berre overskrifta.
 //    prefsKey        — unik nøkkel for personleg visingsoppsett i localStorage
 //    itemNamn        — namn brukt i teljetekst/tomt-resultat (t.d. «saker»)
-//    rutenettRedigering — valfri (default av); slår PÅ eit «Redigering»-
-//                       av/på-val i verktøylinja + eit Angre-tastar, i
-//                       SharePoint sin «rutenettvisning»-stil. Med dette
-//                       slege på kan ALLE celler (utanom «opnaFil»- og
-//                       «beregna»-merkte kolonnar) redigerast med dobbelt-
-//                       klikk, ikkje berre kolonnar merkt «redigerbar».
-//                       Dobbeltklikk på ein slik celle når modus er AV
-//                       slår sjølv på modus fyrst (snarveg). Har òg eit
-//                       Excel-liknande dra-handtak nede til høgre i den
-//                       sist redigerte/valde cella, som fyller verdien inn
-//                       i alle radene ein dreg over. IKKJE sett denne på
-//                       for tabellar der kolonnane manglar tydeleg peiking
-//                       på kva som er lagra flatt vs. utrekna — sjå
-//                       «beregna» under.
+//    rutenettRedigering — valfri (default av); slår PÅ rutenettvisning i
+//                       SharePoint-stil for ALLE celler (utanom «opnaFil»-
+//                       og «beregna»-merkte kolonnar), ikkje berre kolonnar
+//                       merkt «redigerbar». INGEN av/på-brytar — det er
+//                       alltid slege på når propen er sett, og ei rein
+//                       kolonnedefinisjon (`beregna`) styrer kva som kan
+//                       redigerast. Tre-stegs klikk-modell (sjå
+//                       claude/saksmodul-tabell.md for full spesifikasjon):
+//                       1) eitt klikk vel RADA (vanleg `merking`), 2) eit
+//                       nytt klikk på SAME celle (dobbeltklikk) vel den
+//                       EKSAKTE cella (synleg skilt frå rad-val), 3) eit
+//                       tredje klikk (på ei alt cella-valt celle) opnar
+//                       SKRIVEMODUS. Klikk-og-dra over fleire celler i
+//                       same kolonne vel eit område direkte (utan stega
+//                       over), med eit Excel-dra-handtak i botnen som
+//                       gjentek verdimønsteret syklisk oppover/nedover.
+//                       Tab i skrivemodus går rett til neste celle, OGSÅ
+//                       rett i skrivemodus. `kol.maskinlest:true` viser eit
+//                       åtvaringsvindauge («er du sikker?») FØR skrivemodus
+//                       opnar, for kolonnar fylte ut automatisk ved import.
 //    kol.beregna     — valfri kolonneflagg; kolonnen sin verdi er UTREKNA
-//                       (ikkje eit flatt felt på rada) og skal ALDRI kunne
-//                       redigerast generisk via rutenettRedigering, sjølv
-//                       om modus er på (t.d. DTM sine Kategori/Status/
-//                       Filtype/Rev./Dato/Lasta opp/Filsti/Utsendingar).
+//                       (ikkje eit flatt, skrivbart felt på rada) og skal
+//                       ALDRI kunne redigerast generisk via
+//                       rutenettRedigering (t.d. DTM sine Kategori/Status/
+//                       Filtype/Lasta opp/Filsti/Utsendingar/Gjenståande
+//                       timer).
+//    kol.maskinlest  — valfri kolonneflagg; verdien vart lest automatisk
+//                       (t.d. skanna frå eit PDF-tittelfelt ved import).
+//                       Syner ei åtvaring («denne verdien vart lesen
+//                       automatisk…») før brukar får lov å skrive i cella.
 // ═══════════════════════════════════════════════════════════════════
 
 function les(key, fallback) {
@@ -185,15 +196,16 @@ export default function DataTabell({
   const sisteMerktRef = useRef(null) // sist klikka rad-id, for shift-områdeval
 
   // ── Rutenettvisning (grid-redigering), sjå prop-kommentaren øvst ────
-  const [redigeringsmodus, setRedigeringsmodus] = useState(false)
-  // cellOmråde: { key, frå, til } — det VALDE området (radindeksar) i éin
-  // kolonne. Ei enkelt-celle er frå===til. Syner Excel-dra-handtaket nede
-  // i «til»-rada, og er kjelda dra-og-fyll kopierer/gjentek mønsteret frå.
+  // Ingen eigen av/på-brytar lenger — rutenettRedigering er anten heilt
+  // avslegen for tabellen (default) eller alltid «på» når propen er sett.
+  // cellOmråde: { key, frå, til, redigerbar } — det VALDE området (rad-
+  // indeksar) i éin kolonne. Ei enkelt-celle er frå===til. `redigerbar`
+  // er FALSE like etter eit dobbeltklikk (cella er berre VALT enno, ikkje
+  // i skrivemodus) og vert TRUE ved eit tredje klikk (då opnar sjølve
+  // skrivemodus). Syner Excel-dra-handtaket nede i «til»-rada.
   const [cellOmråde, setCellOmråde] = useState(null)
   const [fyllOmråde, setFyllOmråde] = useState(null) // { key, frå, til } — FØREHANDSVISING under ei aktiv dra-og-fyll-handling
   const [angreStabel, setAngreStabel] = useState([]) // stack av { endringar:[{type,id,key,gammal}] }
-
-  useEffect(() => { if (!redigeringsmodus) setCellOmråde(null) }, [redigeringsmodus])
 
   const erModusRedigerbar = useCallback((kol) =>
     rutenettRedigering && !kol.opnaFil && !kol.eigen && !kol.beregna,
@@ -313,12 +325,15 @@ export default function DataTabell({
   }, [radId, lesRåVerdi, onSetExtra, onSetVerdi])
 
   // ── Klikk-og-dra for å VELJE eit område av celler i éin kolonne ─────
-  // Skil klikk (ingen rørsle → vel + opnar redigering direkte, sjå
-  // krav om at eitt klikk skal vere nok i redigeringsmodus) frå eit reelt
-  // dra (rørsle over ein terskel → byggjer eit fleire-rader-utval, som
-  // sidan kan dragast-og-fyllast med handtaket, sjå startFyll under).
+  // Berre den EKTE dra-rørsla (over ein liten terskel) vert handtert her —
+  // eit reint klikk (ingen rørsle mellom mousedown/mouseup på same celle)
+  // gjer INGENTING i denne funksjonen; sjølve klikket fyrer naturleg
+  // rett etterpå (fordi mouseup trefte same celle som mousedown) og vert
+  // styrt av den vanlege tre-stegs onClick/onDoubleClick-logikken under
+  // (klikk → vel rad, dobbeltklikk → vel eksakt celle, tredje klikk →
+  // skrivemodus — sjå prop-kommentaren øvst i fila).
   const startCelleVal = useCallback((id, key, e) => {
-    if (!redigeringsmodus) return
+    if (!rutenettRedigering) return
     const startIndeks = finnRadIndeks(id)
     if (startIndeks === -1) return
     e.preventDefault() // hindrar nettlesaren sin native tekst-drag-markering under draget
@@ -337,18 +352,11 @@ export default function DataTabell({
     const slepp = () => {
       window.removeEventListener('mousemove', flytt)
       window.removeEventListener('mouseup', slepp)
-      if (vartDrege) {
-        setCellOmråde({ key, frå:Math.min(startIndeks, sluttIndeks), til:Math.max(startIndeks, sluttIndeks) })
-      } else {
-        // Reint klikk, ingen drag — vel berre denne eine cella OG opne
-        // redigering med det same (eitt klikk er nok når modus er på).
-        setCellOmråde({ key, frå:startIndeks, til:startIndeks })
-        setRedigerer({ id, key })
-      }
+      if (vartDrege) setCellOmråde({ key, frå:Math.min(startIndeks, sluttIndeks), til:Math.max(startIndeks, sluttIndeks) })
     }
     window.addEventListener('mousemove', flytt)
     window.addEventListener('mouseup', slepp)
-  }, [redigeringsmodus, finnRadIndeks])
+  }, [rutenettRedigering, finnRadIndeks])
 
   // Excel-liknande dra-og-fyll frå handtaket nede i botnen av det valde
   // området (cellOmråde). Dreg ein NEDOVER (forbi «til»), gjentek verdi-
@@ -395,9 +403,9 @@ export default function DataTabell({
   // brukt til Tab/Shift+Tab-navigasjon i RedigerCelle saman med dei vanleg
   // redigerbare/eigne kolonnane.
   const modusRedigerbareKeys = useMemo(() => {
-    if (!rutenettRedigering || !redigeringsmodus) return []
+    if (!rutenettRedigering) return []
     return synlege.filter(k => erModusRedigerbar(kolMap[k]))
-  }, [rutenettRedigering, redigeringsmodus, synlege, kolMap, erModusRedigerbar])
+  }, [rutenettRedigering, synlege, kolMap, erModusRedigerbar])
 
   // ── Meny: plassering og lukking ─────────────────────────────────
   const plasser = useCallback(() => {
@@ -545,6 +553,12 @@ export default function DataTabell({
   const harTalKolonne = useMemo(() => synlege.some(k => kolMap[k]?.art === 'tal'), [synlege, kolMap])
   const cellePad = prefs.tettleik === 'tett' ? '0 8px' : '0 11px'
 
+  // Åtvaring før ein får lov å skrive i ei kolonne merkt «maskinlest» (t.d.
+  // verdiar skanna frå eit PDF-tittelfelt ved import) — både på det tredje
+  // klikket OG når ein Tab-ar seg direkte inn i ei slik celle.
+  const sjekkMaskinlest = (kol) => !kol.maskinlest || window.confirm(
+    'Denne verdien vart lesen automatisk frå fila ved import. Er du sikker på at du vil endre han manuelt?')
+
   return (
     <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
       <style>{CSS}</style>
@@ -552,15 +566,11 @@ export default function DataTabell({
       {/* ── Tabellverktøy ── */}
       <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap',
         padding:'7px 16px', background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
-        {rutenettRedigering && (<>
-          <span className="dt-etikett">Redigering</span>
-          <Segment val={redigeringsmodus} sett={v => setRedigeringsmodus(v)} val1={[false, 'Av']} val2={[true, 'På']}/>
-          {angreStabel.length > 0 && (
-            <button type="button" className="dt-knapp" onClick={angre} title="Angre siste endring">
-              ↶ Angre
-            </button>
-          )}
-        </>)}
+        {rutenettRedigering && angreStabel.length > 0 && (
+          <button type="button" className="dt-knapp" onClick={angre} title="Angre siste endring">
+            ↶ Angre
+          </button>
+        )}
         <span className="dt-etikett">Fargekode</span>
         <Segment val={prefs.farge} sett={v => setPrefs({ farge:v })}
           val1={[false, 'Av']} val2={[true, 'På']}/>
@@ -640,7 +650,7 @@ export default function DataTabell({
                 onClick={e => { handterMerkKlikk(id, e); onRowClick?.(id, r) }}
                 onDoubleClick={() => onOpenRad?.(id, r)}
                 title={onOpenRad ? 'Dobbeltklikk for å opne' : undefined}
-                style={{ ...(radStil ? radStil(r) : undefined), ...(merkt ? { background:'var(--brandbg)', boxShadow:'inset 0 0 0 1.5px var(--brand2)' } : undefined) }}>
+                style={{ ...(radStil ? radStil(r) : undefined), ...(merkt ? { background:'var(--brandbg)', boxShadow:'inset 0 0 0 2px var(--brand2)' } : undefined) }}>
                 {radMeny && (
                   <td style={{ height:radhøgd, padding:0, textAlign:'center' }}
                     onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
@@ -655,22 +665,33 @@ export default function DataTabell({
                   const alleredeRedigerbar = kol.redigerbar
                   const modusKanRedigere = erModusRedigerbar(kol)
                   const kanRedigere = kol.eigen || alleredeRedigerbar || modusKanRedigere
-                  const kanValjastIModus = !kol.eigen && kanRedigere // fleire-celle-val/dra-og-fyll gjeld ikkje eigne kolonnar
+                  // Tre-stegs klikk-modell (klikk→rad, dobbeltklikk→celle,
+                  // tredje klikk→skriv) gjeld BERRE tabellar som har slege
+                  // på rutenettRedigering — andre tabellar (Saker/Kvalitet)
+                  // held fram med den gamle «berre dobbeltklikk»-åtferda
+                  // for sine `redigerbar`-kolonnar, uendra.
+                  const kanValjastIModus = rutenettRedigering && !kol.eigen && kanRedigere
                   const redigerast = kanRedigere && redigerer?.id === id && redigerer?.key === k
-                  const iCellOmråde = redigeringsmodus && cellOmråde && cellOmråde.key === k
+                  const denneCellaErValt = cellOmråde && cellOmråde.key === k
+                    && cellOmråde.frå === radIndeks && cellOmråde.til === radIndeks
+                  const iCellOmråde = cellOmråde && cellOmråde.key === k
                     && radIndeks >= cellOmråde.frå && radIndeks <= cellOmråde.til
                   const iFyllOmråde = fyllOmråde && fyllOmråde.key === k
                     && radIndeks >= fyllOmråde.frå && radIndeks <= fyllOmråde.til
-                  const visFyllHandtak = redigeringsmodus && kanValjastIModus && !redigerast
+                  const visFyllHandtak = kanValjastIModus && !redigerast
                     && cellOmråde && cellOmråde.key === k && radIndeks === cellOmråde.til
                   return (
                     <td key={k} style={{ height:radhøgd, padding:cellePad, position:'relative',
                         cursor: kol.opnaFil ? 'pointer' : undefined,
-                        ...((iCellOmråde || iFyllOmråde) ? { boxShadow:'inset 0 0 0 1.5px var(--brand)', background:'var(--brandbg)' } : undefined) }}
+                        ...((iCellOmråde || iFyllOmråde) ? { boxShadow:'inset 0 0 0 2.5px var(--brand)', background:'var(--brandbg2)' } : undefined) }}
                       className={(kol.mono ? 'mono ' : '') + (kol.art === 'tal' ? 'tal ' : '') + (kanRedigere ? 'eigen' : '')}
                       title={kol.opnaFil ? (alleredeRedigerbar ? 'Klikk for å opne, dobbeltklikk for å redigere' : 'Klikk for å opne')
-                        : kanRedigere ? (kol.eigen || redigeringsmodus ? 'Klikk for å redigere' : 'Dobbeltklikk for å redigere') : tekst(r, k)}
+                        : !kanRedigere ? tekst(r, k)
+                        : kol.eigen ? 'Klikk for å redigere'
+                        : kanValjastIModus ? 'Klikk: vel rad · Dobbeltklikk: vel celle · Klikk igjen: skriv'
+                        : 'Dobbeltklikk for å redigere'}
                       onClick={() => {
+                        if (cellOmråde && !denneCellaErValt) setCellOmråde(null)
                         if (kol.eigen) { setRedigerer({ id, key:k }); return }
                         if (kol.opnaFil) {
                           if (alleredeRedigerbar) {
@@ -679,6 +700,11 @@ export default function DataTabell({
                           } else {
                             onOpneFil?.(r, k)
                           }
+                          return
+                        }
+                        if (kanValjastIModus && denneCellaErValt && !redigerast) {
+                          if (!sjekkMaskinlest(kol)) return
+                          setRedigerer({ id, key:k })
                         }
                       }}
                       onMouseDown={e => { if (!redigerast && kanValjastIModus) startCelleVal(id, k, e) }}
@@ -687,9 +713,11 @@ export default function DataTabell({
                         if (!alleredeRedigerbar && !modusKanRedigere) return
                         if (klikkTimerRef.current) { clearTimeout(klikkTimerRef.current); klikkTimerRef.current = null }
                         e.stopPropagation()
-                        if (modusKanRedigere && !redigeringsmodus) setRedigeringsmodus(true)
-                        setCellOmråde({ key:k, frå:radIndeks, til:radIndeks })
-                        setRedigerer({ id, key:k })
+                        if (rutenettRedigering) {
+                          setCellOmråde({ key:k, frå:radIndeks, til:radIndeks })
+                        } else {
+                          setRedigerer({ id, key:k }) // gamal åtferd, uendra, for tabellar utan rutenettRedigering
+                        }
                       }}>
                       {redigerast ? (
                         kol.eigen ? (
@@ -717,8 +745,9 @@ export default function DataTabell({
                             synlege={synlege} kolMap={kolMap} modusRedigerbareKeys={modusRedigerbareKeys}
                             onLagre={verdi => settVerdiMedAngre(id, k, hentRedigerVerdi ? hentRedigerVerdi(r, k) : tekst(r, k), verdi)}
                             onFlytt={nesteKey => {
-                              if (nesteKey) { setCellOmråde({ key:nesteKey, frå:radIndeks, til:radIndeks }); setRedigerer({ id, key:nesteKey }) }
-                              else setRedigerer(null)
+                              if (!nesteKey) { setRedigerer(null); return }
+                              setCellOmråde({ key:nesteKey, frå:radIndeks, til:radIndeks })
+                              setRedigerer(sjekkMaskinlest(kolMap[nesteKey]) ? { id, key:nesteKey } : null)
                             }}
                             onLukk={() => setRedigerer(null)}/>
                         )

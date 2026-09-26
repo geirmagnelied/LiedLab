@@ -819,6 +819,39 @@ kolonnetypar. Bygget går gjennom utan feil, og logikken er gjennomgått
 nøye, men bør prøvast i skrivebordsappen før ein stolar heilt på han i
 produksjon.
 
+## Vidareutvikling 26. sept. 2026 — brukartesting av rutenettvisninga, runde 2
+
+Brukar testa (2)/(3) i skrivebordsappen og meldte fire ting attende. Sjå
+`claude/saksmodul-tabell.md` for den fulle, oppdaterte spesifikasjonen av
+sjølve interaksjonsmodellen (denne seksjonen listar berre KVA som endra
+seg og kvifor):
+
+1. **For liten kontrast** på rad-/celle-utheving — retta generisk i
+   `DataTabell.jsx` (sterkare kant + bakgrunn for celle-val enn for rad-val).
+2. **Redigeringsmodus-knappen vart fjerna heilt.** Brukar meinte det vart
+   enklare utan han — rutenettRedigering er no ALLTID «på» når propen er
+   sett, styrt reint av kolonneflagg. I staden kom ein eksplisitt
+   TRE-STEGS klikk-modell: klikk→rad, dobbeltklikk→cella, tredje
+   klikk→skriv (i staden for at eitt klikk gjekk RETT til skrivemodus, som
+   i (3) — det viste seg for lett å endre noko ved eit uhell).
+3. **Tab i skrivemodus** går rett til neste celle OGSÅ i skrivemodus
+   (stadfesta som alt korrekt bygd i (3), ingen endring kravd der).
+4. **Alle celler skal kunne redigerast** — også dei som er lesne
+   automatisk ved import (t.d. Rev./Dato/Fag/Tiltakshavar/Oppdragsgivar/
+   Målestokk/osb.). Rev./Dato var tidlegare `beregna:true` (låst) sidan dei
+   ligg NØSTA inni kategori-JSON-en, ikkje som eit flatt Supabase-felt —
+   løyst med eit lite spesialtilfelle i `DTMModule.jsx` sin `settVerdi()`
+   (skriv inn i heile `rad[aktivKategori]`-objektet for akkurat desse to,
+   i staden for eit topp-nivå-felt). Nytt kolonneflagg `kol.maskinlest`
+   viser ei åtvaring («er du sikker på at du vil endre han manuelt?») FØR
+   skrivemodus opnar for slike kolonnar — både på tredje klikk og ved
+   Tab-navigasjon.
+
+**Framleis IKKJE verifisert i praksis** (same avgrensing som over): heile
+den nye tre-stegs klikk-sekvensen (særleg om browser-native dblclick-
+handteringa faktisk oppfører seg som venta saman med den skreddarsydde
+mousedown-dra-logikken).
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

@@ -139,7 +139,21 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   // ein tom streng ville feila mot databasen, så tomming skal lagrast som
   // NULL for desse to i staden.
   const NUMERISKE_FELT = new Set(['ferdigstillelse', 'timebudsjett'])
+  // «Rev.»/«Dato» er IKKJE flate felt på rada — dei ligg nøsta inni det
+  // AKTIVE kategori-JSON-objektet (arbeidsdokument/resultatdokument/…, sjå
+  // hentGjeldande() i DTMTabell.jsx). Redigering her må difor skrive inn i
+  // heile det objektet, ikkje som eit topp-nivå Supabase-felt.
+  const NØSTA_FELT = { rev:'revisjon', dato:'dato' }
   const settVerdi = async (id, felt, verdi) => {
+    if (NØSTA_FELT[felt]) {
+      const d = dokumenter.find(x => x.id === id)
+      const sett = d && løysAktivtSett(d, aktivtSett)
+      if (!sett) return
+      const nyttSett = { ...(d[sett] || {}), [NØSTA_FELT[felt]]: verdi }
+      setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [sett]: nyttSett } : x))
+      await supabase.from('dtm_dokumenter').update({ [sett]: nyttSett, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+      return
+    }
     const lagra = NUMERISKE_FELT.has(felt) && verdi === '' ? null : verdi
     setDokumenter(ds => ds.map(d => d.id === id ? { ...d, [felt]: lagra } : d))
     await supabase.from('dtm_dokumenter').update({ [felt]: lagra, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
