@@ -139,6 +139,7 @@ export default function DataTabell({
   prefsKey, itemNamn = 'rader',
   defaultSortering,
   rutenettRedigering = false, // valfri; sjå kommentar øvst i fila
+  visingsFilter, // valfri; [{ namn, kolonnar:[key,...]|null }] — «Vising»-nedtrekk i verktøylinja, null = vis alle
 }) {
   const font = useMemo(() => {
     if (typeof window === 'undefined') return "700 12px sans-serif"
@@ -218,17 +219,27 @@ export default function DataTabell({
   const [angreStabel, setAngreStabel] = useState([]) // stack av { endringar:[{type,id,key,gammal}] }
   const tabellRef = useRef(null) // heile komponenten sin ytre wrapper, for å oppdage klikk HEILT UTANFOR tabellen
 
+  // Klikk HEILT UTANFOR tabellen, eller Escape-tasten, skal alltid avslutte
+  // eit ope utval — anten det er «berre valt» ELLER aktivt i skrivemodus
+  // (brukar sitt eige krav 27. sept. 2026). Eit klikk PÅ ein annan celle
+  // INNANFOR tabellen er alt handtert av kvar celle sin eigen onClick.
   useEffect(() => {
-    if (!steg1Celle && !cellOmråde) return
-    const lukk = (e) => {
+    if (!steg1Celle && !cellOmråde && !redigerer) return
+    const musNed = (e) => {
       if (tabellRef.current && !tabellRef.current.contains(e.target)) {
-        setSteg1Celle(null)
-        setCellOmråde(null)
+        setSteg1Celle(null); setCellOmråde(null); setRedigerer(null)
       }
     }
-    document.addEventListener('mousedown', lukk)
-    return () => document.removeEventListener('mousedown', lukk)
-  }, [steg1Celle, cellOmråde])
+    const tastNed = (e) => {
+      if (e.key === 'Escape') { setSteg1Celle(null); setCellOmråde(null); setRedigerer(null) }
+    }
+    document.addEventListener('mousedown', musNed)
+    document.addEventListener('keydown', tastNed)
+    return () => {
+      document.removeEventListener('mousedown', musNed)
+      document.removeEventListener('keydown', tastNed)
+    }
+  }, [steg1Celle, cellOmråde, redigerer])
 
   const erModusRedigerbar = useCallback((kol) =>
     rutenettRedigering && !kol.opnaFil && !kol.eigen && !kol.beregna,
@@ -466,6 +477,17 @@ export default function DataTabell({
     setMeny({ slag, key, left: Math.min(r.left, window.innerWidth - 290), top: r.bottom + 6 })
   }
 
+  // Høgreklikk på ei celle: opnar SAME radmeny som ☰-knappen, men posisjo-
+  // nert ved musepeikaren (ikkje ankra til ein knapp) — pluss, om cella
+  // sjølv kan redigerast, eit «Rediger celle»-val fremst (sjå rendring av
+  // «rad»-menyen under). AnkerRef vert null sidan denne menyen ikkje skal
+  // følgje eit vindaugs-resize/scroll ankra til ein spesifikk knapp.
+  const opneRadKontekstmeny = (radId2, redigerCelle, e) => {
+    e.preventDefault()
+    ankerRef.current = null
+    setMeny({ slag:'rad', key:radId2, left: Math.min(e.clientX, window.innerWidth - 290), top: e.clientY, redigerCelle })
+  }
+
   // ── Handlingar ──────────────────────────────────────────────────
   const sorter = (key, dir) => setPrefs(p => ({
     ...p,
@@ -576,7 +598,10 @@ export default function DataTabell({
 
   const aktiveFilter = Object.entries(prefs.filter).filter(([, v]) => v && v.length)
   const radhøgd = prefs.tettleik === 'tett' ? 30 : prefs.tettleik === 'luftig' ? 48 : 38
-  const harTalKolonne = useMemo(() => synlege.some(k => kolMap[k]?.art === 'tal'), [synlege, kolMap])
+  const harTotalrad = useMemo(() => synlege.some(k => {
+    const kol = kolMap[k]
+    return kol && ((kol.art === 'tal' && !kol.ikkjeSummer) || kol.totalTeljing)
+  }), [synlege, kolMap])
   const cellePad = prefs.tettleik === 'tett' ? '0 8px' : '0 11px'
 
   // Åtvaring før ein får lov å skrive i ei kolonne merkt «maskinlest» (t.d.
@@ -585,6 +610,15 @@ export default function DataTabell({
   const sjekkMaskinlest = (kol) => !kol.maskinlest || window.confirm(
     'Denne verdien vart lesen automatisk frå fila ved import. Er du sikker på at du vil endre han manuelt?')
 
+  // «Vising»-nedtrekksmenyen i verktøylinja — eit fast kolonneutval i
+  // staden for å skjule/vise kolonnar éin og éin via «+ Kolonnar».
+  // `kolonnar:null` (t.d. «Alle») nullstiller til alle synlege.
+  const brukVisingsFilter = (filter) => {
+    if (!filter.kolonnar) { setPrefs({ skjulte: [] }); return }
+    const vis = new Set(filter.kolonnar)
+    setPrefs({ skjulte: alleKolonner.map(c => c.key).filter(k => !vis.has(k)) })
+  }
+
   return (
     <div ref={tabellRef} style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
       <style>{CSS}</style>
@@ -592,6 +626,11 @@ export default function DataTabell({
       {/* ── Tabellverktøy ── */}
       <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap',
         padding:'7px 16px', background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
+        {visingsFilter?.length > 0 && (
+          <button type="button" className="dt-knapp" onClick={e => opneMeny('visingsfilter', null, e)}>
+            Vising ▾
+          </button>
+        )}
         {rutenettRedigering && angreStabel.length > 0 && (
           <button type="button" className="dt-knapp" onClick={angre} title="Angre siste endring">
             ↶ Angre
@@ -607,7 +646,7 @@ export default function DataTabell({
               className={prefs.tettleik === v ? 'på' : ''}>{t}</button>
           ))}
         </div>
-        {harTalKolonne && (<>
+        {harTotalrad && (<>
           <span className="dt-etikett" style={{ marginLeft:6 }}>Totalrad</span>
           <Segment val={prefs.totalrad} sett={v => setPrefs({ totalrad:v })} val1={[false, 'Av']} val2={[true, 'På']}/>
         </>)}
@@ -718,7 +757,7 @@ export default function DataTabell({
                         : kol.eigen ? 'Klikk for å redigere'
                         : kanValjastIModus ? 'Klikk: vel rad · Klikk igjen: vel celle · Klikk igjen: skriv'
                         : 'Dobbeltklikk for å redigere'}
-                      onClick={() => {
+                      onClick={e => {
                         // Klikk ein annan stad enn det som alt er i gang —
                         // uavhengig av om DENNE cella kan redigerast — skal
                         // alltid nullstille eit gammalt utval (brukar sitt
@@ -726,7 +765,12 @@ export default function DataTabell({
                         if (!denneErSteg1 && steg1Celle) setSteg1Celle(null)
                         if (!denneCellaErValt && cellOmråde) setCellOmråde(null)
 
-                        if (kol.opnaFil) {
+                        // «opnaFil» skal BERRE gjelde klikk PÅ SJØLVE LENKE-
+                        // TEKSTEN (sjå .dt-lenketekst), ikkje tomrommet elles
+                        // i cella — der skal klikket oppføre seg som i alle
+                        // andre kolonnar (brukar sitt eige krav 27. sept.).
+                        const kliktPåLenke = kol.opnaFil && !!e.target.closest?.('.dt-lenketekst')
+                        if (kliktPåLenke) {
                           if (!alleredeRedigerbar) { onOpneFil?.(r, k); return }
                           const alleredeIGang = denneErSteg1 || denneCellaErValt || redigerast
                           if (klikkTimerRef.current) { clearTimeout(klikkTimerRef.current); klikkTimerRef.current = null }
@@ -765,6 +809,11 @@ export default function DataTabell({
                         if (klikkTimerRef.current) { clearTimeout(klikkTimerRef.current); klikkTimerRef.current = null }
                         e.stopPropagation()
                         setRedigerer({ id, key:k })
+                      }}
+                      onContextMenu={e => {
+                        if (!radMeny) return // ingen radmeny sett opp for denne tabellen — lat nettlesaren si eiga meny stå
+                        const kanRedigereDenne = kol.eigen || kanValjastIModus
+                        opneRadKontekstmeny(id, kanRedigereDenne ? { id, key:k } : null, e)
                       }}>
                       {redigerast ? (
                         kol.eigen ? (
@@ -812,14 +861,18 @@ export default function DataTabell({
               </tr>
             )})}
           </tbody>
-          {prefs.totalrad && harTalKolonne && (
+          {prefs.totalrad && harTotalrad && (
             <tfoot>
               <tr className="dt-totalrad">
                 {radMeny && <td className="dt-totalrad-etikett" style={{ height:radhøgd, padding:cellePad }}>Totalt</td>}
                 {synlege.map((k, i) => {
                   const kol = kolMap[k]
                   if (!radMeny && i === 0) return <td key={k} className="dt-totalrad-etikett" style={{ height:radhøgd, padding:cellePad }}>Totalt</td>
-                  if (kol.art !== 'tal') return <td key={k} style={{ height:radhøgd, padding:cellePad }}/>
+                  if (kol.totalTeljing) {
+                    const unike = new Set(rader.map(r => tekst(r, k)).filter(Boolean))
+                    return <td key={k} className="tal" style={{ height:radhøgd, padding:cellePad }} title="Talet på ulike verdiar">{unike.size}</td>
+                  }
+                  if (kol.art !== 'tal' || kol.ikkjeSummer) return <td key={k} style={{ height:radhøgd, padding:cellePad }}/>
                   const sum = rader.reduce((s, r) => {
                     const v = sorteringsverdi(r, k)
                     return s + (typeof v === 'number' && isFinite(v) ? v : 0)
@@ -857,6 +910,26 @@ export default function DataTabell({
         const arkivert  = !!radMeny.erArkivert?.(rad)
         return (
           <div className="dt-meny" style={{ left:meny.left, top:meny.top, width:210 }}>
+            {meny.redigerCelle && (() => {
+              const { id:cid, key:ck } = meny.redigerCelle
+              const kol2 = kolMap[ck]
+              return (
+                <>
+                  <button type="button" className="dt-val" onClick={() => {
+                    setMeny(null)
+                    if (kol2.eigen) { setRedigerer({ id:cid, key:ck }); return }
+                    if (!sjekkMaskinlest(kol2)) return
+                    const idx = finnRadIndeks(cid)
+                    setCellOmråde({ key:ck, frå:idx, til:idx })
+                    setRedigerer({ id:cid, key:ck })
+                  }}>
+                    <span className="dt-rmikon">✎</span>
+                    <span>Rediger celle</span>
+                  </button>
+                  <div className="dt-skilje"/>
+                </>
+              )
+            })()}
             {radMeny.onFavoritt && (
               <button type="button" className="dt-val" onClick={() => { radMeny.onFavoritt(meny.key, rad); setMeny(null) }}>
                 <span className="dt-rmikon">{favoritt ? '★' : '☆'}</span>
@@ -894,6 +967,18 @@ export default function DataTabell({
           </div>
         )
       })()}
+
+      {meny?.slag === 'visingsfilter' && visingsFilter?.length > 0 && (
+        <div className="dt-meny" style={{ left:meny.left, top:meny.top, width:200 }}>
+          <div className="dt-menyhovud">Vising</div>
+          {visingsFilter.map(f => (
+            <button key={f.namn} type="button" className="dt-val"
+              onClick={() => { brukVisingsFilter(f); setMeny(null) }}>
+              <span>{f.namn}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {meny?.slag === 'kolonnar' && (
         <div className="dt-meny" style={{ left:meny.left, top:meny.top }}>
@@ -946,8 +1031,8 @@ function Celle({ rad, kol, tekst, farge, lagCelle }) {
   // teksten, ikkje over heile celleflata (padding/tomrom til høgre for ein
   // kort verdi) — difor pakka inn i eit eige <span> som berre tek den
   // plassen teksten faktisk treng (i staden for cursor på sjølve <td>-en).
-  if (kol.opnaFil) return <span style={{ fontFamily: kol.mono ? 'var(--mono)' : undefined,
-    fontWeight: kol.mono ? 600 : undefined, cursor:'pointer' }}>{t}</span>
+  if (kol.opnaFil) return <span className="dt-lenketekst" style={{ fontFamily: kol.mono ? 'var(--mono)' : undefined,
+    fontWeight: kol.mono ? 600 : undefined, color:'var(--brand)', cursor:'pointer' }}>{t}</span>
   if (kol.mono) return <span style={{ fontFamily:'var(--mono)', fontWeight:600 }}>{t}</span>
   if (kol.eigen) {
     if (!t) return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>

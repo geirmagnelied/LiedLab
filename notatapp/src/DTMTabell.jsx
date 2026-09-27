@@ -20,17 +20,28 @@ const STATUS_FARGE = {
   'Siste versjon': 'var(--success)',
 }
 
+// «Vising»-nedtrekksmenyen i verktøylinja (sjå DataTabell sin
+// `visingsFilter`-prop) — faste kolonneutval brukar kan hoppe mellom, i
+// tillegg til å skjule/vise kolonnar enkeltvis via «+ Kolonnar» som før.
+const VISINGSFILTER = [
+  { namn:'Alle', kolonnar:null },
+  { namn:'Tegningsliste', kolonnar:['nr', 'tittel', 'filtype', 'rev', 'dato', 'format', 'malestokk'] },
+]
+
 // Alle kolonnar er synlege som standard (brukar sitt eige krav 25. sept.
 // 2026: «legg inn alle kolonnene med info frå skanninga inn i tabellen
 // som standard visning») — ingen `standardSkjult` lenger.
 const BASE_COLUMNS = [
-  { key:'nr',          label:'Dokumentnummer', art:'tekst', mono:true, opnaFil:true, redigerbar:true, maskinlest:true },
+  { key:'nr',          label:'Dokumentnummer', art:'tekst', mono:true, opnaFil:true, redigerbar:true, maskinlest:true, totalTeljing:true },
   { key:'tittel',      label:'Tittel',       art:'tekst', utanFilter:true, opnaFil:true },
   { key:'kategori',    label:'Kategori',     art:'val',   redigerbar:true, val:KATEGORIAR.map(k => KATEGORI_LABEL[k]) },
   { key:'status',      label:'Status',       art:'val',   utanFilter:true, beregna:true },
   { key:'filtype',     label:'Filtype',      art:'val',   mono:true, beregna:true },
   { key:'rev',         label:'Rev.',         art:'tekst', mono:true, redigerbar:true, maskinlest:true },
-  { key:'dato',        label:'Dato',         art:'tekst', mono:true, redigerbar:true, maskinlest:true },
+  // «Dato» omdøypt «Revisjonsdato» 27. sept. 2026 — det var uklårt at
+  // denne viser NYASTE revisjon (sjå «Første revisjon» under for eldste).
+  { key:'dato',        label:'Revisjonsdato', art:'tekst', mono:true, redigerbar:true, maskinlest:true },
+  { key:'forste_revisjon_dato', label:'Første revisjon', art:'tekst', mono:true, redigerbar:true, maskinlest:true },
   { key:'revisjonsbeskriving', label:'Revisjonsskildring', art:'tekst', utanFilter:true, maskinlest:true },
   { key:'tegningsformal', label:'Tegningsformål', art:'val', maskinlest:true },
   { key:'fag',         label:'Fag',          art:'val',   maskinlest:true },
@@ -39,7 +50,7 @@ const BASE_COLUMNS = [
   { key:'fase',        label:'Fase',         art:'val' },
   { key:'delprosjekt', label:'Delprosjekt',  art:'tekst', redigerbar:true },
   { key:'ferdigstillingsstatus', label:'Status ved ferdigstilling', art:'val', redigerbar:true, val:['', ...FERDIGSTILLING_STATUS] },
-  { key:'ferdigstillelse', label:'Ferdigstillelse', art:'tal', redigerbar:true, minW:60, min:0, max:100 },
+  { key:'ferdigstillelse', label:'Ferdigstillelse', art:'tal', redigerbar:true, minW:60, min:0, max:100, ikkjeSummer:true },
   { key:'timebudsjett',   label:'Timebudsjett', art:'tal', redigerbar:true, minW:60 },
   { key:'gjenstaande_timer', label:'Gjenståande timer', art:'tal', beregna:true, minW:60 },
   { key:'malestokk',   label:'Målestokk',    art:'tekst', maskinlest:true },
@@ -75,6 +86,7 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       }
       case 'rev':         return g.revisjon || ''
       case 'dato':        return g.dato || ''
+      case 'forste_revisjon_dato': return rad.forste_revisjon_dato || ''
       case 'revisjonsbeskriving': return rad.revisjonsbeskriving || ''
       case 'tegningsformal': return rad.tegningsformal || ''
       case 'fag':         return rad.fag || ''
@@ -112,9 +124,9 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
 
   const lagCelle = useCallback((rad, kol) => {
     if (kol.key === 'tittel')
-      return <span style={{ fontWeight:600, color:'var(--text)', cursor:'pointer' }}>{rad.tittel || rad.nr}</span>
+      return <span className="dt-lenketekst" style={{ fontWeight:600, color:'var(--brand)', cursor:'pointer' }}>{rad.tittel || rad.nr}</span>
     if (kol.key === 'nr')
-      return <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--brand)', cursor:'pointer' }}>{rad.nr}</span>
+      return <span className="dt-lenketekst" style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--brand)', cursor:'pointer' }}>{rad.nr}</span>
     if (kol.key === 'status') {
       const { sett } = hentGjeldande(rad, aktivtSett)
       const taggar = sett ? reknStatus(rad, sett) : []
@@ -179,6 +191,7 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
         merking={merking}
         innhaldstilpassaBreidd
         rutenettRedigering
+        visingsFilter={VISINGSFILTER}
         prefsKey={`${PREFS_KEY}:${aktivtSett}`}
         itemNamn="dokument"
         defaultSortering={{ key:'nr', dir:'asc' }}

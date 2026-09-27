@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS dtm_dokumenter (
   ferdigstillingsstatus TEXT DEFAULT '', -- Moglegheitsstudie/Skisseprosjekt/Forprosjekt/Tilbodsunderlag/Arbeidsteikning/Som bygd
   ferdigstillelse  INTEGER,              -- prosent ferdig (0–100), fritt sett av brukar — IKKJE avleidd av ferdigstillingsstatus
   timebudsjett     NUMERIC,              -- timebudsjett for DETTE dokumentet. Gjenståande timer = timebudsjett * (1 - ferdigstillelse/100), utrekna i UI-en (DTMTabell.jsx), ikkje lagra
+  forste_revisjon_dato TEXT DEFAULT '',  -- dato for ELDSTE rad i PDF-en sin eigen revisjonstabell («dato»/«Revisjonsdato» viser NYASTE) — sjå tolkRevisjonstabell() i main.js
   favorite         BOOLEAN NOT NULL DEFAULT false,
   pinned           BOOLEAN NOT NULL DEFAULT false,
   status           TEXT[] NOT NULL DEFAULT '{}',

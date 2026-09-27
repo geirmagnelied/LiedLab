@@ -722,6 +722,29 @@ function tolkRevisjonstabell(linjer, resultat) {
   if (!resultat.teikna_av) resultat.teikna_av = rad.utarbeidd
   if (!resultat.fk_person) resultat.fk_person = rad.fagkontroll
   if (!resultat.godkjent_av) resultat.godkjent_av = rad.godkjent
+
+  // Datoen for FYRSTE revisjon (den eldste rada i tabellen) — brukar sitt
+  // krav 27. sept. 2026: «Dato» (no omdøypt «Revisjonsdato» i UI-en) viser
+  // berre siste versjon, men fyrste-revisjon-datoen er òg relevant. Må
+  // TOLKAST (ikkje strengsamanlikning, som er upåliteleg på tvers av
+  // månad/år — DD.MM.YYYY «05.01.2026» < «20.12.2025» strengmessig, sjølv
+  // om han er KRONOLOGISK seinare).
+  const datertRader = rader.filter((r) => datoSorteringsnøkkel(r.dato))
+  if (datertRader.length && !resultat.forsteRevisjonDato) {
+    const eldst = datertRader.reduce((e, r) =>
+      (!e || datoSorteringsnøkkel(r.dato) < datoSorteringsnøkkel(e.dato)) ? r : e)
+    resultat.forsteRevisjonDato = eldst.dato
+  }
+}
+
+// DD.MM.YYYY/DD.MM.YY → «YYYYMMDD»-streng, for KRONOLOGISK (ikkje leksikalsk)
+// samanlikning av datoar. Returnerer null når teksten ikkje let seg tolke.
+function datoSorteringsnøkkel(dato) {
+  const m = /^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})$/.exec(String(dato || '').trim())
+  if (!m) return null
+  let [, dag, månad, år] = m
+  if (år.length === 2) år = (Number(år) > 50 ? '19' : '20') + år
+  return `${år.padStart(4, '0')}${månad.padStart(2, '0')}${dag.padStart(2, '0')}`
 }
 
 // Gamal, generisk «merkelapp: verdi» PÅ ÉI LINJE-tolking (same mønster
@@ -774,7 +797,7 @@ async function lesTittelfelt(pdfSti) {
   const resultat = {
     tittel: '', malestokk: '', teikna_av: '', ek_person: '', fk_person: '', dato: '', format: '', revisjon: '',
     oppdragsgivar: '', tiltakshavar: '', oppdragsnr: '', tegningsnrFraPdf: '', godkjent_av: '', revisjonsbeskriving: '',
-    tegningsformal: '',
+    tegningsformal: '', forsteRevisjonDato: '',
   }
   try {
     const pdfjsLib = await lastPdfjs()
@@ -966,6 +989,7 @@ ipcMain.handle('dtm:skann-filer', async (event, { filPathar, kategori }) => {
         oppdragsgivar: meta.oppdragsgivar, tiltakshavar: meta.tiltakshavar,
         oppdragsnr: meta.oppdragsnr, godkjent_av: meta.godkjent_av,
         revisjonsbeskriving: meta.revisjonsbeskriving, tegningsformal: meta.tegningsformal,
+        forste_revisjon_dato: meta.forsteRevisjonDato || '',
       })
     } catch (e) {
       const melding = erFillasFeil(e)

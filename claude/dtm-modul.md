@@ -899,6 +899,50 @@ rendrar rett i den bunta Electron/Chromium-versjonen (bør vere trygt —
 støtta sidan Chrome 111, Electron 36 brukar ein nyare Chromium — men ikkje
 sett med eigne auge frå dette miljøet).
 
+## Vidareutvikling 27. sept. 2026 — brukartesting, runde 4
+
+Brukar stadfesta at runde 3 «begynner å fungere som eg ønsker», med sju
+mindre justeringar attende. Sjå `claude/saksmodul-tabell.md` for den fulle
+interaksjonsspesifikasjonen — denne seksjonen listar berre KVA som endra
+seg, pluss dei DTM-spesifikke stykka:
+
+1. Tittel-kolonna fekk same tekstfarge (`var(--brand)`) som Dokumentnummer,
+   og klikk-presisjonen vart retta generisk i DataTabell.jsx: `opnaFil`
+   gjeld no BERRE klikk PÅ sjølve lenketeksten (`.dt-lenketekst`), ikkje
+   resten av celleflata (der klikket i staden fell gjennom til den vanlege
+   tre-stegs-klikkmodellen, som i alle andre kolonnar).
+2. Escape ELLER eit klikk heilt utanfor tabellen avsluttar no eit celle-
+   utval FULLSTENDIG (steg1Celle + cellOmråde + skrivemodus samstundes),
+   ikkje berre dei to fyrste stega som før.
+3. Tab/Shift+Tab i skrivemodus vart verifisert som alt korrekt implementert
+   frå runde 3 — ingen kodeendring naudsynt her.
+4. Nytt: høgreklikk på ei celle opnar den same radmenyen som ☰-knappen, med
+   eit «✎ Rediger celle»-val fremst som hoppar rett til skrivemodus for
+   NETTOPP den høgreklikka cella.
+5. Totalrada fekk to nye kolonneflagg: `ikkjeSummer` (Ferdigstillelse-
+   prosenten vert no ALDRI summert — gjev ingen meining) og `totalTeljing`
+   (Dokumentnummer-kolonna viser i staden talet på ULIKE teikningsnummer).
+6. **«Dato» omdøypt «Revisjonsdato»** (viser nyaste revisjon, som før) +
+   **ny kolonne «Første revisjon»** — dato for den ELDSTE rada i PDF-en sin
+   EIGEN revisjonstabell (parsa av `tolkRevisjonstabell()` i `main.js`, som
+   alt las heile tabellen, men berre brukte den nyaste rada). Kravde
+   kronologisk (ikkje strengbasert) datosamanlikning — ny hjelpefunksjon
+   `datoSorteringsnøkkel()` i main.js, sidan DD.MM.ÅÅÅÅ-strengar samanlikna
+   direkte gjev feil svar på tvers av månads-/årsskifte. Fyrste-revisjon-
+   datoen vert ALDRI skriven over av ein seinare re-import (first-write-
+   wins) — ny kolonne `dtm_dokumenter.forste_revisjon_dato TEXT`
+   (migrasjon `dtm_forste_revisjon_dato`).
+7. Ny «Vising»-nedtrekksknapp i verktøylinja (til venstre for Angre): faste
+   kolonneutval brukar kan hoppe til. DTM sitt utval: «Alle» og
+   «Tegningsliste» (Dokumentnummer/Tittel/Filtype/Rev./Revisjonsdato/
+   Arkstørrelse/Målestokk).
+
+**Framleis IKKJE verifisert i praksis**: heile høgreklikk-menyen, den nye
+Escape/klikk-utanfor-oppførselen, og at fyrste-revisjon-datoen faktisk vert
+lest korrekt frå ekte PDF-ar med fleire revisjonar (testa berre mot den
+tidlegare verifiserte «siste revisjon»-logikken sin same kjeldedata, ikkje
+mot ein ny, uavhengig kontrollsjekk).
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

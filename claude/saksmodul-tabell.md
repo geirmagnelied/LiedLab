@@ -178,16 +178,68 @@ kort verdi i ein brei kolonne — misvisande, sidan berre teksten er
 Dokumentnummer) — eit `<span>` tek berre den plassen innhaldet krev
 (shrink-to-fit), så peikaren viser hand-forma BERRE over glyfane.
 
+**27. sept. 2026, oppfølging**: same idé brukt på KLIKKET, ikkje berre
+peikaren — `<td>`-en sin `onClick` sjekkar no `e.target.closest('.dt-lenketekst')`
+og skil difor eit klikk PÅ sjølve teksten (opnar fila, evt. med den
+forseinka steg1-logikken for `opnaFil+redigerbar`-kombinasjonar) frå eit
+klikk ELLES i cella (som då fell heilt igjennom til den vanlege tre-stegs-
+klikkmodellen, akkurat som andre kolonnar). Tittel-kolonna sin tekstfarge
+vart samstundes endra frå `var(--text)` til `var(--brand)`, same farge som
+Dokumentnummer, for at dei skal SJÅ like ut som lenker.
+
+## Fullstendig avslutting av eit celle-utval — 27. sept. 2026
+
+`cellOmråde`/`steg1Celle`/`redigerer` (skrivemodus) vert no ALLE nullstilte
+saman, av BÅDE Escape-tasten OG eit klikk (`mousedown`) HEILT UTANFOR
+tabellen (ein ny, felles `document`-nivå lyttar for begge). Tidlegare
+nullstilte eit klikk utanfor berre dei to fyrste stega, medan skrivemodus
+var avhengig av den vanlege `onBlur`-committen for å lukkast — brukar bad
+om at BÅDE Escape og klikk-utanfor skal fungere likt for ALLE stega.
+
+## Høgreklikk-meny på celler — 27. sept. 2026
+
+Høgreklikk på ei celle opnar no SAME radmeny som ☰-knappen (posisjonert ved
+musepeikaren i staden for ankra til ein knapp — ny funksjon
+`opneRadKontekstmeny()`), med eit NYTT «✎ Rediger celle»-val fremst i menyen
+når den høgreklikka cella faktisk er redigerbar (skjult elles). Vel brukar
+dette, hoppar cella RETT til skrivemodus (via `cellOmråde`+`setRedigerer`,
+med same `maskinlest`-åtvaring som elles) — ein snarveg forbi heile
+tre-stegs-klikksekvensen. `meny`-objektet fekk eit nytt, valfritt felt
+`redigerCelle:{id,key}` for dette føremålet.
+
 ## Totalrad — 25. sept. 2026, alltid tilgjengeleg (ikkje bak nokon prop)
 
 Eit «Totalrad»-av/på-val dukkar opp i verktøylinja (attmed Tettleik) i KVAR
-tabell som har minst éin synleg kolonne med `art:'tal'`. Slått på legg det
-ei fast rad (`<tfoot>`, sticky nede i scroll-området, same mønster som
-`<thead>` sin sticky topp) nedst i tabellen, som viser SUMMEN av kvar synleg
-talkolonne for dei FILTRERTE/synlege radene (ikkje eit skjult totaltal for
-heile registeret). Det er ei rein VISINGSINNSTILLING (lagra i
-`prefs.totalrad`, same localStorage-mønster som Fargekode/Tettleik) — ingen
-ny prop, ingen databaseendring.
+tabell som har minst éin synleg kolonne med `art:'tal'` (eller `totalTeljing`,
+sjå under). Slått på legg det ei fast rad (`<tfoot>`, sticky nede i scroll-
+området, same mønster som `<thead>` sin sticky topp) nedst i tabellen, som
+viser eit aggregat per synleg kolonne for dei FILTRERTE/synlege radene
+(ikkje eit skjult totaltal for heile registeret). Det er ei rein
+VISINGSINNSTILLING (lagra i `prefs.totalrad`, same localStorage-mønster
+som Fargekode/Tettleik) — ingen ny prop, ingen databaseendring.
+
+To kolonneflagg styrer kva som vert vist (lagt til 27. sept. 2026, etter
+brukarønske om at eit prosent-felt ikkje skal SUMMERAST, og at ein heller
+ville telje talet på ULIKE dokumentnummer enn å la den cella stå tom):
+- `kol.ikkjeSummer:true` — kolonnen ER `art:'tal'`, men skal IKKJE summerast
+  (t.d. DTM sin Ferdigstillelse-prosent — ein sum av prosentar er ikkje
+  meiningsfylt). Cella står tom i totalrada.
+- `kol.totalTeljing:true` — viser talet på ULIKE (distinkte, ikkje-tomme)
+  verdiar i kolonnen i staden for ein sum — treng ikkje vere `art:'tal'`
+  (t.d. DTM sin Dokumentnummer-kolonne: talet på ulike teikningsnummer).
+
+## «Vising»-filter — 27. sept. 2026, valfri prop `visingsFilter`
+
+Ein ny nedtrekksknapp («Vising ▾») i verktøylinja, til venstre for Angre-
+knappen (attgjenbrukar det eksisterande `meny`-systemet, slag
+`'visingsfilter'`). Tek ei liste `[{ namn, kolonnar:[key,...]|null }]` —
+kvart val SET `prefs.skjulte` til komplementet av den lista kolonnenøklane
+(eller tømmer han heilt for `kolonnar:null`, t.d. eit «Alle»-val). Reint ein
+SNARVEG for å skjule/vise mange kolonnar på éin gong — identisk med å gjere
+det manuelt via «+ Kolonnar», så det er inga eiga «aktiv filter»-tilstand å
+halde styr på (brukar kan endre enkeltkolonnar etterpå utan at noko vert
+inkonsistent). DTM sitt utval: «Alle» (`kolonnar:null`) og «Tegningsliste»
+(Dokumentnummer/Tittel/Filtype/Rev./Revisjonsdato/Arkstørrelse/Målestokk).
 
 ## Prototype
 

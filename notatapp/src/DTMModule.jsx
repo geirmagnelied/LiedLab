@@ -397,7 +397,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           godkjent_av: r.godkjent_av || '', oppdragsgivar: r.oppdragsgivar || '',
           tiltakshavar: r.tiltakshavar || '', oppdragsnr: r.oppdragsnr || '',
           revisjonsbeskriving: r.revisjonsbeskriving || '', tegningsformal: r.tegningsformal || '',
-          ferdigstillingsstatus: r.ferdigstillingsstatus || '',
+          ferdigstillingsstatus: r.ferdigstillingsstatus || '', forste_revisjon_dato: r.forste_revisjon_dato || '',
           lagra_av: namnFraEpost(userEmail), status: [], ekstra: {}, favorite: false, pinned: false,
           arbeidsdokument: null, resultatdokument: null, kontrolldokument: null, styrande_dokument: null,
           created_at: no, updated_at: no,
@@ -422,6 +422,9 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           revisjonsbeskriving: r.revisjonsbeskriving || gammalRad.revisjonsbeskriving,
           tegningsformal: r.tegningsformal || gammalRad.tegningsformal,
           ferdigstillingsstatus: r.ferdigstillingsstatus || gammalRad.ferdigstillingsstatus,
+          // Fyrste-revisjon-datoen skal ALDRI skrivast over av ein seinare
+          // re-import — han representerer den opphavlege, historiske datoen.
+          forste_revisjon_dato: gammalRad.forste_revisjon_dato || r.forste_revisjon_dato || '',
           lagra_av: namnFraEpost(userEmail) || gammalRad.lagra_av, updated_at: no,
           [kategori]: kategoriVerdi,
         }
