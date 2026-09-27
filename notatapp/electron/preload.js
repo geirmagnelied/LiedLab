@@ -109,8 +109,8 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
   dtmVelgKvitteringsfil: () => ipcRenderer.invoke('dtm:velg-kvitteringsfil'),
 
   // Rendrar ferdig HTML (bygd av TegningslisteModal.jsx, éi <div class="side">
-  // per side) til ei ekte PDF-fil via Chromium sin eigen printToPDF, spør
-  // brukar kor ho skal lagrast, og opnar ho etterpå.
-  dtmGenererTegningslistePdf: (html, filnamnForslag) =>
-    ipcRenderer.invoke('dtm:generer-tegningsliste-pdf', { html, filnamnForslag }),
+  // per side) til ei ekte PDF-fil via Chromium sin eigen printToPDF, og
+  // lagrar DIREKTE i vald DTM-kategorimappe (ingen «lagre som»-dialog).
+  dtmGenererTegningslistePdf: (html, oppdragsSti, kategori, filnamn) =>
+    ipcRenderer.invoke('dtm:generer-tegningsliste-pdf', { html, oppdragsSti, kategori, filnamn }),
 })

@@ -1291,16 +1291,24 @@ ipcMain.handle('dtm:apne-kvittering', async (event, { oppdragsSti, filnamn }) =>
 // `preferCSSPageSize:true` gjer at kvar side sin EIGEN @page-storleik
 // (sett av renderar-koden, alt etter valt ark-format/retning) styrer
 // utskriftsstorleiken, ikkje ein fast standardstorleik frå Electron.
-ipcMain.handle('dtm:generer-tegningsliste-pdf', async (event, { html, filnamnForslag }) => {
+//
+// Lagrar DIREKTE til disk i vald DTM-kategorimappe (arbeidsdokument/
+// resultatdokument/kontrolldokument, brukar sitt eige val i modalen) —
+// INGEN «lagre som»-dialog, sjå claude/dtm-modul.md. `ledigFilnamn()`
+// (alt brukt av KS-modulen) hindrar at ei framtidig, ulik generering ved
+// eit uhell skriv over ei tidlegare lagra fil med same namn.
+ipcMain.handle('dtm:generer-tegningsliste-pdf', async (event, { html, oppdragsSti, kategori, filnamn }) => {
   let vindauge = null
   let tempSti = null
   try {
-    const svar = await dialog.showSaveDialog({
-      title: 'Lagre tegningsliste',
-      defaultPath: filnamnForslag || 'Tegningsliste.pdf',
-      filters: [{ name: 'PDF', extensions: ['pdf'] }],
-    })
-    if (svar.canceled || !svar.filePath) return { ok: false, avbrote: true }
+    const mappeNamn = DTM_KATEGORI_MAPPE[kategori]
+    if (!oppdragsSti || !mappeNamn || !filnamn) {
+      return { ok: false, melding: 'Manglar oppdragssti, kategori eller filnamn.' }
+    }
+    const mappeSti = path.join(oppdragsSti, mappeNamn)
+    fs.mkdirSync(mappeSti, { recursive: true })
+    const endeleg = ledigFilnamn(mappeSti, filnamn)
+    const målSti = path.join(mappeSti, endeleg)
 
     tempSti = path.join(os.tmpdir(), `dtm-tegningsliste-${Date.now()}.html`)
     fs.writeFileSync(tempSti, html, 'utf8')
@@ -1308,9 +1316,9 @@ ipcMain.handle('dtm:generer-tegningsliste-pdf', async (event, { html, filnamnFor
     vindauge = new BrowserWindow({ show: false })
     await vindauge.loadFile(tempSti)
     const buffer = await vindauge.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true })
-    fs.writeFileSync(svar.filePath, buffer)
-    await shell.openPath(svar.filePath)
-    return { ok: true, filSti: svar.filePath }
+    fs.writeFileSync(målSti, buffer)
+    await shell.openPath(målSti)
+    return { ok: true, filSti: målSti, filnamn: endeleg }
   } catch (e) {
     return { ok: false, melding: e.message }
   } finally {

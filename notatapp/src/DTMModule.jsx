@@ -581,6 +581,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
 
       {tegningslisteOpen && (
         <TegningslisteModal dokumenter={synlegeDokument} aktivtSett={aktivtSett} aktivtProsjekt={aktivtProsjekt}
+          oppdragsgivar={details?.clientName} oppdragsSti={oppdragsSti}
           onLukk={() => setTegningslisteOpen(false)}/>
       )}
     </div>

@@ -965,7 +965,10 @@ tekst i kvar side sin eigen HTML, rekna ut i JS FØR HTML-en vert laga).
 **Flyt:**
 1. Brukar trykkjer «Tegningsliste» → `TegningslisteModal` opnar med dei
    synlege dokumenta (frå aktiv kategori-fane) + `aktivtProsjekt`
-   (prosjektnummer/-namn, alt henta i `DTMModule.jsx`).
+   (prosjektnummer, alt henta i `DTMModule.jsx`) + `oppdragsgivar`
+   (frå `details?.clientName` — same `details`-state DTMModule alt hentar
+   for oppdragssti) + `oppdragsSti` (for revisjonsforslag og sjølve
+   filplasseringa, sjå runde 2 under).
 2. **Automatisk føreslege format/retning**: `finnPassandeFormat()` prøver
    A4-ståande, A4-liggjande, A2-ståande, A2-liggjande, A1-ståande,
    A1-liggjande i DEN rekkjefølgja, og vel den FYRSTE der kolonnebreidda
@@ -984,41 +987,92 @@ tekst i kvar side sin eigen HTML, rekna ut i JS FØR HTML-en vert laga).
    overskrift 8mm, radhøgd 7mm) delt på tilgjengeleg høgd — reint
    aritmetisk, ingen faktisk DOM-måling (ville kravd eit ekstra render-
    steg/måle-triks). Dokumenta vert delte i chunks av den storleiken.
-5. **Kvar side inneheld**:
-   - Toppfelt, øvst til venstre: «Tegningsliste» (18pt) + «Prosjektnummer:
-     X» + prosjektnamn (16pt, begge over minstekravet på 16).
-   - Hovudtabellen (dei 7 kolonnane over) for akkurat DEN sida sin del av
+5. **Kvar side inneheld** (justert 28. sept. 2026, sjå eige avsnitt under
+   for kva som endra seg og kvifor):
+   - Toppfelt, øvst til venstre: brukarvalt **Tittel** (default
+     «Tegningsliste», 22pt, bold — den STØRSTE teksten) + «Prosjektnummer:
+     X» + oppdragsgivar (12pt, vesentleg mindre enn tittelen).
+   - Ein tittelblokk-tabell øvst til HØGRE (Dokumentnummer + Revisjon for
+     sjølve tegningsliste-arket), ved sida av toppfeltet.
+   - Hovudtabellen (dei 7 kolonnane) for akkurat DEN sida sin del av
      dokumenta.
-   - Botntekst, nede til venstre: «Side X av Y».
-   - Ein liten, eigen tittelblokk-tabell nede til høgre — Dokumentnummer +
-     Revisjon for SJØLVE TEGNINGSLISTE-ARKET (ikkje for dei einskilde
-     dokumenta i hovudtabellen), 8pt tekst (over minstekravet på 2,5mm ≈
-     7,1pt). Brukar skriv desse to feltas sjølv i modalen — appen
-     føreslår «A-60-01» som startverdi for dokumentnummeret (brukar sitt
-     eige, faste eksempel), heilt fritt overstyrbart, INGEN kobling til
-     `genererDNummer()`/fag-talserien elles i appen.
-6. Trykkjer brukar «Generer PDF»: heile HTML-en vert sendt via
-   `dtmGenererTegningslistePdf(html, filnamnForslag)` til ein ny IPC-
-   handlar (`dtm:generer-tegningsliste-pdf` i `main.js`) — spør FYRST kor
-   fila skal lagrast (`dialog.showSaveDialog`), skriv HTML-en til ei
-   mellombels fil, lastar han i eit SKJULT `BrowserWindow`, kallar
+   - Botntekst nede til venstre: «Side X av Y».
+   - Botntekst nede til HØGRE, gjenteke likt på KVAR side: Dokumentnummer,
+     Dokumentnamn (= Tittel-feltet), Revisjon, Revisjonsdato, Arkstørrelse
+     (format+retning som tekst, t.d. «A4 liggjande»).
+6. Trykkjer brukar «Generer og lagre PDF»: heile HTML-en vert sendt via
+   `dtmGenererTegningslistePdf(html, oppdragsSti, kategori, filnamn)` til
+   IPC-handlaren `dtm:generer-tegningsliste-pdf` i `main.js` — lastar HTML-
+   en i eit SKJULT `BrowserWindow`, kallar
    `webContents.printToPDF({printBackground:true, preferCSSPageSize:true})`,
-   skriv PDF-bufferet til vald sti, opnar fila, og ryddar opp den
+   og skriv PDF-bufferet DIREKTE til vald DTM-kategorimappe (ingen «lagre
+   som»-dialog lenger, sjå eige avsnitt under), opnar fila, ryddar opp den
    mellombelse HTML-fila.
 
+## Vidareutvikling 28. sept. 2026 — brukartesting av Tegningsliste, runde 2
+
+Brukar sa Tegningslista «ser lovande ut» og bad om fem justeringar:
+
+1. **Vindauget kan no dragast og skalerast frå ALLE kantar/hjørne** — åtte
+   eigendefinerte dra-handtak (same mousedown/mousemove/mouseup-mønster
+   som resten av appen, ALDRI CSS sin eigen `resize`, jf. NoteModal.jsx),
+   pluss ei dragbar topplinje (klikk-og-dra kor som helst på topplinja
+   UNNTATT sjølve ×-knappen). Standardstorleik er no 90 % av skjermbreidda
+   for liggjande ark, 60 % for ståande (brukar sitt eige krav — held fram
+   å bruke det AUTOMATISK FØRESLEGE formatet sin retning, ikkje det
+   brukar evt. byter til etterpå, sidan storleiken vert sett FØR brukar
+   rekk å endre noko). Posisjon+storleik hugsa i localStorage
+   (`liedlab-tegningsliste-vindauge`), same mønster som NoteModal.
+2. Tittelblokk-tabellen (Dokumentnummer+Revisjon) flytta frå nede til
+   høgre til OPPE til høgre. Overskrift-hierarkiet vart eksplisitt:
+   Tittel-feltet (sjå punkt 3) er no den STØRSTE, feite teksten (22pt);
+   Prosjektnummer og oppdragsgivar er mindre (12pt) — FØR var alle tre
+   linjene like store/feite.
+3. Ny **Tittel**-tekstboks i modalen (default «Tegningsliste», akkurat som
+   heile toppfeltet synte FØR dette, no eksplisitt brukarstyrt). Ny
+   **Revisjon**-forslagslogikk: i staden for eit tomt felt, tel appen no
+   kor mange filer i den VALDE kategorimappa (sjå punkt 4) sitt namn alt
+   startar med det skrivne dokumentnummeret (via den eksisterande
+   `dtmListFiler`-IPC-en), og føreslår talet+1 — same «høgste eksisterande
+   + 1»-idé som `nextCaseNumber()`/`nextNoteNumber()` elles i appen, berre
+   henta frå DISKEN i staden for databasen (tegningslista vert IKKJE
+   registrert som ei eiga `dtm_dokumenter`-rad — sjå punkt 4). Køyrer på
+   nytt når brukar BYTER kategori (eit medvite, sjeldan val), IKKJE for
+   kvart tastetrykk i dokumentnummer-feltet.
+4. **Lagring skjer no DIREKTE til disk** — ingen «lagre som»-dialog lenger.
+   `dtm:generer-tegningsliste-pdf` (main.js) tek no `{oppdragsSti, kategori,
+   filnamn}` i staden for å opne `dialog.showSaveDialog`, og skriv rett inn
+   i `<oppdragsSti>\<DTM_KATEGORI_MAPPE[kategori]>\`. Standardval
+   «Resultatdokument», med eit `dt-seg`-val i modalen for å overstyre til
+   Kontrolldokument eller Arbeidsdokument (IKKJE «Styrande dokument» — ikkje
+   ein naturleg heim for denne fila). Filnamnet vert bygd som
+   `<dokumentnummer>_Rev<revisjon>.pdf` (saneres for ugyldige Windows-
+   teikn), og `ledigFilnamn()` (attgjenbrukt frå KS-modulen) hindrar at ei
+   framtidig, ulik generering skriv over ei tidlegare lagra fil ved eit
+   uhell.
+5. Ny, gjenteken botntekst-blokk nede til høgre på KVAR side (sjå punkt 5
+   i sidelayout-lista over) — Dokumentnummer/Dokumentnamn/Revisjon/
+   Revisjonsdato/Arkstørrelse. Ny **Revisjonsdato**-felt i modalen (default
+   dagens dato, DD.MM.ÅÅÅÅ, fritt redigerbart).
+
 **IKKJE gjort/vurdert vidare**: sjølve dokument-RADENE i tegningslista er
-FASTE på dei 7 kolonnane over (uavhengig av kva «Vising»-filter brukar har
+FASTE på dei 7 kolonnane (uavhengig av kva «Vising»-filter brukar har
 ståande i sjølve tabellen) — eit meir fleksibelt, kolonnevalfritt utskrift
-kunne vore ei seinare utviding, men var ikkje spurt om.
+kunne vore ei seinare utviding, men var ikkje spurt om. Tegningslista vert
+IKKJE registrert i `dtm_dokumenter` (rein fil-på-disk, jf. punkt 3/4 over)
+— viss brukar seinare ønskjer at ho skal dukke opp i sjølve DTM-tabellen
+(med skikkeleg revisjons-arkivering via `dtm_versjonar` osb.), er det ei
+arkitektonisk større endring, ikkje gjort her.
 
 **IKKJE verifisert i praksis** (krev innlogging OG faktisk PDF-generering/
 utskrift, kunne ikkje testast frå dette miljøet): at `printToPDF` faktisk
 respekterer `preferCSSPageSize` for våre ikkje-standard A2/A1-storleikar,
 at paginerings-mm-konstantane stemmer godt nok med KORLEIS Chromium
 faktisk rendrar (t.d. om `Courier New` finst/ser lik ut på brukar sin
-maskin), og heile køyre-i-eit-skjult-BrowserWindow-flyten (matematikken er
-verifisert isolert med eit lite Node-skript, men ALDRI faktisk rendra til
-ei ekte PDF-fil og sett med eigne auge).
+maskin), heile køyre-i-eit-skjult-BrowserWindow-flyten, OG heile det nye
+dra-/skaler-vindauget (matematikken for paginering er verifisert isolert
+med eit lite Node-skript, men ALDRI faktisk rendra til ei ekte PDF-fil
+eller sett med eigne auge i skrivebordsappen).
 
 ## Oppgåveliste / fasar
 
