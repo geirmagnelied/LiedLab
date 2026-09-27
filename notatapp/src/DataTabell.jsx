@@ -178,6 +178,7 @@ export default function DataTabell({
     farge: false,
     tettleik: 'normal',
     totalrad: false,
+    eigneVisingar: [], // brukar sine eigne lagra «Vising»-utval, sjå lagreGjeldandeVising()
     rekkje: standardRekkje,
     skjulte: standardSkjulte,
     breidder: standardBreidder,
@@ -190,6 +191,8 @@ export default function DataTabell({
     return { ...standardPrefs, ...lagra, breidder: { ...standardPrefs.breidder, ...(lagra.breidder || {}) } }
   })
   const [meny, setMeny]           = useState(null)
+  const [visLagreSkjema, setVisLagreSkjema] = useState(false) // «Vising»-menyen sitt vesle «lagre gjeldande»-skjema
+  const [nyVisingNamn, setNyVisingNamn]     = useState('')
   const [redigerer, setRedigerer] = useState(null)
   const klikkTimerRef = useRef(null) // skil enkelt- frå dobbeltklikk på «opnaFil»-celler
   const ankerRef = useRef(null)
@@ -619,6 +622,17 @@ export default function DataTabell({
     setPrefs({ skjulte: alleKolonner.map(c => c.key).filter(k => !vis.has(k)) })
   }
 
+  // Brukar sine EIGNE, lagra visingar (namn + kolonneutval) — persistert i
+  // same `prefs`-objekt/localStorage-nøkkel som resten av visingsoppsettet,
+  // så dei følgjer med same kva maskin/økt brukar opnar tabellen frå.
+  const lagreGjeldandeVising = (namn) => {
+    const kolonnar = [...synlege]
+    setPrefs(p => ({ ...p, eigneVisingar: [...(p.eigneVisingar || []).filter(v => v.namn !== namn), { namn, kolonnar }] }))
+  }
+  const slettEigenVising = (namn) => {
+    setPrefs(p => ({ ...p, eigneVisingar: (p.eigneVisingar || []).filter(v => v.namn !== namn) }))
+  }
+
   return (
     <div ref={tabellRef} style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
       <style>{CSS}</style>
@@ -627,7 +641,7 @@ export default function DataTabell({
       <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap',
         padding:'7px 16px', background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
         {visingsFilter?.length > 0 && (
-          <button type="button" className="dt-knapp" onClick={e => opneMeny('visingsfilter', null, e)}>
+          <button type="button" className="dt-knapp" onClick={e => { setVisLagreSkjema(false); opneMeny('visingsfilter', null, e) }}>
             Vising ▾
           </button>
         )}
@@ -969,7 +983,7 @@ export default function DataTabell({
       })()}
 
       {meny?.slag === 'visingsfilter' && visingsFilter?.length > 0 && (
-        <div className="dt-meny" style={{ left:meny.left, top:meny.top, width:200 }}>
+        <div className="dt-meny" style={{ left:meny.left, top:meny.top, width:220 }}>
           <div className="dt-menyhovud">Vising</div>
           {visingsFilter.map(f => (
             <button key={f.namn} type="button" className="dt-val"
@@ -977,6 +991,40 @@ export default function DataTabell({
               <span>{f.namn}</span>
             </button>
           ))}
+          {(prefs.eigneVisingar || []).length > 0 && (<>
+            <div className="dt-skilje"/>
+            <div className="dt-menyhovud">Lagra visingar</div>
+            {prefs.eigneVisingar.map(v => (
+              <div key={v.namn} style={{ display:'flex', alignItems:'center' }}>
+                <button type="button" className="dt-val" style={{ flex:1 }}
+                  onClick={() => { brukVisingsFilter(v); setMeny(null) }}>
+                  <span>{v.namn}</span>
+                </button>
+                <button type="button" onClick={() => slettEigenVising(v.namn)} title="Slett denne visinga"
+                  style={{ border:'none', background:'transparent', color:'var(--text3)', fontSize:14,
+                    fontWeight:800, cursor:'pointer', padding:'0 10px' }}>×</button>
+              </div>
+            ))}
+          </>)}
+          <div className="dt-skilje"/>
+          {visLagreSkjema ? (
+            <div style={{ padding:'2px 8px 8px', display:'flex', flexDirection:'column', gap:8 }}>
+              <input autoFocus className="dt-input" placeholder="Namn på visinga" value={nyVisingNamn}
+                onChange={e => setNyVisingNamn(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && nyVisingNamn.trim()) { lagreGjeldandeVising(nyVisingNamn.trim()); setVisLagreSkjema(false); setMeny(null) } }}/>
+              <div style={{ display:'flex', gap:6 }}>
+                <button type="button" className="dt-knapp" style={{ flex:1 }} onClick={() => setVisLagreSkjema(false)}>Avbryt</button>
+                <button type="button" className="dt-knapp hovud" style={{ flex:1 }} disabled={!nyVisingNamn.trim()}
+                  onClick={() => { lagreGjeldandeVising(nyVisingNamn.trim()); setVisLagreSkjema(false); setMeny(null) }}>
+                  Lagre
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="dt-val ny" onClick={() => { setNyVisingNamn(''); setVisLagreSkjema(true) }}>
+              <span className="hake">+</span><span>Lagre gjeldande vising…</span>
+            </button>
+          )}
         </div>
       )}
 

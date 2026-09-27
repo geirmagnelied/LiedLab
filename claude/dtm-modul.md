@@ -943,6 +943,83 @@ lest korrekt frå ekte PDF-ar med fleire revisjonar (testa berre mot den
 tidlegare verifiserte «siste revisjon»-logikken sin same kjeldedata, ikkje
 mot ein ny, uavhengig kontrollsjekk).
 
+## Ny funksjon 28. sept. 2026 — «Tegningsliste»-PDF-generator
+
+Ny knapp «Tegningsliste» i DTM-verktøylinja (attmed «+ Import»/«Utsendingar»)
+opnar `TegningslisteModal.jsx` — genererer eit utskriftsklart, paginert
+PDF-dokument av dei SYNLEGE dokumenta (respekterer aktiv kategori-fane) på
+valt arkformat. Sjå òg `claude/saksmodul-tabell.md` sitt avsnitt om
+brukar-lagra visingar (uavhengig, men relatert, funksjon same dag).
+
+**Kvifor HTML/CSS bygd i renderar-koden, ikkje ein PDF-bibliotek som
+pdf-lib/jsPDF**: Electron har Chromium sin EIGE, fullverdige PDF-motor
+innebygd (`webContents.printToPDF()`) — ingen ny npm-avhengnad, ingen
+låg-nivå PDF-koordinat-teikning for hand. Éin viktig avgrensing styrte
+arkitekturen: Chromium sin `printToPDF` støttar IKKJE sidetal-medvitne
+topp-/botntekstar via rein CSS (ingen `content: counter(page)`-ekvivalent
+slik Puppeteer sin `headerTemplate`/`footerTemplate` gjev) — difor byggjer
+`TegningslisteModal.jsx` HEILE det pagninerte HTML-dokumentet SJØLV (éin
+`<div class="side">` per side, med «Side X av Y» alt limt inn som vanleg
+tekst i kvar side sin eigen HTML, rekna ut i JS FØR HTML-en vert laga).
+
+**Flyt:**
+1. Brukar trykkjer «Tegningsliste» → `TegningslisteModal` opnar med dei
+   synlege dokumenta (frå aktiv kategori-fane) + `aktivtProsjekt`
+   (prosjektnummer/-namn, alt henta i `DTMModule.jsx`).
+2. **Automatisk føreslege format/retning**: `finnPassandeFormat()` prøver
+   A4-ståande, A4-liggjande, A2-ståande, A2-liggjande, A1-ståande,
+   A1-liggjande i DEN rekkjefølgja, og vel den FYRSTE der kolonnebreidda
+   til den faste 7-kolonners tabellen (Dokumentnummer/Tittel/Filtype/
+   Rev./Revisjonsdato/Arkstørrelse/Målestokk, faste mm-breidder som SUMMERER
+   199mm) faktisk får plass innanfor arket sin breidd minus marger
+   (15mm kvar side). Brukar kan overstyre både format og retning fritt
+   etterpå via to `dt-seg`-brytarar.
+3. **Førehandsvising**: eit `<iframe srcDoc={html}>` i NATURLEG (mm→px,
+   ~96dpi) storleik, CSS-`transform:scale()`-a ned til å passe i
+   modalvindauget. Same HTML-streng vert brukt BÅDE til førehandsvisinga
+   OG sjølve PDF-genereringa — ingen sjanse for at dei to kjem ut av takt
+   med kvarandre.
+4. **Paginering**: talet på radar per side vert rekna ut frå eit sett med
+   faste mm-konstantar (marg 15mm, toppfelt 32mm, botnfelt 26mm, tabell-
+   overskrift 8mm, radhøgd 7mm) delt på tilgjengeleg høgd — reint
+   aritmetisk, ingen faktisk DOM-måling (ville kravd eit ekstra render-
+   steg/måle-triks). Dokumenta vert delte i chunks av den storleiken.
+5. **Kvar side inneheld**:
+   - Toppfelt, øvst til venstre: «Tegningsliste» (18pt) + «Prosjektnummer:
+     X» + prosjektnamn (16pt, begge over minstekravet på 16).
+   - Hovudtabellen (dei 7 kolonnane over) for akkurat DEN sida sin del av
+     dokumenta.
+   - Botntekst, nede til venstre: «Side X av Y».
+   - Ein liten, eigen tittelblokk-tabell nede til høgre — Dokumentnummer +
+     Revisjon for SJØLVE TEGNINGSLISTE-ARKET (ikkje for dei einskilde
+     dokumenta i hovudtabellen), 8pt tekst (over minstekravet på 2,5mm ≈
+     7,1pt). Brukar skriv desse to feltas sjølv i modalen — appen
+     føreslår «A-60-01» som startverdi for dokumentnummeret (brukar sitt
+     eige, faste eksempel), heilt fritt overstyrbart, INGEN kobling til
+     `genererDNummer()`/fag-talserien elles i appen.
+6. Trykkjer brukar «Generer PDF»: heile HTML-en vert sendt via
+   `dtmGenererTegningslistePdf(html, filnamnForslag)` til ein ny IPC-
+   handlar (`dtm:generer-tegningsliste-pdf` i `main.js`) — spør FYRST kor
+   fila skal lagrast (`dialog.showSaveDialog`), skriv HTML-en til ei
+   mellombels fil, lastar han i eit SKJULT `BrowserWindow`, kallar
+   `webContents.printToPDF({printBackground:true, preferCSSPageSize:true})`,
+   skriv PDF-bufferet til vald sti, opnar fila, og ryddar opp den
+   mellombelse HTML-fila.
+
+**IKKJE gjort/vurdert vidare**: sjølve dokument-RADENE i tegningslista er
+FASTE på dei 7 kolonnane over (uavhengig av kva «Vising»-filter brukar har
+ståande i sjølve tabellen) — eit meir fleksibelt, kolonnevalfritt utskrift
+kunne vore ei seinare utviding, men var ikkje spurt om.
+
+**IKKJE verifisert i praksis** (krev innlogging OG faktisk PDF-generering/
+utskrift, kunne ikkje testast frå dette miljøet): at `printToPDF` faktisk
+respekterer `preferCSSPageSize` for våre ikkje-standard A2/A1-storleikar,
+at paginerings-mm-konstantane stemmer godt nok med KORLEIS Chromium
+faktisk rendrar (t.d. om `Courier New` finst/ser lik ut på brukar sin
+maskin), og heile køyre-i-eit-skjult-BrowserWindow-flyten (matematikken er
+verifisert isolert med eit lite Node-skript, men ALDRI faktisk rendra til
+ei ekte PDF-fil og sett med eigne auge).
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

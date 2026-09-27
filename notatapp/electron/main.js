@@ -1276,3 +1276,45 @@ ipcMain.handle('dtm:apne-kvittering', async (event, { oppdragsSti, filnamn }) =>
   await shell.openPath(sti)
   return true
 })
+
+// ═══════════════════════════════════════════════════════════════════
+// DTM — generering av «Tegningsliste»-PDF (sjå claude/dtm-modul.md)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Renderar-koden (TegningslisteModal.jsx) byggjer HEILE HTML-dokumentet
+// sjølv — éin <div class="side"> per side, alt sideoppdelt/paginert der
+// (inkl. «Side X av Y»-teksten, sidan Chromium sin printToPDF IKKJE støttar
+// automatiske, sidetal-medvitne topp-/botntekstar via rein CSS slik t.d.
+// Puppeteer sin headerTemplate/footerTemplate gjer). Denne handlaren si
+// EINASTE jobb er å laste den ferdige HTML-en i eit skjult vindauge og be
+// Chromium sin eigen PDF-motor rendre han til ei ekte PDF-fil.
+// `preferCSSPageSize:true` gjer at kvar side sin EIGEN @page-storleik
+// (sett av renderar-koden, alt etter valt ark-format/retning) styrer
+// utskriftsstorleiken, ikkje ein fast standardstorleik frå Electron.
+ipcMain.handle('dtm:generer-tegningsliste-pdf', async (event, { html, filnamnForslag }) => {
+  let vindauge = null
+  let tempSti = null
+  try {
+    const svar = await dialog.showSaveDialog({
+      title: 'Lagre tegningsliste',
+      defaultPath: filnamnForslag || 'Tegningsliste.pdf',
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    })
+    if (svar.canceled || !svar.filePath) return { ok: false, avbrote: true }
+
+    tempSti = path.join(os.tmpdir(), `dtm-tegningsliste-${Date.now()}.html`)
+    fs.writeFileSync(tempSti, html, 'utf8')
+
+    vindauge = new BrowserWindow({ show: false })
+    await vindauge.loadFile(tempSti)
+    const buffer = await vindauge.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true })
+    fs.writeFileSync(svar.filePath, buffer)
+    await shell.openPath(svar.filePath)
+    return { ok: true, filSti: svar.filePath }
+  } catch (e) {
+    return { ok: false, melding: e.message }
+  } finally {
+    if (vindauge && !vindauge.isDestroyed()) vindauge.destroy()
+    if (tempSti) { try { fs.unlinkSync(tempSti) } catch { /* uironisk */ } }
+  }
+})

@@ -241,6 +241,17 @@ halde styr på (brukar kan endre enkeltkolonnar etterpå utan at noko vert
 inkonsistent). DTM sitt utval: «Alle» (`kolonnar:null`) og «Tegningsliste»
 (Dokumentnummer/Tittel/Filtype/Rev./Revisjonsdato/Arkstørrelse/Målestokk).
 
+**28. sept. 2026, oppfølging — brukar-lagra eigne visingar**: same
+«Vising»-meny fekk ein «+ Lagre gjeldande vising…»-knapp nedst. Han opnar
+eit vesle inline-skjema (namnefelt + Lagre/Avbryt) som lagrar DEN
+NOVERANDE synlege kolonnerekkjefølgja (`synlege`) som ei eiga, namngjeven
+vising i `prefs.eigneVisingar` (array av `{namn, kolonnar}`, SAME
+localStorage-mekanisme/nøkkel som resten av visingsoppsettet — ikkje
+Supabase, altså personleg per maskin/nettlesar, ikkje delt mellom
+brukarar). Dei dukkar opp i same menyen, over «Lagre gjeldande…»-knappen,
+kvar med ein liten «×» for å slette att. Attgjenbrukar `brukVisingsFilter()`
+uendra (formatet er identisk med dei faste `visingsFilter`-oppføringane).
+
 ## Prototype
 
 Designet vart testa som frittståande html-side før implementeringa, publisert

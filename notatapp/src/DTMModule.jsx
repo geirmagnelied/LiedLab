@@ -4,6 +4,7 @@ import DTMTabell from './DTMTabell'
 import DTMImportModal from './DTMImportModal'
 import DTMUtsendingModal from './DTMUtsendingModal'
 import DTMUtsendingarListe from './DTMUtsendingarListe'
+import TegningslisteModal from './TegningslisteModal'
 import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE, KATEGORI_MAPPE, løysAktivtSett, namnFraEpost,
   nesteUtsendingsnummer, utsendingsnrTekst } from './dtmKonstantar'
 
@@ -31,6 +32,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   const [utsendingar, setUtsendingar] = useState([])
   const [utsendingModalId, setUtsendingModalId] = useState(null) // id eller null (lukka)
   const [utsendingarListeOpen, setUtsendingarListeOpen] = useState(false)
+  const [tegningslisteOpen, setTegningslisteOpen] = useState(false)
 
   const harBru = typeof window !== 'undefined' && !!window.resultatdokumentAPI
   const aktivtProsjekt = projects.find(p => p.id === activeProjectId)
@@ -492,6 +494,11 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
               Utsendingar {utsendingar.filter(u => u.status !== 'sendt').length > 0
                 && `(${utsendingar.filter(u => u.status !== 'sendt').length} kladd)`}
             </button>
+            <button onClick={() => setTegningslisteOpen(true)}
+              style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
+                background:'var(--bg2)', color:'var(--text2)', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+              Tegningsliste
+            </button>
           </div>
         )}
 
@@ -570,6 +577,11 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           onOpne={(id) => { setUtsendingModalId(id); setUtsendingarListeOpen(false) }}
           onSlett={slettUtsendingKladd}
           onLukk={() => setUtsendingarListeOpen(false)}/>
+      )}
+
+      {tegningslisteOpen && (
+        <TegningslisteModal dokumenter={synlegeDokument} aktivtSett={aktivtSett} aktivtProsjekt={aktivtProsjekt}
+          onLukk={() => setTegningslisteOpen(false)}/>
       )}
     </div>
   )
