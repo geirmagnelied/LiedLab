@@ -20,7 +20,7 @@ import { løysAktivtSett, KATEGORI_LABEL } from './dtmKonstantar'
 //  breidder brukar, ALDRI CSS sin eigen `resize`, sjå NoteModal.jsx).
 // ═══════════════════════════════════════════════════════════════════
 
-const FORMAT_MM = { A4: [210, 297], A2: [420, 594], A1: [594, 841] }
+const FORMAT_MM = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841] }
 const MARGIN_MM = 15
 const HEADER_HEIGHT_MM = 26
 const TITTELBLOKK_TOPP_BREIDD_MM = 55
@@ -42,6 +42,7 @@ const KOLONNE_BREIDD_SUM = PRINT_KOLONNAR.reduce((s, c) => s + c.breiddMm, 0)
 
 const KANDIDATAR = [
   ['A4', 'ståande'], ['A4', 'liggjande'],
+  ['A3', 'ståande'], ['A3', 'liggjande'],
   ['A2', 'ståande'], ['A2', 'liggjande'],
   ['A1', 'ståande'], ['A1', 'liggjande'],
 ]
@@ -285,7 +286,7 @@ export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsj
       const prefiks = dokumentnummer.trim().toUpperCase()
       const treff = (svar?.filer || []).filter(f => f.namn.toUpperCase().startsWith(prefiks))
       setRevisjon(String(treff.length + 1))
-    })
+    }).catch(() => { /* la revisjonsforslaget stå urørt viss skanninga feilar */ })
     return () => { avbrote = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kategori, harBru, oppdragsSti])
@@ -328,7 +329,7 @@ export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsj
             <label style={{ display:'flex', flexDirection:'column', gap:4 }}>
               <span className="dt-etikett">Arkstørrelse</span>
               <div className="dt-seg" style={{ width:'100%' }}>
-                {['A4', 'A2', 'A1'].map(f => (
+                {['A4', 'A3', 'A2', 'A1'].map(f => (
                   <button key={f} type="button" className={format === f ? 'på' : ''} style={{ flex:1 }}
                     onClick={() => setFormat(f)}>{f}</button>
                 ))}

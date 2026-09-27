@@ -1079,24 +1079,39 @@ ipcMain.handle('dtm:bekreft-import', async (event, { oppdragsSti, kategori, doku
 })
 
 // Listar gjeldande filer + arkiverte (eldre) revisjonar for éin kategori.
+// MERK 29. sept. 2026: bytt frå *Sync fs-kall til async (fs.promises) her.
+// `oppdragsSti` er typisk ein UNC-nettverkssti (\\norconsultad.com\...), og
+// readdirSync/statSync PER FIL over eit tregt/nettverkstilkopla oppdrag kan
+// ta fleire sekund å fullføre — sidan Electron sin HOVUDPROSESS OGSÅ ER
+// «browser process»-en som rutar tastatur/mus til rendereren, BLOKKERER ein
+// synkron fs-samtale her HEILE APPEN (kjennest ut som «kan ikkje skrive
+// noko» — dette var årsaka til at Tegningsliste-vindauget synte seg
+// «daudt» for tastetrykk rett etter opning, sidan det no kallar denne
+// handlaren automatisk for å føreslå eit revisjonsnummer). Async fs-kall
+// blokkerer ALDRI hovudprosessen, uansett kor treigt nettverket er.
 ipcMain.handle('dtm:list', async (event, { oppdragsSti, kategori }) => {
   const mappeNamn = DTM_KATEGORI_MAPPE[kategori]
   if (!oppdragsSti || !mappeNamn) return { finst: false, filer: [], arkiverte: [] }
   const mappeSti = path.join(oppdragsSti, mappeNamn)
-  if (!fs.existsSync(mappeSti)) return { finst: false, filer: [], arkiverte: [] }
 
-  const lesMappe = (sti) => fs.existsSync(sti)
-    ? fs.readdirSync(sti, { withFileTypes: true }).filter((f) => f.isFile())
-        .map((f) => {
-          const stat = fs.statSync(path.join(sti, f.name))
-          return { namn: f.name, endra: stat.mtimeMs }
-        })
-    : []
+  const lesMappe = async (sti) => {
+    let inngangar
+    try { inngangar = await fs.promises.readdir(sti, { withFileTypes: true }) }
+    catch { return [] }
+    return Promise.all(inngangar.filter((f) => f.isFile()).map(async (f) => {
+      const stat = await fs.promises.stat(path.join(sti, f.name))
+      return { namn: f.name, endra: stat.mtimeMs }
+    }))
+  }
+
+  let finst = true
+  try { await fs.promises.access(mappeSti) } catch { finst = false }
+  if (!finst) return { finst: false, filer: [], arkiverte: [] }
 
   return {
     finst: true,
-    filer: lesMappe(mappeSti),
-    arkiverte: lesMappe(path.join(mappeSti, 'Arkiv')),
+    filer: await lesMappe(mappeSti),
+    arkiverte: await lesMappe(path.join(mappeSti, 'Arkiv')),
   }
 })
 
@@ -1307,7 +1322,11 @@ ipcMain.handle('dtm:generer-tegningsliste-pdf', async (event, { html, oppdragsSt
     }
     const mappeSti = path.join(oppdragsSti, mappeNamn)
     fs.mkdirSync(mappeSti, { recursive: true })
-    const endeleg = ledigFilnamn(mappeSti, filnamn)
+    // path.basename() sikrar at filnamnet ALDRI kan innehalde ein sti (t.d.
+    // om det av ein eller anna grunn skulle koma inn som ein full sti i
+    // staden for eit reint filnamn) — elles ville path.join under duplisert
+    // heile mappeSti-en inn i filnamnet i staden for å leggje det attåt.
+    const endeleg = ledigFilnamn(mappeSti, path.basename(filnamn))
     const målSti = path.join(mappeSti, endeleg)
 
     tempSti = path.join(os.tmpdir(), `dtm-tegningsliste-${Date.now()}.html`)

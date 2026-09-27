@@ -1074,6 +1074,47 @@ dra-/skaler-vindauget (matematikken for paginering er verifisert isolert
 med eit lite Node-skript, men ALDRI faktisk rendra til ei ekte PDF-fil
 eller sett med eigne auge i skrivebordsappen).
 
+## Vidareutvikling 29. sept. 2026 — tre feil frå ekte bruk
+
+Brukar testa Tegningslista i skrivebordsappen (fyrste ekte test mot ekte
+data) og fann tre feil:
+
+1. **«Ikkje mogleg å skrive inn noko i vindauget»** — retta i `main.js`:
+   `dtm:list`-handlaren (bak `dtmListFiler`, kalla automatisk av
+   `TegningslisteModal` for å føreslå eit revisjonsnummer, sjå runde 2)
+   brukte `fs.readdirSync`/`fs.statSync` PER FIL. `oppdragsSti` er typisk
+   ein UNC-nettverkssti (`\\norconsultad.com\...`), og Electron sin
+   HOVUDPROSESS er OGSÅ «browser process»-en som rutar tastatur/mus-hendingar
+   til rendereren — ein synkron fs-kall som heng på eit tregt/ustabilt
+   nettverk BLOKKERER DIFOR HEILE APPEN sin evne til å handtere input, ikkje
+   berre den eine funksjonen. Kjennest ut nøyaktig som «kan ikkje skrive
+   noko». Bytt til `fs.promises.readdir`/`fs.promises.stat` (parallellisert
+   med `Promise.all` for kvart-fil-stat-kallet) — blokkerer ALDRI
+   hovudprosessen, uansett kor treigt nettverket er. Stadfesta IKKJE empirisk
+   mot ekte nettverksdata (kunne ikkje testast frå dette miljøet), men
+   arkitekturproblemet (synkron fs i main-prosessen) er utvilsamt reelt og
+   ei kjend Electron-fallgruve.
+2. **`ENOENT`-feil med DOBBELT sti** (`...4 Resultatdokument\C:\Users\...\4
+   Resultatdokument\A-60-01_Rev1.pdf`) ved generering. Grundig kodegjennomgang
+   fann ingen stad i noverande kode der eit fullt filnamn (i staden for eit
+   reint filnamn) vert sendt inn — mistanken er ein da-verande app.asar/
+   cache-tilstand frå FØR direkte-disk-lagringa vart innført. Lagt til eit
+   DEFENSIVT steg uansett: `path.basename(filnamn)` FØR `ledigFilnamn()` i
+   `dtm:generer-tegningsliste-pdf`, som GARANTERER at filnamnet aldri kan
+   innehalde ein sti-del, uansett kva som måtte kome inn — gjer heile
+   feilklassen umogleg, uavhengig av rotårsak.
+3. **A3 lagt til** som eit fjerde arkformat-val (attmed A4/A2/A1), sett inn
+   i `finnPassandeFormat()` sin kandidatliste MELLOM A4 og A2 (endrar IKKJE
+   kva som vert auto-føreslege for standardtabellen — A4 liggjande er
+   framleis minste format som får plass, verifisert på nytt med eit lite
+   Node-skript).
+
+**Framleis IKKJE verifisert i praksis**: om fiks (1) faktisk løyser
+skrive-problemet (krev ein ekte test mot ein ekte, potensielt treg UNC-sti),
+og om fiks (2) sin rotårsak var reelt ei sti-duplisering i (då-verande) kode
+eller ein forelda bygg-tilstand — begge krev brukar sin neste testrunde for
+å stadfeste.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i
