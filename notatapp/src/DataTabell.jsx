@@ -16,8 +16,11 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 //
 //  Props:
 //    rader           — liste med objekt som skal visast (éin per rad)
-//    kolonnar        — [{ key, label, w, art:'tekst'|'tal'|'dato'|'val',
+//    kolonnar        — [{ key, label, w, art:'tekst'|'tal'|'dato'|'val'|'bool',
 //                         mono, utanFilter, standardSkjult, redigerbar, val }]
+//                       `art:'bool'` (på/av) har INGEN skrivemodus — eitt
+//                       klikk på ei redigerbar bool-celle slår verdien
+//                       direkte om (ikkje via RedigerCelle/tekstinput).
 //    hentVerdi(rad, key)       → tekst/verdi for visning, filter og søk
 //    hentRedigerVerdi(rad,key) → valfri; råverdi å redigere (utan «—»-fallback
 //                       o.l.). Fell tilbake til hentVerdi når ikkje sett.
@@ -52,6 +55,14 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 //    innhaldstilpassaBreidd — valfri; standardkolonnebreidd tek då omsyn
 //                       til dei FAKTISKE verdiane i kolonnen (målt via
 //                       hentVerdi), ikkje berre overskrifta.
+//    klistreKolonnar — valfri; [key,...] — desse kolonnane vert ALLTID viste
+//                       lengst til venstre (uavhengig av brukar sin eigen
+//                       lagra rekkjefølgje/drag) og «klistra» fast der med
+//                       CSS `position:sticky` under horisontal skrolling —
+//                       same idé som «frys rader/kolonnar» i eit rekneark.
+//                       Reint ein VISINGS-omsynkring (rører ikkje den lagra
+//                       prefs.rekkje-staten) — brukar kan framleis dra dei
+//                       andre kolonnane seg i mellom som før.
 //    prefsKey        — unik nøkkel for personleg visingsoppsett i localStorage
 //    itemNamn        — namn brukt i teljetekst/tomt-resultat (t.d. «saker»)
 //    rutenettRedigering — valfri (default av); slår PÅ rutenettvisning i
@@ -60,20 +71,18 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 //                       merkt «redigerbar». INGEN av/på-brytar — det er
 //                       alltid slege på når propen er sett, og ei rein
 //                       kolonnedefinisjon (`beregna`) styrer kva som kan
-//                       redigerast. Tre-stegs klikk-modell (sjå
-//                       claude/saksmodul-tabell.md for full spesifikasjon):
-//                       1) eitt klikk vel RADA (vanleg `merking`), 2) eit
-//                       nytt klikk på SAME celle (dobbeltklikk) vel den
-//                       EKSAKTE cella (synleg skilt frå rad-val), 3) eit
-//                       tredje klikk (på ei alt cella-valt celle) opnar
-//                       SKRIVEMODUS. Klikk-og-dra over fleire celler i
-//                       same kolonne vel eit område direkte (utan stega
-//                       over), med eit Excel-dra-handtak i botnen som
-//                       gjentek verdimønsteret syklisk oppover/nedover.
-//                       Tab i skrivemodus går rett til neste celle, OGSÅ
-//                       rett i skrivemodus. `kol.maskinlest:true` viser eit
-//                       åtvaringsvindauge («er du sikker?») FØR skrivemodus
-//                       opnar, for kolonnar fylte ut automatisk ved import.
+//                       redigerast. To-stegs klikk-modell (forenkla frå tre
+//                       steg 27. sept. 2026 — sjå claude/saksmodul-tabell.md):
+//                       1) eitt klikk vel den EKSAKTE cella direkte, 2) eit
+//                       nytt klikk (på ei alt vald celle) opnar SKRIVEMODUS.
+//                       Rad-VAL (for massehandlingar via `merking`) skjer no
+//                       via eit eige, smalt felt til høgre for ☰-radmeny-
+//                       knappen, ikkje lenger via fyrste celleklikk. Klikk-og-
+//                       dra over fleire celler i same kolonne vel eit område
+//                       direkte, med eit Excel-dra-handtak i botnen som
+//                       gjentek verdimønsteret syklisk oppover/nedover. Tab i
+//                       skrivemodus går rett til neste celle, OGSÅ rett i
+//                       skrivemodus.
 //    kol.beregna     — valfri kolonneflagg; kolonnen sin verdi er UTREKNA
 //                       (ikkje eit flatt, skrivbart felt på rada) og skal
 //                       ALDRI kunne redigerast generisk via
@@ -82,8 +91,9 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 //                       timer).
 //    kol.maskinlest  — valfri kolonneflagg; verdien vart lest automatisk
 //                       (t.d. skanna frå eit PDF-tittelfelt ved import).
-//                       Syner ei åtvaring («denne verdien vart lesen
-//                       automatisk…») før brukar får lov å skrive i cella.
+//                       Reint informativt no (viste tidlegare eit åtvarings-
+//                       vindauge før skriving, fjerna 27. sept. 2026 — berre
+//                       profesjonelle brukarar av denne tabellen).
 // ═══════════════════════════════════════════════════════════════════
 
 function les(key, fallback) {
@@ -127,6 +137,14 @@ function standardKolonnebreidd(label, font) {
 // ikkje kunne blåse opp heile tabellen; brukar kan alltid dra breiare sjølv.
 const MAKS_INNHALDS_BREIDD = 420
 
+// Fast farge for celleval i rutenettvisning — IKKJE knytt til --brand/
+// --warn-temavariablane (som varierer med fargevalet brukar har sett i
+// Innstillingar), sidan brukar uttrykkeleg vil ha ein kraftig MØRK BLÅ
+// strek uansett tema (brukar sitt krav 27. sept. 2026, erstattar den
+// tidlegare oransje --warn-fargen).
+const CELLEVAL_FARGE = '#1E3A8A'
+const CELLEVAL_BAKGRUNN = 'rgba(30, 58, 138, 0.12)'
+
 export default function DataTabell({
   rader: dataRader, kolonnar,
   hentVerdi, hentRedigerVerdi, hentSorteringsverdi, lagCelle, rangering,
@@ -136,10 +154,15 @@ export default function DataTabell({
   radMeny, // valfri; sjå kommentar ved render av radmeny-kolonnen under
   merking, // valfri; { valde:Set<id>, onEndre(nyttSett) } — shift/ctrl-klikk for å velje fleire rader
   innhaldstilpassaBreidd, // valfri; standardbreidd tek då omsyn til FAKTISKE verdiar i kolonnen, ikkje berre overskrifta
+  klistreKolonnar = [], // valfri; [key,...] — sjå kommentar øvst i fila
   prefsKey, itemNamn = 'rader',
   defaultSortering,
   rutenettRedigering = false, // valfri; sjå kommentar øvst i fila
   visingsFilter, // valfri; [{ namn, kolonnar:[key,...]|null }] — «Vising»-nedtrekk i verktøylinja, null = vis alle
+  standardSynlegeKolonnar, // valfri; [key,...] — overstyrer standard skjulte-utrekninga (elles kol.standardSkjult)
+                           // med «alt UNNATEKE desse er skjult» — brukt når SAME kolonnedefinisjonar (t.d.
+                           // DTMTabell sin BASE_COLUMNS) skal ha ULIK standardvising avhengig av KVEN som
+                           // kallar tabellen (t.d. KvalitetModule sin kontroll-tabell, sjå DTMTabell.jsx).
 }) {
   const font = useMemo(() => {
     if (typeof window === 'undefined') return "700 12px sans-serif"
@@ -172,7 +195,10 @@ export default function DataTabell({
     const grense = c.maksInnhaldsBreidd ?? MAKS_INNHALDS_BREIDD
     return [c.key, Math.min(grense, Math.max(headerBreidd, innhaldsBreidd))]
   })), [kolonnar, font, innhaldsfont, innhaldstilpassaBreidd, dataRader, hentVerdi])
-  const standardSkjulte  = useMemo(() => kolonnar.filter(c => c.standardSkjult).map(c => c.key), [kolonnar])
+  const standardSkjulte  = useMemo(() => standardSynlegeKolonnar
+    ? [...kolonnar, ...eigne].map(c => c.key).filter(k => !standardSynlegeKolonnar.includes(k))
+    : kolonnar.filter(c => c.standardSkjult).map(c => c.key),
+  [kolonnar, eigne, standardSynlegeKolonnar])
   const standardRekkje   = useMemo(() => kolonnar.map(c => c.key), [kolonnar])
   const standardPrefs = useMemo(() => ({
     farge: false,
@@ -188,7 +214,17 @@ export default function DataTabell({
 
   const [prefs, setPrefsRaw] = useState(() => {
     const lagra = les(prefsKey, {})
-    return { ...standardPrefs, ...lagra, breidder: { ...standardPrefs.breidder, ...(lagra.breidder || {}) } }
+    // Kolonnar som er NYE sidan brukar sist lagra oppsettet sitt (finst ikkje i
+    // den lagra rekkjefølgja) og er `standardSkjult` skal framleis starte
+    // skjulte — elles ville lagra `skjulte` overstyrt standarden og vist dei.
+    // Dei vert føydd til i den lagra rekkjefølgja, slik at «vis»-valet til brukar
+    // (som lagrar prefs) ikkje vert angra ved neste innlasting.
+    const nyeNyklar = lagra.rekkje ? standardRekkje.filter(k => !lagra.rekkje.includes(k)) : []
+    const nyeSkjulte = nyeNyklar.filter(k => standardSkjulte.includes(k))
+    return { ...standardPrefs, ...lagra,
+      ...(lagra.rekkje ? { rekkje: [...lagra.rekkje, ...nyeNyklar] } : {}),
+      skjulte: [...(lagra.skjulte || standardPrefs.skjulte), ...nyeSkjulte],
+      breidder: { ...standardPrefs.breidder, ...(lagra.breidder || {}) } }
   })
   const [meny, setMeny]           = useState(null)
   const [visLagreSkjema, setVisLagreSkjema] = useState(false) // «Vising»-menyen sitt vesle «lagre gjeldande»-skjema
@@ -203,20 +239,18 @@ export default function DataTabell({
   // Ingen eigen av/på-brytar lenger — rutenettRedigering er anten heilt
   // avslegen for tabellen (default) eller alltid «på» når propen er sett.
   //
-  // Tre-stegs klikk-modell, BERRE styrt av ein REIN klikk-teljar — ALDRI
-  // av tidsavstanden mellom klikka (brukar sitt eige krav: eit klikk skal
-  // telje sjølv om det kjem lenge etter det førre):
-  //   steg1Celle  { id, key } — cella fekk NETTOPP sitt FYRSTE klikk (rada
-  //               er alt vald via den vanlege `merking`-bobling til <tr>).
+  // To-stegs klikk-modell (forenkla frå tre steg 27. sept. 2026 — rad-val
+  // via fyrste klikk vart oppfatta som tungvint, og eit eige rad-vel-felt
+  // (sjå render under) tek no seg av massehandlingar), BERRE styrt av ein
+  // REIN klikk-teljar — ALDRI av tidsavstanden mellom klikka:
   //   cellOmråde  { key, frå, til } — cella (eller fleire, ved klikk-og-
-  //               dra) fekk sitt ANDRE klikk/eit reelt dra — no VALT, men
+  //               dra) fekk sitt FYRSTE klikk/eit reelt dra — no VALT, men
   //               endå ikkje i skrivemodus. Ei enkelt-celle er frå===til.
   //               Syner Excel-dra-handtaket nede i «til»-rada.
-  //   redigerer   (eksisterande state) — sett ved eit TREDJE klikk på ei
+  //   redigerer   (eksisterande state) — sett ved eit ANDRE klikk på ei
   //               alt cellOmråde-valt celle → skrivemodus.
   // Eit klikk ein annan stad (anna celle ELLER heilt utanfor tabellen)
-  // nullstiller begge dei to fyrste stega att til «ingenting valt».
-  const [steg1Celle, setSteg1Celle] = useState(null)
+  // nullstiller utvalet att til «ingenting valt».
   const [cellOmråde, setCellOmråde] = useState(null)
   const [fyllOmråde, setFyllOmråde] = useState(null) // { key, frå, til } — FØREHANDSVISING under ei aktiv dra-og-fyll-handling
   const [angreStabel, setAngreStabel] = useState([]) // stack av { endringar:[{type,id,key,gammal}] }
@@ -227,14 +261,14 @@ export default function DataTabell({
   // (brukar sitt eige krav 27. sept. 2026). Eit klikk PÅ ein annan celle
   // INNANFOR tabellen er alt handtert av kvar celle sin eigen onClick.
   useEffect(() => {
-    if (!steg1Celle && !cellOmråde && !redigerer) return
+    if (!cellOmråde && !redigerer) return
     const musNed = (e) => {
       if (tabellRef.current && !tabellRef.current.contains(e.target)) {
-        setSteg1Celle(null); setCellOmråde(null); setRedigerer(null)
+        setCellOmråde(null); setRedigerer(null)
       }
     }
     const tastNed = (e) => {
-      if (e.key === 'Escape') { setSteg1Celle(null); setCellOmråde(null); setRedigerer(null) }
+      if (e.key === 'Escape') { setCellOmråde(null); setRedigerer(null) }
     }
     document.addEventListener('mousedown', musNed)
     document.addEventListener('keydown', tastNed)
@@ -242,7 +276,7 @@ export default function DataTabell({
       document.removeEventListener('mousedown', musNed)
       document.removeEventListener('keydown', tastNed)
     }
-  }, [steg1Celle, cellOmråde, redigerer])
+  }, [cellOmråde, redigerer])
 
   const erModusRedigerbar = useCallback((kol) =>
     rutenettRedigering && !kol.opnaFil && !kol.eigen && !kol.beregna,
@@ -269,6 +303,15 @@ export default function DataTabell({
     return kjende
   }, [prefs.rekkje, kolMap, alleKolonner])
   const synlege = useMemo(() => rekkje.filter(k => !prefs.skjulte.includes(k)), [rekkje, prefs.skjulte])
+  // Rein VISINGS-rekkjefølgje (sjå klistreKolonnar-kommentaren øvst i fila)
+  // — flyttar dei klistra kolonnane fremst, urørt resten. Berre brukt i
+  // sjølve rendringa (colgroup/thead/tbody), ALDRI i prefs.rekkje-staten.
+  const synlegeVisning = useMemo(() => {
+    if (!klistreKolonnar.length) return synlege
+    const pinnSett = new Set(klistreKolonnar)
+    const pinna = klistreKolonnar.filter(k => synlege.includes(k))
+    return [...pinna, ...synlege.filter(k => !pinnSett.has(k))]
+  }, [synlege, klistreKolonnar])
   const breidd  = (k) => prefs.breidder[k] ?? kolMap[k]?.w ?? 130
   // Minstebreidd — same for alle kolonnar (kan overstyrast med eit eige
   // `minW` på kolonnedefinisjonen for særtilfelle). Overskrifta vert klipt
@@ -276,8 +319,30 @@ export default function DataTabell({
   const MIN_KOL_BREIDD = 20
   const minBreidd = (k) => kolMap[k]?.minW ?? MIN_KOL_BREIDD
   const RAD_MENY_BREIDD = 34
-  const totalBreidd = useMemo(() => synlege.reduce((sum, k) => sum + breidd(k), 0) + (radMeny ? RAD_MENY_BREIDD : 0),
-    [synlege, prefs.breidder, kolMap, radMeny])
+  const RAD_VEL_BREIDD = 28
+  // Eige, smalt felt til høgre for ☰-radmenyen der brukar kan klikke for å
+  // velje/fråvelje HEILE RADA (for massehandlingar via `merking`) — berre
+  // vist for tabellar med rutenettvisning, sidan andre tabellar framleis
+  // vel rada via eit klikk kor som helst i ho (sjå <tr onClick> under).
+  const visRadVelKolonne = rutenettRedigering && !!merking
+  const totalBreidd = useMemo(() => synlege.reduce((sum, k) => sum + breidd(k), 0)
+    + (radMeny ? RAD_MENY_BREIDD : 0) + (visRadVelKolonne ? RAD_VEL_BREIDD : 0),
+    [synlege, prefs.breidder, kolMap, radMeny, visRadVelKolonne])
+  // Venstre-posisjon (px) for kvar klistra kolonne — summen av radmeny-/
+  // radvel-feltet (om dei finst) pluss breidda til dei klistra kolonnane
+  // FØRE denne, i klistreKolonnar si eiga rekkjefølgje (dei ligg jo alltid
+  // fremst, sjå synlegeVisning over).
+  const pinnOffset = useMemo(() => {
+    if (!klistreKolonnar.length) return {}
+    let akk = (radMeny ? RAD_MENY_BREIDD : 0) + (visRadVelKolonne ? RAD_VEL_BREIDD : 0)
+    const out = {}
+    for (const k of klistreKolonnar) {
+      if (!synlege.includes(k)) continue
+      out[k] = akk
+      akk += breidd(k)
+    }
+    return out
+  }, [klistreKolonnar, synlege, prefs.breidder, kolMap, radMeny, visRadVelKolonne])
 
   // ── Verdiar ─────────────────────────────────────────────────────
   const tekst = useCallback((rad, key) => {
@@ -380,7 +445,6 @@ export default function DataTabell({
     const flytt = (ev) => {
       if (!vartDrege && (Math.abs(ev.clientX - startX) > 4 || Math.abs(ev.clientY - startY) > 4)) {
         vartDrege = true
-        setSteg1Celle(null) // eit reelt dra hoppar rett til celle-val, uavhengig av steg1
       }
       if (!vartDrege) return
       const el = document.elementFromPoint(ev.clientX, ev.clientY)
@@ -599,6 +663,34 @@ export default function DataTabell({
     sisteMerktRef.current = id
   }
 
+  // ── Klikk på det dedikerte rad-vel-feltet (☐/☑ til høgre for ☰) ─────
+  // ULIKT handterMerkKlikk over (som eit VANLEG klikk der ERSTATTAR heile
+  // utvalet med berre denne eine rada — den vanlege lista-konvensjonen):
+  // eit klikk her er ALLTID ei VEKSLING (legg til/fjernar berre DENNE rada
+  // frå eit VOKSANDE utval), sidan feltet er sitt eige avkryssingsboks-UI,
+  // ikkje ein generell rad-klikk (brukar sitt eige krav 30. sept. 2026).
+  // Shift-klikk legg framleis til eit heilt område, som elles.
+  const handterRadVelKlikk = (id, e) => {
+    if (!merking) return
+    const valde = merking.valde instanceof Set ? merking.valde : new Set(merking.valde || [])
+    if (e.shiftKey && sisteMerktRef.current != null) {
+      const ids = rader.map(r => radId(r))
+      const a = ids.indexOf(sisteMerktRef.current), b = ids.indexOf(id)
+      if (a !== -1 && b !== -1) {
+        const [start, slutt] = a < b ? [a, b] : [b, a]
+        const nye = new Set(valde)
+        ids.slice(start, slutt + 1).forEach(x => nye.add(x))
+        merking.onEndre(nye)
+        sisteMerktRef.current = id
+        return
+      }
+    }
+    const nye = new Set(valde)
+    nye.has(id) ? nye.delete(id) : nye.add(id)
+    merking.onEndre(nye)
+    sisteMerktRef.current = id
+  }
+
   const aktiveFilter = Object.entries(prefs.filter).filter(([, v]) => v && v.length)
   const radhøgd = prefs.tettleik === 'tett' ? 30 : prefs.tettleik === 'luftig' ? 48 : 38
   const harTotalrad = useMemo(() => synlege.some(k => {
@@ -606,12 +698,6 @@ export default function DataTabell({
     return kol && ((kol.art === 'tal' && !kol.ikkjeSummer) || kol.totalTeljing)
   }), [synlege, kolMap])
   const cellePad = prefs.tettleik === 'tett' ? '0 8px' : '0 11px'
-
-  // Åtvaring før ein får lov å skrive i ei kolonne merkt «maskinlest» (t.d.
-  // verdiar skanna frå eit PDF-tittelfelt ved import) — både på det tredje
-  // klikket OG når ein Tab-ar seg direkte inn i ei slik celle.
-  const sjekkMaskinlest = (kol) => !kol.maskinlest || window.confirm(
-    'Denne verdien vart lesen automatisk frå fila ved import. Er du sikker på at du vil endre han manuelt?')
 
   // «Vising»-nedtrekksmenyen i verktøylinja — eit fast kolonneutval i
   // staden for å skjule/vise kolonnar éin og éin via «+ Kolonnar».
@@ -688,23 +774,34 @@ export default function DataTabell({
           style={{ tableLayout:'fixed', width:totalBreidd, borderCollapse:'separate', borderSpacing:0 }}>
           <colgroup>
             {radMeny && <col style={{ width:RAD_MENY_BREIDD }}/>}
-            {synlege.map(k => <col key={k} style={{ width:breidd(k) }}/>)}
+            {visRadVelKolonne && <col style={{ width:RAD_VEL_BREIDD }}/>}
+            {synlegeVisning.map(k => <col key={k} style={{ width:breidd(k) }}/>)}
           </colgroup>
           <thead>
             <tr>
               {radMeny && <th className="dt-radmeny-hovud"/>}
-              {synlege.map(k => {
+              {visRadVelKolonne && <th className="dt-radvel-hovud"/>}
+              {synlegeVisning.map(k => {
                 const kol = kolMap[k]
                 const sortert = prefs.sortering?.key === k
+                // Hengelås i overskrifta på kolonnar som ALDRI kan redigerast
+                // i denne tabellen (utrekna/«beregna»-felt o.l.) — reint
+                // informativt, kolonne-nivå (ikkje per celle), berre for
+                // tabellar med rutenettvisning (brukar sitt eige krav
+                // 30. sept. 2026).
+                const låst = rutenettRedigering && !kol.eigen && !kol.redigerbar && !erModusRedigerbar(kol)
+                const erKlistra = klistreKolonnar.includes(k)
                 return (
                   <th key={k} data-key={k}
                     className={(sortert ? 'sortert ' : '') + (prefs.filter[k]?.length ? 'filtrert' : '')}
+                    style={erKlistra ? { left:pinnOffset[k], zIndex:7 } : undefined}
                     onDragOver={e => e.preventDefault()}
                     onDrop={() => slippKolonne(k)}>
                     <div className="dt-th" draggable
                       onDragStart={() => { dragRef.current = k }}
                       onClick={e => { if (!e.target.closest('.dt-caret')) sorter(k) }}>
                       <span className="dt-namn">{kol.label}</span>
+                      {låst && <span className="dt-låst" title="Låst — kan ikkje redigerast">🔒</span>}
                       <span className="dt-pil">{sortert ? (prefs.sortering.dir === 'asc' ? '▲' : '▼') : '▲'}</span>
                       <button type="button" className="dt-caret" title={`Meny for ${kol.label}`}
                         onClick={e => opneMeny('kolonne', k, e)}>▾</button>
@@ -717,7 +814,7 @@ export default function DataTabell({
           </thead>
           <tbody>
             {rader.length === 0 && (
-              <tr><td colSpan={synlege.length + (radMeny ? 1 : 0)} style={{ textAlign:'center', padding:30, color:'var(--text3)', height:'auto' }}>
+              <tr><td colSpan={synlege.length + (radMeny ? 1 : 0) + (visRadVelKolonne ? 1 : 0)} style={{ textAlign:'center', padding:30, color:'var(--text3)', height:'auto' }}>
                 Ingen {itemNamn} matchar filteret
               </td></tr>
             )}
@@ -726,7 +823,7 @@ export default function DataTabell({
               const merkt = merking && (merking.valde instanceof Set ? merking.valde.has(id) : merking.valde?.includes(id))
               return (
               <tr key={id} data-radid={id}
-                onClick={e => { handterMerkKlikk(id, e); onRowClick?.(id, r) }}
+                onClick={e => { if (!rutenettRedigering) handterMerkKlikk(id, e); onRowClick?.(id, r) }}
                 onDoubleClick={() => onOpenRad?.(id, r)}
                 title={onOpenRad ? 'Dobbeltklikk for å opne' : undefined}
                 style={{ ...(radStil ? radStil(r) : undefined), ...(merkt ? { background:'var(--brandbg2)', boxShadow:'inset 0 0 0 2.5px var(--brand2)' } : undefined) }}>
@@ -739,8 +836,17 @@ export default function DataTabell({
                     </button>
                   </td>
                 )}
-                {synlege.map(k => {
+                {visRadVelKolonne && (
+                  <td className="dt-radvel-celle" style={{ height:radhøgd, padding:0, textAlign:'center' }}
+                    onClick={e => { e.stopPropagation(); handterRadVelKlikk(id, e) }}
+                    onDoubleClick={e => e.stopPropagation()}
+                    title="Klikk for å velje/fråvelje denne rada">
+                    <span className={'dt-radvel-boks' + (merkt ? ' på' : '')}>{merkt ? '✓' : ''}</span>
+                  </td>
+                )}
+                {synlegeVisning.map(k => {
                   const kol = kolMap[k]
+                  const erKlistra = klistreKolonnar.includes(k)
                   const alleredeRedigerbar = kol.redigerbar
                   const modusKanRedigere = erModusRedigerbar(kol)
                   const kanRedigere = kol.eigen || alleredeRedigerbar || modusKanRedigere
@@ -751,32 +857,63 @@ export default function DataTabell({
                   // for sine `redigerbar`-kolonnar, uendra.
                   const kanValjastIModus = rutenettRedigering && !kol.eigen && kanRedigere
                   const redigerast = kanRedigere && redigerer?.id === id && redigerer?.key === k
-                  const denneErSteg1 = steg1Celle?.id === id && steg1Celle?.key === k
                   const denneCellaErValt = cellOmråde && cellOmråde.key === k
                     && cellOmråde.frå === radIndeks && cellOmråde.til === radIndeks
-                  const iCellOmråde = cellOmråde && cellOmråde.key === k
-                    && radIndeks >= cellOmråde.frå && radIndeks <= cellOmråde.til
-                  const iFyllOmråde = fyllOmråde && fyllOmråde.key === k
-                    && radIndeks >= fyllOmråde.frå && radIndeks <= fyllOmråde.til
+                  // gjeldandeOmråde: fyllOmråde (aktiv dra-og-fyll-førehandsvising)
+                  // vinn over cellOmråde når begge gjeld same kolonne, sidan
+                  // fyllOmråde alltid OMSLUTTER kjeldeområdet (sjå startFyll).
+                  const gjeldandeOmråde = (fyllOmråde && fyllOmråde.key === k) ? fyllOmråde
+                    : (cellOmråde && cellOmråde.key === k ? cellOmråde : null)
+                  const iOmråde = gjeldandeOmråde && radIndeks >= gjeldandeOmråde.frå && radIndeks <= gjeldandeOmråde.til
                   const visFyllHandtak = kanValjastIModus && !redigerast
                     && cellOmråde && cellOmråde.key === k && radIndeks === cellOmråde.til
                   return (
                     <td key={k} style={{ height:radhøgd, padding:cellePad, position:'relative',
-                        ...((iCellOmråde || iFyllOmråde)
-                          ? { boxShadow:'inset 0 0 0 3px var(--warn)', background:'color-mix(in srgb, var(--warn) 20%, transparent)' }
-                          : undefined) }}
+                        ...(iOmråde ? {
+                          background: CELLEVAL_BAKGRUNN,
+                          // Berre topp-/botnkant på fyrste/siste rad i utvalet —
+                          // gjev EIN samanhengande firkant rundt heile utvalet i
+                          // staden for at kvar rad si eiga inset-ramme lagar eit
+                          // stabla mønster av mange små boksar (brukar sin
+                          // rapporterte «vel berre éi celle synest markert»-feil,
+                          // retta 27. sept. 2026).
+                          boxShadow: [
+                            `inset 2px 0 0 0 ${CELLEVAL_FARGE}`,
+                            `inset -2px 0 0 0 ${CELLEVAL_FARGE}`,
+                            radIndeks === gjeldandeOmråde.frå ? `inset 0 2px 0 0 ${CELLEVAL_FARGE}` : '',
+                            radIndeks === gjeldandeOmråde.til ? `inset 0 -2px 0 0 ${CELLEVAL_FARGE}` : '',
+                          ].filter(Boolean).join(', '),
+                        } : undefined),
+                        // Klistra kolonnar (sjå klistreKolonnar-kommentaren øvst i
+                        // fila): sticky-posisjonerte, med ein SOLID bakgrunn (elles
+                        // ville dei andre kolonnane synast gjennom medan dei
+                        // skrollar forbi under) som følgjer same prioritet som
+                        // resten av cella sin eigen bakgrunn — celleval vinn over
+                        // radval, som vinn over ein vanleg, umarkert bakgrunn.
+                        ...(erKlistra ? {
+                          position:'sticky', left:pinnOffset[k], zIndex: iOmråde ? 4 : 2,
+                          background: iOmråde ? CELLEVAL_BAKGRUNN : (merkt ? 'var(--brandbg2)' : 'var(--bg2)'),
+                        } : undefined) }}
                       className={(kol.mono ? 'mono ' : '') + (kol.art === 'tal' ? 'tal ' : '') + (kanRedigere ? 'eigen' : '')}
-                      title={kol.opnaFil ? (alleredeRedigerbar ? 'Klikk for å opne, klikk igjen for å velje/redigere' : 'Klikk for å opne')
+                      title={kol.art === 'bool' && kanRedigere ? 'Klikk for å slå på/av'
+                        : kol.opnaFil ? (alleredeRedigerbar ? 'Klikk for å opne, klikk igjen for å velje/redigere' : 'Klikk for å opne')
                         : !kanRedigere ? tekst(r, k)
                         : kol.eigen ? 'Klikk for å redigere'
-                        : kanValjastIModus ? 'Klikk: vel rad · Klikk igjen: vel celle · Klikk igjen: skriv'
+                        : kanValjastIModus ? 'Klikk: vel celle · Klikk igjen: skriv'
                         : 'Dobbeltklikk for å redigere'}
                       onClick={e => {
-                        // Klikk ein annan stad enn det som alt er i gang —
-                        // uavhengig av om DENNE cella kan redigerast — skal
-                        // alltid nullstille eit gammalt utval (brukar sitt
-                        // krav: eitt klikk annan stad er nok for å avslutte).
-                        if (!denneErSteg1 && steg1Celle) setSteg1Celle(null)
+                        // Boolske kolonner («på/av») har ingen skrivemodus i det
+                        // heile — eitt klikk slår verdien direkte om, ferdig (sjå
+                        // Celle-komponenten for sjølve avkryssingsvisinga).
+                        if (kol.art === 'bool' && kanRedigere) {
+                          const gjeldande = hentRedigerVerdi ? hentRedigerVerdi(r, k) : tekst(r, k)
+                          settVerdiMedAngre(id, k, gjeldande, !(gjeldande === true || gjeldande === 'true'))
+                          return
+                        }
+                        // Klikk ein annan stad enn det som alt er valt — uavhengig
+                        // av om DENNE cella kan redigerast — skal alltid nullstille
+                        // eit gammalt utval (brukar sitt krav: eitt klikk annan
+                        // stad er nok for å avslutte).
                         if (!denneCellaErValt && cellOmråde) setCellOmråde(null)
 
                         // «opnaFil» skal BERRE gjelde klikk PÅ SJØLVE LENKE-
@@ -786,32 +923,28 @@ export default function DataTabell({
                         const kliktPåLenke = kol.opnaFil && !!e.target.closest?.('.dt-lenketekst')
                         if (kliktPåLenke) {
                           if (!alleredeRedigerbar) { onOpneFil?.(r, k); return }
-                          const alleredeIGang = denneErSteg1 || denneCellaErValt || redigerast
+                          const alleredeIGang = denneCellaErValt || redigerast
                           if (klikkTimerRef.current) { clearTimeout(klikkTimerRef.current); klikkTimerRef.current = null }
                           if (!alleredeIGang) {
                             // Fyrste klikk på ein hyperlenke+redigerbar-kombinasjon
                             // (t.d. Dokumentnummer): vent kort for å sjå om eit nytt
                             // klikk kjem (då VEL me cella i staden for å opne fila).
                             klikkTimerRef.current = setTimeout(() => { klikkTimerRef.current = null; onOpneFil?.(r, k) }, 220)
-                            setSteg1Celle({ id, key:k })
+                            setCellOmråde({ key:k, frå:radIndeks, til:radIndeks })
                             return
                           }
                           // Elles: eit oppfølgingsklikk (uansett kor lenge etter) —
-                          // IKKJE planlegg ny fil-opning, gå vidare til vanleg steg-logikk.
+                          // IKKJE planlegg ny fil-opning, gå vidare til vanleg logikk.
                         }
                         if (kol.eigen) { setRedigerer({ id, key:k }); return }
                         if (!kanValjastIModus) return
-                        if (denneErSteg1) {
-                          setSteg1Celle(null)
-                          setCellOmråde({ key:k, frå:radIndeks, til:radIndeks })
-                        } else if (denneCellaErValt && !redigerast) {
-                          if (!sjekkMaskinlest(kol)) return
+                        if (denneCellaErValt && !redigerast) {
                           setRedigerer({ id, key:k })
                         } else if (!denneCellaErValt) {
-                          setSteg1Celle({ id, key:k })
+                          setCellOmråde({ key:k, frå:radIndeks, til:radIndeks })
                         }
                       }}
-                      onMouseDown={e => { if (!redigerast && kanValjastIModus) startCelleVal(id, k, e) }}
+                      onMouseDown={e => { if (!redigerast && kanValjastIModus && kol.art !== 'bool') startCelleVal(id, k, e) }}
                       onDoubleClick={e => {
                         // Native dobbeltklikk vert IKKJE brukt til noko eige i
                         // rutenett-tabellar lenger (tre-stegs-modellen over er
@@ -857,7 +990,7 @@ export default function DataTabell({
                             onFlytt={nesteKey => {
                               if (!nesteKey) { setRedigerer(null); return }
                               setCellOmråde({ key:nesteKey, frå:radIndeks, til:radIndeks })
-                              setRedigerer(sjekkMaskinlest(kolMap[nesteKey]) ? { id, key:nesteKey } : null)
+                              setRedigerer({ id, key:nesteKey })
                             }}
                             onLukk={() => setRedigerer(null)}/>
                         )
@@ -879,19 +1012,20 @@ export default function DataTabell({
             <tfoot>
               <tr className="dt-totalrad">
                 {radMeny && <td className="dt-totalrad-etikett" style={{ height:radhøgd, padding:cellePad }}>Totalt</td>}
-                {synlege.map((k, i) => {
+                {synlegeVisning.map((k, i) => {
                   const kol = kolMap[k]
-                  if (!radMeny && i === 0) return <td key={k} className="dt-totalrad-etikett" style={{ height:radhøgd, padding:cellePad }}>Totalt</td>
+                  const pinnStil = klistreKolonnar.includes(k) ? { position:'sticky', left:pinnOffset[k], zIndex:5 } : undefined
+                  if (!radMeny && i === 0) return <td key={k} className="dt-totalrad-etikett" style={{ height:radhøgd, padding:cellePad, ...pinnStil }}>Totalt</td>
                   if (kol.totalTeljing) {
                     const unike = new Set(rader.map(r => tekst(r, k)).filter(Boolean))
-                    return <td key={k} className="tal" style={{ height:radhøgd, padding:cellePad }} title="Talet på ulike verdiar">{unike.size}</td>
+                    return <td key={k} className="tal" style={{ height:radhøgd, padding:cellePad, ...pinnStil }} title="Talet på ulike verdiar">{unike.size}</td>
                   }
-                  if (kol.art !== 'tal' || kol.ikkjeSummer) return <td key={k} style={{ height:radhøgd, padding:cellePad }}/>
+                  if (kol.art !== 'tal' || kol.ikkjeSummer) return <td key={k} style={{ height:radhøgd, padding:cellePad, ...pinnStil }}/>
                   const sum = rader.reduce((s, r) => {
                     const v = sorteringsverdi(r, k)
                     return s + (typeof v === 'number' && isFinite(v) ? v : 0)
                   }, 0)
-                  return <td key={k} className="tal" style={{ height:radhøgd, padding:cellePad }}>{Math.round(sum * 100) / 100}</td>
+                  return <td key={k} className="tal" style={{ height:radhøgd, padding:cellePad, ...pinnStil }}>{Math.round(sum * 100) / 100}</td>
                 })}
               </tr>
             </tfoot>
@@ -932,7 +1066,6 @@ export default function DataTabell({
                   <button type="button" className="dt-val" onClick={() => {
                     setMeny(null)
                     if (kol2.eigen) { setRedigerer({ id:cid, key:ck }); return }
-                    if (!sjekkMaskinlest(kol2)) return
                     const idx = finnRadIndeks(cid)
                     setCellOmråde({ key:ck, frå:idx, til:idx })
                     setRedigerer({ id:cid, key:ck })
@@ -1075,6 +1208,12 @@ function Celle({ rad, kol, tekst, farge, lagCelle }) {
     if (eigen !== undefined) return eigen
   }
   const t = tekst(rad, kol.key)
+  if (kol.art === 'bool') {
+    const på = t === 'true'
+    return <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:17, height:17,
+      borderRadius:4, border:`1.5px solid ${på ? CELLEVAL_FARGE : 'var(--border2)'}`,
+      background: på ? CELLEVAL_FARGE : 'transparent', color:'#fff', fontSize:11, fontWeight:800 }}>{på ? '✓' : ''}</span>
+  }
   // «opnaFil»-kolonnar: peikaren skal BERRE visast som ei hand over sjølve
   // teksten, ikkje over heile celleflata (padding/tomrom til høgre for ein
   // kort verdi) — difor pakka inn i eit eige <span> som berre tek den
@@ -1328,6 +1467,7 @@ const CSS = `
   font-size:12px; font-weight:700; letter-spacing:0; color:var(--text); transition:background .15s }
 .dt-th:hover { background:var(--brandbg) }
 .dt-namn { overflow:hidden; text-overflow:ellipsis; min-width:0 }
+.dt-låst { flex:0 0 auto; font-size:10px; opacity:.55; line-height:1 }
 .dt-pil { display:none; font-size:8px; color:var(--brand); flex:0 0 auto }
 .dt-tabell th.sortert .dt-pil { display:inline }
 .dt-tabell th.filtrert .dt-namn::after { content:''; display:inline-block; width:5px; height:5px; border-radius:50%;
@@ -1346,6 +1486,14 @@ const CSS = `
 .dt-radmeny-knapp:hover { background:var(--bg3) }
 .dt-radmeny-stjerne { color:var(--text3); font-size:10px; position:absolute; top:2px; right:2px }
 .dt-rmikon { width:20px; flex:0 0 auto; text-align:center; font-size:15px; color:var(--text2) }
+.dt-radvel-hovud { position:sticky; top:0; z-index:5; background:var(--bg3); border-bottom:2px solid var(--border);
+  border-right:1px solid var(--border) }
+.dt-radvel-celle { cursor:pointer }
+.dt-radvel-celle:hover .dt-radvel-boks { border-color:${CELLEVAL_FARGE} }
+.dt-radvel-boks { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px;
+  border:1.5px solid var(--border2); border-radius:4px; color:#fff; font-size:10.5px; font-weight:800;
+  background:var(--bg2); transition:background .12s, border-color .12s }
+.dt-radvel-boks.på { background:${CELLEVAL_FARGE}; border-color:${CELLEVAL_FARGE} }
 
 .dt-tabell td { border-bottom:1px solid var(--border); border-right:1px solid var(--border);
   font-size:13px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
@@ -1355,7 +1503,7 @@ const CSS = `
 .dt-tabell td.eigen { cursor:text }
 .dt-tabell td.eigen:hover { box-shadow:inset 0 0 0 1.5px var(--border2) }
 .dt-fyllhandtak { position:absolute; right:1px; bottom:1px; width:7px; height:7px;
-  background:var(--warn); border:1px solid var(--bg2); cursor:crosshair; z-index:2 }
+  background:${CELLEVAL_FARGE}; border:1px solid var(--bg2); cursor:crosshair; z-index:2 }
 .dt-totalrad td { position:sticky; bottom:0; z-index:4; background:var(--bg3); border-top:2px solid var(--border);
   border-right:1px solid var(--border); font-weight:800; color:var(--text); font-variant-numeric:tabular-nums }
 .dt-totalrad-etikett { font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); font-weight:700 }

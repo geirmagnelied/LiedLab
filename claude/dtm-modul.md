@@ -1115,6 +1115,180 @@ og om fiks (2) sin rotårsak var reelt ei sti-duplisering i (då-verande) kode
 eller ein forelda bygg-tilstand — begge krev brukar sin neste testrunde for
 å stadfeste.
 
+## Ny funksjon 1. okt. 2026 — «Dokumentleveranseplan»
+
+Brukar sitt behov: for arkitekt-teikningar vert same dokument typisk sendt
+ut FLEIRE gonger i løpet av eit prosjekt (éin gong per fase), og det var
+ingen måte å planleggje/halde styr på NÅR dette skal/er gjort.
+
+**To delar, ikkje éin:**
+
+1. **Sjølve planen/avkryssinga er ÅTTE NYE, VANLEGE KOLONNAR** bakerst i
+   `dtm_dokumenter`/`DTMTabell.jsx` sine `BASE_COLUMNS` — éin
+   `planlagt_<fase>` (fritekst-dato, same mønster som `dato`/
+   `forste_revisjon_dato` — INGEN eigen datoveljar) + éin `sendt_<fase>`
+   (`art:'bool'`, same eittklikks på/av-mønster som `er_styrande_dokument`/
+   `ai_indeksering_onska`) PER FASE i den nye `LEVERANSE_FASAR`-konstanten
+   (`dtmKonstantar.js`): Prosjekteringsunderlag, For godkjenning,
+   Arbeidstegning, Som bygd. INGEN ny kolonne-`art`-type i `DataTabell.jsx`
+   var nødvendig — begge celletypane fanst alt. Ei ny `Vising`-oppføring
+   («Dokumentleveranseplan» i `VISINGSFILTER`) viser berre desse åtte
+   pluss dei same sju kolonnane som Tegningsliste-visinga.
+2. **Eksporten** (`DokumentleveranseplanModal.jsx`, ein tilpassa kopi av
+   `TegningslisteModal.jsx` — IKKJE ein delt/parametrisert komponent, same
+   «éin fil per eksport-type»-mønster som resten av DTM) genererer ein
+   utskriftsklar augneblinksrapport: Tegningsliste sine sju kolonnar PLUSS
+   éin kolonne per fase, som viser planlagt dato og eit «✓» når fasen er
+   markert sendt. Reiser AKKURAT DEI SAME, allereie generiske IPC-handlarane
+   som Tegningsliste (`dtm:generer-tegningsliste-pdf`/
+   `dtm:les-tegningsliste-snapshot`, sjå main.js) — ingen endring i
+   `electron/main.js`/`preload.js` var nødvendig, dei tek berre eit ferdig-
+   bygd HTML-dokument + eit fritt feltsett for celle-for-celle-samanlikning.
+   Default dokumentnummer («A-60-02») er med vilje ulikt Tegningsliste sitt
+   («A-60-01») sidan status-snapshotet er keya på (kategori, dokumentnummer)
+   — kolliderer elles dei to eksportane sine «endra sidan sist»-snapshot.
+
+**Råd gjeve til brukar om brukargrensesnittet for «faktisk gjort»** (brukar
+spurde eksplisitt om dette): IKKJE lag ein tredje, eigen status-kolonne.
+Reeksponer eksisterande, kjende mønster: fritekst-dato for planen, eit
+reint på/av-klikk for kvitteringa. Einaste nye logikken er eit VISUELT
+åtvaringssignal — `erForsinka()` (`dtmKonstantar.js`) gjer sjølve den
+PLANLAGDE datocella raud/feit når datoen er passert UTAN at fasen er
+markert sendt (`lagCelle` i `DTMTabell.jsx`), heilt utan eigen kolonne.
+
+SQL: 8 nye `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`-liner i
+`supabase-dtm.sql` (`planlagt_<fase>`/`sendt_<fase>` × 4) — MÅ køyrast
+manuelt i Supabase SQL Editor, same rutine som alle andre DTM-migrasjonar.
+
+## Vidareutvikling 1. okt. 2026 (2) — tabell-layout i utsendingsmodalen + Excel-eksport
+
+- **DTMUtsendingModal.jsx**: dokumentlista var fyrst bygd med leveranse-
+  avkryssingane på ei EIGA linje under kvar dokumentrad — brukar ville
+  heller ha SAME idé som hovudtabellen (nr/tittel synleg til venstre,
+  resten av kolonnane til høgre i same rad). Bygd om til ein ekte
+  `<table>`: Dokumentnr./Tittel fyrst, så éin kolonne per
+  `LEVERANSE_FASAR`-fase. Kolonneoverskriftene er FORKORTA (nytt `kode`-
+  felt på kvar `LEVERANSE_FASAR`-oppføring: PU/FG/AT/SB) og TO LINJER
+  høge («Leveranse PU» / «planlagt») for å halde kolonnebreidda nede —
+  fullt namn kjem som hover-`title` på sjølve overskrifta, planlagt dato
+  som hover-`title` på sjølve cella. Modalen vart samstundes gjort breiare
+  (680px → min(96vw, 920px)) for å gje plass til dei fire ekstra kolonnane.
+- **Excel-eksport** (Tegningsliste OG Dokumentleveranseplan): ny, heilt
+  GENERISK IPC-handlar `dtm:generer-excel` i `electron/main.js` (`xlsx`-
+  pakken, som alt var installert for `scripts/konverter-sjekkliste.cjs`,
+  men no FLYTTA frå `devDependencies` til `dependencies` i `package.json`
+  sidan han no køyrer i den PAKKA appen, ikkje berre eit dev-script) — tek
+  same frie `{key,namn}`-kolonneoppsett + radobjekt som PDF-generatoren,
+  skriv ei enkel `.xlsx` med éin rad per dokument. INGEN celle-for-celle-
+  fargemarkering i Excel-fila (ulikt PDF-en sitt «endra sidan sist»-blå) —
+  `xlsx` sin gratis/«community»-variant har ikkje pålitande cellefarge-
+  støtte, og brukar bad berre om sjølve dataeksporten. Begge eksport-
+  modalane (`TegningslisteModal.jsx`/`DokumentleveranseplanModal.jsx`) har
+  fått eit PDF/Excel-val («Eksportformat»-seksjonen, NB kalla
+  `eksportFormat` i state — `format` var alt i bruk til arkstorleik);
+  Arkstørrelse/Retning/førehandsvisinga er skjult når Excel er valt.
+
+## Ny funksjon 1. okt. 2026 (3) — skyopplasting av resultatdokument + ukjende filer
+
+To separate, store funksjonar lagt til same dag, sjå brukar sitt krav og
+dei to avgjerdene han tok (AskUserQuestion-svar): **av/på-bryter PER
+PROSJEKT** (ikkje automatisk for alle) for skyopplasting, og
+**automatisk skanning** (ikkje ein eigen knapp) for ukjende filer.
+
+### Skyopplasting av resultatdokument
+
+- Nytt val i Prosjekt-modulen (`ProsjektModule.jsx`, «Skyopplasting»-
+  seksjonen): `details.skyOpplastingResultatdokument` (bool, AV som
+  standard). Lagra via den VANLEGE prosjektkort-lagringa (`lagreProsjekt`),
+  IKKJE den eigne, umiddelbare lagringsflyten `oppdragsSti`/
+  `oppdragsStiLast` har.
+- Når slått PÅ: kvar gong `importer()` i DTMModule.jsx skriv eit
+  `resultatdokument`-felt (vanleg import ELLER ukjende-filer-registrering,
+  same funksjon — sjå under), vert fila lasta opp til ein ny, PRIVAT
+  Supabase Storage-bøtte `dtm-resultatdokument` (`supabase-dtm-sky.sql`,
+  same RLS-mønster som `bilete-mobil`). Sti: `<user_id>/<project_id>/
+  <dokumentnummer>.<filtype>` — OVERSKRIVEN kvar gong (berre siste
+  versjon, ingen revisjonshistorikk i skya, brukar sitt eige ord «siste
+  versjon»). Feilar ALDRI heile importen om opplastinga skulle mislykkast
+  (t.d. bøtta ikkje oppretta enno, eller nettverk nede) — berre ein
+  konsoll-åtvaring.
+- Electron-fil-brua kan IKKJE lese filbytes direkte frå renderar-prosessen
+  (Chromium, ikkje Node) — ny IPC `dtm:les-fil-bytes`/`dtmLesFilBytes`
+  (base64) løyser dette; sjølve Storage-opplastinga skjer i RENDERAR-koden
+  (der `@supabase/supabase-js` alt er sett opp), ikkje i main.js.
+- **«Last opp alle resultatdokument»-knapp** (synleg berre når brytaren er
+  PÅ): etterfyller skya med dokument som alt fanst FØR brytaren vart slått
+  på (elles usynlege frå mobil heilt til nokon tilfeldigvis importerte dei
+  på nytt) — manuell, sidan det kan vere mange filer/ta ei stund.
+- **Mobil/nettlesar-vising** (`ResultatdokumentMobilListe.jsx`): DTM-
+  modulen sin vanlege «Krev skrivebordsversjonen»-sperre (synt når
+  `!harBru`, altså i EIN KVAR nettlesar/mobil) er no BERRE vist når
+  brytaren er AV. Er han PÅ, vert ei enkel liste vist i staden — klikk på
+  eit dokument bed om ei FERSK, kortvarig (60 sek) signert lenke (bøtta er
+  privat) og opnar ho i ein ny fane.
+
+### Ukjende filer (lagt inn utanom Import-knappen)
+
+- `DTMModule.jsx` sin `lastAlt()` (køyrer ved prosjektopning/-byte)
+  trigger no OGSÅ `skannUkjendeFiler()` i BAKGRUNNEN (ikkje avventa, skal
+  ikkje forsinke tabellvisinga): for KVAR av dei fem DTM-kategoriane,
+  listar han filene som alt ligg i mappa (gjenbruker DEN EKSISTERANDE,
+  async/nettverkstrygge `dtm:list`-IPC-en Tegningsliste alt brukar til
+  revisjonsforslag — INGEN ny IPC-handlar trengst for sjølve skanninga)
+  og samanliknar mot kva filnamn som ALT er registrerte for den kategorien
+  i `dokumenter`. `.dtm-*`-filene (Tegningsliste sine status-snapshot) er
+  reint interne og vert aldri rekna som «ukjende».
+- Funne filer vert vist som ein knapp i verktøylinja
+  («⚠ N ukjende filer») som opnar `DTMUkjendeFilerVarsel.jsx` — gruppert
+  per kategori, med «Ignorer» per fil (lagra i `localStorage`, PER
+  PROSJEKT — t.d. for filer i «2 Informasjonsflyt\Inn» som ikkje er meint
+  å registrerast i det heile, sidan den mappa kan brukast til anna
+  korrespondanse òg) og «Registrer N fil(er)…» per kategori.
+- «Registrer» opnar DEN VANLEGE `DTMImportModal.jsx` — utvida med ein
+  valfri `forhandsvalde`-prop (fulle filstiar, alt kjende) som hoppar
+  BEINVEGES til skannings-/gjennomgangssteget, utan drop-sona. HEILE
+  resten av flyten (skanning via `dtm:skann-filer`, gjennomgang/retting,
+  `dtm:bekreft-import`) er UENDRA — «same operasjonar som ein tradisjonell
+  import», brukar sitt eige krav. `dtm:bekreft-import` sin `flyttFil()`
+  handterer trygt at kjelde- og målsti alt er DEN SAME (fila ligg jo alt
+  i rett mappe) — ingen eigen kode trengst for det tilfellet.
+- `importer()` i DTMModule.jsx fekk eit lite, men viktig presisjonsbrot:
+  kategorien vert no sendt EKSPLISITT frå `DTMImportModal.jsx` (`opts.
+  kategori`, sett i `bekreft()`/`prøvIgjen()`) i staden for berre å lese
+  `importKategori`-state — naudsynt sidan ukjende-filer-registrering ikkje
+  går via det vanlege import-menyvalet. Fell tilbake til `importKategori`
+  for den vanlege import-flyten, så ingen åtferdsendring der.
+
+## Vidareutvikling 2. okt. 2026 — layout, ekstra leveransetypar, indeksering av genererte lister
+
+- **Eksport-meny**: «Tegningsliste» og «Dokumentleveranseplan» er no valg i
+  ein «Eksport ▾»-nedtrekk rett til høgre for «+ Import» (rydda layout).
+- **Søkefeltet** ligg no i den blå overskriftslinja, til høgre for
+  overskrifta, i Notatar (`App.jsx`), Saker (`SakerModule.jsx`) og DTM.
+  DTM-overskriftslinja viser ikkje lenger prosjektnr/-namn (står i den
+  svarte linja over). I Saker vert `ModuleTopbar` kalla som funksjon, ikkje
+  `<ModuleTopbar/>`, slik at SokeFelt ikkje vert remonta ved kvar re-render.
+- **Utsendingsdialogen**: «planlagt»-linja i kolonneoverskriftene er fjerna.
+  Fire nye leveransetypar (`LEVERANSE_FASAR_EKSTRA`: For kommentar,
+  Anbudstegning, For utførelse fabrikk, Søknadstegning — «For godkjenning»
+  fanst alt) kan leggjast til i dialogen via «+ Legg til leveransetype…»
+  (også utan plan), eller dukkar opp av seg sjølv når eit av dokumenta alt
+  har data for dei. Åtte nye `planlagt_/sendt_`-kolonnar i `dtm_dokumenter`
+  (`supabase-dtm.sql`), skjulte som standard i hovudtabellen. Nye
+  `standardSkjult`-kolonnar startar skjulte også for brukarar med lagra
+  kolonneoppsett (`DataTabell.jsx`). Dokumentleveranseplan-PDF/Excel har
+  alle åtte typar som kolonnar.
+- **Genererte lister vert indeksert**: Tegningsliste/Dokumentleveranseplan
+  (PDF eller Excel) lagra i ei DTM-kategorimappe vert registrert i
+  `dtm_dokumenter` med det same via `registrerGenerertFil` → `importer()`
+  (arkiverer førre revisjon, skyopplasting om på). Ein Excel-fil ved sida
+  av ein registrert PDF med same namn vert ikkje registrert for seg, men
+  rekna som kjend av ukjende-filer-skanninga (namnestamme). Neste
+  revisjonsforslag kjem frå registrert revisjon + 1.
+- **Feilretting `dtm:bekreft-import`**: ei fil som alt låg på sin endelege
+  plass (ukjende filer, genererte lister) vart flytta til «namn(2).ext»;
+  ho vert no berre registrert.
+
 ## Oppgåveliste / fasar
 
 - [x] **Fase 1 — mapper og datamodell.** `OPPDRAGSMAPPER` oppdatert i

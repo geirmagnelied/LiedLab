@@ -1,11 +1,16 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useStore } from './useStore'
-import AppRail from './AppRail'
+import AppRail, { PARENT_AV_MODUL } from './AppRail'
+import AppRailUndermeny from './AppRailUndermeny'
+import KontordriftModule from './KontordriftModule'
+import FramdriftModule from './FramdriftModule'
 import TopBar from './TopBar'
 import Sidebar from './Sidebar'
 import NoteModal from './NoteModal'
 import NoteTabell from './NoteTabell'
 import NotePreview from './NotePreview'
+import SokeFelt from './SokeFelt'
+import BileteModule from './BileteModule'
 import DeadlineView from './DeadlineView'
 import TimeTracker from './TimeTracker'
 import ForecastView from './ForecastView'
@@ -213,6 +218,10 @@ export default function App({ userId, userEmail }) {
   }
 
   const handleEdit        = note => { setEditNote(note); setIsMeeting(!!note.isMeeting); setIsTaskOnly(false); setIsReferat(!!note.isReferat); setView('new') }
+  // Søk (SokeFelt, sjå claude/sok-modul.md) — søkjer i FULL notes-lista
+  // (ikkje berre visibleNotes), sidan eit treff skal opnast uansett kva
+  // prosjekt/modus-filter som tilfeldigvis er aktivt no.
+  const sokVelgNotat = r => { if (r.kjelde_tabell === 'notes') { const n = notes.find(x => x.id === r.kjelde_id); if (n) handleEdit(n) } }
   const handleRenameProject  = (id, name)      => updateProject(id, { name })
   const handleRenameNote     = (id, title)     => updateNote(id, { title })
   const handleMoveToProject  = (noteId, projId) => updateNote(noteId, { projectId: projId })
@@ -362,7 +371,7 @@ export default function App({ userId, userEmail }) {
         </div>
         {/* Module switcher pills */}
         <div style={{ display:'flex', gap:3, marginRight:4 }}>
-          {[{k:'notatar',l:'N'},{k:'kalender',l:'Ka'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'farge',l:'F'},{k:'dtm',l:'DTM'}].map(m => (
+          {[{k:'notatar',l:'N'},{k:'kalender',l:'Ka'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'farge',l:'F'},{k:'dtm',l:'DTM'},{k:'bilete',l:'B'},{k:'framdrift',l:'Fd'}].map(m => (
             <button key={m.k} onClick={() => { setActiveModule(m.k); if(m.k!=='notatar') setView('notatar') }}
               style={{ width:24,height:24,borderRadius:6,border:'none',
                 background: activeModule===m.k ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.08)',
@@ -416,6 +425,11 @@ export default function App({ userId, userEmail }) {
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
         {activeModule === 'notatar' && (
           <>
+            {view==='notatar' && (
+              <div style={{ marginBottom:12 }}>
+                <SokeFelt projectId={selectedProjectId} kjelder={['notes']} onVelgResultat={sokVelgNotat} plassholder="Søk i notat…"/>
+              </div>
+            )}
             {view==='notatar'  && <NoteTabell key={selectedProjectId} notes={visibleNotes} projects={projects} onEdit={handleEdit} onDelete={deleteNote} onToggleDone={toggleDone}
               activeProjectId={selectedProjectId} onToggleFavorite={toggleNoteFavorite} onTogglePinned={toggleNotePinned}
               eigneKolonnar={noteColumns} onSetExtra={setNoteExtraValue} onNyKolonne={addNoteColumn} onSlettKolonne={deleteNoteColumn}/>}
@@ -432,6 +446,9 @@ export default function App({ userId, userEmail }) {
         {activeModule === 'farge' && <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'saker' && <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'dtm' && <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
+        {activeModule === 'bilete' && <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
+        {activeModule === 'kontordrift' && <KontordriftModule/>}
+        {activeModule === 'framdrift' && <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId}/>}
       </div>
 
       {/* Mobile bottom nav */}
@@ -493,6 +510,17 @@ export default function App({ userId, userEmail }) {
         onModuleChange={setActiveModule}
       />
 
+      {/* Rail 2 — undermenyen til paraply-modulane (Admin/Gjeremål), sjå
+          claude/appreil-struktur.md. Vist BERRE når gjeldande modul høyrer
+          til éin av desse. */}
+      {PARENT_AV_MODUL[activeModule] && (
+        <AppRailUndermeny
+          toppNokkel={PARENT_AV_MODUL[activeModule]}
+          activeModule={activeModule}
+          onModuleChange={setActiveModule}
+        />
+      )}
+
       {/* Module content area — felles kolonne med botn-statuslinje for alle modular */}
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
       <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
@@ -517,6 +545,12 @@ export default function App({ userId, userEmail }) {
         <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'dtm' ? (
         <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>
+      ) : activeModule === 'bilete' ? (
+        <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>
+      ) : activeModule === 'kontordrift' ? (
+        <KontordriftModule/>
+      ) : activeModule === 'framdrift' ? (
+        <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId}/>
       ) : (
       /* ── Notatar module (original layout) ── */
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
@@ -532,6 +566,12 @@ export default function App({ userId, userEmail }) {
               <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em', marginRight:10 }}>
                 Notatapp
               </span>
+              {/* Søk — i den blå overskriftslinja, til høgre for overskrifta (brukar sitt krav 2. okt. 2026) */}
+              {view==='notatar' && (
+                <div style={{ marginRight:10 }}>
+                  <SokeFelt projectId={selectedProjectId} kjelder={['notes']} onVelgResultat={sokVelgNotat} plassholder="Søk i notat…"/>
+                </div>
+              )}
               {/* Direkte snarvegar for notattypar */}
               <button onClick={()=>handleNewNote('regular')}
                 style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
@@ -659,7 +699,7 @@ export default function App({ userId, userEmail }) {
 )
 }
 
-const MODULE_LABELS = { notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', dtm:'Dokument, tegningar og modellar' }
+const MODULE_LABELS = { notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())

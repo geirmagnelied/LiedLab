@@ -21,6 +21,9 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { execFile } = require('child_process')
+const exifr = require('exifr')
+const piexif = require('piexifjs')
+const XLSX = require('xlsx')
 
 // ── Dev-only: automatisk restart av Electron ved endring i fil-brua ──
 // electron/main.js og electron/preload.js vert berre lasta éin gong, ved
@@ -147,6 +150,13 @@ const DTM_KATEGORI_MAPPE = {
   resultatdokument:  '4 Resultatdokument',
   kontrolldokument:  '5 Kontrolldokument',
   styrande_dokument: '6 Styrande dokument',
+  // Eksterne dokument (mottekne) høyrer heime i den alt eksisterande
+  // «2 Informasjonsflyt»-mappa, i ei eiga «Inn»-undermappe — IKKJE i sitt
+  // eige tal-merkte mappeledd som dei fire andre (brukar sitt eige val
+  // 29. sept. 2026). Sjå «Ut»-mappa (same nivå, IKKJE ein DTM-kategori,
+  // berre oppretta for manuell lagring av utsendt korrespondanse) under
+  // OPPDRAGSMAPPER-oppsettet.
+  eksternt_dokument: '2 Informasjonsflyt\\Inn',
 }
 
 // Trygt å køyre om att på eit alt-låst prosjekt (t.d. når DTM-modulen opnar) —
@@ -163,6 +173,16 @@ ipcMain.handle('resultatdokument:opprett-oppdragsmapper', async (event, { oppdra
     for (const mappe of OPPDRAGSMAPPER) {
       fs.mkdirSync(path.join(oppdragsSti, mappe), { recursive: true })
     }
+    // «Ut» (utsendt korrespondanse) er IKKJE ein DTM-kategori — ingen
+    // Arkiv-undermappe, berre ei ledig mappe for manuell lagring, ved sida
+    // av «Inn» (DTM sitt eksternt_dokument, oppretta av løkka under).
+    fs.mkdirSync(path.join(oppdragsSti, '2 Informasjonsflyt', 'Ut'), { recursive: true })
+    // «8 Bilete» (Bilete-modulen) — brukar sitt eige val 29. sept. 2026.
+    // MERK: «8 Diverse» finst FRÅ FØR i OPPDRAGSMAPPER over (same tal!) —
+    // denne koden ENDRAR/FLYTTAR ALDRI ei eksisterande mappe, så begge vil
+    // eksistere side om side i prosjekt som alt har «8 Diverse». Rydd opp
+    // manuelt i eksisterande prosjekt om ønskt.
+    fs.mkdirSync(path.join(oppdragsSti, BILETE_MAPPE), { recursive: true })
     for (const mappe of Object.values(DTM_KATEGORI_MAPPE)) {
       fs.mkdirSync(path.join(oppdragsSti, mappe, 'Arkiv'), { recursive: true })
     }
@@ -1056,17 +1076,35 @@ ipcMain.handle('dtm:bekreft-import', async (event, { oppdragsSti, kategori, doku
       // ledig-gjer namnet om ei HEILT ANNA fil (uheldig namnekollisjon)
       // alt ligg der (kan ikkje vere «same dokument sin gamle versjon»,
       // sidan DEN alt vart flytta til Arkiv over).
-      let nyttFilnamn = path.basename(d.kjeldeSti)
+      //
+      // UNNATAK — eksterne dokument: desse kjem inn med KVEN SOM HELST sitt
+      // eige, ukontrollerte filnamn, så appen SKRIV OM namnet til
+      // «EDOK-XXX <skildring>» (d.nr + d.tittel, sett i gjennomgangs-
+      // matrisa/renderar-koden) i staden for å halde det opphavlege —
+      // brukar sitt eige krav 29. sept. 2026.
+      let nyttFilnamn
+      if (kategori === 'eksternt_dokument') {
+        const skildring = String(d.tittel || path.basename(d.kjeldeSti, ext)).replace(/[\\/:*?"<>|]/g, '').trim()
+        nyttFilnamn = `${d.nr}${skildring ? ' ' + skildring : ''}${ext}`
+      } else {
+        nyttFilnamn = path.basename(d.kjeldeSti)
+      }
       const opphavStem = path.basename(nyttFilnamn, ext)
       let målSti = path.join(mappeSti, nyttFilnamn)
-      let teller = 2
-      while (fs.existsSync(målSti)) {
-        nyttFilnamn = `${opphavStem}(${teller})${ext}`
-        målSti = path.join(mappeSti, nyttFilnamn)
-        teller++
+      // Fila ligg ALT på sin endelege plass (ukjende filer lagt rett i
+      // kategorimappa, eller ei fil appen sjølv nett genererte der, t.d.
+      // Tegningsliste) — då skal ho ikkje flyttast eller få «(2)» tilføydd,
+      // berre registrerast.
+      const alleredePåPlass = path.resolve(d.kjeldeSti).toLowerCase() === path.resolve(målSti).toLowerCase()
+      if (!alleredePåPlass) {
+        let teller = 2
+        while (fs.existsSync(målSti)) {
+          nyttFilnamn = `${opphavStem}(${teller})${ext}`
+          målSti = path.join(mappeSti, nyttFilnamn)
+          teller++
+        }
+        flyttFil(d.kjeldeSti, målSti)
       }
-
-      flyttFil(d.kjeldeSti, målSti)
       resultat.push({ ...d, status: 'ok', filnamn: nyttFilnamn })
     } catch (e) {
       const melding = erFillasFeil(e)
@@ -1122,6 +1160,263 @@ ipcMain.handle('dtm:apne-fil', async (event, { oppdragsSti, kategori, filnamn, a
   const sti = arkivert
     ? path.join(oppdragsSti, mappeNamn, 'Arkiv', filnamn)
     : path.join(oppdragsSti, mappeNamn, filnamn)
+  if (!fs.existsSync(sti)) return false
+  await shell.openPath(sti)
+  return true
+})
+
+// Les ei gjeldande DTM-fil sine rå bytes (base64) — brukt til å laste
+// resultatdokument OPP til Supabase Storage (sjå claude/dtm-modul.md,
+// «Skyopplasting av resultatdokument»; renderar-koden gjer sjølve
+// Storage-kallet, sidan `@supabase/supabase-js` alt er sett opp der —
+// denne handlaren si einaste jobb er å hente bytes frå disk, som
+// renderar-prosessen (Chromium, ikkje Node) ikkje kan lese direkte).
+ipcMain.handle('dtm:les-fil-bytes', async (event, { oppdragsSti, kategori, filnamn }) => {
+  try {
+    const mappeNamn = DTM_KATEGORI_MAPPE[kategori]
+    if (!oppdragsSti || !mappeNamn || !filnamn) return null
+    const sti = path.join(oppdragsSti, mappeNamn, filnamn)
+    const buffer = await fs.promises.readFile(sti)
+    return buffer.toString('base64')
+  } catch {
+    return null
+  }
+})
+
+// ── Kontroll av teikningar (egenkontroll/fagkontroll/godkjenning) ────
+// «Start …»-knappane i KvalitetModule.jsx skal opne TO vindauge SAMSTUNDES:
+// (1) det assosierte programmet for sjølve fila (via dtm:apne-fil over,
+// kalla direkte frå renderar-koden — treng ikkje eit eige IPC-kall her)
+// OG (2) eit NYTT, SKALERBART Electron-vindauge med sjekklista (renderar-
+// koden sjølv, berre ein annan «side» via ?sjekkliste=1-spørjestrengen,
+// sjå main.jsx). Det nye vindauget har SAME preload som hovudvindauget,
+// så det får full tilgang til window.resultatdokumentAPI (og delar same
+// Electron-økt/localStorage → alt innlogga Supabase-økt følgjer med,
+// ingen eigen innlogging nødvendig).
+function urlMedSpørjestreng(url, spørjestreng) {
+  return url + (url.includes('?') ? '&' : '?') + spørjestreng
+}
+ipcMain.handle('ks:apne-sjekkliste-vindauge', async (event, { dokumentId, kontrolltype }) => {
+  const spørjestreng = `sjekkliste=1&dokumentId=${encodeURIComponent(dokumentId)}&kontrolltype=${encodeURIComponent(kontrolltype)}`
+  const vindauge = new BrowserWindow({
+    width: 640, height: 860, minWidth: 440, minHeight: 480,
+    icon: path.join(__dirname, '..', 'icon.png'),
+    backgroundColor: '#0A0A0A',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+  loadWithFallback(vindauge, [DEV_URL, PROD_URL, PROD_URL_BACKUP].map(u => urlMedSpørjestreng(u, spørjestreng)))
+  return true
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// Bilete-modulen — sjå claude/bilete-modul.md.
+// ═══════════════════════════════════════════════════════════════════
+const BILETE_MAPPE = '8 Bilete'
+
+function nesteBilNummer(kjenteNr) {
+  const nrs = (kjenteNr || []).filter((nr) => nr && nr.toUpperCase().startsWith('BIL-'))
+    .map((nr) => parseInt(nr.slice(4), 10)).filter((n) => !isNaN(n))
+  return `BIL-${String((nrs.length ? Math.max(...nrs) : 0) + 1).padStart(3, '0')}`
+}
+
+function datoTilÅÅÅÅMMDD(d) {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// Les EXIF-data (dato teke, GPS) frå ei biletefil — feilar STILLE (tomme
+// verdiar) viss fila manglar EXIF eller ikkje er eit støtta format, sidan
+// mange bilete (skjermbilete, skanna dokument) ikkje har noko EXIF i det
+// heile, og det er ikkje ein feil-tilstand.
+//
+// FUNNE OG RETTA 30. sept. 2026: den opphavlege koden brukte exifr sin
+// `pick`-opsjon med BÅDE rå EXIF-taggnamn («DateTimeOriginal») OG UTREKNA
+// eigenskapar («latitude»/«longitude», som exifr sjølv reknar ut FRÅ dei
+// rå GPS-tagga ETTER vanleg parsing). `pick` filtrerer FØR denne
+// utrekninga skjer, så «latitude»/«longitude» fanst aldri i det filtrerte
+// resultatet — GPS vart difor ALLTID tomt, og datoen enda opp å falle
+// heilt tilbake til fil-endringstidspunktet (stat.mtime) i staden for
+// EXIF-datoen, akkurat slik brukar rapporterte. Retta ved å BERRE styre
+// KVA SEGMENT som vert lese (tiff/exif/gps, ikkje pick), og hente GPS via
+// exifr sin eigen, reindyrka `gps()`-hjelpefunksjon i staden.
+async function lesBileteExif(sti) {
+  let dato = null
+  try {
+    const data = await exifr.parse(sti, { tiff: true, exif: true, gps: true })
+    const rå = data?.DateTimeOriginal || data?.CreateDate || data?.ModifyDate || null
+    if (rå instanceof Date && !isNaN(rå.getTime())) dato = rå
+  } catch { /* inga EXIF, eller ukjent format — normalt, ikkje ein feil */ }
+
+  let plassering = ''
+  try {
+    const gps = await exifr.gps(sti)
+    if (gps && typeof gps.latitude === 'number' && typeof gps.longitude === 'number') {
+      plassering = `${gps.latitude.toFixed(5)}, ${gps.longitude.toFixed(5)}`
+    }
+  } catch { /* inga GPS-info i biletet */ }
+
+  return { dato, plassering }
+}
+
+// Bakar inn eit KVITT, HØGREORIENTERT dato-stempel («åååå-mm-dd») nede i
+// høgre hjørne av biletet — via eit skjult BrowserWindow + <canvas>,
+// SAME mønster som Tegningsliste-PDF-generatoren (ingen ny biletbehandlings-
+// avhengigheit som t.d. «sharp» — den er ein NATIV Node-addon som krev
+// ombygging for Electron sin eigen Node-ABI, noko electron-builder alt har
+// synt seg ustabilt til på denne maskina utan Developer Mode, sjå
+// diskusjonen 28. sept. 2026. executeJavaScript i eit skjult vindauge
+// bruker berre Chromium sin EIGEN, alt bunta canvas-rendering).
+//
+// RETTA 30. sept. 2026: <canvas>.toDataURL() SKRIV ALDRI metadata — biletet
+// som kjem ut av canvas-steget har difor INGEN EXIF i det heile (all info
+// om dato/GPS/kamera forsvinn), noko brukar rapporterte og uttrykkeleg
+// IKKJE vil skje. Les difor EXIF-dictet frå ORIGINALFILA FØR canvas-steget,
+// og set det attende inn i det ferdig stempla biletet med `piexifjs` (rein
+// JS, ingen native ombygging — same grunngjeving som over). Fungerer berre
+// for JPEG (piexifjs sitt einaste støtta format — PNG har uansett sjeldan
+// meiningsfull kamera-EXIF), og feilar ALDRI heile importen om
+// attsetjinga skulle mislykkast — biletet vert då berre levert utan EXIF,
+// ikkje kasta vekk.
+async function stempleDatoPåBilete(kjeldeSti, datoTekst) {
+  const bufferInn = fs.readFileSync(kjeldeSti)
+  const ext = path.extname(kjeldeSti).toLowerCase()
+  const erJpeg = ext === '.jpg' || ext === '.jpeg'
+  const mime = erJpeg ? 'image/jpeg' : 'image/png'
+  const dataUrl = `data:${mime};base64,${bufferInn.toString('base64')}`
+
+  let exifDict = null
+  if (erJpeg) {
+    try { exifDict = piexif.load(bufferInn.toString('binary')) } catch { exifDict = null }
+  }
+
+  const vindauge = new BrowserWindow({ show: false })
+  let bufferUt
+  try {
+    await vindauge.loadURL('data:text/html,<html><body></body></html>')
+    const resultatDataUrl = await vindauge.webContents.executeJavaScript(`
+      new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+          const c = document.createElement('canvas')
+          c.width = img.naturalWidth; c.height = img.naturalHeight
+          const ctx = c.getContext('2d')
+          ctx.drawImage(img, 0, 0)
+          const storleik = Math.max(18, Math.round(c.width * 0.018))
+          ctx.font = 'bold ' + storleik + 'px Arial'
+          ctx.textAlign = 'right'
+          ctx.textBaseline = 'bottom'
+          const margin = Math.round(storleik * 0.6)
+          ctx.shadowColor = 'rgba(0,0,0,.65)'
+          ctx.shadowBlur = storleik * 0.15
+          ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1
+          ctx.fillStyle = '#fff'
+          ctx.fillText(${JSON.stringify(datoTekst)}, c.width - margin, c.height - margin)
+          resolve(c.toDataURL(${JSON.stringify(mime)}, 0.92))
+        }
+        img.onerror = () => reject(new Error('Klarte ikkje laste biletet for stempling'))
+        img.src = ${JSON.stringify(dataUrl)}
+      })
+    `)
+    bufferUt = Buffer.from(resultatDataUrl.split(',')[1], 'base64')
+  } finally {
+    if (!vindauge.isDestroyed()) vindauge.destroy()
+  }
+
+  if (exifDict) {
+    try {
+      const exifBytes = piexif.dump(exifDict)
+      const medExif = piexif.insert(exifBytes, bufferUt.toString('binary'))
+      bufferUt = Buffer.from(medExif, 'binary')
+    } catch (e) {
+      console.warn('[Bilete] Klarte ikkje setje EXIF attende i det stempla biletet:', e.message)
+    }
+  }
+  return bufferUt
+}
+
+// Éin fil → éin importert, stempla og flytta BIL-XXX-fil. Delt av BÅDE
+// bilete:importer (vanleg skrivebords-drag-og-slepp) OG
+// bilete:importer-fra-bytar (bilete henta ned frå mobil-køen) — `nyeNr`
+// er ei DELT, MUTERT liste (push()a etter kvar fil) slik at fleire filer
+// i SAME import-runde ikkje kan få same løpenummer.
+async function importerEitBilete(kjeldeSti, opphavFilnamn, mappeSti, nyeNr, brukarNamn, kjelde) {
+  const { dato, plassering } = await lesBileteExif(kjeldeSti)
+  const stat = fs.statSync(kjeldeSti)
+  const datoTatt = dato || stat.mtime
+  const datoTekst = datoTilÅÅÅÅMMDD(datoTatt)
+  const nr = nesteBilNummer(nyeNr)
+  nyeNr.push(nr)
+  const ext = path.extname(opphavFilnamn) || '.jpg'
+  const målSti = path.join(mappeSti, `${nr}${ext}`)
+  const bufferStempla = await stempleDatoPåBilete(kjeldeSti, datoTekst)
+  fs.writeFileSync(målSti, bufferStempla)
+  return {
+    status: 'ok', nr, filnamn: path.basename(målSti), dato_tatt: datoTekst,
+    plassering, teke_av: brukarNamn || '', kjelde: kjelde || 'skrivebord',
+  }
+}
+
+// Importerer éin eller fleire lokale biletefiler (vanleg skrivebords-drag-
+// og-slepp) — les EXIF, gjev kvar fil eit nytt BIL-XXX-namn (løpande PER
+// PROSJEKT, `kjenteNr` er difor BILETE sine eigne nr, ikkje DTM sine),
+// bakar inn datostempelet, og flyttar det ferdige biletet til «8 Bilete».
+ipcMain.handle('bilete:importer', async (event, { filPathar, oppdragsSti, kjenteNr, brukarNamn }) => {
+  if (!oppdragsSti) return (filPathar || []).map((fp) => ({ status: 'feil', filnamn: path.basename(fp), melding: 'Inga oppdragssti.' }))
+  const mappeSti = path.join(oppdragsSti, BILETE_MAPPE)
+  fs.mkdirSync(mappeSti, { recursive: true })
+  const resultat = []
+  const nyeNr = [...(kjenteNr || [])]
+  for (const kjeldeSti of filPathar || []) {
+    const opphavFilnamn = path.basename(kjeldeSti)
+    try {
+      if (!fs.existsSync(kjeldeSti)) { resultat.push({ status: 'feil', filnamn: opphavFilnamn, melding: 'Fann ikkje fila.' }); continue }
+      resultat.push(await importerEitBilete(kjeldeSti, opphavFilnamn, mappeSti, nyeNr, brukarNamn, 'skrivebord'))
+    } catch (e) {
+      const melding = erFillasFeil(e)
+        ? 'Fila er open i eit anna program (eller på annan måte låst). Lukk fila og prøv igjen.'
+        : e.message
+      resultat.push({ status: 'feil', filnamn: opphavFilnamn, melding })
+    }
+  }
+  return resultat
+})
+
+// Same som over, men for BYTES lasta ned frå Supabase Storage (mobil-
+// opplasting) i staden for ei EKSISTERANDE fil på disken — renderar-koden
+// lastar ned kvar fil sjølv (supabase.storage sin download()) og sender
+// dei rå bytane hit, sidan main-prosessen ikkje har den innlogga Supabase-
+// økta. Skriv til ei temp-fil, importerer via same løype som over, ryddar
+// opp temp-fila etterpå uansett utfall.
+ipcMain.handle('bilete:importer-fra-bytar', async (event, { filer, oppdragsSti, kjenteNr, brukarNamn }) => {
+  if (!oppdragsSti) return (filer || []).map((f) => ({ status: 'feil', filnamn: f.filnamn, melding: 'Inga oppdragssti.' }))
+  const mappeSti = path.join(oppdragsSti, BILETE_MAPPE)
+  fs.mkdirSync(mappeSti, { recursive: true })
+  const resultat = []
+  const nyeNr = [...(kjenteNr || [])]
+  for (const f of filer || []) {
+    let tempSti = null
+    try {
+      tempSti = path.join(os.tmpdir(), `bilete-mobil-${Date.now()}-${Math.floor(Math.random() * 1000)}${path.extname(f.filnamn) || '.jpg'}`)
+      fs.writeFileSync(tempSti, Buffer.from(f.data))
+      resultat.push(await importerEitBilete(tempSti, f.filnamn, mappeSti, nyeNr, brukarNamn, 'mobil'))
+    } catch (e) {
+      resultat.push({ status: 'feil', filnamn: f.filnamn, melding: e.message })
+    } finally {
+      if (tempSti) { try { fs.unlinkSync(tempSti) } catch { /* uironisk */ } }
+    }
+  }
+  return resultat
+})
+
+// Opnar eit bilete i systemet sitt standardprogram (klikk på Filnamn-kolonna).
+ipcMain.handle('bilete:apne-fil', async (event, { oppdragsSti, filnamn }) => {
+  if (!oppdragsSti || !filnamn) return false
+  const sti = path.join(oppdragsSti, BILETE_MAPPE, filnamn)
   if (!fs.existsSync(sti)) return false
   await shell.openPath(sti)
   return true
@@ -1312,7 +1607,35 @@ ipcMain.handle('dtm:apne-kvittering', async (event, { oppdragsSti, filnamn }) =>
 // INGEN «lagre som»-dialog, sjå claude/dtm-modul.md. `ledigFilnamn()`
 // (alt brukt av KS-modulen) hindrar at ei framtidig, ulik generering ved
 // eit uhell skriv over ei tidlegare lagra fil med same namn.
-ipcMain.handle('dtm:generer-tegningsliste-pdf', async (event, { html, oppdragsSti, kategori, filnamn }) => {
+// Namnet på «status»-fila som held styr på KVA VERDIAR som stod i tabellen
+// FØRRE gong akkurat DENNE tegningslista (kategori + eige dokumentnummer)
+// vart generert — sjå dtm:les-tegningsliste-snapshot/dtm:generer-tegnings
+// liste-pdf under. Éi slik fil per (kategori, dokumentnummer)-kombinasjon,
+// ALLTID overskriven (ikkje kollisjonsvern som ledigFilnamn) sidan ho berre
+// representerer «sist kjende tilstand», ikkje eit dokument i seg sjølv.
+function tegningslisteSnapshotSti(mappeSti, dokumentnummer) {
+  const trygt = String(dokumentnummer || '').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_') || 'Tegningsliste'
+  return path.join(mappeSti, `.dtm-tegningsliste-status-${trygt}.json`)
+}
+
+// Les FØRRE snapshot (kva verdiar som stod i tabellen sist denne tegnings-
+// lista vart generert) — brukt av TegningslisteModal.jsx til å markere
+// BERRE dei enkeltcellene som faktisk er endra sidan den generatoren,
+// ikkje heile rader (brukar sitt eige krav 30. sept. 2026: filtypen er
+// t.d. alltid «PDF» og skal ikkje lyse opp berre fordi revisjonsnummeret
+// endra seg på same rad).
+ipcMain.handle('dtm:les-tegningsliste-snapshot', async (event, { oppdragsSti, kategori, dokumentnummer }) => {
+  const mappeNamn = DTM_KATEGORI_MAPPE[kategori]
+  if (!oppdragsSti || !mappeNamn) return null
+  const sti = tegningslisteSnapshotSti(path.join(oppdragsSti, mappeNamn), dokumentnummer)
+  try {
+    return JSON.parse(fs.readFileSync(sti, 'utf8'))
+  } catch {
+    return null
+  }
+})
+
+ipcMain.handle('dtm:generer-tegningsliste-pdf', async (event, { html, oppdragsSti, kategori, filnamn, dokumentnummer, snapshotData }) => {
   let vindauge = null
   let tempSti = null
   try {
@@ -1322,12 +1645,8 @@ ipcMain.handle('dtm:generer-tegningsliste-pdf', async (event, { html, oppdragsSt
     }
     const mappeSti = path.join(oppdragsSti, mappeNamn)
     fs.mkdirSync(mappeSti, { recursive: true })
-    // path.basename() sikrar at filnamnet ALDRI kan innehalde ein sti (t.d.
-    // om det av ein eller anna grunn skulle koma inn som ein full sti i
-    // staden for eit reint filnamn) — elles ville path.join under duplisert
-    // heile mappeSti-en inn i filnamnet i staden for å leggje det attåt.
-    const endeleg = ledigFilnamn(mappeSti, path.basename(filnamn))
-    const målSti = path.join(mappeSti, endeleg)
+    const målSti = ledigFilnamn(mappeSti, path.basename(filnamn))
+    const endeleg = path.basename(målSti)
 
     tempSti = path.join(os.tmpdir(), `dtm-tegningsliste-${Date.now()}.html`)
     fs.writeFileSync(tempSti, html, 'utf8')
@@ -1336,6 +1655,13 @@ ipcMain.handle('dtm:generer-tegningsliste-pdf', async (event, { html, oppdragsSt
     await vindauge.loadFile(tempSti)
     const buffer = await vindauge.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true })
     fs.writeFileSync(målSti, buffer)
+    // Skriv (overskriv) status-snapshotet for NESTE gong denne tegnings-
+    // lista vert generert — feil her skal ALDRI hindre at sjølve PDF-en
+    // vart lagra, difor ein eigen try/catch som berre logg-ar.
+    if (snapshotData) {
+      try { fs.writeFileSync(tegningslisteSnapshotSti(mappeSti, dokumentnummer), JSON.stringify(snapshotData), 'utf8') }
+      catch (e) { console.warn('[Tegningsliste] Klarte ikkje lagre status-snapshot:', e.message) }
+    }
     await shell.openPath(målSti)
     return { ok: true, filSti: målSti, filnamn: endeleg }
   } catch (e) {
@@ -1343,5 +1669,39 @@ ipcMain.handle('dtm:generer-tegningsliste-pdf', async (event, { html, oppdragsSt
   } finally {
     if (vindauge && !vindauge.isDestroyed()) vindauge.destroy()
     if (tempSti) { try { fs.unlinkSync(tempSti) } catch { /* uironisk */ } }
+  }
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// DTM — Excel-eksport (Tegningsliste/Dokumentleveranseplan, sjå
+// claude/dtm-modul.md) — GENERISK, same idé som PDF-generatoren over:
+// renderar-koden sender berre eit fritt kolonneoppsett ({key, namn}) +
+// ferdig utrekna radobjekt, denne handlaren bryr seg ikkje om KVA eksport
+// det gjeld. Ingen celle-for-celle-fargemarkering her (ulikt PDF-en sitt
+// «endra sidan sist»-blå) — `xlsx`-pakken sin gratis/«community»-variant
+// har ikkje pålitande cellefarge-støtte, og brukar bad berre om sjølve
+// dataeksporten i Excel-format, ikkje den visuelle markeringa.
+ipcMain.handle('dtm:generer-excel', async (event, { rader, kolonnar, oppdragsSti, kategori, filnamn }) => {
+  try {
+    const mappeNamn = DTM_KATEGORI_MAPPE[kategori]
+    if (!oppdragsSti || !mappeNamn || !filnamn) {
+      return { ok: false, melding: 'Manglar oppdragssti, kategori eller filnamn.' }
+    }
+    const mappeSti = path.join(oppdragsSti, mappeNamn)
+    fs.mkdirSync(mappeSti, { recursive: true })
+    const målSti = ledigFilnamn(mappeSti, path.basename(filnamn))
+    const endeleg = path.basename(målSti)
+
+    const aoa = [kolonnar.map(k => k.namn), ...rader.map(r => kolonnar.map(k => r[k.key] ?? ''))]
+    const ark = XLSX.utils.aoa_to_sheet(aoa)
+    ark['!cols'] = kolonnar.map(k => ({ wch: Math.max(10, Math.round((k.breiddMm || 25) * 0.5)) }))
+    const bok = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(bok, ark, 'Ark1')
+    XLSX.writeFile(bok, målSti)
+
+    await shell.openPath(målSti)
+    return { ok: true, filSti: målSti, filnamn: endeleg }
+  } catch (e) {
+    return { ok: false, melding: e.message }
   }
 })

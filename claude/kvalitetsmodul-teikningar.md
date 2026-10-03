@@ -168,16 +168,63 @@ Resultatdokument/Prosjekt-modulen, skriftstorleikar normalisert til 11–15 px
 (var 17–18 px), og dei smale ~600–700 px wrapparane er fjerna til fordel for
 full bredde (tabellvisningane) eller ~760–1000 px (skjema/oversikt).
 
-## Del B (ikkje starta)
+## Del B (bygd 30. sept. 2026) — kontroll av teikningar
 
-Leveransekontroll-arbeidsflyten (egenkontroll/fagkontroll-sjekklista, faner
-«Oversikt»/«＋ Ny»/«Leveransekontroll»/«Arkiv») er **framleis berre
-skjermtilstand** — ho vert nullstilt ved bytte av prosjekt og ved omlasting.
-Når Del A er verifisert i praksis, gjenstår:
+Leveransekontroll-arbeidsflyten (egenkontroll/fagkontroll/godkjenning) er
+**IKKJE lenger** eit eige, parallelt register (den gamle
+Oversikt/＋Ny/Leveransekontroll/Arkiv-mockupen med hardkoda `CPS`/`PHASE` er
+fjerna) — han er bygd oppå DTM sine **Kontrolldokument**-rader
+(`dtm_dokumenter`), sidan «Kontrolldokument» allereie er ein DTM-kategori
+og teikningsregisteret der er den faktiske kjelda til sanning.
 
-- Ein `ks_kontrollar`-tabell (eller liknande) for å lagre sjølve kontrollane
-  og sjekklistesvara.
-- «Ferdigstill»-knappen skal faktisk kalle `ks:ferdigstill`-endepunktet (alt
-  bygd og klart i `electron/main.js`/`preload.js`) for å flytte filene til
-  `kontroll/Kontrollkopiar/<løpenr>_<namn>/` — no viser han berre kva som
-  *vil* skje.
+**«Leveransekontroll»-fana i KvalitetModule.jsx** viser no `<DTMTabell>`
+filtrert til `aktivtSett="kontrolldokument"`, med berre kolonnane
+Dokumentnummer/Tittel/Filtype/Rev./Utarbeida av/Fagkontroll/Godkjent av
+synlege som standard (`standardSynlegeKolonnar`-propen, ny i DataTabell.jsx/
+DTMTabell.jsx — lèt same kolonnedefinisjonar ha ULIK standardvising og eit
+SEPARAT lagra kolonneoppsett per kallar, `prefsKeySuffix`). Tre knappar
+øvst («Start egenkontroll/fagkontroll/godkjenning») opnar det FYRSTE
+(evt. det MERKTE, via rad-vel-feltet) dokumentet som er klart for det
+steget.
+
+**Datamodell** (`supabase-ks-kontroll.sql`):
+- `dtm_dokumenter.kontrollstatus` — éin kolonne for HEILE flyten
+  (`ikkje_starta → egenkontroll_pagaende → klar_fagkontroll →
+  fagkontroll_pagaende → klar_godkjenning → godkjenning_pagaende →
+  godkjent`), sjå `KONTROLLTYPE`/`KONTROLLSTATUS` i `dtmKonstantar.js`.
+- `ks_kontroll_svar` — svar (avkryssing + merknad) per (dokument,
+  kontrolltype, sjekkpunkt).
+- `kontaktar` — enkel namn+initialar+e-post-liste (Innstillingar →
+  «Kontaktar»), brukt til å slå opp e-postadressa til den som skal utføre
+  neste steg, ut frå dei FRIE initialane i fk_person/godkjent_av.
+
+**Sjekklistene** kjem frå kontoret si Excel-fil
+(`Sjekkliste/Sjekkliste_tegningskontroll_LiedLab.xlsx`), konvertert til
+`src/sjekklister/tegningskontroll.json` av `scripts/konverter-sjekkliste.cjs`
+(`npm run sjekkliste:konverter` — køyr på nytt kvar gong Excel-fila
+endrar seg). Kvart dokument sin type (Situasjonsplan/Plan/Snitt/Fasade/
+Skjema/Detaljar/IFC og DWG) og stadium (SK/FP/RS/AT) vert GJETTA frå
+teikningsnummer-koden (`tolkSjekklisteType()` i `dtmKonstantar.js` — same
+kode-tabell som `tolkTeikningsnr()` over, men eiga funksjon sidan Del A og
+Del B no er heilt fråkopla frå kvarandre). Gjeldande sjekkliste = det
+gjetta type-arket + Tittelfelt-arket (alltid), avgrensa til punkt merkt
+gjeldande stadium eller «Alle». Brukar kan overstyre typen manuelt i
+sjekkliste-vindauget (naudsynt for Skjema/IFC og DWG, som ikkje har nokon
+eigen kode i teikningsnummeret).
+
+**To vindauge samstundes**: «Start …»-knappane opnar BÅDE (1) det
+assosierte programmet for sjølve fila (`dtm:apne-fil`) OG (2) eit NYTT,
+skalerbart Electron-vindauge (`ks:apne-sjekkliste-vindauge` i
+`electron/main.js`, inneheld `src/SjekklisteVindauge.jsx`) — same
+preload/Electron-økt som hovudvindauget, styrt via ein `?sjekkliste=1`-
+spørjestreng i staden for eit eige HTML-inngangspunkt (sjå `main.jsx`).
+Etter ferdigstilling av EITT dokument hentar vindauget automatisk fram
+NESTE dokument i same kø og går vidare (brukar sitt eige val: «held fram
+automatisk»), og sender eit e-postUTKAST (aldri stille/automatisk send,
+opnar i Outlook via den alt eksisterande `dtmOpneEpostMedVedlegg`) til
+neste steg sin ansvarlege, om ein kontakt med rette initialane finst.
+
+**Ikkje bygd enno** (kan kome som eiga oppfølging): faktiske automatiske
+sjekkar for punkta merkt «Auto» i Excel-fila (regex/skanning, tilsvarande
+`prosjektplan-tegningskontroll.md` sin PDF-kvalitetsanalyse) — alle punkt
+er reint manuelle avkryssingar i denne fyrste versjonen.

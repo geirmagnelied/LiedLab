@@ -1,32 +1,33 @@
 import { useState, useMemo, useEffect } from 'react'
-import { løysAktivtSett, KATEGORI_LABEL } from './dtmKonstantar'
+import { løysAktivtSett, KATEGORI_LABEL, LEVERANSE_FASAR } from './dtmKonstantar'
 import { NORCONSULT_LOGO_BASE64 } from './norconsultLogo'
 
 // ═══════════════════════════════════════════════════════════════════
-//  TegningslisteModal — genererer ei utskriftsklar «Tegningsliste»-PDF
-//  (A4/A2/A1, ståande/liggjande) av dei synlege DTM-dokumenta, og lagrar
-//  ho DIREKTE i vald DTM-kategorimappe på disk. Sjå claude/dtm-modul.md.
+//  DokumentleveranseplanModal — PDF-eksport «ved sidan av» Tegningsliste
+//  (sjå TegningslisteModal.jsx, som denne fila er ein tilpassa kopi av —
+//  same mønster som resten av DTM-modulen, t.d. BILETE_MAPPE duplisert
+//  mellom main.js/dtmKonstantar.js: éin sjølvstendig fil per eksport-type
+//  i staden for ein delt, parametrisert komponent).
 //
-//  HEILE HTML-dokumentet (éin <div class="side"> per side, alt paginert
-//  her i renderar-koden — Chromium sin printToPDF støttar IKKJE sidetal-
-//  medvitne topp-/botntekstar via rein CSS) vert bygd i denne fila, og
-//  attgjeve BÅDE som ei skalert førehandsvising (side 1, i eit <iframe>)
-//  OG sendt uendra til Electron (dtmGenererTegningslistePdf) for sjølve
-//  PDF-genereringa — éin og same kjelde, ingen sjanse for at
-//  førehandsvisinga lyg om korleis utskrifta faktisk vert.
+//  Skilnaden frå Tegningsliste: PRINT_KOLONNAR har fire EKSTRA kolonnar
+//  bakerst (éin per fase i LEVERANSE_FASAR), som viser den PLANLAGDE
+//  utsendingsdatoen for akkurat den fasen — pluss ein ✓ når fasen er
+//  markert sendt. Planlagt dato og sendt-haken vert sjølve SKRIVNE INN
+//  i DTM-matrisa (DTMTabell.jsx, kolonnane «<fase> – planlagt/sendt»,
+//  «Dokumentleveranseplan»-visinga i Vising-nedtrekket) — denne modalen
+//  er BERRE ein utskriftsklar augneblinksrapport av dei verdiane, same
+//  rolle som Tegningsliste har for sjølve revisjonsdataa.
 //
-//  Vindauget er BÅDE dragbart (via topplinja) og skalerbart frå ALLE
-//  kantar/hjørne (åtte eigendefinerte dra-handtak — same «mousedown på
-//  window»-mønster som resten av appen sine flytande vindauge/kolonne-
-//  breidder brukar, ALDRI CSS sin eigen `resize`, sjå NoteModal.jsx).
+//  Reiser SAME generiske IPC-handlar som Tegningsliste
+//  (dtm:generer-tegningsliste-pdf/dtm:les-tegningsliste-snapshot) — begge
+//  tek berre eit ferdigbygd HTML-dokument + eit fritt feltsett for celle-
+//  for-celle-samanlikning, og bryr seg ikkje om KVA eksport han kjem frå.
+//  Status-snapshotet er keya på (kategori, dokumentnummer) — så lenge
+//  denne modalen sitt dokumentnummer (default «A-60-02») skil seg frå
+//  Tegningslista sitt («A-60-01»), kolliderer ikkje dei to snapshota.
 // ═══════════════════════════════════════════════════════════════════
 
 const FORMAT_MM = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841] }
-// Venstre-/høgremarg er no ULIKE og MINDRE enn før (brukar sitt eige krav
-// 29. sept. 2026), og topp/botn er endå trongare, slik at topp-/botnteksten
-// sit langt oppe/nede på arket. «Standard printermarg» (botnteksten skal
-// framleis printast trygt) er grunnen til at botnmarginen ikkje er heilt
-// minimal.
 const MARGIN_LEFT_MM = 10
 const MARGIN_RIGHT_MM = 10
 const MARGIN_TOP_MM = 12
@@ -37,9 +38,6 @@ const TABELL_HEADER_HØGD_MM = 8
 const RAD_HØGD_MM = 7
 const MM_TIL_PX = 3.7795 // ~96dpi, brukt BERRE for skjerm-førehandsvisinga
 
-// Tittelblokk-tabellen øvst til høgre: logo | prosjektnummer | dokument-
-// nummer | revisjon (sjå byggSideHtml). Breidder i mm, brukt til å måle
-// opp kolonnebreidder og til å rekne ut total breidd.
 const TITTELBLOKK_TOPP_KOLONNAR = [
   { key: 'logo', namn: 'Utarbeida av', breiddMm: 30 },
   { key: 'prosjektnr', namn: 'Prosjektnummer', breiddMm: 30 },
@@ -48,17 +46,18 @@ const TITTELBLOKK_TOPP_KOLONNAR = [
 ]
 const TITTELBLOKK_TOPP_BREIDD_MM = TITTELBLOKK_TOPP_KOLONNAR.reduce((s, c) => s + c.breiddMm, 0)
 
-// Alt uniform Arial/Helvetica no (brukar sitt eige krav: same font på ALL
-// info, berre overskrifter/etikettar er BOLD — ingen eigen monospace-font
-// for tal/dokumentnummer lenger, som før skilde seg synleg frå tittelen).
+// Dei sju fyrste er NØYAKTIG same kolonnar som Tegningsliste (PRINT_KOLONNAR
+// i TegningslisteModal.jsx) — resten er éin kolonne PER FASE i
+// LEVERANSE_FASAR (planlagt dato + ✓ når sendt, sjå hentPrintVerdiar).
 const PRINT_KOLONNAR = [
   { key: 'nr', namn: 'Dokumentnummer', breiddMm: 32 },
-  { key: 'tittel', namn: 'Tittel', breiddMm: 65 },
-  { key: 'filtype', namn: 'Filtype', breiddMm: 18 },
-  { key: 'rev', namn: 'Rev.', breiddMm: 14 },
-  { key: 'dato', namn: 'Rev.dato', breiddMm: 26 },
-  { key: 'format', namn: 'Ark', breiddMm: 22 },
-  { key: 'malestokk', namn: 'Målestokk', breiddMm: 22 },
+  { key: 'tittel', namn: 'Tittel', breiddMm: 55 },
+  { key: 'filtype', namn: 'Filtype', breiddMm: 16 },
+  { key: 'rev', namn: 'Rev.', breiddMm: 13 },
+  { key: 'dato', namn: 'Rev.dato', breiddMm: 22 },
+  { key: 'format', namn: 'Ark', breiddMm: 16 },
+  { key: 'malestokk', namn: 'Målestokk', breiddMm: 18 },
+  ...LEVERANSE_FASAR.map(f => ({ key: f.key, namn: f.namn, breiddMm: 26 })),
 ]
 const KOLONNE_BREIDD_SUM = PRINT_KOLONNAR.reduce((s, c) => s + c.breiddMm, 0)
 
@@ -69,8 +68,6 @@ const KANDIDATAR = [
   ['A1', 'ståande'], ['A1', 'liggjande'],
 ]
 
-// Dei tre DTM-kategoriane ei tegningsliste kan lagrast som — IKKJE
-// «styrande dokument», som ikkje er ein naturleg heim for denne fila.
 const LAGRINGS_KATEGORIAR = ['resultatdokument', 'kontrolldokument', 'arbeidsdokument']
 
 function sideDimensjonar(format, retning) {
@@ -78,8 +75,6 @@ function sideDimensjonar(format, retning) {
   return retning === 'liggjande' ? { breidd: lang, høgd: kort } : { breidd: kort, høgd: lang }
 }
 
-// Vel det MINSTE formatet/retninga (i rekkjefølgja over) der hovudtabellen
-// sine kolonnar faktisk får plass i breidda — brukar sitt eige krav.
 function finnPassandeFormat() {
   for (const [format, retning] of KANDIDATAR) {
     const { breidd } = sideDimensjonar(format, retning)
@@ -88,10 +83,6 @@ function finnPassandeFormat() {
   return { format: 'A1', retning: 'liggjande' }
 }
 
-// Kor mange mm hovudtabellen sine kolonnar STIKK UTANFOR det valde arket
-// (0 eller mindre = alt får plass) — brukt til å åtvare brukar i UI-en
-// (sjå «manglarBreiddMm» i sjølve komponenten) om at nokre kolonnar kan
-// verte avkutta med det valde formatet/retninga.
 function manglarBreiddMm(format, retning) {
   const { breidd } = sideDimensjonar(format, retning)
   return Math.max(0, KOLONNE_BREIDD_SUM - (breidd - MARGIN_LEFT_MM - MARGIN_RIGHT_MM))
@@ -111,52 +102,39 @@ function sanertFilnamn(s) {
   return String(s || '').replace(/[\\/:*?"<>|]/g, '').trim()
 }
 
-// Feltnamna som faktisk hamnar i den printa tabellen — desse SJU er òg
-// nøyaktig kva som vert lagra i status-snapshotet (sjå berekneCelleEndring/
-// generer() i komponenten) og samanlikna celle-for-celle mot NESTE gong
-// same tegningsliste vert generert.
-const PRINT_FELT = ['nr', 'tittel', 'filtype', 'rev', 'dato', 'format', 'malestokk']
+// Feltnamna i den printa tabellen — dei sju Tegningsliste-felta PLUSS éin
+// per fase (sjå LEVERANSE_FASAR) — same liste vert brukt til cella-for-
+// celle-samanlikninga mot FØRRE generering (berekneCelleEndringar).
+const PRINT_FELT = ['nr', 'tittel', 'filtype', 'rev', 'dato', 'format', 'malestokk', ...LEVERANSE_FASAR.map(f => f.key)]
 
 function hentPrintVerdiar(dok, aktivtSett) {
   const sett = løysAktivtSett(dok, aktivtSett)
   const g = (sett && dok[sett]) || {}
   const filtype = /\.([a-z0-9]+)$/i.exec(g.filnamn || '')?.[1]?.toUpperCase() || ''
+  const faseVerdiar = Object.fromEntries(LEVERANSE_FASAR.map(f => {
+    const planlagt = dok[`planlagt_${f.key}`] || ''
+    const sendt = !!dok[`sendt_${f.key}`]
+    return [f.key, planlagt ? `${planlagt}${sendt ? ' ✓' : ''}` : (sendt ? '✓' : '')]
+  }))
   return {
     nr: dok.nr || '', tittel: dok.tittel || dok.nr || '', filtype,
     rev: g.revisjon || '', dato: g.dato || '', format: dok.format || '', malestokk: dok.malestokk || '',
+    ...faseVerdiar,
   }
 }
 
-// Samanliknar CELLE FOR CELLE mot status-snapshotet frå FØRRE generering av
-// same tegningsliste (kategori+dokumentnummer) — brukar sitt eige krav
-// 30. sept. 2026: filtypen er t.d. alltid «PDF» og skal ikkje lyse opp berre
-// fordi revisjonsnummeret endra seg på same rad, slik den gamle heile-rada-
-// markeringa (basert på tidsstempel) gjorde. `snapshot` er anten `null`
-// (inga tidlegare generering funne — då vert INGENTING markert) eller eit
-// objekt keya på kvart dokument sitt EIGE «nr» (t.d. «A-201»).
 function berekneCelleEndringar(rad, snapshot) {
   if (!snapshot) return {}
   const gamalRad = snapshot[rad.nr]
-  // Fanst dokumentet ikkje i FØRRE snapshot i det heile (nytt sidan sist,
-  // eller nr endra) — då er ALT ved det «nytt», ikkje berre éi celle.
   if (!gamalRad) return Object.fromEntries(PRINT_FELT.map(k => [k, true]))
   return Object.fromEntries(PRINT_FELT.map(k => [k, String(gamalRad[k] ?? '') !== String(rad[k] ?? '')]))
 }
 
 function byggSideHtml({ radar, sideNr, talSider, breidd, høgd, tittel, prosjektnr, prosjektnamn, oppdragsgivar,
                         dokumentnummer, revisjon, revisjonsdato, arkstorleikTekst, erFørsteSide }) {
-  // «endraFelt» (sjå berekneCelleEndringar/komponenten): PER CELLE, ikkje
-  // per rad — berre dei faktiske verdiane som er ulike frå FØRRE generering
-  // av same tegningsliste får den lyse blå markeringa (brukar sitt eige
-  // krav 30. sept. 2026), sjå claude/dtm-modul.md.
   const radHtml = radar.map(r => `
     <tr>${PRINT_KOLONNAR.map(k => `<td${r.endraFelt?.[k.key] ? ' class="endra-celle"' : ''}>${escHtml(r[k.key])}</td>`).join('')}</tr>`).join('')
 
-  // Frå og med side 2 skal BERRE botnteksten (og hovudtabellen sjølv)
-  // visast — ikkje toppteksten/tittelblokka — slik at tabellen får bruke
-  // heile den ledige høgda som elles gjekk til toppen (brukar sitt eige
-  // krav 29. sept. 2026, sjå «forts»-CSS-klassen under og radarPerSideForts
-  // i byggHtmlDokument).
   const toppHtml = erFørsteSide ? `
   <div class="topptekst">
     <div class="prosjektnamn">${escHtml(prosjektnamn)}</div>
@@ -191,9 +169,6 @@ function byggHtmlDokument({ printRader, format, retning, tittel, prosjektnr, pro
                             dokumentnummer, revisjon, revisjonsdato }) {
   const { breidd, høgd } = sideDimensjonar(format, retning)
   const arkstorleikTekst = format
-  // Side 1 har toppteksten/tittelblokka (tek HEADER_HEIGHT_MM), sidene etter
-  // har det IKKJE (sjå byggSideHtml) — difor to ulike radbudsjett, der dei
-  // påfølgande sidene får fleire rader sidan heile toppen no er ledig.
   const tilgjengelegHøgdFørste = høgd - MARGIN_TOP_MM - MARGIN_BOTTOM_MM - HEADER_HEIGHT_MM - FOOTER_HEIGHT_MM - TABELL_HEADER_HØGD_MM
   const tilgjengelegHøgdForts  = høgd - MARGIN_TOP_MM - MARGIN_BOTTOM_MM - FOOTER_HEIGHT_MM - TABELL_HEADER_HØGD_MM
   const radarPerSideFørste = Math.max(1, Math.floor(tilgjengelegHøgdFørste / RAD_HØGD_MM))
@@ -216,9 +191,6 @@ function byggHtmlDokument({ printRader, format, retning, tittel, prosjektnr, pro
 <html><head><meta charset="utf-8">
 <style>
 @page { size: ${breidd}mm ${høgd}mm; margin: 0 }
-/* Alt uniform Arial/Helvetica (brukar sitt eige krav: same font på ALL
-   info — berre overskrifter/etikettar er BOLD, ingen eigen monospace-
-   font for tal/dokumentnummer lenger). */
 * { box-sizing:border-box; margin:0; padding:0; font-family:Arial, Helvetica, sans-serif }
 body { width:${breidd}mm }
 .side { position:relative; width:${breidd}mm; height:${høgd}mm; page-break-after:always; overflow:hidden }
@@ -236,14 +208,9 @@ body { width:${breidd}mm }
 .tittelblokk-topp td.logo img { height:5.5mm; width:auto; display:block; margin:0 auto }
 .hovudtabell { position:absolute; top:${MARGIN_TOP_MM + HEADER_HEIGHT_MM}mm; left:${MARGIN_LEFT_MM}mm; right:${MARGIN_RIGHT_MM}mm;
   bottom:${MARGIN_BOTTOM_MM + FOOTER_HEIGHT_MM}mm; border-collapse:collapse; font-size:9pt; overflow:hidden }
-/* Sider utan topptekst/tittelblokk (side 2+, sjå byggSideHtml) — tabellen
-   kan då bruke heile den ledige toppen. */
 .side.forts .hovudtabell { top:${MARGIN_TOP_MM}mm }
 .hovudtabell th { text-align:left; border-bottom:1pt solid #000; padding:1mm 2mm; font-size:9pt; font-weight:700; white-space:nowrap }
 .hovudtabell td { border-bottom:0.3pt solid #999; padding:1mm 2mm; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-/* Brukar sitt eige krav: lys blå bakgrunn BERRE på DEI ENKELTCELLENE som
-   faktisk har ein annan verdi enn førre generering av same tegningsliste —
-   ikkje heile rada, sjå berekneCelleEndringar. */
 .hovudtabell td.endra-celle { background:#dbeafe }
 .botntekst { position:absolute; bottom:${MARGIN_BOTTOM_MM}mm; left:${MARGIN_LEFT_MM}mm; font-size:9pt; color:#666 }
 .botntekst-hogre { position:absolute; bottom:${MARGIN_BOTTOM_MM}mm; right:${MARGIN_RIGHT_MM}mm; font-size:8pt; color:#666;
@@ -253,7 +220,7 @@ body { width:${breidd}mm }
 }
 
 // ── Dragbart + skalerbart vindauge (åtte hjørne/kant-handtak) ───────────
-const VINDAUGE_KEY = 'liedlab-tegningsliste-vindauge'
+const VINDAUGE_KEY = 'liedlab-dokumentleveranseplan-vindauge'
 const MIN_W = 576, MIN_H = 432
 
 function handtakStil(dir) {
@@ -274,37 +241,31 @@ function handtakStil(dir) {
   }
 }
 
-export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsjekt, oppdragsgivar,
-                                              oppdragsSti, onLukk, alleDokument, onGenerert }) {
+export default function DokumentleveranseplanModal({ dokumenter, aktivtSett, aktivtProsjekt, oppdragsgivar,
+                                                       oppdragsSti, onLukk, alleDokument, onGenerert }) {
   const forslag = useMemo(() => finnPassandeFormat(), [])
   const [format, setFormat] = useState(forslag.format)
   const [retning, setRetning] = useState(forslag.retning)
-  const [tittel, setTittel] = useState('Tegningsliste')
-  const [dokumentnummer, setDokumentnummer] = useState('A-60-01')
+  const [tittel, setTittel] = useState('Dokumentleveranseplan')
+  const [dokumentnummer, setDokumentnummer] = useState('A-60-02')
   const [revisjon, setRevisjon] = useState('1')
   const [revisjonsdato, setRevisjonsdato] = useState(() => dagensDato())
   const [kategori, setKategori] = useState('resultatdokument')
-  // Eksportformat (PDF/Excel, brukar sitt eige krav 1. okt. 2026) — NB:
-  // kallast «eksportFormat» for ikkje å kollidere med `format` (arkstorleik
-  // A4/A3/A2/A1) over, som alt eig det namnet.
+  // Eksportformat (PDF/Excel, brukar sitt eige krav 1. okt. 2026) — same
+  // namneval som TegningslisteModal.jsx (unngår kollisjon med «format»,
+  // arkstorleiken, over).
   const [eksportFormat, setEksportFormat] = useState('pdf')
   const [genererer, setGenererer] = useState(false)
   const [feil, setFeil] = useState('')
-  // Status-snapshotet (kva verdiar som stod i tabellen) frå FØRRE generering
-  // av same tegningsliste (kategori+dokumentnummer) — null = inga tidlegare
-  // generering funne. Brukt til CELLE-FOR-CELLE «endra sidan sist»-
-  // markeringa (sjå printRader/berekneCelleEndringar).
   const [snapshotGamal, setSnapshotGamal] = useState(null)
 
   const harBru = typeof window !== 'undefined' && !!window.resultatdokumentAPI
 
-  // ── Vindauge: posisjon + storleik, dragbart og skalerbart frå alle kantar ──
   const [vindauge, setVindauge] = useState(() => {
     try {
       const lagra = JSON.parse(localStorage.getItem(VINDAUGE_KEY))
       if (lagra && lagra.w > 0 && lagra.h > 0) return lagra
     } catch { /* privat modus */ }
-    // 10 % mindre enn før (brukar sitt eige krav 29. sept. 2026).
     const breddeProsent = forslag.retning === 'liggjande' ? 0.81 : 0.54
     const w = Math.max(MIN_W, Math.min(Math.round(window.innerWidth * 0.97), Math.round(window.innerWidth * breddeProsent)))
     const h = Math.max(MIN_H, Math.min(Math.round(window.innerHeight * 0.94), Math.round(window.innerHeight * 0.765)))
@@ -353,9 +314,6 @@ export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsj
     window.addEventListener('mouseup', slepp)
   }
 
-  // Celle-for-celle-samanlikning mot FØRRE generering (berekneCelleEndringar
-  // returnerer {} — ingenting markert — når snapshotGamal er null, altså når
-  // det ikkje finst nokon tidlegare generering å samanlikne mot).
   const printRader = useMemo(() =>
     dokumenter.map(d => {
       const rad = hentPrintVerdiar(d, aktivtSett)
@@ -370,32 +328,16 @@ export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsj
     dokumentnummer, revisjon, revisjonsdato,
   }), [printRader, format, retning, tittel, aktivtProsjekt, oppdragsgivar, dokumentnummer, revisjon, revisjonsdato])
 
-  // Åtvaring viss det VALDE formatet/retninga er for smalt til at
-  // hovudtabellen sine kolonnar får plass innanfor marginane — brukar sitt
-  // eige krav 29. sept. 2026 (autovalet unngår dette, men brukar kan
-  // overstyre til eit format som ikkje får plass).
   const manglarBreidd = useMemo(() => manglarBreiddMm(format, retning), [format, retning])
 
-  // Førehandsvising: iframe i naturleg (mm→px) storleik, skalert ned med
-  // ein CSS-transform til å passe i vindauget — SAME HTML som vert sendt
-  // til PDF-generatoren, så det er aldri usemje mellom dei to.
   const naturleggBreiddPx = breidd * MM_TIL_PX
   const naturlegHøgdPx = høgd * MM_TIL_PX
   const previewMaksBreidd = Math.max(280, vindauge.w - 280)
   const skala = Math.min(1, previewMaksBreidd / naturleggBreiddPx)
 
-  // Føreslå neste løpande revisjonsnummer ved å telje kor mange filer i
-  // vald kategorimappe som alt startar med dette dokumentnummeret — same
-  // «høgste + 1»-idé som elles i appen (nextCaseNumber osb.), berre henta
-  // frå disken i staden for databasen, sidan tegningslista IKKJE vert
-  // registrert som ei eiga dtm_dokumenter-rad. Køyrer på nytt kvar gong
-  // brukar byter kategori (eit medvite, sjeldan val) — IKKJE for kvart
-  // tastetrykk i dokumentnummer-feltet, som ville vore urovekkjande.
   useEffect(() => {
     if (!harBru || !oppdragsSti) return
     let avbrote = false
-    // Alt registrert i DTM (genererte lister vert no indeksert, og eldre
-    // revisjon flytta til Arkiv): neste revisjon = registrert revisjon + 1.
     const registrert = (alleDokument || []).find(d => d.nr === dokumentnummer.trim())?.[kategori]
     const registrertRev = parseInt(registrert?.revisjon, 10)
     if (!isNaN(registrertRev)) { setRevisjon(String(registrertRev + 1)); return }
@@ -409,19 +351,8 @@ export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsj
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kategori, harBru, oppdragsSti])
 
-  // Les status-snapshotet frå FØRRE generering av same tegningsliste (kate-
-  // gori+dokumentnummer) — grunnlaget for CELLE-FOR-CELLE-markeringa over
-  // (berekneCelleEndringar). Same triggerpunkt (kategori-byte) som skann-
-  // inga over, av same grunn (IKKJE kvart tastetrykk i dokumentnummer).
   useEffect(() => {
     if (!harBru || !oppdragsSti) return
-    // Forsvar mot ein renderar som (t.d. midt i ein electron-reload-omstart)
-    // endå ikkje har fått den NYE preload-metoden — main.js/preload.js vert
-    // BERRE lasta på nytt ved ein FULL Electron-restart, ulikt src/-koden
-    // som Vite hot-reloadar med det same. Utan denne sjekken kasta eit
-    // manglande funksjonsnamn ein SYNKRON TypeError inni useEffect, som
-    // (utan noka Error Boundary) kræsja HEILE appen til ein kvit skjerm
-    // (brukar sitt eige funn 30. sept. 2026).
     if (typeof window.resultatdokumentAPI.dtmLesTegningslisteSnapshot !== 'function') {
       setSnapshotGamal(null)
       return
@@ -438,19 +369,13 @@ export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsj
     if (!harBru) return
     setGenererer(true); setFeil('')
     try {
-      const namnebase = `${sanertFilnamn(dokumentnummer) || 'Tegningsliste'} ${sanertFilnamn(tittel) || 'Tegningsliste'}`
-      // Snapshotet som vert lagra no, er GRUNNLAGET for celle-for-celle-
-      // markeringa NESTE gong same tegningsliste vert generert (sjå
-      // berekneCelleEndringar) — keya på kvart dokument sitt EIGE «nr».
-      // Delt mellom PDF- og Excel-eksporten, sidan begge representerer
-      // same tegningsliste på same (kategori, dokumentnummer).
+      const namnebase = `${sanertFilnamn(dokumentnummer) || 'Dokumentleveranseplan'} ${sanertFilnamn(tittel) || 'Dokumentleveranseplan'}`
       const snapshotData = Object.fromEntries(printRader.map(r => [r.nr, Object.fromEntries(PRINT_FELT.map(k => [k, r[k]]))]))
       const svar = eksportFormat === 'excel'
         ? await window.resultatdokumentAPI.dtmGenererExcel(printRader, PRINT_KOLONNAR, oppdragsSti, kategori, `${namnebase}.xlsx`)
         : await window.resultatdokumentAPI.dtmGenererTegningslistePdf(html, oppdragsSti, kategori, `${namnebase}.pdf`, dokumentnummer, snapshotData)
       if (!svar?.ok) { setFeil(svar?.melding || 'Ukjend feil.'); setGenererer(false); return }
-      // Indekser fila i DTM-registeret med det same (sjå registrerGenerertFil
-      // i DTMModule.jsx) — elles ville ho dukke opp som «ukjend fil».
+      // Indekser fila i DTM-registeret med det same, sjå registrerGenerertFil i DTMModule.jsx
       await onGenerert?.({ kategori, filnamn: svar.filnamn, filSti: svar.filSti, nr: dokumentnummer.trim(),
         tittel: tittel.trim(), rev: revisjon, dato: revisjonsdato, format })
       onLukk()
@@ -467,8 +392,8 @@ export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsj
         boxShadow:'0 24px 70px rgba(0,0,0,.35)' }}>
 
         <div onMouseDown={startVindaugeFlytt} style={{ display:'flex', alignItems:'center', gap:10, padding:'14px 20px',
-          borderBottom:'1px solid rgba(255,255,255,.12)', flexShrink:0, background:'#2563EB', cursor:'move' }}>
-          <span style={{ fontSize:15, fontWeight:800, color:'#fff' }}>Tegningsliste</span>
+          borderBottom:'1px solid rgba(255,255,255,.12)', flexShrink:0, background:'#0E7490', cursor:'move' }}>
+          <span style={{ fontSize:15, fontWeight:800, color:'#fff' }}>Dokumentleveranseplan</span>
           <div style={{ flex:1 }}/>
           <button onClick={onLukk} title="Lukk" style={{ background:'none', border:'none', fontSize:22,
             cursor:'pointer', color:'rgba(255,255,255,.85)', lineHeight:1, padding:'2px 6px' }}>×</button>
@@ -477,6 +402,12 @@ export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsj
         <div style={{ flex:1, overflow:'auto', padding:'20px 24px', display:'flex', gap:24 }}>
           {/* ── Val ── */}
           <div style={{ width:240, flexShrink:0, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ fontSize:11.5, color:'var(--text3)', lineHeight:1.6 }}>
+              Planlagde og faktiske utsendingsdatoar vert redigerte direkte i
+              DTM-tabellen (visinga «Dokumentleveranseplan» i Vising-menyen).
+              Her genererer du berre ein utskriftsklar augneblinksrapport av dei
+              verdiane.
+            </div>
             <label style={{ display:'flex', flexDirection:'column', gap:4 }}>
               <span className="dt-etikett">Tittel</span>
               <input className="dt-input" value={tittel} onChange={e => setTittel(e.target.value)}/>
@@ -547,19 +478,15 @@ export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsj
               {snapshotGamal && (() => {
                 const talEndra = printRader.filter(r => Object.values(r.endraFelt).some(Boolean)).length
                 return talEndra > 0
-                  ? <> <span style={{ color:'#2563EB', fontWeight:700 }}>{talEndra}</span> dokument har celler endra sidan sist generering (markert lyseblå).</>
+                  ? <> <span style={{ color:'#0E7490', fontWeight:700 }}>{talEndra}</span> dokument har celler endra sidan sist generering (markert lyseblå).</>
                   : ' Ingen endringar sidan sist generering.'
               })()}
             </div>
             {feil && <div style={{ fontSize:12, color:'var(--danger)' }}>{feil}</div>}
             <div style={{ fontSize:11.5, color:'var(--text3)', lineHeight:1.5 }}>
-              Lagrast som «{sanertFilnamn(dokumentnummer) || 'Tegningsliste'} {sanertFilnamn(tittel) || 'Tegningsliste'}.{eksportFormat === 'excel' ? 'xlsx' : 'pdf'}»
+              Lagrast som «{sanertFilnamn(dokumentnummer) || 'Dokumentleveranseplan'} {sanertFilnamn(tittel) || 'Dokumentleveranseplan'}.{eksportFormat === 'excel' ? 'xlsx' : 'pdf'}»
               i {KATEGORI_LABEL[kategori]?.toLowerCase()}
             </div>
-            {/* Avbryt/Generer i SAME kolonne som resten av brukarvalga,
-                lengst til venstre i vindauget (brukar sitt eige krav
-                29. sept. 2026 — låg tidlegare i ei eiga, breiare footer-
-                linje under heile vindauget). */}
             <div style={{ display:'flex', gap:8, marginTop:'auto', paddingTop:8 }}>
               <button className="dt-knapp" style={{ flex:1 }} onClick={onLukk}>Avbryt</button>
               <button className="dt-knapp hovud" style={{ flex:1 }} disabled={!harBru || genererer} onClick={generer}>
@@ -568,8 +495,7 @@ export default function TegningslisteModal({ dokumenter, aktivtSett, aktivtProsj
             </div>
           </div>
 
-          {/* ── Førehandsvising (side 1) — berre for PDF, Excel har ingen
-              sidepaginert layout å førehandsvise ── */}
+          {/* ── Førehandsvising (side 1) — berre for PDF ── */}
           {eksportFormat === 'pdf' ? (
             <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:8, minWidth:0 }}>
               <span className="dt-etikett">Førehandsvising — side 1{talSider > 1 ? ` av ${talSider}` : ''}</span>

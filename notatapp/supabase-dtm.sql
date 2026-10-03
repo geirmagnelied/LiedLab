@@ -39,12 +39,48 @@ CREATE TABLE IF NOT EXISTS dtm_dokumenter (
   resultatdokument  JSONB,
   kontrolldokument  JSONB,
   styrande_dokument JSONB,
+  eksternt_dokument JSONB,   -- «2 Informasjonsflyt\Inn», sjå claude/dtm-modul.md (lagt til 29. sept. 2026)
+  ekstern_kategori  TEXT DEFAULT '', -- Vedtak/Leverandørdokument/Tilbodsunderlag/Prosjekteringsunderlag — berre meiningsfylt for eksterne dokument
+  er_styrande_dokument BOOLEAN NOT NULL DEFAULT false, -- på/av, GENERELT felt (ikkje avgrensa til éin kategori — t.d. eit utsendt tilbod kan vere styrande)
+  ai_indeksering_onska BOOLEAN NOT NULL DEFAULT false, -- brukar sitt val i import-menyen om AI skal indeksere dokumentet — sjølve AI-kallet er ikkje bygd enno
   ekstra           JSONB DEFAULT '{}',  -- eigendefinerte kolonnar, same mønster som notes/cases
   created_at       TIMESTAMPTZ DEFAULT NOW(),
   updated_at       TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (user_id, project_id, nr)
 );
 CREATE INDEX IF NOT EXISTS idx_dtm_dokumenter_project ON dtm_dokumenter(project_id);
+
+-- Idempotente tillegg for prosjekt som alt har tabellen frå før (CREATE
+-- TABLE IF NOT EXISTS over rører ikkje ein EKSISTERANDE tabell) — sjå
+-- supabase-updated-at-fix.sql for same mønster/grunngjeving.
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS eksternt_dokument JSONB;
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS ekstern_kategori TEXT DEFAULT '';
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS er_styrande_dokument BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS ai_indeksering_onska BOOLEAN NOT NULL DEFAULT false;
+
+-- Dokumentleveranseplan (1. okt. 2026, sjå claude/dtm-modul.md) — planlagt
+-- (fritekst, same mønster som andre dato-felt i tabellen) + sendt (bool,
+-- eitt klikk) per fase. Same teikning vert typisk sendt ut fleire gonger
+-- i løpet av eit prosjekt, éin gong per fase.
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS planlagt_prosjekteringsunderlag TEXT DEFAULT '';
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS sendt_prosjekteringsunderlag    BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS planlagt_godkjenning            TEXT DEFAULT '';
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS sendt_godkjenning               BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS planlagt_arbeidstegning         TEXT DEFAULT '';
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS sendt_arbeidstegning            BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS planlagt_som_bygd               TEXT DEFAULT '';
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS sendt_som_bygd                  BOOLEAN NOT NULL DEFAULT false;
+
+-- Ekstra leveransetypar (2. okt. 2026, LEVERANSE_FASAR_EKSTRA i dtmKonstantar.js) —
+-- kan leggjast til av brukar når ei utsending vert registrert, også utan plan.
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS planlagt_kommentar        TEXT DEFAULT '';
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS sendt_kommentar           BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS planlagt_anbod            TEXT DEFAULT '';
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS sendt_anbod               BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS planlagt_utforing_fabrikk TEXT DEFAULT '';
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS sendt_utforing_fabrikk    BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS planlagt_soknad           TEXT DEFAULT '';
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS sendt_soknad              BOOLEAN NOT NULL DEFAULT false;
 
 -- Historikk/Arkiv per kategori — éi rad per arkivert revisjon.
 CREATE TABLE IF NOT EXISTS dtm_versjonar (

@@ -5,8 +5,26 @@ import DTMImportModal from './DTMImportModal'
 import DTMUtsendingModal from './DTMUtsendingModal'
 import DTMUtsendingarListe from './DTMUtsendingarListe'
 import TegningslisteModal from './TegningslisteModal'
+import DokumentleveranseplanModal from './DokumentleveranseplanModal'
+import DTMUkjendeFilerVarsel from './DTMUkjendeFilerVarsel'
+import ResultatdokumentMobilListe from './ResultatdokumentMobilListe'
+import SokeFelt from './SokeFelt'
 import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE, KATEGORI_MAPPE, løysAktivtSett, namnFraEpost,
-  nesteUtsendingsnummer, utsendingsnrTekst } from './dtmKonstantar'
+  nesteUtsendingsnummer, utsendingsnrTekst, gjettMimeType } from './dtmKonstantar'
+
+// ── Ignorerte ukjende filer (sjå skannUkjendeFiler/DTMUkjendeFilerVarsel) ──
+// Rein klient-bekvemmelegheit i localStorage, PER PROSJEKT — ikkje noko
+// brukar treng synkronisert mellom maskiner, berre eit «ikkje spør om
+// akkurat denne fila att»-val. Same les/skriv-mønster som alle andre
+// localStorage-bruk elles i appen (t.d. TegningslisteModal sitt vindauge).
+function lesIgnorerte(prosjektId) {
+  try { return new Set(JSON.parse(localStorage.getItem(`liedlab-dtm-ignorerte-filer:${prosjektId}`)) || []) }
+  catch { return new Set() }
+}
+function skrivIgnorerte(prosjektId, sett) {
+  try { localStorage.setItem(`liedlab-dtm-ignorerte-filer:${prosjektId}`, JSON.stringify([...sett])) }
+  catch { /* privat modus */ }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTM — Dokument, tegningar og modellar. Erstattar Resultatdokument-
@@ -21,6 +39,12 @@ import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE, KATEGORI_MAPPE, løysAktivt
 
 export default function DTMModule({ userId, userEmail, projects, activeProjectId }) {
   const [details, setDetails]     = useState(null)
+  // Prosjektnummeret vert lese FERSKT her (same query som `details`), IKKJE
+  // frå den delte `projects`-lista (App.jsx/useStore) — den vert berre
+  // henta éin gong ved appstart og ProsjektModule.jsx synkroniserer ALDRI
+  // endringar attende dit etter lagring, så eit nyleg innskrive prosjekt-
+  // nummer synte seg blankt her (brukar sitt eige krav 30. sept. 2026).
+  const [prosjektnrFriskt, setProsjektnrFriskt] = useState('')
   const [loading, setLoading]     = useState(true)
   const [dokumenter, setDokumenter] = useState([])
   const [eigneKolonnar, setEigneKolonnar] = useState([])
@@ -29,10 +53,20 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   const [importMenyOpen, setImportMenyOpen] = useState(false)
   const [valde, setValde] = useState(() => new Set()) // fleirval (shift/ctrl-klikk), sjå DataTabell sin `merking`-prop
   const importMenyRef = useRef(null)
+  const [eksportMenyOpen, setEksportMenyOpen] = useState(false)
+  const eksportMenyRef = useRef(null)
   const [utsendingar, setUtsendingar] = useState([])
   const [utsendingModalId, setUtsendingModalId] = useState(null) // id eller null (lukka)
   const [utsendingarListeOpen, setUtsendingarListeOpen] = useState(false)
   const [tegningslisteOpen, setTegningslisteOpen] = useState(false)
+  const [leveranseplanOpen, setLeveranseplanOpen] = useState(false)
+  // Ukjende filer (sjå skannUkjendeFiler under) — filer som ligg i DTM-
+  // mappene, men ikkje er registrerte i nokon dtm_dokumenter-rad.
+  const [ukjendeFiler, setUkjendeFiler] = useState([]) // [{kategori, filnamn}]
+  const [ukjendeFilerVarselOpen, setUkjendeFilerVarselOpen] = useState(false)
+  // Sett når brukar vel «Registrer…» for éin kategori i varselet — opnar
+  // DTMImportModal med `forhandsvalde` (same import-flyt som vanleg).
+  const [ukjendeFilerForImport, setUkjendeFilerForImport] = useState(null) // { kategori, filPathar } | null
 
   const harBru = typeof window !== 'undefined' && !!window.resultatdokumentAPI
   const aktivtProsjekt = projects.find(p => p.id === activeProjectId)
@@ -46,20 +80,59 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     }
     setLoading(true)
     const [{ data: pData }, { data: dData }, { data: colData }, { data: uData }, { data: udData }] = await Promise.all([
-      supabase.from('projects').select('details').eq('id', activeProjectId).eq('user_id', userId).single(),
+      supabase.from('projects').select('details, project_number').eq('id', activeProjectId).eq('user_id', userId).single(),
       supabase.from('dtm_dokumenter').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('nr'),
       supabase.from('dtm_columns').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('sortering'),
       supabase.from('dtm_utsendingar').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('created_at', { ascending:false }),
       supabase.from('dtm_utsending_dokument').select('*').eq('user_id', userId),
     ])
     setDetails(pData?.details || {})
+    setProsjektnrFriskt(pData?.project_number || '')
     setDokumenter(dData || [])
     setEigneKolonnar((colData || []).map(k => ({ key:k.key, label:k.label, art:k.art || 'tekst', val:k.val_liste || undefined })))
     const udPerUtsending = {}
     ;(udData || []).forEach(ud => { (udPerUtsending[ud.utsending_id] ??= []).push(ud) })
     setUtsendingar((uData || []).map(u => ({ ...u, dokument: udPerUtsending[u.id] || [] })))
     setLoading(false)
+
+    // Skann etter ukjende filer (sjå claude/dtm-modul.md, «Ukjende filer»)
+    // — KØYRER I BAKGRUNNEN (ikkje avventa), skal ikkje forsinke sjølve
+    // tabellvisinga. Brukar LOKALE variablar (pData/dData), ikkje
+    // komponenten sin `details`/`dokumenter`-state, sidan dei ikkje er
+    // oppdaterte før neste render.
+    const laastNo = !!(pData?.details?.oppdragsStiLast && pData?.details?.oppdragsSti)
+    skannUkjendeFiler(laastNo ? pData.details.oppdragsSti : '', dData || [])
   }, [userId, activeProjectId])
+
+  // Listar gjeldande filer i KVAR kategorimappe (gjenbruker same
+  // `dtmListFiler`-kallet som Tegningsliste alt brukar til revisjons-
+  // forslaget) og samanliknar mot kva filnamn som ALT er registrerte i
+  // `dokumenterLokal` — resten er «ukjende», altså lagt inn utanom Import-
+  // knappen. `.dtm-*`-filene er interne status-/snapshot-filer (sjå
+  // TegningslisteModal.jsx), ALDRI dokument — hoppa over her.
+  const skannUkjendeFiler = useCallback(async (oppdragsStiLokal, dokumenterLokal) => {
+    if (!harBru || !oppdragsStiLokal) { setUkjendeFiler([]); return }
+    const ignorerte = lesIgnorerte(activeProjectId)
+    const funne = []
+    for (const kategori of KATEGORIAR) {
+      const kjende = new Set(dokumenterLokal.map(d => d[kategori]?.filnamn).filter(Boolean))
+      // Excel-eksport (Tegningsliste/Dokumentleveranseplan) ligg ved sida av
+      // den registrerte PDF-en med same namn — reknast som kjend, sjå
+      // registrerGenerertFil.
+      const kjendeStammar = new Set([...kjende].map(n => n.replace(/\.[^.]+$/, '').toLowerCase()))
+      let svar
+      try { svar = await window.resultatdokumentAPI.dtmListFiler(oppdragsStiLokal, kategori) }
+      catch { continue }
+      for (const f of (svar?.filer || [])) {
+        if (f.namn.startsWith('.dtm-')) continue
+        if (kjende.has(f.namn)) continue
+        if (/\.xlsx?$/i.test(f.namn) && kjendeStammar.has(f.namn.replace(/\.[^.]+$/, '').toLowerCase())) continue
+        if (ignorerte.has(`${kategori}:${f.namn}`)) continue
+        funne.push({ kategori, filnamn: f.namn })
+      }
+    }
+    setUkjendeFiler(funne)
+  }, [harBru, activeProjectId])
 
   useEffect(() => { lastAlt() }, [lastAlt])
 
@@ -108,6 +181,13 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     return () => document.removeEventListener('mousedown', lukk)
   }, [importMenyOpen])
 
+  useEffect(() => {
+    if (!eksportMenyOpen) return
+    const lukk = (e) => { if (!eksportMenyRef.current?.contains(e.target)) setEksportMenyOpen(false) }
+    document.addEventListener('mousedown', lukk)
+    return () => document.removeEventListener('mousedown', lukk)
+  }, [eksportMenyOpen])
+
   // ── Eigendefinerte kolonnar (same mønster som Saker/Notat) ─────────
   // «valListe» (valfri) gjer kolonnen om til ei nedtrekksliste med faste
   // val i staden for fritekst — sjå DataTabell sitt Ny kolonne-skjema.
@@ -131,8 +211,16 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     const d = dokumenter.find(x => x.id === id)
     if (!d) return
     const neste = { ...(d.ekstra || {}), [key]: verdi }
-    setDokumenter(ds => ds.map(x => x.id === id ? { ...x, ekstra: neste } : x))
-    await supabase.from('dtm_dokumenter').update({ ekstra: neste, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+    const no = new Date().toISOString()
+    // `updated_at` må setjast i BÅDE den optimistiske lokale state-
+    // oppdateringa OG sjølve databaseskrivinga — elles ser resten av UI-en
+    // (t.d. Tegningsliste sin «endra sidan sist»-sjekk) framleis den GAMLE
+    // updated_at-verdien heilt til neste fulle innlasting, sidan `dokumenter`
+    // i denne komponenten aldri vert henta på nytt etter ei enkelt celle-
+    // redigering (brukar sitt eige krav 30. sept. 2026 — same feil retta i
+    // dei tre andre skrivefunksjonane under).
+    setDokumenter(ds => ds.map(x => x.id === id ? { ...x, ekstra: neste, updated_at: no } : x))
+    await supabase.from('dtm_dokumenter').update({ ekstra: neste, updated_at: no }).eq('id', id).eq('user_id', userId)
   }
 
   // ── Rediger éi celle direkte i registeret (t.d. Delprosjekt) ────────
@@ -165,8 +253,9 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       return
     }
     const endring = { [gammalSett]: null, [nyttSett]: d[gammalSett] }
-    setDokumenter(ds => ds.map(x => x.id === id ? { ...x, ...endring } : x))
-    const { error } = await supabase.from('dtm_dokumenter').update({ ...endring, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+    const no = new Date().toISOString()
+    setDokumenter(ds => ds.map(x => x.id === id ? { ...x, ...endring, updated_at: no } : x))
+    const { error } = await supabase.from('dtm_dokumenter').update({ ...endring, updated_at: no }).eq('id', id).eq('user_id', userId)
     if (error) {
       alert('Klarte ikkje endre kategori: ' + error.message)
       setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [gammalSett]: d[gammalSett], [nyttSett]: d[nyttSett] ?? null } : x))
@@ -182,8 +271,9 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       if (!sett) return
       const gammalSettVerdi = d[sett] || {}
       const nyttSett = { ...gammalSettVerdi, [NØSTA_FELT[felt]]: verdi }
-      setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [sett]: nyttSett } : x))
-      const { error } = await supabase.from('dtm_dokumenter').update({ [sett]: nyttSett, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+      const no = new Date().toISOString()
+      setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [sett]: nyttSett, updated_at: no } : x))
+      const { error } = await supabase.from('dtm_dokumenter').update({ [sett]: nyttSett, updated_at: no }).eq('id', id).eq('user_id', userId)
       if (error) {
         alert('Klarte ikkje lagre endringa: ' + error.message)
         setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [sett]: gammalSettVerdi } : x))
@@ -197,8 +287,9 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     // databasefeil me må fange og melde tydeleg, ikkje berre la forsvinne.
     const gammalRad = dokumenter.find(x => x.id === id)
     const lagra = NUMERISKE_FELT.has(felt) && verdi === '' ? null : verdi
-    setDokumenter(ds => ds.map(d => d.id === id ? { ...d, [felt]: lagra } : d))
-    const { error } = await supabase.from('dtm_dokumenter').update({ [felt]: lagra, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+    const no = new Date().toISOString()
+    setDokumenter(ds => ds.map(d => d.id === id ? { ...d, [felt]: lagra, updated_at: no } : d))
+    const { error } = await supabase.from('dtm_dokumenter').update({ [felt]: lagra, updated_at: no }).eq('id', id).eq('user_id', userId)
     if (error) {
       const melding = felt === 'nr' && /duplicate key|unique constraint/i.test(error.message)
         ? `Dokumentnummeret «${verdi}» er alt i bruk av eit anna dokument i dette prosjektet.`
@@ -226,6 +317,20 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     const g = sett && rad[sett]
     if (!g?.filnamn || !harBru) return
     window.resultatdokumentAPI.dtmApneFil(oppdragsSti, sett, g.filnamn, false)
+  }
+
+  // ── Søk (SokeFelt, sjå claude/sok-modul.md) — eit treff kan liggje i
+  // ein ANNA kategori-fane enn den som er aktiv no, difor løyser denne
+  // BEST kategori direkte (som 'alle'-visinga) i staden for å stole på
+  // gjeldande aktivtSett-state, og byter sjølv til 'alle' etterpå.
+  const sokVelgResultat = (r) => {
+    if (r.kjelde_tabell !== 'dtm_dokumenter') return
+    const rad = dokumenter.find(d => d.id === r.kjelde_id)
+    if (!rad) return
+    const sett = løysAktivtSett(rad, 'alle')
+    setAktivtSett('alle')
+    if (!sett || !rad[sett]?.filnamn || !harBru) return
+    window.resultatdokumentAPI.dtmApneFil(oppdragsSti, sett, rad[sett].filnamn, false)
   }
 
   // ── «Del fil» (radmeny) — kopierer filstien(ane) til utklippstavla og
@@ -361,17 +466,58 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   }
 
   // ── Sjølve importen: flytt filer (Electron) + skriv til Supabase ───
+  // Skyopplasting av resultatdokument (sjå claude/dtm-modul.md) — berre
+  // når prosjektet sjølv har slått dette PÅ (brukar sitt eige krav
+  // 1. okt. 2026: av/på-bryter per prosjekt, IKKJE automatisk for alle).
+  // Feilar ALDRI heile importen om opplastinga skulle mislykkast (nettverk
+  // nede o.l.) — berre ein konsoll-åtvaring, sidan sjølve fila alt ligg
+  // trygt lokalt uansett.
+  const lastOppResultatdokumentTilSky = async (nr, filnamn) => {
+    try {
+      const b64 = await window.resultatdokumentAPI.dtmLesFilBytes(oppdragsSti, 'resultatdokument', filnamn)
+      if (!b64) return
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+      const ext = (/\.([a-z0-9]+)$/i.exec(filnamn)?.[1] || 'bin').toLowerCase()
+      const sti = `${userId}/${activeProjectId}/${nr}.${ext}`
+      const { error } = await supabase.storage.from('dtm-resultatdokument')
+        .upload(sti, bytes, { upsert: true, contentType: gjettMimeType(filnamn) })
+      if (error) console.warn('[DTM] Klarte ikkje laste opp resultatdokument til skya:', error.message)
+    } catch (e) {
+      console.warn('[DTM] Klarte ikkje laste opp resultatdokument til skya:', e.message)
+    }
+  }
+
+  // Etterfyller skya med resultatdokument som alt fanst FØR Skyopplasting
+  // vart slått på for prosjektet (eller frå før funksjonen vart bygd) —
+  // utan denne ville dei vore usynlege frå mobil heilt til nokon tilfeldigvis
+  // importerte dei på nytt. Manuell, synleg knapp (sjå toolbar) i staden for
+  // ein stille automatikk, sidan dette kan vere mange filer/ta ei stund.
+  const [skyBackfillKjorer, setSkyBackfillKjorer] = useState(false)
+  const lastOppAlleResultatdokumentTilSky = async () => {
+    if (!harBru || !details?.skyOpplastingResultatdokument || skyBackfillKjorer) return
+    setSkyBackfillKjorer(true)
+    for (const d of dokumenter) {
+      if (d.resultatdokument?.filnamn) await lastOppResultatdokumentTilSky(d.nr, d.resultatdokument.filnamn)
+    }
+    setSkyBackfillKjorer(false)
+  }
+
   // Kalla frå DTMImportModal etter at brukar har retta/fjerna dokument i
   // gjennomgangsmatrisa. Sjå claude/dtm-modul.md, avsnittet om
-  // importflyten, for den fulle regelen.
-  const importer = async (rader) => {
-    const kategori = importKategori
+  // importflyten, for den fulle regelen. `opts.kategori` (sett av
+  // DTMImportModal sin bekreft()) vinn over `importKategori`-state — treng
+  // det for «ukjende filer»-registrering, som ikkje går via det vanlege
+  // import-menyvalet (sjå ukjendeFilerForImport).
+  const importer = async (rader, opts = {}) => {
+    const kategori = opts.kategori ?? importKategori
+    const brukAI = !!opts.brukAI
+    const skalLastOppTilSky = kategori === 'resultatdokument' && harBru && !!details?.skyOpplastingResultatdokument
     const filResultat = await window.resultatdokumentAPI.dtmBekreftImport(
       oppdragsSti, kategori,
       rader.map(r => {
         const gammalKategoriVerdi = dokumenter.find(d => d.nr === r.nr)?.[kategori]
         return {
-          kjeldeSti: r.kjeldeSti, nr: r.nr, rev: r.rev,
+          kjeldeSti: r.kjeldeSti, nr: r.nr, rev: r.rev, tittel: r.tittel,
           gammalFilnamn: gammalKategoriVerdi?.filnamn || null,
           gammalRevisjon: gammalKategoriVerdi?.revisjon || null,
         }
@@ -400,8 +546,11 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           tiltakshavar: r.tiltakshavar || '', oppdragsnr: r.oppdragsnr || '',
           revisjonsbeskriving: r.revisjonsbeskriving || '', tegningsformal: r.tegningsformal || '',
           ferdigstillingsstatus: r.ferdigstillingsstatus || '', forste_revisjon_dato: r.forste_revisjon_dato || '',
+          ekstern_kategori: r.ekstern_kategori || '', er_styrande_dokument: false,
+          ai_indeksering_onska: brukAI,
           lagra_av: namnFraEpost(userEmail), status: [], ekstra: {}, favorite: false, pinned: false,
           arbeidsdokument: null, resultatdokument: null, kontrolldokument: null, styrande_dokument: null,
+          eksternt_dokument: null,
           created_at: no, updated_at: no,
           [kategori]: kategoriVerdi,
         }
@@ -409,6 +558,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
         if (error) { resultat.push({ status:'feil', nr:r.nr, filnamn:f.filnamn, melding: error.message }); continue }
         nyeDokument = [...nyeDokument, rad]
         resultat.push({ status:'ok', nr:r.nr, filnamn:f.filnamn })
+        if (skalLastOppTilSky) await lastOppResultatdokumentTilSky(r.nr, f.filnamn)
       } else {
         const gammalRad = nyeDokument[idx]
         const gammalKategoriVerdi = gammalRad[kategori]
@@ -424,6 +574,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           revisjonsbeskriving: r.revisjonsbeskriving || gammalRad.revisjonsbeskriving,
           tegningsformal: r.tegningsformal || gammalRad.tegningsformal,
           ferdigstillingsstatus: r.ferdigstillingsstatus || gammalRad.ferdigstillingsstatus,
+          ekstern_kategori: r.ekstern_kategori || gammalRad.ekstern_kategori,
           // Fyrste-revisjon-datoen skal ALDRI skrivast over av ein seinare
           // re-import — han representerer den opphavlege, historiske datoen.
           forste_revisjon_dato: gammalRad.forste_revisjon_dato || r.forste_revisjon_dato || '',
@@ -441,12 +592,30 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           })
         }
         nyeDokument = nyeDokument.map((d, j) => j === idx ? { ...gammalRad, ...endring } : d)
+        if (skalLastOppTilSky) await lastOppResultatdokumentTilSky(r.nr, f.filnamn)
         resultat.push({ status:'ok', nr:r.nr, filnamn:f.filnamn })
       }
     }
 
     setDokumenter(nyeDokument)
     return resultat
+  }
+
+  // Indekserer ei fil APPEN SJØLV nett genererte i ei DTM-kategorimappe
+  // (Tegningsliste/Dokumentleveranseplan, PDF eller Excel) i registeret på
+  // éin gong — elles ville ho dukke opp som «ukjend fil» ved neste skanning
+  // (brukar sitt krav 2. okt. 2026). Går via same importer() som vanleg
+  // import, så eit tidlegare registrert utkast av same dokumentnummer vert
+  // arkivert, versjonert og (om skyopplasting er på) lasta opp likt.
+  const registrerGenerertFil = async ({ kategori, filnamn, filSti, nr, tittel, rev, dato, format }) => {
+    const stamme = (n) => n.replace(/\.[^.]+$/, '').toLowerCase()
+    const finst = dokumenter.find(d => d.nr === nr)
+    // Excel-eksport ved sida av ein ALT registrert PDF med same namn: ikkje
+    // registrer på nytt (ville arkivert PDF-en) — skanninga reknar han som
+    // kjend via namne-stamma, sjå skannUkjendeFiler.
+    if (/\.xlsx?$/i.test(filnamn) && finst?.[kategori]?.filnamn && stamme(finst[kategori].filnamn) === stamme(filnamn)) return
+    await importer([{ kjeldeSti: filSti, filnamn, nr, rev: String(rev || ''), tittel: tittel || nr, dato: dato || '', format: format || '' }],
+      { kategori })
   }
 
   return (
@@ -458,11 +627,14 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
         <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em' }}>
           Dokument, tegningar og modellar (DTM)
         </span>
-        {aktivtProsjekt && (<>
-          <span style={{ color:'rgba(255,255,255,.3)' }}>·</span>
-          <span style={{ fontSize:13, color:'rgba(255,255,255,.7)', fontFamily:'var(--mono)' }}>{aktivtProsjekt.projectNumber}</span>
-          <span style={{ fontSize:13, color:'rgba(255,255,255,.7)' }}>{aktivtProsjekt.name}</span>
-        </>)}
+        {/* Prosjektnummer/-namn er fjerna her (står alt i den svarte topplinja) —
+            søket tek plassen, til høgre for overskrifta (brukar sitt krav 2. okt. 2026) */}
+        {aktivtProsjekt && (
+          <div style={{ marginLeft:8 }}>
+            <SokeFelt projectId={activeProjectId} kjelder={['dtm_dokumenter']}
+              onVelgResultat={sokVelgResultat} plassholder="Søk i DTM-dokument…"/>
+          </div>
+        )}
       </div>
 
       <div style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column', padding:'18px 20px' }}>
@@ -488,17 +660,50 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
                 </div>
               )}
             </div>
+            {/* Eksport — nedtrekksmeny rett til høgre for Import (brukar sitt krav
+                2. okt. 2026, for å rydde i layouten): Tegningsliste og Dokumentleveranseplan */}
+            <div ref={eksportMenyRef} style={{ position:'relative' }}>
+              <button onClick={() => setEksportMenyOpen(v => !v)}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:'var(--r)',
+                  border:'1.5px solid var(--border)', background:'var(--bg2)', color:'var(--text2)',
+                  fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                Eksport <span style={{ fontSize:10 }}>▾</span>
+              </button>
+              {eksportMenyOpen && (
+                <div className="dt-meny" style={{ left:0, top:'calc(100% + 6px)', position:'absolute', width:220 }}>
+                  <button type="button" className="dt-val"
+                    onClick={() => { setTegningslisteOpen(true); setEksportMenyOpen(false) }}>
+                    <span>Tegningsliste</span>
+                  </button>
+                  <button type="button" className="dt-val"
+                    onClick={() => { setLeveranseplanOpen(true); setEksportMenyOpen(false) }}>
+                    <span>Dokumentleveranseplan</span>
+                  </button>
+                </div>
+              )}
+            </div>
             <button onClick={() => setUtsendingarListeOpen(true)}
               style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
                 background:'var(--bg2)', color:'var(--text2)', fontSize:13, fontWeight:700, cursor:'pointer' }}>
               Utsendingar {utsendingar.filter(u => u.status !== 'sendt').length > 0
                 && `(${utsendingar.filter(u => u.status !== 'sendt').length} kladd)`}
             </button>
-            <button onClick={() => setTegningslisteOpen(true)}
-              style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
-                background:'var(--bg2)', color:'var(--text2)', fontSize:13, fontWeight:700, cursor:'pointer' }}>
-              Tegningsliste
-            </button>
+            {ukjendeFiler.length > 0 && (
+              <button onClick={() => setUkjendeFilerVarselOpen(true)}
+                style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'1.5px solid #B45309',
+                  background:'rgba(180,83,9,.12)', color:'#B45309', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                ⚠ {ukjendeFiler.length} ukjende fil{ukjendeFiler.length === 1 ? '' : 'er'}
+              </button>
+            )}
+            {details?.skyOpplastingResultatdokument && (
+              <button onClick={lastOppAlleResultatdokumentTilSky} disabled={skyBackfillKjorer}
+                title="Lastar opp ALLE resultatdokument på nytt — nyttig etter at Skyopplasting nett vart slått på"
+                style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
+                  background:'var(--bg2)', color:'var(--text2)', fontSize:13, fontWeight:700,
+                  cursor: skyBackfillKjorer ? 'default' : 'pointer', opacity: skyBackfillKjorer ? .6 : 1 }}>
+                {skyBackfillKjorer ? 'Lastar opp…' : '☁ Last opp alle resultatdokument'}
+              </button>
+            )}
           </div>
         )}
 
@@ -507,11 +712,16 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
         ) : loading ? (
           <div style={{ color:'var(--text3)', fontSize:13 }}>Lastar…</div>
         ) : !harBru ? (
-          <Melding tittel="Krev skrivebordsversjonen" ikon="Rd">
-            DTM flyttar og omdøyper filer direkte på disken din, og det kan berre gjerast frå
-            skrivebordsappen — ikkje frå nettlesar. Opne LiedLab via skrivebords-snarvegen for å
-            bruke denne modulen.
-          </Melding>
+          details?.skyOpplastingResultatdokument ? (
+            <ResultatdokumentMobilListe dokumenter={dokumenter} userId={userId} activeProjectId={activeProjectId}/>
+          ) : (
+            <Melding tittel="Krev skrivebordsversjonen" ikon="Rd">
+              DTM flyttar og omdøyper filer direkte på disken din, og det kan berre gjerast frå
+              skrivebordsappen — ikkje frå nettlesar. Opne LiedLab via skrivebords-snarvegen for å
+              bruke denne modulen. (Resultatdokument kan gjerast tilgjengelege her frå mobil —
+              sjå «Skyopplasting» i Prosjekt-modulen på skrivebordet.)
+            </Melding>
+          )
         ) : !laast ? (
           <Melding tittel="Ingen oppdragssti er låst for dette prosjektet" ikon="!">
             Gå til <b>Prosjekt</b>-modulen og lås ein oppdragssti for «{aktivtProsjekt.name}» —
@@ -568,7 +778,8 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
             onApneEpost={() => apneEpostForUtsending(u.id)}
             onBekreftSendt={() => bekreftUtsendingSendt(u.id)}
             onLagreKvittering={(kjeldeSti) => lagreKvitteringForUtsending(u.id, kjeldeSti)}
-            onApneKvittering={() => apneKvitteringForUtsending(u.id)}/>
+            onApneKvittering={() => apneKvitteringForUtsending(u.id)}
+            onMarkerLevert={(dokumentId, faseKey, verdi) => settVerdi(dokumentId, `sendt_${faseKey}`, verdi)}/>
         )
       })()}
 
@@ -580,9 +791,51 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       )}
 
       {tegningslisteOpen && (
-        <TegningslisteModal dokumenter={synlegeDokument} aktivtSett={aktivtSett} aktivtProsjekt={aktivtProsjekt}
+        <TegningslisteModal dokumenter={synlegeDokument} aktivtSett={aktivtSett}
+          aktivtProsjekt={aktivtProsjekt && { ...aktivtProsjekt, projectNumber: prosjektnrFriskt || aktivtProsjekt.projectNumber }}
           oppdragsgivar={details?.clientName} oppdragsSti={oppdragsSti}
+          alleDokument={dokumenter} onGenerert={registrerGenerertFil}
           onLukk={() => setTegningslisteOpen(false)}/>
+      )}
+
+      {leveranseplanOpen && (
+        <DokumentleveranseplanModal dokumenter={synlegeDokument} aktivtSett={aktivtSett}
+          aktivtProsjekt={aktivtProsjekt && { ...aktivtProsjekt, projectNumber: prosjektnrFriskt || aktivtProsjekt.projectNumber }}
+          oppdragsgivar={details?.clientName} oppdragsSti={oppdragsSti}
+          alleDokument={dokumenter} onGenerert={registrerGenerertFil}
+          onLukk={() => setLeveranseplanOpen(false)}/>
+      )}
+
+      {ukjendeFilerVarselOpen && (
+        <DTMUkjendeFilerVarsel funne={ukjendeFiler}
+          onLukk={() => setUkjendeFilerVarselOpen(false)}
+          onIgnorer={(kategori, filnamn) => {
+            const sett = lesIgnorerte(activeProjectId)
+            sett.add(`${kategori}:${filnamn}`)
+            skrivIgnorerte(activeProjectId, sett)
+            setUkjendeFiler(fs => fs.filter(f => !(f.kategori === kategori && f.filnamn === filnamn)))
+          }}
+          onImporter={(kategori, filer) => {
+            setUkjendeFilerForImport({
+              kategori,
+              filPathar: filer.map(f => `${oppdragsSti}\\${KATEGORI_MAPPE[kategori]}\\${f.filnamn}`),
+            })
+            setUkjendeFilerVarselOpen(false)
+          }}/>
+      )}
+
+      {ukjendeFilerForImport && (
+        <DTMImportModal kategori={ukjendeFilerForImport.kategori} oppdragsSti={oppdragsSti}
+          dokumenter={dokumenter} forhandsvalde={ukjendeFilerForImport.filPathar}
+          onImporter={importer}
+          onLukk={() => {
+            setUkjendeFilerForImport(null)
+            // Oppdater ukjende-filer-lista med det som faktisk vart registrert
+            // (eller ikkje, om brukar avbraut) — `dokumenter` er alt oppdatert
+            // her, sidan importer() sin setDokumenter() har rokke å flush-ast
+            // før brukar fekk klikka «Lukk».
+            skannUkjendeFiler(oppdragsSti, dokumenter)
+          }}/>
       )}
     </div>
   )

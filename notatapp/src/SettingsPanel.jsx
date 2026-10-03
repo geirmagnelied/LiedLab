@@ -22,6 +22,17 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
   const [editColor,  setEditColor]  = useState('')
   const panelRef = useRef(null)
 
+  // ── Kontaktar (namn+initialar+e-post) — brukt av KS-modulen sin
+  // egenkontroll/fagkontroll/godkjenning-arbeidsflyt til å slå opp
+  // e-postadressa til den som skal varslast neste steg er klart, ut frå
+  // dei frie initialane i fk_person/godkjent_av-felta (sjå dtmKonstantar.js
+  // og SjekklisteVindauge.jsx). Global per brukar, ikkje per kontor/prosjekt.
+  const [kontaktar,      setKontaktar]      = useState([])
+  const [kontaktarLoad,  setKontaktarLoad]  = useState(true)
+  const [nyttNamn,       setNyttNamn]       = useState('')
+  const [nyeInitialar,   setNyeInitialar]   = useState('')
+  const [nyEpost,        setNyEpost]        = useState('')
+
   const activeOffice = offices.find(o => o.id === activeOfficeId)
   // Admin = aktiv admin-medlem ELLER eigar av kontoret (offices-radene er
   // lasta per innlogga brukar, så eit aktivt kontor i lista er alltid eigd av deg)
@@ -49,6 +60,29 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
       setEditColor(activeOffice.color || '#1B4332')
     }
   }, [activeOfficeId])
+
+  // Load kontaktar
+  useEffect(() => {
+    if (!userId) return
+    setKontaktarLoad(true)
+    supabase.from('kontaktar').select('*').eq('user_id', userId).order('namn')
+      .then(({ data }) => { setKontaktar(data || []); setKontaktarLoad(false) })
+  }, [userId])
+
+  const leggTilKontakt = async () => {
+    if (!nyttNamn.trim() || !nyeInitialar.trim() || !nyEpost.trim()) return
+    const rad = { id: Date.now(), user_id: userId, namn: nyttNamn.trim(),
+      initialar: nyeInitialar.trim().toUpperCase(), epost: nyEpost.trim() }
+    const { error } = await supabase.from('kontaktar').insert(rad)
+    if (error) { setFeedback({ type:'err', msg:'Klarte ikkje lagre kontakten: ' + error.message }); return }
+    setKontaktar(k => [...k, rad].sort((a, b) => a.namn.localeCompare(b.namn, 'no')))
+    setNyttNamn(''); setNyeInitialar(''); setNyEpost('')
+  }
+  const slettKontakt = async (id) => {
+    if (!window.confirm('Slette denne kontakten?')) return
+    await supabase.from('kontaktar').delete().eq('id', id)
+    setKontaktar(k => k.filter(x => x.id !== id))
+  }
 
   // Close on outside click
   useEffect(() => {
@@ -175,6 +209,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
         <div style={s.tabs}>
           <button style={s.tab(tab==='office')}  onClick={() => setTab('office')}>Kontor</button>
           <button style={s.tab(tab==='members')} onClick={() => setTab('members')}>Medlemmar</button>
+          <button style={s.tab(tab==='kontaktar')} onClick={() => setTab('kontaktar')}>Kontaktar</button>
           <button style={s.tab(tab==='profile')} onClick={() => setTab('profile')}>Min profil</button>
         </div>
 
@@ -321,6 +356,51 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Kontaktar-fana (KS-varsling) ── */}
+          {tab === 'kontaktar' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              <p style={{ fontSize:12.5, color:'var(--text3)', lineHeight:1.6, margin:0 }}>
+                Brukt til å slå opp e-postadressa når kvalitetssystemet skal varsle om at eit dokument er klart
+                for fagkontroll/godkjenning — <b>initialane</b> må stemme med det som står i «Fagkontroll»/
+                «Godkjent»-kolonnane i DTM (t.d. «GML»).
+              </p>
+              <div style={{ background:'var(--bg3)', borderRadius:'var(--r2)', padding:16,
+                display:'flex', flexDirection:'column', gap:10 }}>
+                <label style={s.label}>Legg til kontakt</label>
+                <input style={s.input} placeholder="Namn (t.d. Geir Magne Lied)" value={nyttNamn}
+                  onChange={e => setNyttNamn(e.target.value)}/>
+                <input style={s.input} placeholder="Initialar (t.d. GML)" value={nyeInitialar}
+                  onChange={e => setNyeInitialar(e.target.value)}/>
+                <input style={s.input} type="email" placeholder="epost@eksempel.no" value={nyEpost}
+                  onChange={e => setNyEpost(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && leggTilKontakt()}/>
+                <button onClick={leggTilKontakt} style={{ ...s.btn(true), alignSelf:'flex-start' }}>
+                  Legg til
+                </button>
+              </div>
+              <div>
+                <label style={s.label}>Kontaktar ({kontaktar.length})</label>
+                {kontaktarLoad ? (
+                  <div style={{ color:'var(--text3)', fontSize:13 }}>Lastar…</div>
+                ) : kontaktar.length === 0 ? (
+                  <div style={{ color:'var(--text3)', fontSize:13 }}>Ingen kontaktar enno.</div>
+                ) : kontaktar.map(k => (
+                  <div key={k.id} style={{ display:'flex', alignItems:'center', gap:10,
+                    padding:'8px 12px', borderRadius:'var(--r)', border:'1px solid var(--border)', marginBottom:6 }}>
+                    <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--brand)', width:50 }}>{k.initialar}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13.5, fontWeight:600, color:'var(--text)' }}>{k.namn}</div>
+                      <div style={{ fontSize:11.5, color:'var(--text3)' }}>{k.epost}</div>
+                    </div>
+                    <button onClick={() => slettKontakt(k.id)}
+                      style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer',
+                        fontSize:18, fontWeight:800, lineHeight:1 }}>×</button>
+                  </div>
+                ))}
               </div>
             </div>
           )}

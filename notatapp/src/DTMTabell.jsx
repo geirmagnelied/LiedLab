@@ -1,7 +1,8 @@
 import { useCallback } from 'react'
 import DataTabell, { Pille } from './DataTabell'
 import { fmtDateShort } from './sakerKonstantar'
-import { reknStatus, løysAktivtSett, KATEGORIAR, KATEGORI_LABEL, KATEGORI_MAPPE, FERDIGSTILLING_STATUS, utsendingsnrTekst } from './dtmKonstantar'
+import { reknStatus, løysAktivtSett, KATEGORIAR, KATEGORI_LABEL, KATEGORI_MAPPE, FERDIGSTILLING_STATUS,
+  EKSTERN_DOK_KATEGORIAR, utsendingsnrTekst, LEVERANSE_FASAR, LEVERANSE_FASAR_BASIS, LEVERANSE_FASAR_EKSTRA, erForsinka } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTM-matrisa — kolonnedefinisjonar og celle-visning for eitt «sett»
@@ -26,6 +27,9 @@ const STATUS_FARGE = {
 const VISINGSFILTER = [
   { namn:'Alle', kolonnar:null },
   { namn:'Tegningsliste', kolonnar:['nr', 'tittel', 'filtype', 'rev', 'dato', 'format', 'malestokk'] },
+  { namn:'Dokumentleveranseplan', kolonnar:['nr', 'tittel', 'filtype', 'rev', 'dato', 'format', 'malestokk',
+    ...LEVERANSE_FASAR_BASIS.flatMap(f => [`planlagt_${f.key}`, `sendt_${f.key}`]),
+    ...LEVERANSE_FASAR_EKSTRA.map(f => `sendt_${f.key}`)] },
 ]
 
 // Alle kolonnar er synlege som standard (brukar sitt eige krav 25. sept.
@@ -33,8 +37,9 @@ const VISINGSFILTER = [
 // som standard visning») — ingen `standardSkjult` lenger.
 const BASE_COLUMNS = [
   { key:'nr',          label:'Dokumentnummer', art:'tekst', mono:true, opnaFil:true, redigerbar:true, maskinlest:true, totalTeljing:true },
-  { key:'tittel',      label:'Tittel',       art:'tekst', utanFilter:true, opnaFil:true },
+  { key:'tittel',      label:'Tittel',       art:'tekst', utanFilter:true, opnaFil:true, redigerbar:true },
   { key:'kategori',    label:'Kategori',     art:'val',   redigerbar:true, val:KATEGORIAR.map(k => KATEGORI_LABEL[k]) },
+  { key:'ekstern_kategori', label:'Kategori eksternt dok.', art:'val', redigerbar:true, val:['', ...EKSTERN_DOK_KATEGORIAR] },
   { key:'status',      label:'Status',       art:'val',   utanFilter:true, beregna:true },
   { key:'filtype',     label:'Filtype',      art:'val',   mono:true, beregna:true },
   { key:'rev',         label:'Rev.',         art:'tekst', mono:true, redigerbar:true, maskinlest:true },
@@ -59,10 +64,29 @@ const BASE_COLUMNS = [
   { key:'fk_person',   label:'Fagkontroll',  art:'val',   maskinlest:true },
   { key:'godkjent_av', label:'Godkjent',     art:'val',   maskinlest:true },
   { key:'oppdragsnr',  label:'Oppdragsnr.',  art:'tekst', mono:true, maskinlest:true },
+  // Generelt på/av-felt, IKKJE avgrensa til éin kategori — t.d. eit utsendt
+  // tilbod (eksternt_dokument) kan vere styrande for arbeidet, same som eit
+  // internt notat kan vere det (brukar sitt eige krav 29. sept. 2026).
+  { key:'er_styrande_dokument', label:'Styrande dokument', art:'bool', redigerbar:true },
+  // Reint UI-val enno — sjølve AI-kallet kjem seinare, sjå dtmKonstantar.js.
+  { key:'ai_indeksering_onska', label:'AI-indeksering', art:'bool', redigerbar:true },
   { key:'lagra_av',    label:'Lagra av',     art:'val',   beregna:true },
   { key:'lasta_opp',   label:'Lasta opp',    art:'dato',  mono:true, beregna:true },
   { key:'utsendingar', label:'Utsendingar',  art:'tekst', utanFilter:true, beregna:true },
   { key:'filsti',      label:'Filsti',       art:'tekst', utanFilter:true, mono:true, maksInnhaldsBreidd:Infinity, beregna:true },
+  // ── Dokumentleveranseplan (1. okt. 2026, sjå claude/dtm-modul.md) ────
+  // Planlagt dato er FRITEKST (same mønster som «dato»/«Første revisjon»
+  // over — brukar skriv datoen sjølv, ikkje ein ekte datoveljar), «sendt»
+  // er ei vanleg bool-kolonne (eitt klikk slår av/på, same mønster som
+  // «Styrande dokument»/«AI-indeksering»). Lagt bakerst i tabellen, som
+  // brukar bad om.
+  ...LEVERANSE_FASAR.flatMap(f => {
+    const skjult = LEVERANSE_FASAR_EKSTRA.includes(f)
+    return [
+      { key:`planlagt_${f.key}`, label:`${f.namn} – planlagt`, art:'tekst', mono:true, redigerbar:true, standardSkjult:skjult },
+      { key:`sendt_${f.key}`,    label:`${f.namn} – sendt`,    art:'bool',  redigerbar:true, standardSkjult:skjult },
+    ]
+  }),
 ]
 
 function hentGjeldande(rad, aktivtSett) {
@@ -72,13 +96,21 @@ function hentGjeldande(rad, aktivtSett) {
 
 export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFil, onDelFil,
                                      onToggleFavorite, onTogglePinned, onRegistrerUtsending,
-                                     merking, oppdragsSti, eigneKolonnar = [], utsendingarPerDokument = {} }) {
+                                     merking, oppdragsSti, eigneKolonnar = [], utsendingarPerDokument = {},
+                                     // Valfrie — brukt av KvalitetModule.jsx sin kontroll-tabell, som viser DEI
+                                     // SAME kolonnedefinisjonane (BASE_COLUMNS) men med EI ANNA standardvising
+                                     // og EIT EIGE, SEPARAT lagra kolonneoppsett enn DTM-modulen sitt eige
+                                     // (sjå claude/kvalitetsmodul-teikningar.md, «Del B»).
+                                     prefsKeySuffix, standardSynlegeKolonnar }) {
   const hentVerdi = useCallback((rad, key) => {
     const { sett, g } = hentGjeldande(rad, aktivtSett)
     switch (key) {
       case 'nr':          return rad.nr || ''
       case 'tittel':      return rad.tittel || rad.nr || ''
       case 'kategori':    return sett ? KATEGORI_LABEL[sett] : ''
+      case 'ekstern_kategori': return rad.ekstern_kategori || ''
+      case 'er_styrande_dokument': return !!rad.er_styrande_dokument
+      case 'ai_indeksering_onska': return !!rad.ai_indeksering_onska
       case 'status':      return sett ? reknStatus(rad, sett).join(', ') : ''
       case 'filtype': {
         const m = /\.([a-z0-9]+)$/i.exec(g.filnamn || '')
@@ -112,7 +144,10 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'utsendingar': return (utsendingarPerDokument[rad.id] || [])
         .map(u => `${utsendingsnrTekst(u.utsendingsnr)} (${fmtDateShort(u.dato)})`).join(', ')
       case 'filsti':       return (sett && g.filnamn && oppdragsSti) ? `${oppdragsSti}\\${KATEGORI_MAPPE[sett]}\\${g.filnamn}` : ''
-      default:            return String(rad.ekstra?.[key] ?? '')
+      default:
+        if (key.startsWith('planlagt_')) return rad[key] || ''
+        if (key.startsWith('sendt_'))    return !!rad[key]
+        return String(rad.ekstra?.[key] ?? '')
     }
   }, [aktivtSett, oppdragsSti, utsendingarPerDokument])
 
@@ -146,6 +181,13 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
         : (rad.timebudsjett == null || rad.ferdigstillelse == null ? null : Math.round(rad.timebudsjett * (1 - rad.ferdigstillelse / 100) * 10) / 10)
       if (v == null || v === '') return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>
       return <span style={{ fontVariantNumeric:'tabular-nums' }}>{v} t</span>
+    }
+    if (kol.key.startsWith('planlagt_')) {
+      const verdi = rad[kol.key] || ''
+      if (!verdi) return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>
+      const forsinka = erForsinka(rad, kol.key.slice('planlagt_'.length))
+      return <span style={{ color: forsinka ? 'var(--danger)' : undefined, fontWeight: forsinka ? 700 : undefined }}
+        title={forsinka ? 'Planlagt dato er passert — ikkje markert sendt enno' : undefined}>{verdi}</span>
     }
     if (kol.key === 'utsendingar') {
       const liste = utsendingarPerDokument[rad.id] || []
@@ -191,8 +233,10 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
         merking={merking}
         innhaldstilpassaBreidd
         rutenettRedigering
+        klistreKolonnar={['nr', 'tittel']}
         visingsFilter={VISINGSFILTER}
-        prefsKey={`${PREFS_KEY}:${aktivtSett}`}
+        prefsKey={`${PREFS_KEY}${prefsKeySuffix ? `:${prefsKeySuffix}` : ''}:${aktivtSett}`}
+        standardSynlegeKolonnar={standardSynlegeKolonnar}
         itemNamn="dokument"
         defaultSortering={{ key:'nr', dir:'asc' }}
       />

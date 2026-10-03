@@ -87,6 +87,11 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
   dtmApneFil: (oppdragsSti, kategori, filnamn, arkivert) =>
     ipcRenderer.invoke('dtm:apne-fil', { oppdragsSti, kategori, filnamn, arkivert }),
 
+  // Les ei gjeldande DTM-fil sine rå bytes (base64) — sjå skyopplastinga
+  // av resultatdokument, claude/dtm-modul.md.
+  dtmLesFilBytes: (oppdragsSti, kategori, filnamn) =>
+    ipcRenderer.invoke('dtm:les-fil-bytes', { oppdragsSti, kategori, filnamn }),
+
   // «Del fil» — kopierer filstien(ane) til utklippstavla og opnar e-post-
   // programmet med dei lima inn. «stiar» er fulle filstiar (kan vere fleire).
   dtmDelFil: (stiar) => ipcRenderer.invoke('dtm:del-fil', { stiar }),
@@ -111,6 +116,33 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
   // Rendrar ferdig HTML (bygd av TegningslisteModal.jsx, éi <div class="side">
   // per side) til ei ekte PDF-fil via Chromium sin eigen printToPDF, og
   // lagrar DIREKTE i vald DTM-kategorimappe (ingen «lagre som»-dialog).
-  dtmGenererTegningslistePdf: (html, oppdragsSti, kategori, filnamn) =>
-    ipcRenderer.invoke('dtm:generer-tegningsliste-pdf', { html, oppdragsSti, kategori, filnamn }),
+  // `snapshotData` (valfri) vert lagra som eit vesle status-JSON attmed PDF-
+  // en, brukt til å oppdage KVA CELLER som er endra neste gong same
+  // tegningsliste (kategori+dokumentnummer) vert generert.
+  dtmGenererTegningslistePdf: (html, oppdragsSti, kategori, filnamn, dokumentnummer, snapshotData) =>
+    ipcRenderer.invoke('dtm:generer-tegningsliste-pdf', { html, oppdragsSti, kategori, filnamn, dokumentnummer, snapshotData }),
+
+  // Les status-snapshotet frå FØRRE generering av same tegningsliste (eller
+  // null om det ikkje finst nokon endå) — sjå dtmGenererTegningslistePdf.
+  dtmLesTegningslisteSnapshot: (oppdragsSti, kategori, dokumentnummer) =>
+    ipcRenderer.invoke('dtm:les-tegningsliste-snapshot', { oppdragsSti, kategori, dokumentnummer }),
+
+  // Excel-eksport (Tegningsliste/Dokumentleveranseplan) — same generiske
+  // kolonne/rad-oppsett som PDF-en, berre skrive til .xlsx i staden.
+  dtmGenererExcel: (rader, kolonnar, oppdragsSti, kategori, filnamn) =>
+    ipcRenderer.invoke('dtm:generer-excel', { rader, kolonnar, oppdragsSti, kategori, filnamn }),
+
+  // Opnar det skalerbare sjekkliste-vindauget for kontroll av teikningar
+  // (egenkontroll/fagkontroll/godkjenning) — sjå KvalitetModule.jsx og
+  // SjekklisteVindauge.jsx.
+  ksApneSjekklisteVindauge: (dokumentId, kontrolltype) =>
+    ipcRenderer.invoke('ks:apne-sjekkliste-vindauge', { dokumentId, kontrolltype }),
+
+  // Bilete-modulen, sjå claude/bilete-modul.md.
+  biliteImporter: (filPathar, oppdragsSti, kjenteNr, brukarNamn) =>
+    ipcRenderer.invoke('bilete:importer', { filPathar, oppdragsSti, kjenteNr, brukarNamn }),
+  biliteImporterFraBytar: (filer, oppdragsSti, kjenteNr, brukarNamn) =>
+    ipcRenderer.invoke('bilete:importer-fra-bytar', { filer, oppdragsSti, kjenteNr, brukarNamn }),
+  biliteApneFil: (oppdragsSti, filnamn) =>
+    ipcRenderer.invoke('bilete:apne-fil', { oppdragsSti, filnamn }),
 })

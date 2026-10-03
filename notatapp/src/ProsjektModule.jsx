@@ -157,6 +157,11 @@ function tomtProsjekt() {
     offerPrice: '', estimatedHours: '', sentDate: '', actualHours: '',
     // Oppdragsmappe (lokal filstruktur)
     oppdragsSti: '', oppdragsStiLast: false,
+    // Skyopplasting av resultatdokument (DTM, sjå claude/dtm-modul.md) —
+    // AV som standard per prosjekt (brukar sitt eige krav 1. okt. 2026:
+    // ikkje automatisk for alle prosjekt, sidan nokre kan ha dokument ein
+    // ikkje vil ha liggjande i ein skybøtte i det heile).
+    skyOpplastingResultatdokument: false,
   }
 }
 
@@ -997,6 +1002,21 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                     </button>
                   </>
                 )}
+              </Section>
+
+              {/* ── Skyopplasting (DTM, sjå claude/dtm-modul.md) ── */}
+              <Section title="Skyopplasting">
+                <label style={{ display:'flex', alignItems:'flex-start', gap:8, cursor:'pointer' }}>
+                  <input type="checkbox" checked={form.skyOpplastingResultatdokument || false}
+                    onChange={e => set('skyOpplastingResultatdokument', e.target.checked)}
+                    style={{ marginTop:2 }}/>
+                  <span style={{ fontSize:12.5, color:'var(--text2)', lineHeight:1.6 }}>
+                    Last siste versjon av resultatdokument opp til ein privat skybøtte, slik at dei
+                    kan opnast frå mobil (via den vanlege nettsida — krev innlogging med same konto).
+                    Berre siste versjon av kvart dokument er tilgjengeleg derifrå, ingen
+                    revisjonshistorikk.
+                  </span>
+                </label>
               </Section>
 
               </div>

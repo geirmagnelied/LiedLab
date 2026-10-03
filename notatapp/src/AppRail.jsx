@@ -1,20 +1,61 @@
 import { useState } from 'react'
 
+// ── Paraply-struktur (brukar sitt eige krav 30. sept. 2026) ──────────
+// «Admin» og «Gjeremål» er reine NAVIGASJONS-paraplyar utan eigen
+// modul-komponent — dei viser berre undermodulane sine i AppRailUndermeny
+// (rail 2). Resten av modulane er framleis direkte, uendra topp-nivå-val.
 const MODULES = [
-  { key: 'prosjekt', letter: 'P',  label: 'Prosjekt',       color: '#85B7EB' },
-  { key: 'kunde',    letter: 'K',  label: 'Kunde',          color: '#D4537E' },
-  { key: 'notatar',  letter: 'N',  label: 'Notatar',        color: '#52B788' },
-  { key: 'oppgaver', letter: 'O',  label: 'Oppg\u00E5ver',  color: '#4EADA3' },
-  { key: 'saker',    letter: 'S',  label: 'Saker',          color: '#E07A5F' },
-  { key: 'timar',    letter: 'T',  label: 'Timar',          color: '#60A5D4' },
-  { key: 'kvalitet', letter: 'KS', label: 'Kvalitetssystem', color: '#EC9A5A' },
-  { key: 'farge',    letter: 'F',  label: 'Farge',          color: '#C084B6' },
-  { key: 'dtm', letter: 'DTM', label: 'Dokument, tegningar og modellar', color: '#E9C46A' },
-  { key: 'kalender', letter: 'Ka', label: 'Kalender',       color: '#2A9D8F' },
+  { key: 'admin',     letter: 'A',   label: 'Admin',    color: '#85B7EB', born: ['prosjekt', 'kunde', 'kontordrift'] },
+  { key: 'gjeremaal', letter: 'G',   label: 'Gjeremål', color: '#52B788', born: ['notatar', 'oppgaver', 'saker'] },
+  { key: 'timar',     letter: 'T',   label: 'Timar',    color: '#60A5D4' },
+  { key: 'kvalitet',  letter: 'KS',  label: 'Kvalitetssystem', color: '#EC9A5A' },
+  { key: 'farge',     letter: 'F',   label: 'Farge',    color: '#C084B6' },
+  { key: 'dtm',       letter: 'DTM', label: 'Dokument, tegningar og modellar', color: '#E9C46A' },
+  { key: 'bilete',    letter: 'B',   label: 'Bilete',   color: '#F4A261' },
+  { key: 'framdrift', letter: 'Fd',  label: 'Framdrift', color: '#34D399' },
+  { key: 'kalender',  letter: 'Ka',  label: 'Kalender', color: '#2A9D8F' },
 ]
+
+// Undermodulane sjølve (dei EKSISTERANDE `activeModule`-verdiane, uendra —
+// berre navigasjonsveg dit som er ny). Eksportert slik AppRailUndermeny.jsx
+// og App.jsx (for å avgjere kva paraply som skal syne som aktiv) kan bruke
+// same kjelde.
+export const UNDERMODULAR = {
+  admin: [
+    { key:'prosjekt',    letter:'P',  label:'Prosjekt',    color:'#85B7EB' },
+    { key:'kunde',       letter:'K',  label:'Kundar',      color:'#D4537E' },
+    { key:'kontordrift', letter:'Kd', label:'Kontordrift', color:'#9CA3AF' },
+  ],
+  gjeremaal: [
+    { key:'notatar',  letter:'N', label:'Notatar',  color:'#52B788' },
+    { key:'oppgaver', letter:'O', label:'Oppgåver', color:'#4EADA3' },
+    { key:'saker',    letter:'S', label:'Saker',    color:'#E07A5F' },
+  ],
+}
+
+// Undermodul-nøkkel → paraply-nøkkel (omvendt oppslag av UNDERMODULAR),
+// brukt til å avgjere KVA TOPP-NIVÅ-IKON som skal syne som aktivt når
+// t.d. `activeModule === 'prosjekt'`.
+export const PARENT_AV_MODUL = Object.fromEntries(
+  Object.entries(UNDERMODULAR).flatMap(([toppNokkel, born]) => born.map(b => [b.key, toppNokkel]))
+)
 
 export default function AppRail({ activeModule, onModuleChange }) {
   const [hoveredModule, setHoveredModule] = useState(null)
+  // Kva topp-nivå-ikon skal syne som aktivt? Anten activeModule sjølv (for
+  // modular utan paraply), eller paraplyen som eig activeModule.
+  const gjeldandeTopp = PARENT_AV_MODUL[activeModule] || activeModule
+
+  const handleClick = (mod) => {
+    if (mod.born) {
+      // Alt inne i DENNE paraplyen? Ikkje hopp attende til fyrste barn —
+      // behald kva undermodul brukar faktisk står i.
+      if (PARENT_AV_MODUL[activeModule] === mod.key) return
+      onModuleChange(mod.born[0])
+    } else {
+      onModuleChange(mod.key)
+    }
+  }
 
   return (
     <div style={{
@@ -29,13 +70,13 @@ export default function AppRail({ activeModule, onModuleChange }) {
 
       {/* ── Module buttons ── */}
       {MODULES.map(mod => {
-        const active = activeModule === mod.key
+        const active = gjeldandeTopp === mod.key
         const hovered = hoveredModule === mod.key
 
         return (
           <div key={mod.key} style={{ position: 'relative', marginBottom: 6 }}>
             <button
-              onClick={() => onModuleChange(mod.key)}
+              onClick={() => handleClick(mod)}
               onMouseEnter={() => setHoveredModule(mod.key)}
               onMouseLeave={() => setHoveredModule(null)}
               title={mod.label}

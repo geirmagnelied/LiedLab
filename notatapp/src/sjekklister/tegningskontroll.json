@@ -1,0 +1,1702 @@
+{
+  "generert": "2026-09-27T22:19:55.820Z",
+  "kjelde": "Sjekkliste_tegningskontroll_LiedLab.xlsx",
+  "tittelfelt": [
+    {
+      "id": "TF01",
+      "tekst": "Teiknr. i tittelfelt = teiknr. i filnamn",
+      "ref": "Intern",
+      "stadium": [
+        "Alle"
+      ],
+      "kritisk": true,
+      "auto": true,
+      "merknad": "Auto: regex-sjekk"
+    },
+    {
+      "id": "TF02",
+      "tekst": "Revisjon i tittelfelt = revisjon i filnamn",
+      "ref": "Intern",
+      "stadium": [
+        "Alle"
+      ],
+      "kritisk": true,
+      "auto": true,
+      "merknad": "Auto: regex-sjekk"
+    },
+    {
+      "id": "TF03",
+      "tekst": "Teikningsnamn er utfylt",
+      "ref": "NS-EN ISO 5457",
+      "stadium": [
+        "Alle"
+      ],
+      "kritisk": true,
+      "auto": true,
+      "merknad": "Auto: tom-sjekk"
+    },
+    {
+      "id": "TF04",
+      "tekst": "Målestokk er utfylt (numerisk)",
+      "ref": "NS-EN ISO 5457",
+      "stadium": [
+        "Alle"
+      ],
+      "kritisk": true,
+      "auto": true,
+      "merknad": "Auto: regex-sjekk"
+    },
+    {
+      "id": "TF05",
+      "tekst": "Dato er utfylt og gyldig",
+      "ref": "Intern",
+      "stadium": [
+        "Alle"
+      ],
+      "kritisk": true,
+      "auto": true,
+      "merknad": "Auto: datoformat"
+    },
+    {
+      "id": "TF06",
+      "tekst": "ARK-informasjon / ansvarleg er utfylt",
+      "ref": "Intern",
+      "stadium": [
+        "Alle"
+      ],
+      "kritisk": false,
+      "auto": false,
+      "merknad": ""
+    },
+    {
+      "id": "TF07",
+      "tekst": "Adresse er rett",
+      "ref": "Intern",
+      "stadium": [
+        "Alle"
+      ],
+      "kritisk": true,
+      "auto": false,
+      "merknad": ""
+    },
+    {
+      "id": "TF08",
+      "tekst": "Gnr. og Bnr. er vist",
+      "ref": "PBL §29-4",
+      "stadium": [
+        "RS",
+        "AT"
+      ],
+      "kritisk": true,
+      "auto": false,
+      "merknad": ""
+    },
+    {
+      "id": "TF09",
+      "tekst": "Tiltakshavar er korrekt angitt",
+      "ref": "Intern",
+      "stadium": [
+        "RS",
+        "AT"
+      ],
+      "kritisk": false,
+      "auto": false,
+      "merknad": ""
+    },
+    {
+      "id": "TF10",
+      "tekst": "Tiltakets art er angitt",
+      "ref": "Intern",
+      "stadium": [
+        "RS",
+        "AT"
+      ],
+      "kritisk": false,
+      "auto": false,
+      "merknad": ""
+    }
+  ],
+  "typar": {
+    "situasjonsplan": {
+      "namn": "Situasjonsplan",
+      "punkt": [
+        {
+          "id": "SIT01",
+          "tekst": "Situasjonskart er oppdatert (ikkje eldre enn 1 år)",
+          "ref": "Intern",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT02",
+          "tekst": "Nordpil er teikna",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": true,
+          "auto": true,
+          "merknad": "Auto: Vision API"
+        },
+        {
+          "id": "SIT03",
+          "tekst": "Målsetjing er påført (yttermål)",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT04",
+          "tekst": "Kotehøgder er vist",
+          "ref": "PBL §29-4",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT05",
+          "tekst": "Gjennomsnittleg terrengnivå (GT) er utrekna og vist",
+          "ref": "PBL §29-4",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT06",
+          "tekst": "Høgder bygg er angitt (maks gesims/møne)",
+          "ref": "PBL §29-4",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT07",
+          "tekst": "Nabogrenser er vist med avstandsmål",
+          "ref": "PBL §29-4",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT08",
+          "tekst": "Koordinatar er angitt (EUREF89/NN2000)",
+          "ref": "Intern",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT09",
+          "tekst": "Omgjevnadar og eksisterande tilhøve er vist",
+          "ref": "Intern",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT10",
+          "tekst": "Terreng (eksist. og planert) er vist",
+          "ref": "Intern",
+          "stadium": [
+            "FP",
+            "RS",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT11",
+          "tekst": "Tak er vist korrekt",
+          "ref": "Intern",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT12",
+          "tekst": "Uteareal er vist",
+          "ref": "Reguleringsplan",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT13",
+          "tekst": "Atkomst, snuplass og parkering er vist",
+          "ref": "Reguleringsplan",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT14",
+          "tekst": "Siktlinje er vist der det er krav",
+          "ref": "Reguleringsplan",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT15",
+          "tekst": "Vass- og avlaupsleidningar er vist",
+          "ref": "Intern",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT16",
+          "tekst": "Brannvesen sin atkomst er vist",
+          "ref": "TEK17 §11-17",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT17",
+          "tekst": "Lokal krav iht. reguleringsplan er kontrollerte",
+          "ref": "Reguleringsplan",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT18",
+          "tekst": "Grensesnitt mot tilgrensande fag er avklart",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SIT19",
+          "tekst": "Grafikk er tydeleg og lesbar",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        }
+      ]
+    },
+    "plan": {
+      "namn": "Plan",
+      "punkt": [
+        {
+          "id": "P001",
+          "tekst": "Planer er overordna koordinerte (aksar, mål, rom)",
+          "ref": "Intern",
+          "stadium": [
+            "FP",
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P002",
+          "tekst": "Tegnforklaring er inkludert der det er nødvendig",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "FP",
+            "RS",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P003",
+          "tekst": "Nordpil er teikna på planteikningane",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": true,
+          "auto": true,
+          "merknad": "Auto: Vision API"
+        },
+        {
+          "id": "P004",
+          "tekst": "Aksar med mål er påført",
+          "ref": "Intern",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P005",
+          "tekst": "Etasje er tydeleg merkt",
+          "ref": "Intern",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P006",
+          "tekst": "Opningsmål dører og vindaugar er påført",
+          "ref": "NS 3420",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P007",
+          "tekst": "Brystningshøgde er angitt",
+          "ref": "TEK17 §12-17",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P008",
+          "tekst": "Høgdeplassering (golv-/underkant) er angitt",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P009",
+          "tekst": "Romnamn og nettoareal er vist for alle rom",
+          "ref": "NS 3940",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P010",
+          "tekst": "Rombetejkning / romidentifikator er påført",
+          "ref": "NS 3451",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P011",
+          "tekst": "Bolignummer og brukseiningar er angitt der det er krav",
+          "ref": "PBL",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P012",
+          "tekst": "Veggar er vist med korrekt veggtjukkleik og type",
+          "ref": "Intern",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P013",
+          "tekst": "Bereesystem er vist og koordinert med RIB",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P014",
+          "tekst": "Ovanfor- og nedanforliggande bygningsdeler er vist der relevant",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P015",
+          "tekst": "Snuareal Ø1500 for rullestol er dokumentert",
+          "ref": "TEK17 §12-7",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P016",
+          "tekst": "Trapper er vist med riktig stigning og inntrinn",
+          "ref": "TEK17 §12-14",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P017",
+          "tekst": "Heis er vist og koordinert",
+          "ref": "TEK17 §12-3",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P018",
+          "tekst": "Fall på golv mot sluk er angitt der relevant",
+          "ref": "TEK17 §13-15",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P019",
+          "tekst": "Snitt- og fasadereferansar er korrekte og nummererte",
+          "ref": "Intern",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P020",
+          "tekst": "Samsvar mot andre teikningar er kontrollert",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P021",
+          "tekst": "Layers er strukturerte og korrekte (ArchiCAD/dwg)",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P022",
+          "tekst": "Tagging (IFC-klassifisering) er utført",
+          "ref": "ISO 16739",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P023",
+          "tekst": "Endring av eksisterande bygg er tydeleg vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P024",
+          "tekst": "Aksar med mål er påført på takplan",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P025",
+          "tekst": "Fallretning er påført med fall-tilhøve",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P026",
+          "tekst": "Takoverflate er beskriven",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P027",
+          "tekst": "Slukplassering er vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P028",
+          "tekst": "Nødoverlaup er teikna inn og høgdesett",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P029",
+          "tekst": "Ventilasjonshattar og piper er prosjekterte og vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P030",
+          "tekst": "Snøfangar er inntegna",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "P031",
+          "tekst": "Sikringstiltak for vedlikehald er vurderte",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        }
+      ]
+    },
+    "snitt": {
+      "namn": "Snitt",
+      "punkt": [
+        {
+          "id": "S001",
+          "tekst": "Snitt er overordna koordinerte med planar og fasadar",
+          "ref": "Intern",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S002",
+          "tekst": "Målsetjing er påført",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S003",
+          "tekst": "Målplassering er konsistent",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S004",
+          "tekst": "Fri høgde (min. 2,4 m) er kontrollert",
+          "ref": "TEK17 §12-10",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S005",
+          "tekst": "Høgdeplassering (FG/OK betong) er angitt",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S006",
+          "tekst": "Brystningshøgde er angitt",
+          "ref": "TEK17 §12-17",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S007",
+          "tekst": "Etasjar er tydeleg merkte",
+          "ref": "Intern",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S008",
+          "tekst": "Aksar er påført",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S009",
+          "tekst": "Veggar er vist korrekt",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S010",
+          "tekst": "Bereesystem er vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S011",
+          "tekst": "Tak og takoppbygging er vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S012",
+          "tekst": "Isolasjonstykkleik er angitt",
+          "ref": "TEK17 kap. 14",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S013",
+          "tekst": "Trapper: stigning maks 19 cm, inntrinn min 25 cm",
+          "ref": "TEK17 §12-14",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S014",
+          "tekst": "Heis er vist",
+          "ref": "TEK17 §12-3",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S015",
+          "tekst": "Nedforingar er vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S016",
+          "tekst": "Terrasser og balkongar er vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S017",
+          "tekst": "Terrengprofil (eksist. og planert) er vist",
+          "ref": "Intern",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S018",
+          "tekst": "Samsvar mot planar og fasadar er kontrollert",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S019",
+          "tekst": "Layers er strukturerte og korrekte",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S020",
+          "tekst": "Referansar til detaljar er påført",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S021",
+          "tekst": "Tagging er utført",
+          "ref": "ISO 16739",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S022",
+          "tekst": "Grafikk er tydeleg",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "S023",
+          "tekst": "Endring av eksisterande bygg er tydeleg vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        }
+      ]
+    },
+    "fasade": {
+      "namn": "Fasade",
+      "punkt": [
+        {
+          "id": "F001",
+          "tekst": "Alle fire fasadar er teikna (N/S/Ø/V) med himmelretning",
+          "ref": "Intern",
+          "stadium": [
+            "FP",
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F002",
+          "tekst": "Målsetjing er påført",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F003",
+          "tekst": "Opningsmål for vindaugar og dører er påført",
+          "ref": "NS 3420",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F004",
+          "tekst": "Høgdeplassering (UK/OK gesims, møne) er angitt",
+          "ref": "PBL §29-4",
+          "stadium": [
+            "RS",
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F005",
+          "tekst": "Brystningshøgde på vindaugar er angitt",
+          "ref": "TEK17 §12-17",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F006",
+          "tekst": "Etasjar er merkte",
+          "ref": "Intern",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F007",
+          "tekst": "Aksar er påført",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F008",
+          "tekst": "Takoppbygg er vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F009",
+          "tekst": "Utvendige trapper er vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F010",
+          "tekst": "Fasademateriale og overflatebehandling er spesifisert",
+          "ref": "NS 3420",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F011",
+          "tekst": "Karakter og heilskapleg uttrykk er vurdert",
+          "ref": "PBL §29-2",
+          "stadium": [
+            "FP",
+            "RS"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F012",
+          "tekst": "Omgjevnadar er vist",
+          "ref": "Intern",
+          "stadium": [
+            "FP",
+            "RS"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F013",
+          "tekst": "Terrengprofil (eksist. og planert) er vist",
+          "ref": "Intern",
+          "stadium": [
+            "FP",
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F014",
+          "tekst": "Opningspiler er vist der relevant",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F015",
+          "tekst": "Samsvar mot planar og snitt er kontrollert",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F016",
+          "tekst": "Bereesystem er vist der synleg",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F017",
+          "tekst": "Layers er strukturerte og korrekte",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F018",
+          "tekst": "Referansar til detaljar er påført",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F019",
+          "tekst": "Tagging er utført",
+          "ref": "ISO 16739",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F020",
+          "tekst": "Grafikk er tydeleg",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "F021",
+          "tekst": "Endring av eksisterande bygg er tydeleg vist",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        }
+      ]
+    },
+    "skjema": {
+      "namn": "Skjema",
+      "punkt": [
+        {
+          "id": "SK01",
+          "tekst": "Tilhøyring til plan/snitt er angitt",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK02",
+          "tekst": "Referansar er korrekte",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK03",
+          "tekst": "Målsetjing og opningsmål er påført",
+          "ref": "NS 3420",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK04",
+          "tekst": "Bygningsdeler er definerte",
+          "ref": "NS 3451",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK05",
+          "tekst": "Aksar er påført",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK06",
+          "tekst": "Byggtoleransar er angitt",
+          "ref": "NS-EN 13670",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK07",
+          "tekst": "Samsvar med teikningar er kontrollert",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK08",
+          "tekst": "Samsvar med konstruksjon (RIB) er kontrollert",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK09",
+          "tekst": "Layers er korrekte",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK10",
+          "tekst": "Tekst er korrekt og utan skrivefeil",
+          "ref": "Intern",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK11",
+          "tekst": "Grensesnitt mot tilgrensande fag er avklart",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK12",
+          "tekst": "Tagging er utført",
+          "ref": "ISO 16739",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK13",
+          "tekst": "Grafikk er tydeleg",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK14",
+          "tekst": "Mal for vinduskjema er brukt",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK15",
+          "tekst": "Riktig storleik er angitt",
+          "ref": "NS 3420",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK16",
+          "tekst": "Opningsfelt er angitt",
+          "ref": "TEK17 §13-1",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK17",
+          "tekst": "Hengslingstype og opningsretning er påført og kontrollert",
+          "ref": "NS 3420",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK18",
+          "tekst": "Sikkerheitsglas er beskriven (krav iht. TEK17 §12-17)",
+          "ref": "TEK17 §12-17",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK19",
+          "tekst": "U-verdi glas er beskriven",
+          "ref": "TEK17 §14-3",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK20",
+          "tekst": "Brannkrav er beskriven",
+          "ref": "TEK17 kap. 11",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK21",
+          "tekst": "Krav til lystransmisjon er beskriven",
+          "ref": "NS-EN 12464-1",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK22",
+          "tekst": "Krav til lydeigemskapar er beskriven",
+          "ref": "NS 8175",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "SK23",
+          "tekst": "Brystningshøgde er angitt",
+          "ref": "TEK17 §12-17",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        }
+      ]
+    },
+    "detaljar": {
+      "namn": "Detaljar",
+      "punkt": [
+        {
+          "id": "D001",
+          "tekst": "Tilhøyring til hovudteikningar er angitt",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D002",
+          "tekst": "Referansar er korrekte",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D003",
+          "tekst": "Grafikk og linjevekt er tydelege",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D004",
+          "tekst": "Målsetjing er påført",
+          "ref": "NS-EN ISO 5457",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D005",
+          "tekst": "Opningsmål er påført der relevant",
+          "ref": "NS 3420",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D006",
+          "tekst": "Bygningsdeler er spesifiserte med produktreferansar",
+          "ref": "NS 3420",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D007",
+          "tekst": "Aksar er påført der relevant",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D008",
+          "tekst": "Byggtoleransar er angitt",
+          "ref": "NS-EN 13670",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D009",
+          "tekst": "Samsvar med tilgrensande teikningar er kontrollert",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D010",
+          "tekst": "Layers er korrekte",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D011",
+          "tekst": "Tekst er korrekt",
+          "ref": "Intern",
+          "stadium": [
+            "Alle"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D012",
+          "tekst": "Grensesnitt mot tilgrensande fag er avklart",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D013",
+          "tekst": "Tagging er utført",
+          "ref": "ISO 16739",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "D014",
+          "tekst": "Produktkombinasjoner er sjekka og dokumenterte av leverandør",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        }
+      ]
+    },
+    "ifc_og_dwg": {
+      "namn": "IFC og DWG",
+      "punkt": [
+        {
+          "id": "IFC01",
+          "tekst": "Filnamn identifiserer fag, prosjektnr. og prosjektnamn",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "IFC02",
+          "tekst": "Fil er opna i Solibri – innhald er som forventa",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "IFC03",
+          "tekst": "Filstorleik er rimeleg (detaljeringsgrad justert)",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "DWG01",
+          "tekst": "DWG er opna og eksport er kontrollert ved første gongs generering",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": true,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "DWG02",
+          "tekst": "Tekstboks med prosjektstikkord er plassert (dersom ikkje frå Layout)",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        },
+        {
+          "id": "DWG03",
+          "tekst": "Det står i DWG at PDF gjeld foran DWG",
+          "ref": "Intern",
+          "stadium": [
+            "AT"
+          ],
+          "kritisk": false,
+          "auto": false,
+          "merknad": ""
+        }
+      ]
+    }
+  }
+}

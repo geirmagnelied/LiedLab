@@ -16,6 +16,8 @@ den relevante fila når ei oppgåve gjeld eit tema han dekkjer:
   Python/Flask-verktøy (ikkje ein del av dette repoet), dokumentert her fordi
   KS-modulens PDF-tittelfelt-lesing (`lesTittelfelt()`) er ein direkte port
   av logikk derifrå — sjå fila for autoritative regex-mønster og kontekst
+- `claude/framdrift-modul.md` — Framdrift-modulen (faseplan/Gantt per prosjekt,
+  avhengnader, malar, import av Excel/MS Project XML; tabell `framdrift_planar`)
 - `claude/dtm-modul.md` — **under bygging** (frå 24. sept. 2026): DTM
   (Dokument, tegningar og modellar) erstattar Resultatdokument-modulen.
   Full spesifikasjon (mapper, datamodell, status-logikk, importflytar,

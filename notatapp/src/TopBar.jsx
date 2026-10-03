@@ -1,8 +1,70 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+
+// Søkbar prosjektveljar (typeahead) i staden for ein vanleg <select> —
+// brukar sitt eige krav 29. sept. 2026: TopBar sitt prosjektval skal
+// kunne SØKJAST i, ikkje berre scrollast gjennom. Reint klientside-filter
+// over den alt innlasta `projects`-lista (ingen database-tur nødvendig,
+// til skilnad frå SokeFelt.jsx sitt innhaldssøk).
+function ProsjektVelger({ projects, activeProjectId, onSelectProject }) {
+  const [open, setOpen] = useState(false)
+  const [sok, setSok]   = useState('')
+  const boksRef = useRef(null)
+  const active = projects.find(p => p.id === activeProjectId)
+  const merkelapp = p => (p.projectNumber ? `${p.projectNumber} — ${p.name}` : p.name)
+
+  useEffect(() => {
+    if (!open) return
+    const lukk = e => { if (boksRef.current && !boksRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', lukk)
+    return () => document.removeEventListener('mousedown', lukk)
+  }, [open])
+
+  const treff = sok.trim()
+    ? projects.filter(p => merkelapp(p).toLowerCase().includes(sok.trim().toLowerCase()))
+    : projects
+
+  return (
+    <div ref={boksRef} style={{ position:'relative' }}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        style={{ padding:'6px 10px', borderRadius:6, border:'1.5px solid rgba(255,255,255,.22)',
+          background: active ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.06)',
+          color:'#fff', fontSize:13, fontWeight:600, fontFamily:'var(--font)', cursor:'pointer',
+          maxWidth:320, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textAlign:'left' }}>
+        {active ? merkelapp(active) : '— Alle prosjekt —'}
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, width:300, maxHeight:360,
+          overflow:'hidden', display:'flex', flexDirection:'column', background:'var(--bg2)',
+          border:'1px solid var(--border)', borderRadius:'var(--r2)', boxShadow:'var(--shadow-lg)', zIndex:300 }}>
+          <input autoFocus value={sok} onChange={e => setSok(e.target.value)} placeholder="Søk prosjekt…"
+            style={{ margin:8, padding:'7px 10px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
+              background:'var(--bg)', color:'var(--text)', fontSize:12.5, fontFamily:'var(--font)', outline:'none' }}/>
+          <div style={{ overflow:'auto' }}>
+            <button type="button" onClick={() => { onSelectProject(null); setOpen(false); setSok('') }}
+              style={{ display:'block', width:'100%', textAlign:'left', padding:'7px 12px', border:'none',
+                background: !activeProjectId ? 'var(--brandbg)' : 'transparent', color:'var(--text)',
+                fontSize:12.5, fontWeight: !activeProjectId ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)' }}>
+              — Alle prosjekt —
+            </button>
+            {treff.length === 0 ? (
+              <div style={{ padding:'10px 12px', fontSize:12, color:'var(--text3)' }}>Ingen treff.</div>
+            ) : treff.map(p => (
+              <button key={p.id} type="button" onClick={() => { onSelectProject(p.id); setOpen(false); setSok('') }}
+                style={{ display:'block', width:'100%', textAlign:'left', padding:'7px 12px', border:'none',
+                  background: p.id === activeProjectId ? 'var(--brandbg)' : 'transparent', color:'var(--text)',
+                  fontSize:12.5, fontWeight: p.id === activeProjectId ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)' }}>
+                {merkelapp(p)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function TopBar({ projects, activeProjectId, onSelectProject, onOpenSettings,
                                   offices = [], activeOfficeId, onSetOffice, onAddOffice }) {
-  const active = projects.find(p => p.id === activeProjectId)
   const [showNewOffice,  setShowNewOffice]  = useState(false)
   const [newOfficeName,  setNewOfficeName]  = useState('')
   const [newOfficeColor, setNewOfficeColor] = useState('#1B4332')
@@ -54,10 +116,6 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onO
       {/* ── Kontor-veljar ── */}
       {onSetOffice && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.4)',
-            letterSpacing: '.03em', textTransform: 'uppercase' }}>
-            Kontor
-          </span>
           <select
             value={activeOfficeId || ''}
             onChange={e => {
@@ -127,24 +185,7 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onO
           letterSpacing: '.03em', textTransform: 'uppercase' }}>
           Prosjekt
         </span>
-        <select
-          value={activeProjectId || ''}
-          onChange={e => onSelectProject(e.target.value ? Number(e.target.value) : null)}
-          style={{
-            padding: '6px 10px', borderRadius: 6,
-            border: '1.5px solid rgba(255,255,255,.22)',
-            background: active ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.06)',
-            color: '#fff', fontSize: 13, fontWeight: 600,
-            fontFamily: 'var(--font)', cursor: 'pointer',
-            maxWidth: 320, outline: 'none',
-          }}>
-          <option value="" style={{ color: '#000' }}>— Alle prosjekt —</option>
-          {projects.map(p => (
-            <option key={p.id} value={p.id} style={{ color: '#000' }}>
-              {p.projectNumber ? `${p.projectNumber} — ${p.name}` : p.name}
-            </option>
-          ))}
-        </select>
+        <ProsjektVelger projects={projects} activeProjectId={activeProjectId} onSelectProject={onSelectProject}/>
       </div>
 
       <div style={{ flex: 1 }}/>

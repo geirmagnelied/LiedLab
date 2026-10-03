@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { finnGjeldandeKategori, KATEGORI_LABEL, UTSENDING_KANALAR, utsendingsnrTekst } from './dtmKonstantar'
+import { finnGjeldandeKategori, KATEGORI_LABEL, UTSENDING_KANALAR, utsendingsnrTekst,
+  LEVERANSE_FASAR_BASIS, LEVERANSE_FASAR_EKSTRA } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTMUtsendingModal — registrering av éi utsending (t.d. e-post) av eitt
@@ -16,9 +17,18 @@ import { finnGjeldandeKategori, KATEGORI_LABEL, UTSENDING_KANALAR, utsendingsnrT
 //      (t.d. .msg-fil). Dette set status til sendt automatisk.
 // ═══════════════════════════════════════════════════════════════════
 
+// Tabell-stilane for dokumentlista (sjå render under) — definerte på
+// modulnivå sidan dei ikkje avheng av props/state, same mønster som
+// handtakStil() i TegningslisteModal.jsx.
+const TH_STIL = { padding:'6px 8px', fontSize:10.5, fontWeight:700, color:'var(--text3)', textAlign:'center', whiteSpace:'nowrap' }
+const FASE_TH_STIL = { ...TH_STIL, padding:'5px 4px', lineHeight:1.35, cursor:'help', minWidth:56, whiteSpace:'normal' }
+const TD_STIL = { padding:'6px 8px', textAlign:'center' }
+const FASE_TD_STIL = { ...TD_STIL, cursor:'help' }
+
 export default function DTMUtsendingModal({ utsending, dokumenter, oppdragsSti, onLukk,
                                              onOppdater, onLeggTilDokument, onFjernDokument,
-                                             onApneEpost, onBekreftSendt, onLagreKvittering, onApneKvittering }) {
+                                             onApneEpost, onBekreftSendt, onLagreKvittering, onApneKvittering,
+                                             onMarkerLevert }) {
   const [visVeljar, setVisVeljar] = useState(false)
   const [veljarSøk, setVeljarSøk] = useState('')
   const [veljarValde, setVeljarValde] = useState(() => new Set())
@@ -27,6 +37,10 @@ export default function DTMUtsendingModal({ utsending, dokumenter, oppdragsSti, 
   const [opnarEpost, setOpnarEpost] = useState(false)
   const [lagrarKvittering, setLagrarKvittering] = useState(false)
   const [dragOverKvittering, setDragOverKvittering] = useState(false)
+  // Ekstra leveransetypar brukar sjølv har lagt til i DENNE dialogen (sjå
+  // LEVERANSE_FASAR_EKSTRA) — kjem i tillegg til dei som ALT har data på eit
+  // av dokumenta i utsendinga.
+  const [ekstraLagtTil, setEkstraLagtTil] = useState(() => new Set())
 
   const harBru = typeof window !== 'undefined' && !!window.resultatdokumentAPI
   const sendt = utsending.status === 'sendt'
@@ -38,6 +52,14 @@ export default function DTMUtsendingModal({ utsending, dokumenter, oppdragsSti, 
     return dokumenter.filter(d => !alleredeLagt.has(d.nr)
       && (!s || d.nr.toLowerCase().includes(s) || (d.tittel || '').toLowerCase().includes(s)))
   }, [veljarSøk, dokumenter, alleredeLagt])
+
+  const utsDokumenter = (utsending.dokument || []).map(d => dokumenter.find(dd => dd.id === d.dokument_id)).filter(Boolean)
+  const synlegeFasar = [
+    ...LEVERANSE_FASAR_BASIS,
+    ...LEVERANSE_FASAR_EKSTRA.filter(f => ekstraLagtTil.has(f.key)
+      || utsDokumenter.some(dok => dok[`sendt_${f.key}`] || dok[`planlagt_${f.key}`])),
+  ]
+  const ledigeEkstraFasar = LEVERANSE_FASAR_EKSTRA.filter(f => !synlegeFasar.includes(f))
 
   const veksleKanal = (key) => {
     if (sendt) return
@@ -102,7 +124,7 @@ export default function DTMUtsendingModal({ utsending, dokumenter, oppdragsSti, 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.42)', display:'flex',
       alignItems:'center', justifyContent:'center', zIndex:200 }}>
-      <div style={{ background:'var(--bg2)', borderRadius:'var(--r2)', width:'min(94vw, 680px)',
+      <div style={{ background:'var(--bg2)', borderRadius:'var(--r2)', width:'min(96vw, 920px)',
         maxHeight:'90vh', overflow:'hidden', display:'flex', flexDirection:'column',
         boxShadow:'0 24px 70px rgba(0,0,0,.35)' }}>
 
@@ -163,22 +185,73 @@ export default function DTMUtsendingModal({ utsending, dokumenter, oppdragsSti, 
             <div style={{ border:'1.5px solid var(--border)', borderRadius:'var(--r)', overflow:'hidden' }}>
               {(utsending.dokument || []).length === 0 ? (
                 <div style={{ padding:'12px', fontSize:12.5, color:'var(--text3)' }}>Ingen dokument lagt til enno.</div>
-              ) : utsending.dokument.map((d, i) => (
-                <div key={d.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 12px',
-                  borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                  <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--brand)', fontSize:12.5 }}>{d.nr}</span>
-                  <span style={{ fontSize:11.5, color:'var(--text3)' }}>{KATEGORI_LABEL[d.kategori] || d.kategori}</span>
-                  <span style={{ fontSize:11.5, color:'var(--text3)', flex:1, overflow:'hidden',
-                    textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={d.filnamn}>{d.filnamn}</span>
-                  {!sendt && (
-                    <button onClick={() => onFjernDokument(d.id)} title="Fjern"
-                      style={{ border:'none', background:'transparent', color:'var(--text3)', fontSize:14, cursor:'pointer', fontWeight:800 }}>×</button>
-                  )}
-                </div>
-              ))}
+              ) : (
+                // Same grunnidé som hovudtabellen (DTMTabell.jsx): dokumentnr. og
+                // tittel synlege lengst til venstre, leveranseplanen sine kolonnar
+                // til høgre — i staden for ei andre tekstlinje under kvar rad
+                // (brukar sitt eige krav 1. okt. 2026, var opphavleg to linjer).
+                // Kolonneoverskriftene er FORKORTA (PU/FG/AT/SB, sjå LEVERANSE_FASAR)
+                // og to linjer høge for å halde kolonnebreidda nede — fullt namn
+                // kjem fram som ei hover-forklaring på sjølve overskrifta.
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12.5 }}>
+                  <thead>
+                    <tr style={{ background:'var(--bg3)' }}>
+                      <th style={{ ...TH_STIL, textAlign:'left' }}>Dokumentnr.</th>
+                      <th style={{ ...TH_STIL, textAlign:'left' }}>Tittel</th>
+                      {synlegeFasar.map(f => (
+                        <th key={f.key} style={FASE_TH_STIL} title={`Leveranse: ${f.namn}`}>
+                          Leveranse {f.kode}
+                        </th>
+                      ))}
+                      <th style={{ ...TH_STIL, width:26 }}/>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {utsending.dokument.map((d, i) => {
+                      const dok = dokumenter.find(dd => dd.id === d.dokument_id)
+                      return (
+                        <tr key={d.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                          <td style={{ ...TD_STIL, textAlign:'left', fontFamily:'var(--mono)', fontWeight:700, color:'var(--brand)' }}>
+                            {d.nr}
+                          </td>
+                          <td style={{ ...TD_STIL, textAlign:'left', maxWidth:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                            title={`${dok?.tittel || d.filnamn || d.nr}${d.filnamn ? ` — ${d.filnamn}` : ''} (${KATEGORI_LABEL[d.kategori] || d.kategori})`}>
+                            {dok?.tittel || d.filnamn || d.nr}
+                          </td>
+                          {synlegeFasar.map(f => (
+                            <td key={f.key} style={FASE_TD_STIL}
+                              title={dok?.[`planlagt_${f.key}`] ? `Planlagt: ${dok[`planlagt_${f.key}`]}` : 'Ingen planlagt dato sett'}>
+                              {dok && onMarkerLevert && (
+                                <input type="checkbox" checked={!!dok[`sendt_${f.key}`]} disabled={sendt}
+                                  onChange={() => onMarkerLevert(dok.id, f.key, !dok[`sendt_${f.key}`])}/>
+                              )}
+                            </td>
+                          ))}
+                          <td style={TD_STIL}>
+                            {!sendt && (
+                              <button onClick={() => onFjernDokument(d.id)} title="Fjern"
+                                style={{ border:'none', background:'transparent', color:'var(--text3)', fontSize:14, cursor:'pointer', fontWeight:800 }}>×</button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
             {!sendt && !visVeljar && (
-              <button className="dt-knapp" style={{ marginTop:8 }} onClick={opneVeljar}>+ Legg til dokument…</button>
+              <div style={{ display:'flex', gap:8, marginTop:8, alignItems:'center' }}>
+                <button className="dt-knapp" onClick={opneVeljar}>+ Legg til dokument…</button>
+                {/* Brukar kan definere ein leveranse som ikkje var planlagt — innanfor faste typar */}
+                {ledigeEkstraFasar.length > 0 && (utsending.dokument || []).length > 0 && (
+                  <select className="dt-input" style={{ width:'auto' }} value=""
+                    onChange={e => { if (e.target.value) setEkstraLagtTil(s => new Set(s).add(e.target.value)) }}>
+                    <option value="">+ Legg til leveransetype…</option>
+                    {ledigeEkstraFasar.map(f => <option key={f.key} value={f.key}>{f.namn} ({f.kode})</option>)}
+                  </select>
+                )}
+              </div>
             )}
             {!sendt && visVeljar && (
               <div style={{ marginTop:8, border:'1.5px solid var(--border)', borderRadius:'var(--r)', padding:10 }}>

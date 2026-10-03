@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
-import { KATEGORI_LABEL, KATEGORI_FARGE, genererDNummer, genererSDNummer, FERDIGSTILLING_STATUS } from './dtmKonstantar'
+import { useState, useMemo, useEffect } from 'react'
+import { KATEGORI_LABEL, KATEGORI_FARGE, genererDNummer, genererSDNummer, genererEDOKNummer,
+  FERDIGSTILLING_STATUS, EKSTERN_DOK_KATEGORIAR } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTMImportModal — import-flyten for éin kategori (arbeidsdokument/
@@ -38,29 +39,38 @@ const FELT = [
   { key:'oppdragsnr',   namn:'Oppdragsnr.' },
 ]
 
+// Vist BERRE for kategorien «eksternt_dokument», sjå kategori-medviten
+// `felt`-utrekning i komponenten under.
+const EKSTERN_KATEGORI_FELT = { key:'ekstern_kategori', namn:'Kategori eksternt dok.', val:['', ...EKSTERN_DOK_KATEGORIAR] }
+
 function filtype(filnamn) {
   const m = /\.([a-z0-9]+)$/i.exec(filnamn || '')
   return m ? m[1].toUpperCase() : ''
 }
 
-export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLukk, onImporter }) {
-  const [steg, setSteg]         = useState('drop') // 'drop' | 'skannar' | 'gjennomgang' | 'importerer' | 'ferdig'
+export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLukk, onImporter, forhandsvalde }) {
+  // `forhandsvalde` (valfri): fulle filstiar som ALT er kjende (t.d. frå
+  // ukjende-filer-skanninga, sjå DTMUkjendeFilerVarsel.jsx) — går rett til
+  // skanning utan drop-steget, sidan brukar alt har valt filene implisitt
+  // ved å plassere dei i kategorimappa. Resten av flyten (gjennomgang,
+  // bekreft, «same operasjonar som ein tradisjonell import») er HEILT
+  // UENDRA — sjå claude/dtm-modul.md.
+  const [steg, setSteg]         = useState(forhandsvalde?.length ? 'skannar' : 'drop')
   const [rader, setRader]       = useState([])
   const [dragOver, setDragOver] = useState(false)
   const [feil, setFeil]         = useState('')
   const [resultat, setResultat] = useState([])
+  // Reint UI-val enno (sjølve AI-kallet kjem seinare) — berre aktuelt for
+  // eksterne/innkomande dokument, sjå brukar sitt krav 29. sept. 2026.
+  const [brukAI, setBrukAI]     = useState(false)
 
   const farge = KATEGORI_FARGE[kategori]
   const harBru = typeof window !== 'undefined' && !!window.resultatdokumentAPI
+  // «Kategori eksternt dokument» er berre meiningsfylt for denne eine
+  // kategorien — resten av FELT-lista er felles for alle kategoriane.
+  const felt = kategori === 'eksternt_dokument' ? [...FELT, EKSTERN_KATEGORI_FELT] : FELT
 
-  const handleDrop = async (e) => {
-    e.preventDefault()
-    setDragOver(false)
-    if (!harBru || steg !== 'drop') return
-    const droppa = Array.from(e.dataTransfer.files || [])
-    const filPathar = droppa.map(f => window.resultatdokumentAPI.hentFilsti(f)).filter(Boolean)
-    if (filPathar.length === 0) return
-
+  const skannOgGaaTilGjennomgang = async (filPathar) => {
     setSteg('skannar')
     setFeil('')
     try {
@@ -73,20 +83,54 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
       const rader2 = skanna.map(s => {
         if (s.status !== 'ok') return { ...s, fjerna:true }
         let nr = s.nr
-        if (kategori === 'styrande_dokument') {
+        let nrUsikker = s.nrUsikker
+        let tittel = s.tittel
+        if (kategori === 'eksternt_dokument') {
+          // ALLTID eit ferskt EDOK-nummer — filnamnet til eit innkomande
+          // dokument fylgjer ikkje vår eigen kode, så det finst ikkje noko
+          // «usikkert» å falle tilbake frå her (brukar sitt eige krav).
+          const gamalNr = s.nr
+          nr = genererEDOKNummer([...kjenteNr, ...nye])
+          nrUsikker = false
+          // Fall attende til det ORIGINALE filnamnet (utan filending) som
+          // skildring — den skanna «tittelen» er berre meiningsfylt viss ho
+          // faktisk kom frå eit PDF-tittelfelt (ikkje berre den no-forkasta
+          // kodegjetninga, som ville synt sjølve EDOK-nummeret att som «tittel»).
+          if (!tittel || tittel === gamalNr) tittel = s.filnamn.replace(/\.[a-z0-9]+$/i, '')
+        } else if (kategori === 'styrande_dokument') {
           nr = genererSDNummer([...kjenteNr, ...nye])
         } else if (s.nrUsikker) {
           nr = genererDNummer([...kjenteNr, ...nye], s.fagKode || s.fag)
         }
         nye.push(nr)
-        return { ...s, nr, fjerna:false }
+        return { ...s, nr, nrUsikker, tittel, fjerna:false }
       })
       setRader(rader2)
       setSteg('gjennomgang')
     } catch (e2) {
       setFeil('Klarte ikkje skanne filene: ' + e2.message)
-      setSteg('drop')
+      // `forhandsvalde` har ikkje noko drop-steg å gå attende til — vis
+      // feilen i gjennomgangs-steget i staden (tom tabell, men synleg
+      // feilmelding, sjå render-greina under).
+      setSteg(forhandsvalde?.length ? 'gjennomgang' : 'drop')
     }
+  }
+
+  // Berre køyrer éin gong, for `forhandsvalde`-tilfellet — vanleg drag-og-
+  // slepp-import treng ikkje dette, sjå handleDrop.
+  useEffect(() => {
+    if (forhandsvalde?.length) skannOgGaaTilGjennomgang(forhandsvalde)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleDrop = async (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    if (!harBru || steg !== 'drop') return
+    const droppa = Array.from(e.dataTransfer.files || [])
+    const filPathar = droppa.map(f => window.resultatdokumentAPI.hentFilsti(f)).filter(Boolean)
+    if (filPathar.length === 0) return
+    await skannOgGaaTilGjennomgang(filPathar)
   }
 
   const oppdaterRad = (i, felt, verdi) => {
@@ -101,19 +145,23 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
   // nytt kvar gong radene endrar seg.
   const kolonneBreidd = useMemo(() => {
     const breidd = {}
-    for (const f of FELT) {
+    for (const f of felt) {
       const lengder = attRader.map(r => String(r[f.key] || '').length).concat(f.namn.length)
       breidd[f.key] = Math.max(5, Math.min(38, Math.max(...lengder, 0) + 2))
     }
     return breidd
-  }, [attRader])
+  }, [attRader, felt])
 
   const bekreft = async () => {
     if (attRader.length === 0) return
     setSteg('importerer')
     setFeil('')
     try {
-      const svar = await onImporter(attRader)
+      // `kategori` sendt EKSPLISITT (ikkje berre underforstått av kallaren
+      // sin eigen state) — DTMModule.jsx sin importer() treng dette for å
+      // vite kva kategori ein `forhandsvalde`-registrering (ukjende filer)
+      // gjeld, sidan den vegen ikkje går via det vanlege import-menyvalet.
+      const svar = await onImporter(attRader, { brukAI, kategori })
       setResultat(svar || [])
       setSteg('ferdig')
     } catch (e2) {
@@ -130,7 +178,7 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
     if (feila.length === 0) return
     setSteg('importerer')
     try {
-      const svar = await onImporter(feila)
+      const svar = await onImporter(feila, { brukAI, kategori })
       setResultat(rs => rs.map(r => {
         if (r.status === 'ok') return r
         const nytt = svar?.find(s => s.nr === r.nr)
@@ -155,7 +203,7 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'14px 20px',
           borderBottom:'1px solid rgba(255,255,255,.12)', flexShrink:0, background:farge }}>
           <span style={{ fontSize:15, fontWeight:800, color:'#fff' }}>
-            Import {KATEGORI_LABEL[kategori].toLowerCase()}
+            {forhandsvalde?.length ? 'Registrer ukjende filer — ' : 'Import '}{KATEGORI_LABEL[kategori].toLowerCase()}
           </span>
           <div style={{ flex:1 }}/>
           <button onClick={onLukk} title="Lukk"
@@ -178,23 +226,33 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
             </div>
 
           ) : steg === 'drop' ? (
-            <div
-              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              style={{
-                border:`2px dashed ${dragOver ? farge : 'var(--border2)'}`,
-                borderRadius:'var(--r2)', background: dragOver ? 'var(--bg3)' : 'var(--bg2)',
-                padding:'48px 20px', textAlign:'center',
-              }}>
-              <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:6 }}>
-                Slepp filer her
+            <>
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                style={{
+                  border:`2px dashed ${dragOver ? farge : 'var(--border2)'}`,
+                  borderRadius:'var(--r2)', background: dragOver ? 'var(--bg3)' : 'var(--bg2)',
+                  padding:'48px 20px', textAlign:'center',
+                }}>
+                <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:6 }}>
+                  Slepp filer her
+                </div>
+                <div style={{ fontSize:12, color:'var(--text3)' }}>
+                  PDF, IFC, Excel og andre filformat frå Windows Utforskar.
+                </div>
+                {feil && <div style={{ marginTop:14, fontSize:12, color:'var(--danger)' }}>{feil}</div>}
               </div>
-              <div style={{ fontSize:12, color:'var(--text3)' }}>
-                PDF, IFC, Excel og andre filformat frå Windows Utforskar.
-              </div>
-              {feil && <div style={{ marginTop:14, fontSize:12, color:'var(--danger)' }}>{feil}</div>}
-            </div>
+              {kategori === 'eksternt_dokument' && (
+                <label style={{ display:'flex', alignItems:'center', gap:8, marginTop:14,
+                  fontSize:12.5, color:'var(--text2)', cursor:'pointer', justifyContent:'center' }}>
+                  <input type="checkbox" checked={brukAI} onChange={e => setBrukAI(e.target.checked)}
+                    style={{ width:15, height:15, accentColor:farge, cursor:'pointer' }}/>
+                  Bruk AI til indeksering (merkjer dokumenta for seinare handsaming — sjølve AI-kallet kjem seinare)
+                </label>
+              )}
+            </>
 
           ) : steg === 'skannar' ? (
             <div style={{ fontSize:14, color:'var(--text2)', fontWeight:600, textAlign:'center', padding:'30px 0' }}>
@@ -215,14 +273,14 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
                       <th style={{ width:28 }}/>
                       <th style={thStil}>Fil</th>
                       <th style={{ ...thStil, width:'6ch' }}>Filtype</th>
-                      {FELT.map(f => <th key={f.key} style={{ ...thStil, width:`${kolonneBreidd[f.key]}ch` }}>{f.namn}</th>)}
+                      {felt.map(f => <th key={f.key} style={{ ...thStil, width:`${kolonneBreidd[f.key]}ch` }}>{f.namn}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {rader.map((r, i) => r.fjerna && r.status !== 'ok' ? (
                       <tr key={i} style={{ opacity:.5 }}>
                         <td style={tdStil}/>
-                        <td style={tdStil} colSpan={FELT.length + 2}>
+                        <td style={tdStil} colSpan={felt.length + 2}>
                           <span style={{ color:'var(--danger)' }}>✕ {r.filnamn}</span> — {r.melding}
                         </td>
                       </tr>
@@ -238,7 +296,7 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
                           {r.filnamn}
                         </td>
                         <td style={{ ...tdStil, fontSize:11.5, color:'var(--text3)' }}>{filtype(r.filnamn)}</td>
-                        {FELT.map(f => (
+                        {felt.map(f => (
                           <td key={f.key} style={tdStil}>
                             {f.val ? (
                               <select value={r[f.key] || ''} onChange={e => oppdaterRad(i, f.key, e.target.value)}

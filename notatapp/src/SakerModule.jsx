@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabase'
 import DatePicker from './DatePicker'
 import SakerTabell from './SakerTabell'
+import SokeFelt from './SokeFelt'
 import {
   FAG, TYPE,
   STATUS_LABELS, STATUS_ORDER, STATUS_COLORS,
@@ -323,13 +324,22 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
             {activeProject.projectNumber}{' \u00B7 '}{activeProject.name}
           </span>
         )}
+        {/* Søk — i den blå overskriftslinja, til høgre for overskrifta (brukar sitt krav 2. okt. 2026) */}
+        {activeProjectId && (
+          <div style={{ marginLeft:8 }}>
+            <SokeFelt projectId={activeProjectId} kjelder={['cases']}
+              onVelgResultat={r => setOpenCaseId(r.kjelde_id)} plassholder="Søk i saker…"/>
+          </div>
+        )}
       </div>
     )
   }
 
   return (
     <div style={{ display:'flex', flex:1, flexDirection:'column', overflow:'hidden' }}>
-      <ModuleTopbar/>
+      {/* Kalla som funksjon (ikkje <ModuleTopbar/>) slik at SokeFelt i han ikkje vert remonta
+          (og mistar innskrive tekst) kvar gong SakerModule re-rendrar */}
+      {ModuleTopbar()}
 
       {/* Verktøylinje */}
       <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 16px',
