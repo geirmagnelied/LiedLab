@@ -63,6 +63,13 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 //                       Reint ein VISINGS-omsynkring (rører ikkje den lagra
 //                       prefs.rekkje-staten) — brukar kan framleis dra dei
 //                       andre kolonnane seg i mellom som før.
+//    kol.overskrift  — valfri; [linje1, linje2] — tolinjes kolonneoverskrift (linje 1 i 8 px).
+//                       `label` vert framleis brukt i menyar/filterbrikker.
+//    radRekkjefolge  — valfri; { verdi(rad)→tal|null, onSettAlle(raderIRekkjefolge), onFlytt(id, nyVerdi) }.
+//                       Slår på dra-og-slepp av rader (handtak til venstre for ☰) og ein sirkel øvst i
+//                       ☰-kolonna som slår av automatisk sortering («fast rekkjefølgje»). Dra ei rad →
+//                       fast rekkjefølgje vert slått på. Rekkjefølgja lagrar kallaren (t.d. kolonne i DB).
+//    onSlettValde    — valfri; () => … — viser eit slett-ikon (🗑) i verktøylinja for dei markerte radene.
 //    prefsKey        — unik nøkkel for personleg visingsoppsett i localStorage
 //    itemNamn        — namn brukt i teljetekst/tomt-resultat (t.d. «saker»)
 //    rutenettRedigering — valfri (default av); slår PÅ rutenettvisning i
@@ -123,14 +130,17 @@ function tekstbreidd(tekst, font) {
   ctx.font = font
   return ctx.measureText(tekst).width
 }
-function standardKolonnebreidd(label, font) {
+function standardKolonnebreidd(label, font, overskrift) {
   const PADDING    = 20 // .dt-th: padding: 0 10px, venstre + høgre
   const GAP_PIL     = 5 // gap mellom namn og sorteringspil
   const PIL         = 9 // ▲/▼-teiknet
   const GAP_CARET   = 5 // gap mellom pil og filter-/meny-knapp
   const CARET       = 20 // .dt-caret: width 20px
   const MARGIN      = 12 // litt ekstra margin, som ønskt
-  return Math.ceil(tekstbreidd(label, font)) + PADDING + GAP_PIL + PIL + GAP_CARET + CARET + MARGIN
+  const tekstB = overskrift
+    ? Math.max(tekstbreidd(overskrift[0], font.replace('12px', '8px')), tekstbreidd(overskrift[1], font))
+    : tekstbreidd(label, font)
+  return Math.ceil(tekstB) + PADDING + GAP_PIL + PIL + GAP_CARET + CARET + MARGIN
 }
 // Maks breidd ei innhaldstilpassa kolonne kan få automatisk (sjå
 // innhaldstilpassaBreidd-prop) — ein einskild uvanleg lang verdi skal
@@ -155,6 +165,8 @@ export default function DataTabell({
   merking, // valfri; { valde:Set<id>, onEndre(nyttSett) } — shift/ctrl-klikk for å velje fleire rader
   innhaldstilpassaBreidd, // valfri; standardbreidd tek då omsyn til FAKTISKE verdiar i kolonnen, ikkje berre overskrifta
   klistreKolonnar = [], // valfri; [key,...] — sjå kommentar øvst i fila
+  radRekkjefolge, // valfri; sjå kommentar øvst i fila
+  onSlettValde,   // valfri; sjå kommentar øvst i fila
   prefsKey, itemNamn = 'rader',
   defaultSortering,
   rutenettRedigering = false, // valfri; sjå kommentar øvst i fila
@@ -180,7 +192,7 @@ export default function DataTabell({
     return `400 13px ${fam || 'sans-serif'}`
   }, [])
   const standardBreidder = useMemo(() => Object.fromEntries(kolonnar.map(c => {
-    const headerBreidd = standardKolonnebreidd(c.label, font)
+    const headerBreidd = standardKolonnebreidd(c.label, font, c.overskrift)
     if (!innhaldstilpassaBreidd || !hentVerdi) return [c.key, headerBreidd]
     let maksInnhald = 0
     for (const rad of dataRader || []) {
@@ -204,6 +216,7 @@ export default function DataTabell({
     farge: false,
     tettleik: 'normal',
     totalrad: false,
+    fastRekkjefolge: false, // sjå radRekkjefolge: ingen automatisk sortering, rekkjefølgja er brukaren si eiga
     eigneVisingar: [], // brukar sine eigne lagra «Vising»-utval, sjå lagreGjeldandeVising()
     rekkje: standardRekkje,
     skjulte: standardSkjulte,
@@ -233,6 +246,8 @@ export default function DataTabell({
   const klikkTimerRef = useRef(null) // skil enkelt- frå dobbeltklikk på «opnaFil»-celler
   const ankerRef = useRef(null)
   const dragRef  = useRef(null)
+  const dragRadRef = useRef(null)            // id på rada som vert dratt (sjå radRekkjefolge)
+  const [dropMal, setDropMal] = useState(null) // { id, etter } — kor den dratte rada vil lande
   const sisteMerktRef = useRef(null) // sist klikka rad-id, for shift-områdeval
 
   // ── Rutenettvisning (grid-redigering), sjå prop-kommentaren øvst ────
@@ -319,6 +334,8 @@ export default function DataTabell({
   const MIN_KOL_BREIDD = 20
   const minBreidd = (k) => kolMap[k]?.minW ?? MIN_KOL_BREIDD
   const RAD_MENY_BREIDD = 34
+  // Plass til dra-handtaket (⋮⋮) når radene kan flyttast
+  const radMenyB = radRekkjefolge ? RAD_MENY_BREIDD + 20 : RAD_MENY_BREIDD
   const RAD_VEL_BREIDD = 28
   // Eige, smalt felt til høgre for ☰-radmenyen der brukar kan klikke for å
   // velje/fråvelje HEILE RADA (for massehandlingar via `merking`) — berre
@@ -326,7 +343,7 @@ export default function DataTabell({
   // vel rada via eit klikk kor som helst i ho (sjå <tr onClick> under).
   const visRadVelKolonne = rutenettRedigering && !!merking
   const totalBreidd = useMemo(() => synlege.reduce((sum, k) => sum + breidd(k), 0)
-    + (radMeny ? RAD_MENY_BREIDD : 0) + (visRadVelKolonne ? RAD_VEL_BREIDD : 0),
+    + (radMeny ? radMenyB : 0) + (visRadVelKolonne ? RAD_VEL_BREIDD : 0),
     [synlege, prefs.breidder, kolMap, radMeny, visRadVelKolonne])
   // Venstre-posisjon (px) for kvar klistra kolonne — summen av radmeny-/
   // radvel-feltet (om dei finst) pluss breidda til dei klistra kolonnane
@@ -334,7 +351,7 @@ export default function DataTabell({
   // fremst, sjå synlegeVisning over).
   const pinnOffset = useMemo(() => {
     if (!klistreKolonnar.length) return {}
-    let akk = (radMeny ? RAD_MENY_BREIDD : 0) + (visRadVelKolonne ? RAD_VEL_BREIDD : 0)
+    let akk = (radMeny ? radMenyB : 0) + (visRadVelKolonne ? RAD_VEL_BREIDD : 0)
     const out = {}
     for (const k of klistreKolonnar) {
       if (!synlege.includes(k)) continue
@@ -368,10 +385,16 @@ export default function DataTabell({
     return (dataRader || []).filter(r => aktive.every(([k, valde]) => valde.includes(tekst(r, k))))
   }, [dataRader, prefs.filter, tekst])
 
+  const fast = !!radRekkjefolge && !!prefs.fastRekkjefolge
   const rader = useMemo(() => {
     const { key, dir } = prefs.sortering || {}
     let sortert = filtrerte
-    if (key && kolMap[key]) {
+    if (fast) {
+      // FAST rekkjefølgje: brukaren si eiga (lagra verdi per rad), ingen automatisk sortering.
+      // Rader utan verdi (t.d. nyleg oppretta) hamnar sist, i den rekkjefølgja dei kom.
+      const v = (r) => { const x = radRekkjefolge.verdi(r); return x == null ? Infinity : x }
+      sortert = [...filtrerte].sort((a, b) => { const x = v(a), y = v(b); return x === y ? 0 : x < y ? -1 : 1 })
+    } else if (key && kolMap[key]) {
       const teikn = dir === 'desc' ? -1 : 1
       sortert = [...filtrerte].sort((a, b) => {
         const x = sorteringsverdi(a, key), y = sorteringsverdi(b, key)
@@ -385,7 +408,7 @@ export default function DataTabell({
     const festa = sortert.filter(r => radMeny.erFesta(r))
     const resten = sortert.filter(r => !radMeny.erFesta(r))
     return [...festa, ...resten]
-  }, [filtrerte, prefs.sortering, kolMap, sorteringsverdi, radMeny])
+  }, [filtrerte, prefs.sortering, kolMap, sorteringsverdi, radMeny, fast, radRekkjefolge])
 
   // ── Rutenettvisning: lagring med Angre-historikk + Excel-dra-og-fyll ──
   const settVerdiMedAngre = useCallback((id, key, gammalVerdi, nyVerdi) => {
@@ -558,6 +581,7 @@ export default function DataTabell({
   // ── Handlingar ──────────────────────────────────────────────────
   const sorter = (key, dir) => setPrefs(p => ({
     ...p,
+    fastRekkjefolge: false, // eit eksplisitt sorteringsval overstyrer den faste rekkjefølgja
     sortering: dir ? { key, dir }
       : (p.sortering?.key === key && p.sortering?.dir === 'asc' ? { key, dir:'desc' } : { key, dir:'asc' }),
   }))
@@ -691,7 +715,35 @@ export default function DataTabell({
     sisteMerktRef.current = id
   }
 
+  // ── Fast rekkjefølgje: slå av/på og flytt rader ─────────────────────────
+  const slaaPaFast = () => {
+    // Har alle viste rader ei lagra rekkjefølgjeverdi, vert den førre manuelle rekkjefølgja teken i bruk att;
+    // elles frys vi rekkjefølgja tabellen viser NO (så ingenting hoppar når sorteringa vert slått av).
+    if (!rader.every(r => radRekkjefolge.verdi(r) != null)) radRekkjefolge.onSettAlle(rader)
+    setPrefs({ fastRekkjefolge: true })
+  }
+  const utforFlytt = (dragId, malId, etter) => {
+    if (dragId == null || dragId === malId) return
+    const dragRad = rader.find(r => radId(r) === dragId)
+    const utan = rader.filter(r => radId(r) !== dragId)
+    const mi = utan.findIndex(r => radId(r) === malId)
+    if (!dragRad || mi < 0) return
+    const inn = etter ? mi + 1 : mi
+    const nyRekkje = [...utan.slice(0, inn), dragRad, ...utan.slice(inn)]
+    const prev = utan[inn - 1], next = utan[inn]
+    const pv = prev ? radRekkjefolge.verdi(prev) : null, nv = next ? radRekkjefolge.verdi(next) : null
+    const manglar = (prev && pv == null) || (next && nv == null)
+    if (!fast || manglar || (pv != null && nv != null && Math.abs(nv - pv) < 1e-6)) {
+      radRekkjefolge.onSettAlle(nyRekkje) // frys/nummerer heile rekkjefølgja på nytt
+      setPrefs({ fastRekkjefolge: true })
+      return
+    }
+    const ny = pv != null && nv != null ? (pv + nv) / 2 : pv != null ? pv + 1000 : nv != null ? nv - 1000 : 1000
+    radRekkjefolge.onFlytt(dragId, ny)
+  }
+
   const aktiveFilter = Object.entries(prefs.filter).filter(([, v]) => v && v.length)
+  const antalValde = merking ? (merking.valde instanceof Set ? merking.valde.size : (merking.valde?.length || 0)) : 0
   const radhøgd = prefs.tettleik === 'tett' ? 30 : prefs.tettleik === 'luftig' ? 48 : 38
   const harTotalrad = useMemo(() => synlege.some(k => {
     const kol = kolMap[k]
@@ -729,6 +781,13 @@ export default function DataTabell({
         {visingsFilter?.length > 0 && (
           <button type="button" className="dt-knapp" onClick={e => { setVisLagreSkjema(false); opneMeny('visingsfilter', null, e) }}>
             Vising ▾
+          </button>
+        )}
+        {onSlettValde && (
+          <button type="button" className="dt-knapp" onClick={onSlettValde} disabled={!antalValde}
+            title={antalValde ? `Slett ${antalValde} markert(e) rad(er)` : 'Marker rader (kryssboksen til venstre) for å slette dei'}
+            style={{ opacity: antalValde ? 1 : .45, cursor: antalValde ? 'pointer' : 'default' }}>
+            🗑{antalValde ? ` ${antalValde}` : ''}
           </button>
         )}
         {rutenettRedigering && angreStabel.length > 0 && (
@@ -773,17 +832,28 @@ export default function DataTabell({
         <table className={'dt-tabell' + (prefs.farge ? ' farge' : '')}
           style={{ tableLayout:'fixed', width:totalBreidd, borderCollapse:'separate', borderSpacing:0 }}>
           <colgroup>
-            {radMeny && <col style={{ width:RAD_MENY_BREIDD }}/>}
+            {radMeny && <col style={{ width:radMenyB }}/>}
             {visRadVelKolonne && <col style={{ width:RAD_VEL_BREIDD }}/>}
             {synlegeVisning.map(k => <col key={k} style={{ width:breidd(k) }}/>)}
           </colgroup>
           <thead>
             <tr>
-              {radMeny && <th className="dt-radmeny-hovud"/>}
+              {radMeny && (
+                <th className="dt-radmeny-hovud">
+                  {radRekkjefolge && (
+                    <button type="button" className="dt-fastrekkje" onClick={() => (fast ? setPrefs({ fastRekkjefolge: false }) : slaaPaFast())}
+                      title={fast
+                        ? 'Fast rekkjefølgje er PÅ: radene vert ikkje sorterte automatisk — dra radene for å flytte dei. Klikk for å gå attende til automatisk sortering.'
+                        : 'Slå på fast rekkjefølgje: stoppar automatisk sortering (t.d. etter dokumentnummer) og let deg dra radene dit du vil ha dei.'}>
+                      <span className={'dt-fastrekkje-ring' + (fast ? ' pa' : '')}/>
+                    </button>
+                  )}
+                </th>
+              )}
               {visRadVelKolonne && <th className="dt-radvel-hovud"/>}
               {synlegeVisning.map(k => {
                 const kol = kolMap[k]
-                const sortert = prefs.sortering?.key === k
+                const sortert = !fast && prefs.sortering?.key === k
                 // Hengelås i overskrifta på kolonnar som ALDRI kan redigerast
                 // i denne tabellen (utrekna/«beregna»-felt o.l.) — reint
                 // informativt, kolonne-nivå (ikkje per celle), berre for
@@ -800,7 +870,12 @@ export default function DataTabell({
                     <div className="dt-th" draggable
                       onDragStart={() => { dragRef.current = k }}
                       onClick={e => { if (!e.target.closest('.dt-caret')) sorter(k) }}>
-                      <span className="dt-namn">{kol.label}</span>
+                      <span className="dt-namn">
+                        {kol.overskrift ? (<>
+                          <span style={{ display:'block', fontSize:8, fontWeight:700, lineHeight:1.2, opacity:.8, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kol.overskrift[0]}</span>
+                          <span style={{ display:'block', lineHeight:1.25, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kol.overskrift[1]}</span>
+                        </>) : kol.label}
+                      </span>
                       {låst && <span className="dt-låst" title="Låst — kan ikkje redigerast">🔒</span>}
                       <span className="dt-pil">{sortert ? (prefs.sortering.dir === 'asc' ? '▲' : '▼') : '▲'}</span>
                       <button type="button" className="dt-caret" title={`Meny for ${kol.label}`}
@@ -823,17 +898,40 @@ export default function DataTabell({
               const merkt = merking && (merking.valde instanceof Set ? merking.valde.has(id) : merking.valde?.includes(id))
               return (
               <tr key={id} data-radid={id}
+                onDragOver={radRekkjefolge ? (e => {
+                  if (dragRadRef.current == null) return
+                  e.preventDefault()
+                  const b = e.currentTarget.getBoundingClientRect()
+                  const etter = e.clientY > b.top + b.height / 2
+                  setDropMal(m => (m && m.id === id && m.etter === etter ? m : { id, etter }))
+                }) : undefined}
+                onDrop={radRekkjefolge ? (e => {
+                  if (dragRadRef.current == null) return
+                  e.preventDefault()
+                  const b = e.currentTarget.getBoundingClientRect()
+                  const dragId = dragRadRef.current
+                  dragRadRef.current = null; setDropMal(null)
+                  utforFlytt(dragId, id, e.clientY > b.top + b.height / 2)
+                }) : undefined}
                 onClick={e => { if (!rutenettRedigering) handterMerkKlikk(id, e); onRowClick?.(id, r) }}
                 onDoubleClick={() => onOpenRad?.(id, r)}
                 title={onOpenRad ? 'Dobbeltklikk for å opne' : undefined}
-                style={{ ...(radStil ? radStil(r) : undefined), ...(merkt ? { background:'var(--brandbg2)', boxShadow:'inset 0 0 0 2.5px var(--brand2)' } : undefined) }}>
+                style={{ ...(radStil ? radStil(r) : undefined), ...(merkt ? { background:'var(--brandbg2)', boxShadow:'inset 0 0 0 2.5px var(--brand2)' } : undefined),
+                  ...(dropMal && dropMal.id === id ? { boxShadow: dropMal.etter ? 'inset 0 -3px 0 0 ' + CELLEVAL_FARGE : 'inset 0 3px 0 0 ' + CELLEVAL_FARGE } : undefined) }}>
                 {radMeny && (
                   <td style={{ height:radhøgd, padding:0, textAlign:'center' }}
                     onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
-                    <button type="button" className="dt-radmeny-knapp" title="Rad-meny"
-                      onClick={e => opneMeny('rad', id, e)}>
-                      ☰{radMeny.erFavoritt?.(r) && <span className="dt-radmeny-stjerne">★</span>}
-                    </button>
+                    <div style={{ display:'flex', height:'100%' }}>
+                      {radRekkjefolge && (
+                        <span className="dt-draghandtak" draggable title="Dra for å flytte rada"
+                          onDragStart={e => { dragRadRef.current = id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(id)) }}
+                          onDragEnd={() => { dragRadRef.current = null; setDropMal(null) }}>⋮⋮</span>
+                      )}
+                      <button type="button" className="dt-radmeny-knapp" title="Rad-meny" style={{ flex:1 }}
+                        onClick={e => opneMeny('rad', id, e)}>
+                        ☰{radMeny.erFavoritt?.(r) && <span className="dt-radmeny-stjerne">★</span>}
+                      </button>
+                    </div>
                   </td>
                 )}
                 {visRadVelKolonne && (
@@ -902,6 +1000,9 @@ export default function DataTabell({
                         : kanValjastIModus ? 'Klikk: vel celle · Klikk igjen: skriv'
                         : 'Dobbeltklikk for å redigere'}
                       onClick={e => {
+                        // Eit klikk på ei ANNA celle avsluttar redigeringa av den som er open — då vert
+                        // verdien lagra (sjå RedigerCelle).
+                        if (redigerer && !(redigerer.id === id && redigerer.key === k)) setRedigerer(null)
                         // Boolske kolonner («på/av») har ingen skrivemodus i det
                         // heile — eitt klikk slår verdien direkte om, ferdig (sjå
                         // Celle-komponenten for sjølve avkryssingsvisinga).
@@ -1105,7 +1206,7 @@ export default function DataTabell({
             {radMeny.ekstraVal?.length > 0 && (<>
               {(radMeny.onFavoritt || radMeny.onFestTilTopp || radMeny.onArkiver || radMeny.onSlett) && <div className="dt-skilje"/>}
               {radMeny.ekstraVal.map((val) => (
-                <button key={val.namn} type="button" className="dt-val" onClick={() => { val.onKlikk(meny.key, rad); setMeny(null) }}>
+                <button key={val.namn} type="button" className="dt-val" onClick={() => { val.onKlikk(meny.key, rad, { rader }); setMeny(null) }}>
                   <span className="dt-rmikon">{val.ikon}</span>
                   <span>{val.namn}</span>
                 </button>
@@ -1237,22 +1338,38 @@ function RedigerCelle({ kol, startverdi, synlege, kolMap, modusRedigerbareKeys =
   const [v, setV] = useState(startverdi ?? '')
   const redigerbareKeys = synlege.filter(k => kolMap[k].eigen || kolMap[k].redigerbar || modusRedigerbareKeys.includes(k))
 
+  // Lagring ved MUSEKLIKK UTANFOR (brukar sitt krav 10. okt. 2026): eit klikk utanfor
+  // fjernar ofte cella frå DOM-en før nettlesaren rekk å sende blur (klikk utanfor
+  // tabellen, eller på ei anna celle), så onBlur åleine var ikkje nok. Verdien vert
+  // difor òg lagra når komponenten forsvinn. `sistLagra` hindrar dobbeltlagring
+  // (Enter + blur + fjerning), og Escape «lagrar» ingenting ved å setje sistLagra lik
+  // gjeldande verdi.
+  const vRef = useRef(String(startverdi ?? ''))
+  const sistLagra = useRef(String(startverdi ?? ''))
+  const onLagreRef = useRef(onLagre)
+  onLagreRef.current = onLagre
+  const endre = (ny) => { vRef.current = String(ny); setV(ny) }
+  const lagreOm = () => {
+    if (vRef.current !== sistLagra.current) { sistLagra.current = vRef.current; onLagreRef.current(vRef.current) }
+  }
+  useEffect(() => () => lagreOm(), []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const flyttTil = (retning) => {
     const i = redigerbareKeys.indexOf(kol.key)
     onFlytt(redigerbareKeys[i + retning])
   }
   const håndterTast = (e) => {
-    if (e.key === 'Enter') { onLagre(v); onLukk() }
-    else if (e.key === 'Escape') { onLukk() }
-    else if (e.key === 'Tab') { e.preventDefault(); onLagre(v); flyttTil(e.shiftKey ? -1 : 1) }
+    if (e.key === 'Enter') { lagreOm(); onLukk() }
+    else if (e.key === 'Escape') { sistLagra.current = vRef.current; onLukk() }
+    else if (e.key === 'Tab') { e.preventDefault(); lagreOm(); flyttTil(e.shiftKey ? -1 : 1) }
   }
 
   if (kol.val) {
     return (
       <select autoFocus className="dt-input" value={v}
-        onChange={e => setV(e.target.value)}
+        onChange={e => endre(e.target.value)}
         onClick={e => e.stopPropagation()}
-        onBlur={e => onLagre(e.target.value)}
+        onBlur={lagreOm}
         onKeyDown={håndterTast}>
         {kol.val.map(x => <option key={x || '_tom'} value={x}>{x || '(ikkje sett)'}</option>)}
       </select>
@@ -1262,9 +1379,9 @@ function RedigerCelle({ kol, startverdi, synlege, kolMap, modusRedigerbareKeys =
     <input autoFocus className="dt-input" value={v}
       type={kol.art === 'tal' ? 'number' : 'text'}
       min={kol.min} max={kol.max}
-      onChange={e => setV(e.target.value)}
+      onChange={e => endre(e.target.value)}
       onClick={e => e.stopPropagation()}
-      onBlur={e => onLagre(e.target.value)}
+      onBlur={lagreOm}
       onKeyDown={håndterTast}/>
   )
 }
@@ -1480,6 +1597,13 @@ const CSS = `
 .dt-grip:hover { background:var(--brand3); opacity:.5 }
 .dt-radmeny-hovud { position:sticky; top:0; z-index:5; background:var(--bg3); border-bottom:2px solid var(--border);
   border-right:1px solid var(--border) }
+.dt-draghandtak { width:20px; flex-shrink:0; display:flex; align-items:center; justify-content:center; cursor:grab;
+  color:var(--text3); font-size:13px; letter-spacing:-3px; user-select:none }
+.dt-draghandtak:hover { color:var(--brand) }
+.dt-fastrekkje { width:100%; height:38px; border:0; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0 }
+.dt-fastrekkje-ring { width:13px; height:13px; border-radius:50%; border:2px solid var(--text3); box-sizing:border-box; transition:all .12s }
+.dt-fastrekkje:hover .dt-fastrekkje-ring { border-color:var(--brand) }
+.dt-fastrekkje-ring.pa { background:var(--brand); border-color:var(--brand); box-shadow:0 0 0 2px var(--brandbg) }
 .dt-radmeny-knapp { width:100%; height:100%; border:0; background:transparent; cursor:pointer;
   color:var(--text3); font-size:17px; display:flex; align-items:center; justify-content:center; gap:2px;
   position:relative }

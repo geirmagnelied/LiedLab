@@ -21,6 +21,8 @@ const KOLONNAR = [
   { key: 'varig',     label: 'Arbeidsdagar', art: 'tal',  beregna: true, ikkjeSummer: true, w: 110 },
   { key: 'ansvarleg', label: 'Ansvarleg',   art: 'val',   redigerbar: true, w: 140 },
   { key: 'ferdig',    label: 'Ferdig %',    art: 'tal',   redigerbar: true, ikkjeSummer: true, w: 90 },
+  { key: 'timar',     label: 'Timar',       art: 'tal',   redigerbar: true, w: 80 },
+  { key: 'fordeling', label: 'Fordeling',   art: 'val',   redigerbar: true, val: ['Fast', 'Start', 'Midt', 'Slutt'], w: 100 },
   { key: 'avh',       label: 'Startar etter', art: 'tekst', beregna: true, utanFilter: true, w: 240 },
 ]
 
@@ -37,6 +39,8 @@ export default function FramdriftTabell({ elementer, valgt, onVelg, onEndreFelt 
       case 'varig': return e.type === 'milepael' ? '' : antalArbeidsdagar(e)
       case 'ansvarleg': return e.ansvarleg || ''
       case 'ferdig': return e.type === 'aktivitet' ? (e.ferdig || 0) : ''
+      case 'timar': return e.type === 'aktivitet' ? (e.timar || 0) : e.type === 'fase' ? elementer.filter(c => c.forelder === e.id).reduce((a, c) => a + (+c.timar || 0), 0) : ''
+      case 'fordeling': return e.type === 'aktivitet' && e.timar > 0 ? ({ fast: 'Fast', start: 'Start', midt: 'Midt', slutt: 'Slutt' }[e.fordeling || 'fast']) : ''
       case 'avh': return (e.avh || []).map(namnPaId).filter(Boolean).join(', ')
       default: return ''
     }

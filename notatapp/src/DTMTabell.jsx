@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import DataTabell, { Pille } from './DataTabell'
 import { fmtDateShort } from './sakerKonstantar'
 import { reknStatus, løysAktivtSett, KATEGORIAR, KATEGORI_LABEL, KATEGORI_MAPPE, FERDIGSTILLING_STATUS,
-  EKSTERN_DOK_KATEGORIAR, utsendingsnrTekst, LEVERANSE_FASAR, LEVERANSE_FASAR_BASIS, LEVERANSE_FASAR_EKSTRA, erForsinka } from './dtmKonstantar'
+  EKSTERN_DOK_KATEGORIAR, utsendingsnrTekst, LEVERANSE_FASAR, LEVERANSE_FASAR_BASIS, LEVERANSE_FASAR_EKSTRA, erForsinka, erPlanlagtUtanFil } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTM-matrisa — kolonnedefinisjonar og celle-visning for eitt «sett»
@@ -59,7 +59,7 @@ const BASE_COLUMNS = [
   { key:'timebudsjett',   label:'Timebudsjett', art:'tal', redigerbar:true, minW:60 },
   { key:'gjenstaande_timer', label:'Gjenståande timer', art:'tal', beregna:true, minW:60 },
   { key:'malestokk',   label:'Målestokk',    art:'tekst', maskinlest:true },
-  { key:'format',      label:'Arkstørrelse', art:'val',   maskinlest:true },
+  { key:'format',      label:'ARK', art:'val',   maskinlest:true },
   { key:'utarbeida_av',label:'Utarbeida av', art:'val',   maskinlest:true },
   { key:'fk_person',   label:'Fagkontroll',  art:'val',   maskinlest:true },
   { key:'godkjent_av', label:'Godkjent',     art:'val',   maskinlest:true },
@@ -82,12 +82,16 @@ const BASE_COLUMNS = [
   // brukar bad om.
   ...LEVERANSE_FASAR.flatMap(f => {
     const skjult = LEVERANSE_FASAR_EKSTRA.includes(f)
+    // Tolinjes overskrift: «PU Prosjekteringsunderlag» (8 px) over «Frist leveranse»/«Sendt»
+    const l1 = `${f.kode} ${f.namn}`
     return [
-      { key:`planlagt_${f.key}`, label:`${f.namn} – planlagt`, art:'tekst', mono:true, redigerbar:true, standardSkjult:skjult },
-      { key:`sendt_${f.key}`,    label:`${f.namn} – sendt`,    art:'bool',  redigerbar:true, standardSkjult:skjult },
+      { key:`planlagt_${f.key}`, label:`${f.namn} – planlagt`, overskrift:[l1, 'Frist leveranse'], art:'tekst', mono:true, redigerbar:true, standardSkjult:skjult },
+      { key:`sendt_${f.key}`,    label:`${f.namn} – sendt`,    overskrift:[l1, 'Sendt'],           art:'bool',  redigerbar:true, standardSkjult:skjult },
     ]
   }),
 ]
+
+const erPlanlagt = erPlanlagtUtanFil
 
 function hentGjeldande(rad, aktivtSett) {
   const sett = løysAktivtSett(rad, aktivtSett)
@@ -95,7 +99,7 @@ function hentGjeldande(rad, aktivtSett) {
 }
 
 export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFil, onDelFil,
-                                     onToggleFavorite, onTogglePinned, onRegistrerUtsending,
+                                     onToggleFavorite, onTogglePinned, onRegistrerUtsending, onLeggTilRad, onDupliserRad, onSlettRad, onNyLopenummer, radRekkjefolge, onSlettValde,
                                      merking, oppdragsSti, eigneKolonnar = [], utsendingarPerDokument = {},
                                      // Valfrie — brukt av KvalitetModule.jsx sin kontroll-tabell, som viser DEI
                                      // SAME kolonnedefinisjonane (BASE_COLUMNS) men med EI ANNA standardvising
@@ -111,7 +115,7 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'ekstern_kategori': return rad.ekstern_kategori || ''
       case 'er_styrande_dokument': return !!rad.er_styrande_dokument
       case 'ai_indeksering_onska': return !!rad.ai_indeksering_onska
-      case 'status':      return sett ? reknStatus(rad, sett).join(', ') : ''
+      case 'status':      return sett ? reknStatus(rad, sett).join(', ') : erPlanlagt(rad) ? 'Planlagt' : ''
       case 'filtype': {
         const m = /\.([a-z0-9]+)$/i.exec(g.filnamn || '')
         return m ? m[1].toUpperCase() : ''
@@ -164,7 +168,7 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       return <span className="dt-lenketekst" style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--brand)', cursor:'pointer' }}>{rad.nr}</span>
     if (kol.key === 'status') {
       const { sett } = hentGjeldande(rad, aktivtSett)
-      const taggar = sett ? reknStatus(rad, sett) : []
+      const taggar = sett ? reknStatus(rad, sett) : erPlanlagt(rad) ? ['Planlagt'] : []
       if (!taggar.length) return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>
       return (
         <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
@@ -208,12 +212,17 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
   const ekstraVal = []
   if (onDelFil) ekstraVal.push({ ikon:'✉', namn:'Del fil', onKlikk: (id, rad) => onDelFil(id, rad) })
   if (onRegistrerUtsending) ekstraVal.push({ ikon:'📤', namn:'Registrer utsending', onKlikk: (id, rad) => onRegistrerUtsending(id, rad) })
+  if (onLeggTilRad) ekstraVal.push({ ikon:'＋', namn:'Legg til rad', onKlikk: () => onLeggTilRad() })
+  if (onDupliserRad) ekstraVal.push({ ikon:'⧉', namn:'Dupliser rad', onKlikk: (id) => onDupliserRad(id) })
+  // Tredje argument `ctx.rader` = radene i VIST rekkjefølgje (sortert/filtrert), sjå DataTabell
+  if (onNyLopenummer) ekstraVal.push({ ikon:'№', namn:'Generer ny løpenummer etter vist rekkefølge', onKlikk: (id, rad, ctx) => onNyLopenummer(ctx?.rader || []) })
   const radMeny = {
     erFavoritt:    (rad) => !!rad.favorite,
     onFavoritt:    (id) => onToggleFavorite?.(id),
     erFesta:       (rad) => !!rad.pinned,
     onFestTilTopp: (id) => onTogglePinned?.(id),
     ekstraVal,
+    ...(onSlettRad ? { onSlett: (id) => onSlettRad(id) } : {}),
   }
 
   return (
@@ -234,6 +243,8 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
         innhaldstilpassaBreidd
         rutenettRedigering
         klistreKolonnar={['nr', 'tittel']}
+        radRekkjefolge={radRekkjefolge}
+        onSlettValde={onSlettValde}
         visingsFilter={VISINGSFILTER}
         prefsKey={`${PREFS_KEY}${prefsKeySuffix ? `:${prefsKeySuffix}` : ''}:${aktivtSett}`}
         standardSynlegeKolonnar={standardSynlegeKolonnar}

@@ -7,10 +7,18 @@ import DTMUtsendingarListe from './DTMUtsendingarListe'
 import TegningslisteModal from './TegningslisteModal'
 import DokumentleveranseplanModal from './DokumentleveranseplanModal'
 import DTMUkjendeFilerVarsel from './DTMUkjendeFilerVarsel'
+import LeveranseplanVindauge from './LeveranseplanVindauge'
+import { hentNummerering, lagreNummerering, nyeLopenummer, lopenummerDelar } from './teikningsnummer'
 import ResultatdokumentMobilListe from './ResultatdokumentMobilListe'
 import SokeFelt from './SokeFelt'
 import { KATEGORIAR, KATEGORI_LABEL, KATEGORI_FARGE, KATEGORI_MAPPE, løysAktivtSett, namnFraEpost,
-  nesteUtsendingsnummer, utsendingsnrTekst, gjettMimeType } from './dtmKonstantar'
+  nesteUtsendingsnummer, utsendingsnrTekst, gjettMimeType, erPlanlagtUtanFil } from './dtmKonstantar'
+
+const LEVERANSEPLAN_FARGE = '#0F766E'
+// Kolonnar som er synlege som standard i Leveranseplan-fana (resten kan vises via «+ Kolonnar»).
+const LEVERANSEPLAN_KOLONNAR = ['nr', 'tittel', 'delprosjekt', 'malestokk', 'fag', 'fase', 'status', 'format',
+  'planlagt_prosjekteringsunderlag', 'sendt_prosjekteringsunderlag', 'planlagt_godkjenning', 'sendt_godkjenning',
+  'planlagt_arbeidstegning', 'sendt_arbeidstegning', 'planlagt_som_bygd', 'sendt_som_bygd']
 
 // ── Ignorerte ukjende filer (sjå skannUkjendeFiler/DTMUkjendeFilerVarsel) ──
 // Rein klient-bekvemmelegheit i localStorage, PER PROSJEKT — ikkje noko
@@ -60,6 +68,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   const [utsendingarListeOpen, setUtsendingarListeOpen] = useState(false)
   const [tegningslisteOpen, setTegningslisteOpen] = useState(false)
   const [leveranseplanOpen, setLeveranseplanOpen] = useState(false)
+  const [planleggerOpen, setPlanleggerOpen] = useState(false) // «Leveranseplan»-vindauget (teikningsforslag)
   // Ukjende filer (sjå skannUkjendeFiler under) — filer som ligg i DTM-
   // mappene, men ikkje er registrerte i nokon dtm_dokumenter-rad.
   const [ukjendeFiler, setUkjendeFiler] = useState([]) // [{kategori, filnamn}]
@@ -148,11 +157,22 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   // akkurat denne kategorien akkurat no. «alle» syner alt, uavhengig av
   // kategori — sjå løysAktivtSett()/finnGjeldandeKategori() for korleis
   // kvar rad då vel KVA kategori sitt filnamn/rev/dato/status ho viser.
+  // «leveranseplan» er eit eige filter ved sida av kategoriane: rader som kom
+  // frå Leveranseplan-vindauget (i_leveranseplan), og SOM STANDARD berre dei som
+  // endå ikkje har fått ei faktisk fil (brukar sitt krav 8. okt. 2026) —
+  // «Vis også leverte» tek dei med.
+  const [visLeverte, setVisLeverte] = useState(false)
+  const [sisteLopenr, setSisteLopenr] = useState(null) // { endringar:[{id,gammal,ny}] } — grunnlag for «Angre løpenummer»
+  useEffect(() => { setSisteLopenr(null) }, [activeProjectId]) // angre-grunnlaget gjeld berre prosjektet det vart gjort i
   const synlegeDokument = useMemo(
-    () => aktivtSett === 'alle' ? dokumenter : dokumenter.filter(d => d[aktivtSett]),
-    [dokumenter, aktivtSett])
+    () => aktivtSett === 'alle' ? dokumenter
+      : aktivtSett === 'leveranseplan' ? dokumenter.filter(d => d.i_leveranseplan && (visLeverte || erPlanlagtUtanFil(d)))
+      : dokumenter.filter(d => d[aktivtSett]),
+    [dokumenter, aktivtSett, visLeverte])
 
   const tal = useCallback(k => dokumenter.filter(d => d[k]).length, [dokumenter])
+  const talLeveranseplan = useMemo(() => dokumenter.filter(d => d.i_leveranseplan && erPlanlagtUtanFil(d)).length, [dokumenter])
+  const talLeveranseplanAlle = useMemo(() => dokumenter.filter(d => d.i_leveranseplan).length, [dokumenter])
 
   // Grupperer SENDTE utsendingar per dokument (via dokument_id), til den
   // nye «Utsendingar»-kolonna i DTMTabell — kladdar tel ikkje med, sidan
@@ -601,6 +621,197 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     return resultat
   }
 
+  // Opprettar PLANLAGDE dokument-rader (utan fil, alle kategori-felt null) frå
+  // Leveranseplan-vindauget. Når den ferdige fila seinare vert importert med
+  // same dokumentnummer, finn importer() den eksisterande rada (match på nr)
+  // og fyller inn fila — ingen eigen kopling trengst. Rader med nummer som alt
+  // finst er filtrerte bort av vindauget; dobbeltsjekk her likevel.
+  const lagreProsjektNummerering = async (n) => {
+    setDetails(x => ({ ...(x || {}), nummerering: n }))
+    try { await lagreNummerering(supabase, activeProjectId, userId, n) }
+    catch (e) { alert('Klarte ikkje lagre nummereringsoppsettet: ' + e.message) }
+  }
+
+  // Tom rad UTAN fil (alle kategori-felt null) med alle standardfelt — felles for
+  // Leveranseplan-vindauget, «Legg til rad» og «Dupliser rad» (radmenyen).
+  const lagPlanRad = (felt, id) => {
+    const no = new Date().toISOString()
+    return {
+      id, user_id: userId, project_id: activeProjectId, nr: '', tittel: '',
+      fag: '', fase: '', delprosjekt: '', malestokk: '', format: '',
+      utarbeida_av: '', ek_person: '', fk_person: '', godkjent_av: '', oppdragsgivar: '', tiltakshavar: '',
+      oppdragsnr: '', revisjonsbeskriving: '', tegningsformal: '', ferdigstillingsstatus: '', forste_revisjon_dato: '',
+      ekstern_kategori: '', er_styrande_dokument: false, ai_indeksering_onska: false, i_leveranseplan: true,
+      lagra_av: namnFraEpost(userEmail), status: [], ekstra: {}, favorite: false, pinned: false,
+      arbeidsdokument: null, resultatdokument: null, kontrolldokument: null, styrande_dokument: null, eksternt_dokument: null,
+      rekkefolge: null,
+      created_at: no, updated_at: no, ...felt,
+    }
+  }
+
+  const opprettPlanlagdeDokument = async (nye, { fase, fag }) => {
+    const finst = new Set(dokumenter.map(d => d.nr.toUpperCase()))
+    const base = Date.now()
+    const rader = nye.filter(n => n.nr && !finst.has(n.nr.toUpperCase())).map((n, i) => lagPlanRad({
+      nr: n.nr, tittel: n.tittel || n.nr, fag: fag || '', fase: fase || '', delprosjekt: n.bygg || '', malestokk: n.malestokk || '',
+    }, base + i))
+    if (!rader.length) return { opprettet: 0 }
+    const { error } = await supabase.from('dtm_dokumenter').insert(rader)
+    if (error) throw new Error('Klarte ikkje opprette dokumenta: ' + error.message)
+    setDokumenter(ds => [...ds, ...rader])
+    return { opprettet: rader.length }
+  }
+
+  // ── Fast rekkjefølgje (dra rader i tabellen) ───────────────────────────
+  // Rekkjefølgja ligg i dtm_dokumenter.rekkefolge (flyttal, supabase-dtm.sql). Å flytte éi rad set
+  // berre denne eine verdien (midt mellom naboane); «frys»/omnummerering set 1000, 2000 … på alle viste.
+  const settRekkefolgjeAlle = async (raderIOrden) => {
+    const nye = raderIOrden.map((r, i) => ({ id: r.id, verdi: (i + 1) * 1000 }))
+      .filter(x => dokumenter.find(d => d.id === x.id)?.rekkefolge !== x.verdi)
+    if (!nye.length) return
+    const kart = new Map(nye.map(x => [x.id, x.verdi]))
+    setDokumenter(ds => ds.map(d => (kart.has(d.id) ? { ...d, rekkefolge: kart.get(d.id) } : d)))
+    for (let i = 0; i < nye.length; i += 20) {
+      const svar = await Promise.all(nye.slice(i, i + 20).map(x =>
+        supabase.from('dtm_dokumenter').update({ rekkefolge: x.verdi }).eq('id', x.id).eq('user_id', userId)))
+      const feil = svar.find(s => s.error)?.error
+      if (feil) { alert('Klarte ikkje lagre rekkjefølgja: ' + feil.message + ' (er migrasjonen for kolonna «rekkefolge» køyrd?)'); return }
+    }
+  }
+  const flyttRad = async (id, verdi) => {
+    setDokumenter(ds => ds.map(d => (d.id === id ? { ...d, rekkefolge: verdi } : d)))
+    const { error } = await supabase.from('dtm_dokumenter').update({ rekkefolge: verdi }).eq('id', id).eq('user_id', userId)
+    if (error) alert('Klarte ikkje lagre rekkjefølgja: ' + error.message)
+  }
+
+  // ── Radmenyen: «Slett» ──────────────────────────────────────────────────
+  // Slettar rada(ne) frå REGISTERET. Er fleire rader markerte og den du klikka på er
+  // ei av dei, vert alle markerte sletta. Filer på disken vert ALDRI rørte.
+  const slettRad = (id) => slettRader(valde.has(id) && valde.size > 1 ? [...valde] : [id])
+  const slettRader = async (ider) => {
+    const rader = dokumenter.filter(d => ider.includes(d.id))
+    if (!rader.length) return
+    const medFil = rader.filter(d => !erPlanlagtUtanFil(d)).length
+    const nrListe = rader.slice(0, 6).map(d => d.nr).join(', ') + (rader.length > 6 ? ' … (+' + (rader.length - 6) + ')' : '')
+    const melding = 'Slette ' + (rader.length === 1 ? 'denne raden' : 'desse ' + rader.length + ' radene') + ' frå DTM-registeret?\n\n' + nrListe + '\n\n' +
+      (medFil ? medFil + ' av dei har ei registrert fil: filene på disken vert IKKJE sletta, men versjonshistorikk og kontrollsvar for dokumenta forsvinn.\n\n' : '') +
+      'Dette kan ikkje angrast.'
+    if (!window.confirm(melding)) return
+    const { error } = await supabase.from('dtm_dokumenter').delete().in('id', ider).eq('user_id', userId)
+    if (error) { alert('Klarte ikkje slette: ' + error.message); return }
+    setDokumenter(ds => ds.filter(d => !ider.includes(d.id)))
+    setValde(new Set())
+  }
+
+  // ── Radmenyen: «Generer ny løpenummer etter vist rekkefølge» ───────────────
+  // Berre for dokument UTAN fil (planlagde rader). Dei markerte radene får fortløpande
+  // løpenummer (per type/etasje/bygg-gruppe) i den rekkjefølgja tabellen viser dei, etter
+  // prosjektet sitt nummereringsoppsett. «Angre løpenummer» set dei førre nummera tilbake.
+  const oppdaterNummer = async (par) => {
+    // To steg (fyrst mellombels unike nummer, så dei endelege) — elles ville ei omrokkering
+    // brote UNIQUE (brukar, prosjekt, nr) midt i køyringa.
+    const no = new Date().toISOString()
+    const set = async (liste, fra) => {
+      const svar = await Promise.all(liste.map(p => supabase.from('dtm_dokumenter')
+        .update({ nr: fra(p), updated_at: no }).eq('id', p.id).eq('user_id', userId)))
+      const feil = svar.find(s => s.error)?.error
+      if (feil) throw new Error(feil.message)
+    }
+    await set(par, p => '~' + p.id + '~')
+    try { await set(par, p => p.til) }
+    catch (e) { try { await set(par, p => p.fra) } catch { /* beste forsøk */ } throw e }
+    const kart = new Map(par.map(p => [p.id, p.til]))
+    setDokumenter(ds => ds.map(d => (kart.has(d.id) ? { ...d, nr: kart.get(d.id), updated_at: no } : d)))
+  }
+
+  const genererLopenummer = async (synlegeRader) => {
+    const cfg = hentNummerering(details)
+    if (!cfg.medLopenummer) { alert('Prosjektet er sett opp UTAN løpenummer (Prosjekt → Teikningsnummerering), så det finst ikkje noko løpenummer å generere.'); return }
+    const markerte = (synlegeRader || []).filter(d => valde.has(d.id))
+    if (markerte.length < 2) { alert('Marker to eller fleire rader fyrst (kryssboksen til venstre for rada).'); return }
+    const utanFil = markerte.filter(erPlanlagtUtanFil)
+    if (!utanFil.length) { alert('Løpenummer kan berre genererast på nytt for dokument som ikkje har ei lasta opp fil enno — ingen av dei markerte er slike.'); return }
+    const anna = new Set(dokumenter.filter(d => !utanFil.some(u => u.id === d.id)).map(d => d.nr))
+    const res = nyeLopenummer(utanFil.map(d => ({ id: d.id, nr: d.nr })), anna, cfg)
+    if (!res.endringar.length) {
+      alert('Ingen endringar trengst: nummera ligg alt fortløpande i vist rekkefølge' + (res.hoppaOver.length ? ', og ' + res.hoppaOver.length + ' rad(er) har nummer som ikkje følgjer nummereringsoppsettet.' : '.'))
+      return
+    }
+    const dome = res.endringar.slice(0, 4).map(e => e.gammal + '  →  ' + e.ny).join('\n')
+    const merk = [
+      markerte.length > utanFil.length ? (markerte.length - utanFil.length) + ' markert(e) rad(er) har fil og vert ikkje rørte.' : '',
+      res.hoppaOver.length ? res.hoppaOver.length + ' rad(er) har nummer som ikkje følgjer oppsettet og vert ikkje rørte.' : '',
+    ].filter(Boolean).join('\n')
+    if (!window.confirm('Gje ' + res.endringar.length + ' rad(er) nye løpenummer etter vist rekkefølge?\n\n' + dome + (res.endringar.length > 4 ? '\n…' : '') + (merk ? '\n\n' + merk : '') + '\n\nDu kan angre med «Angre løpenummer».')) return
+    try {
+      await oppdaterNummer(res.endringar.map(e => ({ id: e.id, fra: e.gammal, til: e.ny })))
+      setSisteLopenr({ endringar: res.endringar })
+    } catch (e) { alert('Klarte ikkje endre nummera: ' + e.message) }
+  }
+
+  const angreLopenummer = async () => {
+    if (!sisteLopenr) return
+    try {
+      await oppdaterNummer(sisteLopenr.endringar.map(e => ({ id: e.id, fra: e.ny, til: e.gammal })))
+      setSisteLopenr(null)
+    } catch (e) { alert('Klarte ikkje angre (nummera er kanskje endra sidan): ' + e.message) }
+  }
+
+  // ── Radmenyen: «Legg til rad» / «Dupliser rad» ──────────────────────────
+  // Begge lagar ei rad utan fil (ei planlagd oppføring, same som frå Leveranseplan)
+  // som brukar så rettar i tabellen. Ei rad utan kategori vert berre synleg i
+  // «Alle dokumenter»/«Leveranseplan», så frå ei kategori-fane byter vi til «Alle».
+  const ledigNr = (ynskja) => {
+    const finst = new Set(dokumenter.map(d => d.nr.toUpperCase()))
+    if (!finst.has(ynskja.toUpperCase())) return ynskja
+    for (let i = 2; ; i++) { const k = `${ynskja} (${i})`; if (!finst.has(k.toUpperCase())) return k }
+  }
+  const settInnPlanrad = async (rad) => {
+    const { error } = await supabase.from('dtm_dokumenter').insert(rad)
+    if (error) { alert('Klarte ikkje opprette raden: ' + error.message); return }
+    setDokumenter(ds => [...ds, rad])
+    setValde(new Set([rad.id]))
+    if (aktivtSett !== 'alle' && aktivtSett !== 'leveranseplan') setAktivtSett('alle')
+  }
+  const leggTilRad = async () => {
+    let n = 1
+    while (dokumenter.some(d => d.nr.toUpperCase() === `NY-${String(n).padStart(3, '0')}`)) n++
+    await settInnPlanrad(lagPlanRad({ nr: `NY-${String(n).padStart(3, '0')}`, tittel: 'Ny oppføring' }, Date.now()))
+  }
+  const dupliserRad = async (id) => {
+    const d = dokumenter.find(x => x.id === id)
+    if (!d) return
+    const kopi = {}
+    for (const k of ['fag', 'fase', 'delprosjekt', 'malestokk', 'format', 'utarbeida_av', 'ek_person', 'fk_person', 'godkjent_av',
+      'oppdragsgivar', 'tiltakshavar', 'oppdragsnr', 'revisjonsbeskriving', 'tegningsformal', 'ferdigstillingsstatus',
+      'ekstern_kategori']) kopi[k] = d[k] || ''
+    // planlagde datoar vert med, «sendt»-hakar og filer gjer det ikkje
+    for (const k of Object.keys(d)) if (k.startsWith('planlagt_')) kopi[k] = d[k] || ''
+    // Nytt dokumentnummer = NESTE LEDIGE løpenummer etter originalen (A-40-00-02 → A-40-00-03), etter
+    // prosjektet sitt nummereringsoppsett; følgjer ikkje nummeret oppsettet, vert det «<nr> (kopi)».
+    let nyttNr = null
+    const p = lopenummerDelar(d.nr, hentNummerering(details))
+    if (p) {
+      const finst = new Set(dokumenter.map(x => x.nr.toUpperCase()))
+      const breidd = Math.max(2, p.lopenr.length)
+      for (let n = parseInt(p.lopenr, 10) + 1; n < 1000; n++) {
+        const dl = [...p.delar]; dl[p.idx] = String(n).padStart(breidd, '0')
+        const kand = dl.join('-')
+        if (!finst.has(kand.toUpperCase())) { nyttNr = kand; break }
+      }
+    }
+    if (!nyttNr) nyttNr = ledigNr(`${d.nr} (kopi)`)
+    const namn = d.tittel || d.nr
+    const tittel = /\(kopi\)\s*$/i.test(namn) ? namn : `${namn} (kopi)`
+    // I fast rekkjefølgje: rett etter originalen
+    let rek = null
+    if (d.rekkefolge != null) {
+      const storre = dokumenter.map(x => x.rekkefolge).filter(v => v != null && v > d.rekkefolge)
+      rek = storre.length ? (d.rekkefolge + Math.min(...storre)) / 2 : d.rekkefolge + 1000
+    }
+    await settInnPlanrad(lagPlanRad({ ...kopi, nr: nyttNr, tittel, rekkefolge: rek, ekstra: { ...(d.ekstra || {}) } }, Date.now()))
+  }
+
   // Indekserer ei fil APPEN SJØLV nett genererte i ei DTM-kategorimappe
   // (Tegningsliste/Dokumentleveranseplan, PDF eller Excel) i registeret på
   // éin gong — elles ville ho dukke opp som «ukjend fil» ved neste skanning
@@ -682,6 +893,20 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
                 </div>
               )}
             </div>
+            <button onClick={() => setPlanleggerOpen(true)}
+              title="Planlegg leveransar: legg inn bygg, få forslag til teikningar"
+              style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'1.5px solid #0F766E',
+                background:'rgba(15,118,110,.10)', color:'#0F766E', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+              Leveranseplan
+            </button>
+            {sisteLopenr && (
+              <button onClick={angreLopenummer}
+                title="Set tilbake dei førre dokumentnummera"
+                style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'1.5px solid #0F766E',
+                  background:'rgba(15,118,110,.10)', color:'#0F766E', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                ↶ Angre løpenummer ({sisteLopenr.endringar.length})
+              </button>
+            )}
             <button onClick={() => setUtsendingarListeOpen(true)}
               style={{ padding:'9px 16px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
                 background:'var(--bg2)', color:'var(--text2)', fontSize:13, fontWeight:700, cursor:'pointer' }}>
@@ -749,13 +974,31 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
                   {KATEGORI_LABEL[k]} ({tal(k)})
                 </button>
               ))}
+              <button onClick={() => setAktivtSett('leveranseplan')}
+                title="Planlagde leveransar frå Leveranseplan-vindauget — som standard berre dei som ikkje er levert (utan fil) enno"
+                style={{ padding:'6px 13px', borderRadius:6, fontSize:12.5, fontWeight:700,
+                  border:'1.5px solid', cursor:'pointer',
+                  borderColor: aktivtSett === 'leveranseplan' ? LEVERANSEPLAN_FARGE : 'var(--border)',
+                  background:  aktivtSett === 'leveranseplan' ? LEVERANSEPLAN_FARGE + '1a' : 'transparent',
+                  color:       aktivtSett === 'leveranseplan' ? LEVERANSEPLAN_FARGE : 'var(--text3)' }}>
+                Leveranseplan ({talLeveranseplan})
+              </button>
+              {aktivtSett === 'leveranseplan' && (
+                <label style={{ display:'flex', alignItems:'center', gap:6, marginLeft:8, fontSize:12.5, color:'var(--text2)', cursor:'pointer' }}>
+                  <input type="checkbox" checked={visLeverte} onChange={e => setVisLeverte(e.target.checked)}/>
+                  Vis også leverte ({talLeveranseplanAlle - talLeveranseplan})
+                </label>
+              )}
             </div>
 
-            <DTMTabell dokumenter={synlegeDokument} aktivtSett={aktivtSett} eigneKolonnar={eigneKolonnar}
+            <DTMTabell key={aktivtSett} dokumenter={synlegeDokument} aktivtSett={aktivtSett} eigneKolonnar={eigneKolonnar}
+              standardSynlegeKolonnar={aktivtSett === 'leveranseplan' ? LEVERANSEPLAN_KOLONNAR : undefined}
               oppdragsSti={oppdragsSti} merking={{ valde, onEndre: setValde }}
               onSetVerdi={settVerdi} onOpneFil={(rad) => opneFil(rad)} onDelFil={delFil}
               onToggleFavorite={toggleFavorite} onTogglePinned={togglePinned}
-              onRegistrerUtsending={registrerUtsending} utsendingarPerDokument={utsendingarPerDokument}
+              onRegistrerUtsending={registrerUtsending} onLeggTilRad={leggTilRad} onDupliserRad={dupliserRad} onSlettRad={slettRad} onNyLopenummer={genererLopenummer}
+              radRekkjefolge={{ verdi: r => r.rekkefolge ?? null, onSettAlle: settRekkefolgjeAlle, onFlytt: flyttRad }}
+              onSlettValde={() => slettRader([...valde])} utsendingarPerDokument={utsendingarPerDokument}
               onNyKolonne={addKolonne} onSlettKolonne={slettKolonne} onSetExtra={setExtraVerdi}/>
           </>
         )}
@@ -804,6 +1047,12 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           oppdragsgivar={details?.clientName} oppdragsSti={oppdragsSti}
           alleDokument={dokumenter} onGenerert={registrerGenerertFil}
           onLukk={() => setLeveranseplanOpen(false)}/>
+      )}
+
+      {planleggerOpen && (
+        <LeveranseplanVindauge dokumenter={dokumenter} aktivtProsjekt={aktivtProsjekt}
+          nummerering={hentNummerering(details)} onLagreNummerering={lagreProsjektNummerering}
+          onOpprett={opprettPlanlagdeDokument} onLukk={() => setPlanleggerOpen(false)}/>
       )}
 
       {ukjendeFilerVarselOpen && (

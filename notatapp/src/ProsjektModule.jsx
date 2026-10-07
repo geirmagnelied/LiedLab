@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase'
+import NummereringVal from './NummereringVal'
+import PersonellSide from './PersonellSide'
+import KontorkalenderSide from './KontorkalenderSide'
+import { STANDARD_NUMMERERING } from './teikningsnummer'
 
 // ── Konstantar ────────────────────────────────────────────────────────
 const TILTAKSTYPAR = [
@@ -162,6 +166,8 @@ function tomtProsjekt() {
     // ikkje automatisk for alle prosjekt, sidan nokre kan ha dokument ein
     // ikkje vil ha liggjande i ein skybøtte i det heile).
     skyOpplastingResultatdokument: false,
+    // Oppsett for teikningsnummer (DS-356) — sjå teikningsnummer.js
+    nummerering: { ...STANDARD_NUMMERERING },
   }
 }
 
@@ -179,6 +185,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   const [orgLookup, setOrgLookup]       = useState({ field: null, loading: false })
   const [filter, setFilter]             = useState('alle') // alle|tilbod|aktiv|arkiv
   const [sidebarWidth]                  = useState(240)
+  const [side, setSide]                   = useState('kort') // 'kort' | 'personell' | 'kalender'
 
   // ── Last prosjekt med detaljar ────────────────────────────────
   const loadProsjekt = useCallback(async () => {
@@ -670,7 +677,31 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
           )}
         </div>
 
+        {/* Fanerad: Prosjektkort · Personell · Kontorkalender */}
+        <div style={{ display:'flex', gap:2, padding:'0 20px', borderBottom:'1px solid var(--border)', background:'var(--bg2)', flexShrink:0 }}>
+          {[['kort','Prosjektkort'],['personell','Personell'],['kalender','Kontorkalender']].map(([k, t]) => (
+            <button key={k} onClick={() => setSide(k)}
+              style={{ padding:'11px 16px', border:'none', background:'transparent', cursor:'pointer', fontFamily:'var(--font)',
+                fontSize:13, fontWeight: side === k ? 800 : 600, color: side === k ? 'var(--brand)' : 'var(--text3)',
+                borderBottom: side === k ? '2.5px solid var(--brand)' : '2.5px solid transparent', marginBottom:-1 }}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {side === 'personell' && (
+          <div style={{ flex:1, overflow:'auto', padding:'22px 28px', display:'flex', flexDirection:'column', minHeight:0 }}>
+            <PersonellSide userId={userId} prosjekt={prosjektList.find(p => p.id === selected)} prosjektListe={prosjektList}/>
+          </div>
+        )}
+        {side === 'kalender' && (
+          <div style={{ flex:1, overflowY:'auto', padding:'22px 28px' }}>
+            <KontorkalenderSide userId={userId}/>
+          </div>
+        )}
+
         {/* Prosjektkort */}
+        {side === 'kort' && (
         <div style={{ flex:1, overflowY:'auto', padding:'22px 28px' }}>
           {!form ? (
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
@@ -1019,6 +1050,16 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                 </label>
               </Section>
 
+              {/* ── Teikningsnummerering (DS-356) — gjeld KS, sjekklister og Leveranseplan ── */}
+              <Section title="Teikningsnummerering">
+                <p style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6, margin:'0 0 10px' }}>
+                  Korleis er teikningsnummera i dette prosjektet bygde? Valet styrer korleis Kvalitetssystemet og
+                  sjekklistene les nummera, og korleis Leveranseplan lagar dei. Fag, type og etasje er alltid med.
+                </p>
+                <NummereringVal verdi={{ ...STANDARD_NUMMERERING, ...(form.nummerering || {}) }}
+                  onEndre={n => set('nummerering', n)}/>
+              </Section>
+
               </div>
               {/* ── Lagre-knapp (spenner over begge kolonnar) ── */}
               <div style={{ gridColumn:'1 / -1', display:'flex', gap:10, marginTop:12, paddingBottom:40 }}>
@@ -1042,6 +1083,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   )

@@ -81,3 +81,29 @@ møte = sirkel). Ingenting vert lagra dobbelt.
   oppsett som avvik.
 - Dra-og-slepp bruker musehendingar — fungerer ikkje med touch (mobil viser
   planen, men kan ikkje flytte stolpar der; bruk Tabell/panelet).
+
+## Personell, kontorkalender og timeprognose (10. okt. 2026)
+
+**Prosjekt-modulen har no tre faner**: Prosjektkort · **Personell** · **Kontorkalender**.
+
+- **Personell** (`PersonellSide.jsx`, tabell `prosjekt_personell`, `supabase-personell.sql`): ein tabell
+  (DataTabell) per prosjekt med namn, rolle, **prosent** (del av full arbeidstid på prosjektet), utrekna
+  kapasitet t/veke, e-post og merknad. «Kopier personell frå anna prosjekt» fyller lista raskt. Radmeny → slett.
+- **Kontorkalender** (`KontorkalenderSide.jsx`, `kontorkalender.js`, tabell `kontor_kalender`, éi rad per brukar):
+  standard **8 t/dag, måndag–fredag**; fri **stille veke i påska** (måndag–fredag veka før påskedag),
+  **julaften** og **veka 24.–31. des.**, elles norske helligdagar (`helligdagar.js`). Kvart val kan slåast av,
+  arbeidsdagar og timar kan endrast, og eigne fridagar/ferie (periodar) kan leggjast til. Sida viser alle
+  fridagar for valt år og sum arbeidsdagar/timar. Hook: `useKontorkalender`. NB: kalenderen styrer
+  **timar/kapasitet** — planlegginga av datoar (`framdriftDato.js`, varigheit i arbeidsdagar) bruker framleis
+  berre norske helligdagar, så ein aktivitet «arbeider» gjennom stille veke/juleveka med 0 timar.
+- **Timeprognose per aktivitet** (`framdriftTimar.js`, `FramdriftTimarPanel.jsx`): to nye felt på aktivitetar,
+  `timar` (forventa totalt) og `fordeling`: **fast** kvar veke · størst **start** · størst **midt** · størst **slutt**.
+  Kvar veke vert vekta med kontorets faktiske arbeidstimar innanfor aktiviteten sin periode (veker med fri får 0,
+  delveker mindre); timar vert runda til halve og justerte så summen er nøyaktig det oppgjevne. Panelet (til høgre
+  når ein aktivitet er vald) har timefelt, fire fordelingsknappar med form-ikon og ei førehandsvising per veke.
+  Også kolonnane «Timar»/«Fordeling» i tabellvisinga. Fasar viser sum av aktivitetane sine timar.
+- **Timar per veke** (ny rad nedst i tidslinja, kan slåast av): sum for alle aktivitetar per veke, tooltip viser
+  fordeling per person. **Overbelastning**: har ein person (matcha på namn mot personell-lista) meir planlagt ei
+  veke enn kapasiteten (arbeidstimar den veka × prosent), får vekecella raud ramme og tooltipen listar kven og kor
+  mykje; verktøylinja viser tal overbelasta veker. Berre aktivitetar i DETTE prosjektet tel (ikkje på tvers av prosjekt).
+- «Ansvarleg» på ein aktivitet foreslår namn frå personell-lista (fritekst er framleis lov).

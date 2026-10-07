@@ -237,7 +237,7 @@ export function nyttElement(type, { start, forelder = null, namn } = {}) {
   const slutt = type === 'milepael' ? s : leggTilArbeidsdagar(s, type === 'fase' ? 9 : 4)
   return {
     id: nyId(), type, namn: namn || (type === 'fase' ? 'Ny fase' : type === 'milepael' ? 'Ny milepæl' : 'Ny aktivitet'),
-    start: iso(s), slutt: iso(slutt), forelder, avh: [], ansvarleg: '', ferdig: 0, fasekode: '',
+    start: iso(s), slutt: iso(slutt), forelder, avh: [], ansvarleg: '', ferdig: 0, fasekode: '', timar: 0, fordeling: 'fast',
   }
 }
 

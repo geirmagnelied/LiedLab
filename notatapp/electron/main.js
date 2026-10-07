@@ -1413,6 +1413,26 @@ ipcMain.handle('bilete:importer-fra-bytar', async (event, { filer, oppdragsSti, 
   return resultat
 })
 
+// Riss (skisseverktøyet, eige repo/nettstad) — lagrar eit generert dokument (t.d. situasjonskart-PDF)
+// direkte i «<oppdragsSti>\2 Informasjonsflyt\Inn». Gjer aldri noko anna enn å skrive éi NY fil:
+// finst namnet frå før får fila « (2)», « (3)» … — ei eksisterande fil vert aldri overskriven.
+ipcMain.handle('riss:lagre-inn', async (event, { oppdragsSti, filnamn, data }) => {
+  if (!oppdragsSti || !filnamn || !data) return { ok: false, melding: 'Manglar oppdragssti, filnamn eller data.' }
+  try {
+    const mappe = path.join(oppdragsSti, '2 Informasjonsflyt', 'Inn')
+    fs.mkdirSync(mappe, { recursive: true })
+    const trygt = path.basename(String(filnamn)).replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
+    const ext = path.extname(trygt)
+    const grunn = trygt.slice(0, trygt.length - ext.length)
+    let sti = path.join(mappe, trygt)
+    for (let i = 2; fs.existsSync(sti); i++) sti = path.join(mappe, `${grunn} (${i})${ext}`)
+    fs.writeFileSync(sti, Buffer.from(data))
+    return { ok: true, sti }
+  } catch (e) {
+    return { ok: false, melding: e.message }
+  }
+})
+
 // Opnar eit bilete i systemet sitt standardprogram (klikk på Filnamn-kolonna).
 ipcMain.handle('bilete:apne-fil', async (event, { oppdragsSti, filnamn }) => {
   if (!oppdragsSti || !filnamn) return false

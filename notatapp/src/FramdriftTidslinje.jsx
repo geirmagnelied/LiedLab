@@ -25,7 +25,7 @@ const MOTE_FARGE = '#1565C0'
 const VALG_FARGE = '#1E3A8A'
 
 export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
-                                              zoom, lukka, onToggleLukka }) {
+                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar }) {
   const dagB = DAGB[zoom] || DAGB.veke
   const scrollRef = useRef(null)
   const [drag, setDrag] = useState(null) // { id, modus, d }
@@ -100,7 +100,15 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
     return i >= 0 ? FASEFARGAR[i % FASEFARGAR.length] : NEUTRAL
   }
 
-  const radar = visHendingar ? [{ id: '__hendingar', type: 'hendingar' }, ...rader] : rader
+  // Timar per veke (sum av alle aktivitetar) — eiga rad nedst
+  const harTimar = visTimar && timarKart && timarKart.size > 0
+  const maksTimar = harTimar ? Math.max(...[...timarKart.values()].map(v => v.total)) : 0
+  const sumTimar = harTimar ? [...timarKart.values()].reduce((s2, v) => s2 + v.total, 0) : 0
+  const radar = [
+    ...(visHendingar ? [{ id: '__hendingar', type: 'hendingar' }] : []),
+    ...rader,
+    ...(harTimar ? [{ id: '__timar', type: 'timar' }] : []),
+  ]
   const radIndeks = new Map(radar.map((r, i) => [r.id, i]))
 
   // ── Dra-og-slepp ──
@@ -209,6 +217,16 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
           <div style={{ position: 'sticky', left: 0, zIndex: 6, width: VENSTRE, flexShrink: 0, background: 'var(--bg2)',
             borderRight: '1px solid var(--border)' }}>
             {radar.map(r => {
+              if (r.type === 'timar') {
+                return (
+                  <div key={r.id} style={{ height: RAD_H, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
+                    borderBottom: '1px solid var(--border)', background: 'var(--bg3)', fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>
+                    <span style={{ width: 9, height: 9, background: '#0F766E', borderRadius: 2, flexShrink: 0 }}/>
+                    Timar per veke
+                    <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--text3)' }}>{Math.round(sumTimar * 2) / 2} t totalt</span>
+                  </div>
+                )
+              }
               if (r.type === 'hendingar') {
                 return (
                   <div key={r.id} style={{ height: RAD_H, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
@@ -272,6 +290,27 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                   style={{ position: 'absolute', left: x(h.dato) + dagB / 2 - 5 + off, top: RAD_H / 2 - 5, width: 10, height: 10,
                     background: h.type === 'møte' ? MOTE_FARGE : FRIST_FARGE, borderRadius: h.type === 'møte' ? '50%' : 0,
                     transform: h.type === 'møte' ? undefined : 'rotate(45deg)', border: '1.5px solid #fff', zIndex: 3 }}/>
+              )
+            })}
+
+            {/* Timar per veke: sum per veke, raud ramme viss nokon har meir planlagt enn kapasiteten */}
+            {harTimar && [...timarKart.entries()].map(([veke, v]) => {
+              const ob = overlast?.get(veke)
+              const rad = radIndeks.get('__timar')
+              const tekst = Math.round(v.total * 2) / 2
+              const avr = (n) => Math.round(n * 2) / 2
+              const linjer = [`Veke ${getISOWeek(tilDato(veke))}: ${tekst} t`,
+                ...Object.entries(v.perPerson).map(([n, h]) => `${n}: ${avr(h)} t`)]
+              if (ob) linjer.push('', 'OVERBELASTNING:', ...ob.map(o => `${o.namn}: ${avr(o.timar)} t av ${avr(o.kapasitet)} t kapasitet`))
+              return (
+                <div key={veke} title={linjer.join('\n')}
+                  style={{ position: 'absolute', left: x(tilDato(veke)) + 1, width: dagB * 7 - 2, top: rad * RAD_H + 4, height: RAD_H - 8, borderRadius: 4,
+                    background: `rgba(15,118,110,${0.14 + 0.5 * (maksTimar ? v.total / maksTimar : 0)})`,
+                    outline: ob ? '2px solid #DC2626' : undefined, outlineOffset: -1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800,
+                    color: ob ? '#B91C1C' : 'var(--text)', overflow: 'hidden', zIndex: 3 }}>
+                  {dagB * 7 >= 24 ? tekst : ''}
+                </div>
               )
             })}
 

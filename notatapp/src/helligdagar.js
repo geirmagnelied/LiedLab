@@ -4,7 +4,7 @@
 // Resten av dei rørlege heilagdagane er faste avstandar frå påskedag.
 // Ingen ekstern avhengigheit — brukt av KalenderModule.jsx.
 
-function paaskedag(aar) {
+export function paaskedag(aar) {
   const a = aar % 19
   const b = Math.floor(aar / 100)
   const c = aar % 100

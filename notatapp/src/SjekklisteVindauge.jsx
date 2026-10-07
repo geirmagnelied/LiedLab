@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from './supabase'
 import { KONTROLLTYPE, tolkSjekklisteType, hentGjeldandeSjekkliste, KATEGORI_MAPPE } from './dtmKonstantar'
+import { hentNummerering } from './teikningsnummer'
 import sjekklisteData from './sjekklister/tegningskontroll.json'
 
 // ═══════════════════════════════════════════════════════════════════
@@ -40,6 +41,7 @@ export default function SjekklisteVindauge({ dokumentId: startId, kontrolltype }
   const [dokumentId, setDokumentId] = useState(startId)
   const [dokument, setDokument] = useState(null)
   const [oppdragsSti, setOppdragsSti] = useState('')
+  const [nummerering, setNummerering] = useState(() => hentNummerering(null))
   const [typeOverstyrt, setTypeOverstyrt] = useState(undefined) // undefined = ikkje rørt, følg gjetting
   const [svar, setSvar] = useState({}) // { [sjekkpunktId]: { avkrossa, merknad } }
   const [lastar, setLastar] = useState(true)
@@ -62,6 +64,7 @@ export default function SjekklisteVindauge({ dokumentId: startId, kontrolltype }
     setTypeOverstyrt(undefined)
     const { data: p } = await supabase.from('projects').select('details').eq('id', d.project_id).single()
     setOppdragsSti(p?.details?.oppdragsSti || '')
+    setNummerering(hentNummerering(p?.details))
     const { data: s } = await supabase.from('ks_kontroll_svar').select('*')
       .eq('dokument_id', id).eq('kontrolltype', kontrolltype)
     const svarMap = {}
@@ -72,7 +75,7 @@ export default function SjekklisteVindauge({ dokumentId: startId, kontrolltype }
 
   useEffect(() => { if (session && dokumentId) lastDokument(dokumentId) }, [session, dokumentId, lastDokument])
 
-  const { type: typeGjetta, stadium } = useMemo(() => tolkSjekklisteType(dokument?.nr), [dokument?.nr])
+  const { type: typeGjetta, stadium } = useMemo(() => tolkSjekklisteType(dokument?.nr, nummerering, dokument?.tittel), [dokument?.nr, dokument?.tittel, nummerering])
   const type = typeOverstyrt !== undefined ? typeOverstyrt : typeGjetta
   const punkt = useMemo(() => hentGjeldandeSjekkliste(sjekklisteData, type, stadium), [type, stadium])
 

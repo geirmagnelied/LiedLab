@@ -139,3 +139,15 @@ CREATE POLICY "dtm_columns_select" ON dtm_columns FOR SELECT USING (auth.uid() =
 CREATE POLICY "dtm_columns_insert" ON dtm_columns FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "dtm_columns_update" ON dtm_columns FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "dtm_columns_delete" ON dtm_columns FOR DELETE USING (auth.uid() = user_id);
+
+-- Leveranseplan-filteret (8. okt. 2026): rader som kom frå «Leveranseplan»-vindauget.
+-- Flagget består når fila seinare vert importert (rada vert då «levert», men er framleis
+-- ein del av planen). Oppfylling: rader utan fil i nokon kategori er alltid plan-rader.
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS i_leveranseplan BOOLEAN NOT NULL DEFAULT false;
+UPDATE dtm_dokumenter SET i_leveranseplan = true
+  WHERE arbeidsdokument IS NULL AND resultatdokument IS NULL AND kontrolldokument IS NULL
+    AND styrande_dokument IS NULL AND eksternt_dokument IS NULL AND i_leveranseplan = false;
+
+-- Fast rekkjefølgje (dra rader i tabellen, 10. okt. 2026): flyttal, tomt = ikkje manuelt plassert.
+-- Ei flytting set berre éi verdi (midt mellom naboane), så ingen massenummerering trengst.
+ALTER TABLE dtm_dokumenter ADD COLUMN IF NOT EXISTS rekkefolge DOUBLE PRECISION;

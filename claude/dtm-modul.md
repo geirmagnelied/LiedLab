@@ -1308,3 +1308,162 @@ PROSJEKT** (ikkje automatisk for alle) for skyopplasting, og
       scan-og-registrer-funksjonalitet (Del A, `ks:skann-og-legg-til`,
       `ks_teikningar`-tabellen) skal fjernast/erstattast av DTM, eller
       leve vidare parallelt ei stund. Ikkje avklara med brukar enno.
+
+## Riss → «2 Informasjonsflyt\Inn» (lagt til 4. okt. 2026)
+
+Skisseverktøyet **Riss** (eige repo `geirmagnelied/riss`, eiga nettside) kan lagre
+situasjonskart-PDF rett i prosjektet sin `2 Informasjonsflyt\Inn`-mappe via eit
+nytt IPC-endepunkt: `riss:lagre-inn` (`electron/main.js`) →
+`window.resultatdokumentAPI.rissLagreInn(oppdragsSti, filnamn, data)`
+(`electron/preload.js`). Skriv alltid ei NY fil (« (2)» ved same namn, aldri
+overskriving) og opprettar mappa om ho manglar. Fila dukkar opp i DTM som vanleg
+mottatt dokument ved neste import. Krev ny `.exe` (`npm run dist`) for å virke i den
+pakka appen; i `electron:dev` vert `main.js` lasta på nytt automatisk. Riss må
+opnast i same Electron-vindauge for å få tilgang til brua — elles vert PDF-en lasta ned
+i nettlesaren. Sjå Riss sin `CLAUDE.md` for resten.
+
+## Ny funksjon 7. okt. 2026 — «Leveranseplan» (teikningsforslag)
+
+Knapp «Leveranseplan» i DTM-verktøylinja opnar `LeveranseplanVindauge.jsx`, eit
+flyttbart/skalerbart vindauge (`useFlyttbartVindauge.js`, same 8-handtak-mønster
+som Tegningsliste). Ikkje å forveksle med **Dokumentleveranseplan** (Eksport-
+menyen: PDF/Excel med planlagde utsendingsdatoar).
+
+Flyt: (1) vel type leveranse — Skisseprosjekt / Forprosjekt / **Detaljprosjekt**
+(berre detalj er bygd; dei to andre viser «kjem seinare»); (2) legg inn bygg i ei
+matrise (namn, fasadar, etasjar, kjeller, underetasje, ulike våtrom, trapperom);
+(3) justér målestokkar og typiske detaljar; (4) «Lag forslag» gjev ei redigerbar
+`DataTabell` (nummer, namn, type, målestokk; legg til/fjern rader, rader som alt
+finst vert hoppa over, dobbelt/manglande nummer blokkerer opprettinga);
+(5) «Opprett» lagar **planlagde rader** i `dtm_dokumenter` (alle kategori-felt
+null, `delprosjekt` = bygg, `fase` = prosjekttype, status «Planlagt»). Når ferdig
+fil seinare vert importert med same dokumentnummer, finn `importer()` rada (match på
+`nr`) og fyller inn fila — ingen eigen kopling. Utkastet vert hugsa per prosjekt i
+`localStorage` (`liedlab-leveranseplan:<prosjektId>`).
+
+Reglane (`leveranseplanGenerator.js`, testa): kvart bygg eige sett · plan per etasje
+(inkl. kjeller/underetasje) · himlingsplan per etasje · 1 takplan · 2 snitt · fasadar
+som oppgjeve (4 → nord/aust/sør/vest) · 1 dørliste · 1 dørskjema · 1 våtromsskjema per
+ulikt våtrom · 1 trappeskjema per trapperom · typiske detaljar per bygg · 1
+situasjonsplan 1:200 for prosjektet. Målestokk 1:50 på planar, takplan, himlingsplanar,
+snitt og fasadar.
+
+**Antakingar å bekrefte/rette:** detaljlista summerer til **23**, ikkje 20 (redigerbar i
+vindauget); detaljmålestokk **1:10** er mitt forslag (ikkje oppgjeve); «2 trappeskjema»
+er tolka som eitt skjema per trapperom (standard 2); våtromsdetaljen kjem berre på bygg
+med våtrom.
+
+**⚠ Nummereringa er midlertidig:** `<fag>-<type>-<løpenr>-<fase>` med KS sine typekodar
+(10/20/40/45/50); kodane 21/22/60–63 for takplan, himling, lister og skjema er påfunne.
+Løpenummer er unike per type i heile prosjektet (bygga får fortløpande nummer). All
+nummereringslogikk ligg i `TEIKNINGSTYPAR` + `tildelNummer()` — byt ut når Norconsult-
+skildringa ligg føre.
+
+### Oppdatering 8. okt. 2026 — DS-356-nummerering, nye val og eige «Leveranseplan»-filter
+
+**Nummereringa følgjer no Norconsult DS-356** (erstattar den midlertidige i avsnittet
+over): `Fag-Type-[Bygg]-Etasje-Løpenr[-Fase]`, t.d. `A-20-1A-01-01-3`. Typekodar: 10 utomhus
+(situasjonsplan) · 20 plan (også takplan) · 30 himlingsplan · 40 snitt og oppriss
+(fasadar) · 50 detalj · 60 skjema (også dørliste, våtroms-, trappe- og glasfasadeskjema).
+Etasje: `01`, `02` … · `U1` kjeller/1. underetasje · `U2` · `00` gjennomgåande. Bygg-delen er
+valfri (brukar skriv byggnummer i matrisa). Løpenummer er unike per (fag, type, bygg,
+etasje). IFC-modellar følgjer den gamle IFC-regelen `<fag>-<tosifra nr>` (`A-01`).
+**Fasenummer sist** (1 skisse · 2 forprosjekt · 3 detalj) er eit valfritt tillegg ut over
+DS-356 — kryssboks i vindauget (på som standard). Bygningsfagkode (nivå 2/4) er ikkje med.
+
+Andre endringar: byggnamn er ikkje lenger med i teikningsnamnet som standard (val: ikkje
+med / før / etter) · detaljar 1:5 · skjema og trappeskjema 1:20 (dørlista har ingen
+målestokk) · eigne kolonnar for byggnummer, **glasfasade** (gjev skjemaet «Glasfasade» +
+ein glasfasadedetalj) og **IFC** (gjev ei IFC-rad per bygg) · utkastnøkkelen er `…leveranseplan2:`.
+
+**Leveranseplan-filter i DTM-tabellen**: ny fane «Leveranseplan (N)» ved sida av kategoriane.
+Kolonnen `dtm_dokumenter.i_leveranseplan` (migrasjon i `supabase-dtm.sql`, oppfylt for rader
+utan fil) markerer rader frå Leveranseplan-vindauget og består etter at fila er importert.
+Som standard viser fana berre rader UTAN faktisk dokument (`erPlanlagtUtanFil`); «Vis også
+leverte» tek med resten. `løysAktivtSett` handterer `'leveranseplan'` som `'alle'`. `DTMTabell`
+får `key={aktivtSett}` (kvar fane laster sitt eige lagra kolonneoppsett) og fana startar med
+eit utval kolonnar (`LEVERANSEPLAN_KOLONNAR`).
+
+**Kjent oppfølging:** KS-modulen (`KvalitetModule.tolkTeikningsnr`, `dtmKonstantar.
+tolkSjekklisteType`) les framleis det eldre `fag-type-løpenr-fase`-mønsteret (type 45 =
+fasade osv.) og gjetter feil type/stadium for DS-356-nummer med bygg/etasje-ledd.
+
+### Oppdatering 8. okt. 2026 (2) — nummereringsoppsett per prosjekt (KS, sjekklister, Leveranseplan)
+
+Eit tal-ledd i eit teikningsnummer fortel ikkje kva det er («A-20-01-01» les ulikt alt etter
+oppsettet), så **prosjektet får eit overordna val** (`projects.details.nummerering`, delt
+modul `teikningsnummer.js` + komponenten `NummereringVal.jsx`):
+`medBygg` (bygg, sone/del) · `medBygningsfagkode` · `medLopenummer` · `medFase` (1/2/3 sist).
+Rekkjefølgja er alltid `Fag-[Bygningsfagkode]-Type-[Bygg]-Etasje-[Løpenr]-[Fase]` (DS-356);
+fag, type og etasje er alltid med. Standard: berre løpenummer og fase på.
+
+Same val kan setjast tre stader (alle skriv til same stad):
+Prosjekt-modulen («Teikningsnummerering»-seksjonen, lagra med prosjektkortet) · Leveranseplan-
+vindauget (seksjon 4, lagrar med ein gong via `lagreNummerering()` — les-endre-skriv mot
+ferske `details`, så prosjektkortet ikkje overskriv andre felt) · info-panelet (i) i
+Kvalitetssystemet.
+
+**Lesing**: `tolkNummer(nr, cfg)` les nummeret etter oppsettet. KS-registeret (`tolkTeikningsnr`,
+fag-kolonna = typen, fase-kolonna = fasenamnet) og sjekklistene (`tolkSjekklisteType(nr, cfg,
+tittel)`) bruker han. DS-356-typekodar: 10/20/30/40/50/60 (40 samlar snitt og fasadar — tittelen
+«fasade» avgjer sjekkliste-type; den gamle KS-koden 45 = fasade vert framleis kjend).
+Fasenummer: 1 siffer = 1/2/3 (skisse/forprosjekt/detalj, → SK/FP/AT), 2 siffer = eldre KS-kodar
+01–05 (→ SK/FP/RS/RS/AT). Døme: det eldre `A-40-02-02` les som «etasje 02, løpenr 02, utan fase»
+med standardoppsett, men som «etasje 02, fase 02 = Forprosjekt» når løpenummer er slått av.
+IFC-forma `A-01` (to ledd) vert ikkje lese som teikning.
+
+**Generering** (`tildelNummer`): følgjer same oppsett. Bygningsfagkode vert sett frå teikningstype
+(`BYGNINGSFAGKODE`, DS-356 vedlegg 1 arkitektur: plan 20, himling 25, tak 26, trapp 28,
+situasjonsplan 70) og kan rettast i tabellen. Utan løpenummer kan fleire teikningar få same nummer —
+tabellen merkjer det «Dobbelt nummer» og blokkerer opprettinga til dei er retta. Bygg utan
+byggnummer får ingen bygg-del.
+
+### Oppdatering 9. okt. 2026 — fasadenamn og «Legg til rad»/«Dupliser rad»
+
+- Leveranseplan: dei fire fyrste fasadane får himmelretning (**Fasade Nord / Øst / Sør / Vest**),
+  fleire vert nummererte (Fasade 5 …). Gjeld også bygg med færre enn fire fasadar (t.d. 3 → Nord, Øst, Sør).
+- DTM-radmenyen (☰ eller høgreklikk) har to nye val: **Legg til rad** (ny oppføring `NY-001` utan fil)
+  og **Dupliser rad** (kopi av metadata og planlagde datoar med nummeret `<nr> (kopi)`; filer, «sendt»-hakar
+  og favoritt/fest vert ikkje kopierte). Begge lagar planlagde rader (`i_leveranseplan`), vert markerte i
+  tabellen, og byter til «Alle dokumenter» frå ei kategori-fane (rader utan fil høyrer ikkje til nokon kategori).
+  Felles bygging av tomme rader ligg i `lagPlanRad()` i `DTMModule.jsx`.
+
+### Oppdatering 10. okt. 2026 — slett rad, lagring ved museklikk, nytt løpenummer med angre
+
+- **Slett rad** (radmeny ☰/høgreklikk → «Slett»): slettar rada frå registeret etter stadfesting. Er fleire rader
+  markerte (kryssboksen) og den du klikka på er ei av dei, vert alle markerte sletta. Filer på disken vert ALDRI
+  sletta; for rader med registrert fil åtvarar dialogen om at versjonshistorikk og kontrollsvar forsvinn
+  (FK `ON DELETE CASCADE`; utsendingar får `dokument_id = NULL`). Kan ikkje angrast.
+- **Cellerediger lagrar ved museklikk** (`DataTabell.RedigerCelle`): før vart verdien berre lagra på Enter/Tab —
+  `onBlur` kom ikkje fram sidan eit klikk utanfor fjerna cella frå DOM-en (og `mousedown`-handtering på andre
+  celler hindra blur). No lagrar cella òg når ho vert fjerna (klikk utanfor tabellen, klikk på ei anna celle),
+  med eit `sistLagra`-vern mot dobbeltlagring; Escape lagrar ingenting. Gjeld ALLE tabellar som brukar DataTabell.
+- **«Generer ny løpenummer etter vist rekkefølge»** (radmeny): for dei MARKERTE radene som ikkje har fil. Radene
+  får fortløpande løpenummer frå 01 per gruppe (fag/type/bygg/etasje/fase) i den rekkjefølgja tabellen viser dei
+  (sortert/filtrert — DataTabell gjev radmeny-handlingar `ctx.rader`). Følgjer prosjektet sitt nummereringsoppsett
+  (`nyeLopenummer()` i `teikningsnummer.js`); nummer som andre rader har vert hoppa over; rader med nummer som ikkje
+  følgjer oppsettet (t.d. `NY-001`) og rader med fil vert ikkje rørte. Dialog med førehandsvising før endring.
+  Databaseoppdateringa går i to steg (mellombels nummer, så endeleg) for å ikkje bryte UNIQUE midt i ein omrokkering.
+  **«↶ Angre løpenummer (N)»** dukkar opp i verktøylinja og set dei førre nummera attende (gjeld til neste prosjektbyte).
+
+### Oppdatering 10. okt. 2026 (2) — snitt 40/fasade 45, dra rader, fast rekkjefølgje, duplisering, overskrifter
+
+- **Snitt = 40, fasade = 45** (kontoret skil dei, ulikt DS-356 der begge er 40): `TYPEKODE`/sjekkliste-lesing i
+  `teikningsnummer.js` (40 → sjekkliste «snitt», 45 → «fasade», tittel-gjetting fjerna), Leveranseplan-generatoren (fasade
+  `45`) og KS-info-panelet. Eksisterande rader som alt er laga med fasade 40 vert ikkje endra — bruk «Generer ny
+  løpenummer» eller rett nummera for hand.
+- **Dra rader** (DTM-tabellen): handtak ⋮⋮ til venstre for ☰; ei blå strek viser kor rada landar. Rekkjefølgja lagrast i
+  `dtm_dokumenter.rekkefolge` (DOUBLE PRECISION, `supabase-dtm.sql`) — å flytte éi rad set berre éi verdi (midt mellom
+  naboane); første flytting «frys» den viste rekkjefølgja for alle rader (1000, 2000 …). Generisk i DataTabell via prop
+  `radRekkjefolge { verdi, onSettAlle, onFlytt }`.
+- **Fast rekkjefølgje** (sirkelen øvst i ☰-kolonna): på → INGEN automatisk sortering (t.d. etter dokumentnummer), radene står i
+  brukaren si eiga rekkjefølgje. Å dra ei rad slår han på. Eit klikk på ei kolonneoverskrift (eller sortering frå kolonnemenyen)
+  slår han av igjen og sorterer. Slår du han på att, kjem den førre manuelle rekkjefølgja tilbake. Valet vert hugsa per tabell/fane.
+- **Dupliser rad** tek no **neste ledige løpenummer** (A-40-00-02 → A-40-00-03; hoppar over opptekne; følgjer
+  prosjektet sitt nummereringsoppsett, elles «<nr> (kopi)»), legg « (kopi)» bak namnet og plasserer kopien rett etter originalen
+  i fast rekkjefølgje.
+- **Tolinjes overskrifter** for leveransekolonnane (`kol.overskrift` i DataTabell): linje 1 i 8 px («PU Prosjekteringsunderlag»,
+  «FG For godkjenning», «AT Arbeidstegning», «SB Som bygd» …), linje 2 «Frist leveranse» (planlagt) eller «Sendt».
+- **Slett-ikon 🗑** i tabellverktøylinja like til venstre for «↶ Angre» (viser tal markerte rader; deaktivert utan markering) —
+  slettar dei markerte radene med stadfesting (same som «Slett» i radmenyen). `onSlettValde`-prop i DataTabell.
+- Kolonneoverskrifta «Arkstørrelse» heiter no **ARK**.

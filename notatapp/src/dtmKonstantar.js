@@ -1,3 +1,4 @@
+import { tolkSjekklisteTypeFraNummer } from './teikningsnummer'
 // ── Felles konstantar/hjelparar for DTM-modulen ──────────────────────
 // Sjå claude/dtm-modul.md for full spesifikasjon. Delt mellom
 // DTMModule/DTMTabell/DTMImportModal for å unngå sirkulær import og
@@ -106,9 +107,14 @@ export function finnGjeldandeKategori(dok) {
   }
   return best
 }
+// «alle» og «leveranseplan» (sjå DTMModule.jsx) er IKKJE kategoriar — der løyser
+// kvar rad sin eigen kategori, som i «alle»-settet.
 export function løysAktivtSett(dok, aktivtSett) {
-  return aktivtSett === 'alle' ? finnGjeldandeKategori(dok) : aktivtSett
+  return (aktivtSett === 'alle' || aktivtSett === 'leveranseplan') ? finnGjeldandeKategori(dok) : aktivtSett
 }
+
+// Rad frå Leveranseplan-vindauget som endå ikkje har fått ei fil i nokon kategori.
+export const erPlanlagtUtanFil = (rad) => !KATEGORIAR.some(k => rad[k])
 
 // Statusen for éi rad, sett med det aktive settet (kategorien) ho vert
 // vist under. Samanliknar datoen til DENNE kategorien mot dei andre
@@ -288,25 +294,12 @@ export const KONTROLLTYPE = {
   },
 }
 
-// Teikningsnummer-koden (same mønster som tolkTeikningsnr() i
-// KvalitetModule.jsx, <fagbokstav>-<type>-<løpenr>-<fase>) — brukt til å
-// FØRESLÅ kva sjekkliste-type/stadium som gjeld for eit dokument. Brukar
-// kan alltid overstyre i sjekkliste-vindauget om gjettinga er feil (t.d.
-// «Skjema»/«IFC og DWG» har ingen eigen kode i denne tabellen og let seg
-// ikkje gjette automatisk i det heile).
-const SJEKKLISTE_TYPE_KODE = { '10':'situasjonsplan', '20':'plan', '40':'snitt', '45':'fasade', '50':'detaljar' }
-// Sjekklista sine stadium-kodar (SK/FP/RS/AT) har eitt ledd FÆRRE enn dei
-// fem fase-kodane (01–05) — «Tilbodsteikning» (03) manglar ein eintydig
-// eigen bokstavkode. ANTEKING (rett dette i Excel-fila/her om det er
-// feil): 03 vert handsama som RS, same som Søknadsteikning (04), sidan
-// begge er før-byggje-fase innsendingspakkar.
-const SJEKKLISTE_FASE_KODE = { '01':'SK', '02':'FP', '03':'RS', '04':'RS', '05':'AT' }
-
-export function tolkSjekklisteType(nr) {
-  const m = String(nr || '').match(/^[A-Za-z]+-(\d{2})-(\d{2})(?:-(\d{2}))?/)
-  if (!m) return { type: null, stadium: null }
-  const [, typeKode, , faseKode] = m
-  return { type: SJEKKLISTE_TYPE_KODE[typeKode] || null, stadium: faseKode ? (SJEKKLISTE_FASE_KODE[faseKode] || null) : null }
+// Teikningsnummer → sjekkliste-type/stadium. Lesinga følgjer prosjektet sitt
+// nummereringsoppsett (med/utan bygg, bygningsfagkode, løpenummer, fase —
+// sjå teikningsnummer.js, DS-356), og vert brukt til å FØRESLÅ kva sjekkliste
+// som gjeld. Brukar kan alltid overstyre i sjekkliste-vindauget.
+export function tolkSjekklisteType(nr, nummerering, tittel) {
+  return tolkSjekklisteTypeFraNummer(nr, nummerering, tittel)
 }
 
 // Gjeldande sjekkliste for eit dokument = Tittelfelt (ALLTID) + det valde

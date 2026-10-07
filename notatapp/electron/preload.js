@@ -145,4 +145,9 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
     ipcRenderer.invoke('bilete:importer-fra-bytar', { filer, oppdragsSti, kjenteNr, brukarNamn }),
   biliteApneFil: (oppdragsSti, filnamn) =>
     ipcRenderer.invoke('bilete:apne-fil', { oppdragsSti, filnamn }),
+
+  // Riss (skisseverktøyet) — lagrar ei generert fil (situasjonskart-PDF) i
+  // «<oppdragsSti>\2 Informasjonsflyt\Inn». `data` er ein Uint8Array.
+  rissLagreInn: (oppdragsSti, filnamn, data) =>
+    ipcRenderer.invoke('riss:lagre-inn', { oppdragsSti, filnamn, data }),
 })

@@ -3,6 +3,8 @@ import { supabase } from './supabase'
 import TeikningTabell from './TeikningTabell'
 import DTMTabell from './DTMTabell'
 import { KONTROLLTYPE, KONTROLLSTATUS } from './dtmKonstantar'
+import { tolkTeikningsnr, hentNummerering, lagreNummerering, TYPEKODE, FASEKODE_NY } from './teikningsnummer'
+import NummereringVal from './NummereringVal'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Kvalitetsmodul (KS)
@@ -31,17 +33,8 @@ import { KONTROLLTYPE, KONTROLLSTATUS } from './dtmKonstantar'
 //  vert lagra i ks_kontroll_svar. Sjå claude/kvalitetsmodul-teikningar.md.
 // ═══════════════════════════════════════════════════════════════════
 
-// ── Teikningsnummer-koden: <fagbokstav>-<type>-<løpenr>-<fase> ──
-// T.d. A-40-02-02 = Arkitekt, Snitt, løpenr 2, Forprosjekt.
-const TYPEKODE = { '10': 'Situasjonsplan', '20': 'Plan', '40': 'Snitt', '45': 'Fasade', '50': 'Detalj' }
-const FASEKODE = { '01': 'Skisseprosjekt', '02': 'Forprosjekt', '03': 'Tilbodsteikning', '04': 'Søknadsteikning', '05': 'Detaljprosjekt' }
-
-function tolkTeikningsnr(nr) {
-  const m = String(nr || '').match(/^[A-Za-z]+-(\d{2})-(\d{2})(?:-(\d{2}))?/)
-  if (!m) return { fag: 'Anna', fase: '' }
-  const [, typeKode, , faseKode] = m
-  return { fag: TYPEKODE[typeKode] || 'Anna', fase: faseKode ? (FASEKODE[faseKode] || '') : '' }
-}
+// Teikningsnummer-lesing (DS-356, med/utan bygg, bygningsfagkode, løpenummer og fase
+// etter prosjektet sitt oppsett) ligg i teikningsnummer.js.
 
 // ── Tomme-/feiltilstandar (same mønster som Resultatdokument-modulen) ─
 function Melding({ tittel, ikon, children }) {
@@ -70,7 +63,7 @@ function Fane({ vk, lb, view, setView }) {
 }
 
 // ── Info-knapp med forklarande nedtrekksmeny i topbaren ──
-function InfoKnapp() {
+function InfoKnapp({ nummerering, onEndreNummerering }) {
   const [open, setOpen] = useState(false)
   useEffect(() => {
     if (!open) return
@@ -109,24 +102,14 @@ function InfoKnapp() {
           </p>
 
           <div style={{ fontSize:10.5, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase',
-            color:'var(--text3)', margin:'10px 0 5px' }}>Teikningsnummer-koden</div>
-          <div style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--brand)', fontWeight:700, marginBottom:6 }}>
-            fag-type-løpenr-fase, t.d. A-40-02-02
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'2px 12px', marginBottom:2 }}>
-            <Kode tal="10" tekst="Situasjonsplan"/>
-            <Kode tal="01" tekst="Skisseprosjekt"/>
-            <Kode tal="20" tekst="Plan"/>
-            <Kode tal="02" tekst="Forprosjekt"/>
-            <Kode tal="40" tekst="Snitt"/>
-            <Kode tal="03" tekst="Tilbodsteikning"/>
-            <Kode tal="45" tekst="Fasade"/>
-            <Kode tal="04" tekst="Søknadsteikning"/>
-            <Kode tal="50" tekst="Detalj"/>
-            <Kode tal="05" tekst="Detaljprosjekt"/>
+            color:'var(--text3)', margin:'10px 0 5px' }}>Teikningsnummer (DS-356) — oppsett for prosjektet</div>
+          <NummereringVal verdi={nummerering} onEndre={onEndreNummerering} kompakt/>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'2px 12px', margin:'10px 0 2px' }}>
+            {['10','20','30','40','45','50','60'].map(k => <Kode key={k} tal={k} tekst={TYPEKODE[k]}/>)}
+            {Object.entries(FASEKODE_NY).map(([k, v]) => <Kode key={k} tal={k} tekst={v}/>)}
           </div>
           <p style={{ fontSize:11, color:'var(--text3)', lineHeight:1.6, marginTop:8 }}>
-            Fag og fase vert gjetta automatisk ut frå desse kodane, og kan alltid rettast for hand.
+            Type og fase vert gjetta automatisk ut frå nummeret (etter oppsettet over — eldre to-sifra fasekodar 01–05 vert òg kjende att), og kan alltid rettast for hand.
             «Leveransekontroll»-fana viser DTM sine Kontrolldokument-rader — trykk «Start egenkontroll/
             fagkontroll/godkjenning» for å opne fila og ei sjekkliste for det fyrste (evt. merkte) dokumentet.
           </p>
@@ -142,6 +125,12 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
 
   // ── Teikningsregister (Del A — ekte, lagra i Supabase) ──
   const [details, setDetails]                 = useState(null)
+  // Prosjektet sitt oppsett for teikningsnummer (med/utan bygg, bygningsfagkode, løpenummer, fase)
+  const endreNummerering = async (n) => {
+    setDetails(d => ({ ...(d || {}), nummerering: n }))
+    try { await lagreNummerering(supabase, activeProjectId, userId, n) }
+    catch (e) { alert('Klarte ikkje lagre nummereringsoppsettet: ' + e.message) }
+  }
   const [detaljLastar, setDetaljLastar]         = useState(true)
   const [teikningar, setTeikningar]             = useState([])
   const [teikningarLastar, setTeikningarLastar] = useState(true)
@@ -270,7 +259,7 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
 
     for (const r of resultat.filter(x => x.status === 'ok')) {
       const eksisterande = teikningar.find(t => t.nr === r.nr)
-      const kode = tolkTeikningsnr(r.nr)
+      const kode = tolkTeikningsnr(r.nr, hentNummerering(details))
       const rad = {
         user_id: userId, project_id: activeProjectId,
         nr: r.nr, rev: r.rev || 'A', tittel: r.tittel || r.nr,
@@ -326,7 +315,7 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
             {aktivtProsjekt.projectNumber} {aktivtProsjekt.name}
           </span>
         )}
-        <InfoKnapp/>
+        <InfoKnapp nummerering={hentNummerering(details)} onEndreNummerering={endreNummerering}/>
       </div>
 
       {!aktivtProsjekt ? (
