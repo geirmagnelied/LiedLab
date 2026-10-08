@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
+import { favorittForst, prosjektValTekst } from './projectFavoritt'
 
 // ── Time parsing ──────────────────────────────────────────────────────────
 export function parseTimeInput(raw) {
@@ -67,6 +68,10 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
   const [saveStatus, setSaveStatus] = useState('idle')
   const [errorMsg,   setErrorMsg]   = useState(null)
   const debounceRef = useRef({})
+  // «Flytt timar»: alle lagra oppføringar for dagen kan flyttast til ein annan dag
+  const [flyttApen, setFlyttApen]     = useState(false)
+  const [flyttDato, setFlyttDato]     = useState('')
+  const [sisteFlytting, setSisteFlytting] = useState(null) // { ids, fraDato, tilDato } — grunnlag for «Angre»
   // CRITICAL FIX: keep a live ref mirror of entries so debounced saves
   // always read the LATEST state, not a stale closure
   const entriesRef = useRef([])
@@ -243,6 +248,39 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
     }
   }
 
+  // Flyttar ALLE lagra timeoppføringar for gjeldande dag til `tilYmd` (t.d. ført på feil dag).
+  // Går til måldagen etterpå, og «Angre» set dei attende.
+  const flyttAlleTil = async (tilYmd) => {
+    if (!tilYmd || tilYmd === ymd(date)) return
+    const lagra = entries.filter(r => r.isPersisted)
+    const ulagra = entries.filter(r => !r.isPersisted && (r.rawInput || r.description || r.projectId || r.newProjName?.trim()))
+    if (ulagra.length) { setErrorMsg('Vent til alle oppføringane er lagra (Lagrar…) før du flyttar timane.'); return }
+    if (!lagra.length) { setErrorMsg('Ingen lagra timar å flytte på denne dagen.'); return }
+    const innsendt = lagra.filter(r => r.submitted).length
+    const sum = lagra.reduce((a, r) => a + (r.hours || 0), 0)
+    const [y, m, d] = tilYmd.split('-').map(Number)
+    if (!window.confirm(`Flytte ${lagra.length} oppføring${lagra.length === 1 ? '' : 'ar'} (${sum.toFixed(2)} t) frå ${fmtDate(date)} til ${fmtDate(new Date(y, m - 1, d, 12))}?` +
+      (innsendt ? `
+
+${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
+    const ids = lagra.map(r => r.id)
+    const { error } = await supabase.from('time_entries')
+      .update({ date: tilYmd, updated_at: new Date().toISOString() }).in('id', ids).eq('user_id', userId)
+    if (error) { setErrorMsg('Klarte ikkje flytte timane: ' + error.message); return }
+    setErrorMsg(null); setFlyttApen(false)
+    setSisteFlytting({ ids, fraDato: ymd(date), tilDato: tilYmd })
+    setDate(new Date(y, m - 1, d, 12))
+  }
+  const angreFlytting = async () => {
+    if (!sisteFlytting) return
+    const { error } = await supabase.from('time_entries')
+      .update({ date: sisteFlytting.fraDato, updated_at: new Date().toISOString() }).in('id', sisteFlytting.ids).eq('user_id', userId)
+    if (error) { setErrorMsg('Klarte ikkje angre flyttinga: ' + error.message); return }
+    const [y, m, d] = sisteFlytting.fraDato.split('-').map(Number)
+    setSisteFlytting(null); setErrorMsg(null)
+    setDate(new Date(y, m - 1, d, 12))
+  }
+
   const deleteRow = async (rowId) => {
     const row = entries.find(r => r.id === rowId)
     if (!row) return
@@ -272,7 +310,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
     }
   }
 
-  const modeProjects = (projects || [])
+  const modeProjects = favorittForst(projects)
 
   const cellInput = {
     width: '100%', border: 'none', background: 'transparent',
@@ -312,6 +350,50 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
         <input type="date" value={ymd(date)} onChange={e => setDate(new Date(e.target.value))}
           style={{ padding: '6px 10px', background: 'var(--bg3)', border: '1px solid var(--border)',
             borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'var(--font)' }}/>
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => { setFlyttDato(ymd(addDays(date, 1))); setFlyttApen(v => !v) }}
+            title="Flytt alle timane på denne dagen til ein annan dag"
+            style={{ padding: '6px 12px', background: flyttApen ? 'var(--brandbg)' : 'var(--bg3)', border: '1px solid var(--border)',
+              borderRadius: 'var(--r)', cursor: 'pointer', color: 'var(--text2)', fontSize: 12, fontWeight: 600 }}>
+            ⇄ Flytt timar
+          </button>
+          {flyttApen && (
+            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, width: 280, zIndex: 50, background: 'var(--bg2)',
+              border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)', padding: 14,
+              display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 }}>
+                Flyttar <b>alle</b> lagra timar frå {fmtDate(date)}.
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => flyttAlleTil(ymd(addDays(date, -1)))}
+                  style={{ flex: 1, padding: '8px 6px', border: '1.5px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--bg2)', cursor: 'pointer', fontWeight: 700, fontSize: 12.5, color: 'var(--text2)' }}>
+                  ‹ Ein dag tilbake
+                </button>
+                <button onClick={() => flyttAlleTil(ymd(addDays(date, 1)))}
+                  style={{ flex: 1, padding: '8px 6px', border: '1.5px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--bg2)', cursor: 'pointer', fontWeight: 700, fontSize: 12.5, color: 'var(--text2)' }}>
+                  Ein dag fram ›
+                </button>
+              </div>
+              <div style={{ fontSize: 10.5, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text3)', fontWeight: 700 }}>Eller vel dag</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="date" value={flyttDato} onChange={e => setFlyttDato(e.target.value)}
+                  style={{ flex: 1, padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 12.5, fontFamily: 'var(--font)', background: 'var(--bg2)', color: 'var(--text)' }}/>
+                <button onClick={() => flyttAlleTil(flyttDato)} disabled={!flyttDato || flyttDato === ymd(date)}
+                  style={{ padding: '6px 12px', border: 'none', borderRadius: 'var(--r)', background: 'var(--brand)', color: '#fff', fontWeight: 700, fontSize: 12.5,
+                    cursor: 'pointer', opacity: !flyttDato || flyttDato === ymd(date) ? .5 : 1 }}>
+                  Flytt
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        {sisteFlytting && (
+          <button onClick={angreFlytting} title="Flytt timane attende til dagen dei kom frå"
+            style={{ padding: '6px 12px', background: 'rgba(15,118,110,.10)', border: '1.5px solid #0F766E', borderRadius: 'var(--r)',
+              cursor: 'pointer', color: '#0F766E', fontSize: 12, fontWeight: 700 }}>
+            ↶ Angre flytting ({sisteFlytting.ids.length})
+          </button>
+        )}
         <div style={{ flex: 1 }}/>
         <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>
           {saveStatus === 'saving' && <><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:'var(--warn)',animation:'pulse 1s infinite'}}/>Lagrar…</>}
@@ -381,7 +463,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
                       backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
                       paddingRight: 24 }}>
                     <option value="">— Vel prosjekt —</option>
-                    {modeProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {modeProjects.map(p => <option key={p.id} value={p.id}>{prosjektValTekst(p)}</option>)}
                     <option value="__new__">＋ Nytt prosjekt…</option>
                   </select>
                 ) : (

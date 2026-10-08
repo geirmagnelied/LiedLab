@@ -249,6 +249,11 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   // ein tom streng ville feila mot databasen, så tomming skal lagrast som
   // NULL for desse to i staden.
   const NUMERISKE_FELT = new Set(['ferdigstillelse', 'timebudsjett'])
+  // Varsel ved mislukka cellelagring. IKKJE alert(): i Electron på Windows sluttar tekstfelt
+  // å ta imot tastetrykk etter ein alert() (brukar kunne fjerne «(kopi)» i dokumentnummeret,
+  // men ikkje skrive sifre etterpå). Eit vanleg banner fryser ikkje inndata.
+  const [cellevarsel, setCellevarsel] = useState(null)
+  const varsleCelle = (tekst) => { setCellevarsel(tekst); setTimeout(() => setCellevarsel(v => v === tekst ? null : v), 12000) }
   // «Rev.»/«Dato» er IKKJE flate felt på rada — dei ligg nøsta inni det
   // AKTIVE kategori-JSON-objektet (arbeidsdokument/resultatdokument/…, sjå
   // hentGjeldande() i DTMTabell.jsx). Redigering her må difor skrive inn i
@@ -295,7 +300,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [sett]: nyttSett, updated_at: no } : x))
       const { error } = await supabase.from('dtm_dokumenter').update({ [sett]: nyttSett, updated_at: no }).eq('id', id).eq('user_id', userId)
       if (error) {
-        alert('Klarte ikkje lagre endringa: ' + error.message)
+        varsleCelle('Klarte ikkje lagre endringa: ' + error.message)
         setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [sett]: gammalSettVerdi } : x))
       }
       return
@@ -314,7 +319,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       const melding = felt === 'nr' && /duplicate key|unique constraint/i.test(error.message)
         ? `Dokumentnummeret «${verdi}» er alt i bruk av eit anna dokument i dette prosjektet.`
         : 'Klarte ikkje lagre endringa: ' + error.message
-      alert(melding)
+      varsleCelle(melding)
       if (gammalRad) setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [felt]: gammalRad[felt] } : x))
     }
   }
@@ -991,6 +996,13 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
               )}
             </div>
 
+            {cellevarsel && (
+              <div style={{ margin:'0 0 8px', padding:'8px 12px', background:'var(--dangerbg, #fdecea)', border:'1px solid var(--danger, #c0392b)',
+                borderRadius:'var(--r)', fontSize:12.5, color:'var(--danger, #c0392b)', display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ flex:1 }}>{cellevarsel}</span>
+                <button onClick={() => setCellevarsel(null)} style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:16, color:'inherit' }}>×</button>
+              </div>
+            )}
             <DTMTabell key={aktivtSett} dokumenter={synlegeDokument} aktivtSett={aktivtSett} eigneKolonnar={eigneKolonnar}
               standardSynlegeKolonnar={aktivtSett === 'leveranseplan' ? LEVERANSEPLAN_KOLONNAR : undefined}
               oppdragsSti={oppdragsSti} merking={{ valde, onEndre: setValde }}

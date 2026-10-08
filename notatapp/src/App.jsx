@@ -495,6 +495,7 @@ export default function App({ userId, userEmail }) {
         projects={officeProjects}
         activeProjectId={selectedProjectId}
         onSelectProject={setSelectedProjectId}
+        onToggleFavorite={toggleFavorite}
         onOpenSettings={() => setShowSettings(true)}
         offices={offices}
         activeOfficeId={activeOfficeId}

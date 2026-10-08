@@ -1,3 +1,4 @@
+import { favorittForst } from './projectFavoritt'
 import { useState, useRef } from 'react'
 import { fmt } from './dateUtils'
 
@@ -173,7 +174,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
             {projects.length>0 && (
               <div>
                 <div style={{padding:'4px 14px 2px',fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.05em'}}>Flytt til prosjekt</div>
-                {projects.map(p=>(
+                {favorittForst(projects).map(p=>(
                   <button key={p.id} onClick={()=>{onMoveToProject&&onMoveToProject(note.id,p.id);setCtxMenu(null)}}
                     style={{width:'100%',textAlign:'left',padding:'6px 14px 6px 22px',background:'none',border:'none',
                       cursor:'pointer',fontSize:12,color:'var(--text2)',fontFamily:'var(--font)',display:'block'}}

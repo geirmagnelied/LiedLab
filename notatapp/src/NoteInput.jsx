@@ -1,3 +1,4 @@
+import { favorittForst, prosjektValTekst } from './projectFavoritt'
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { nextFriday, fmt } from './dateUtils'
 import SketchPad from './SketchPad'
@@ -223,7 +224,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
   }, [editNote?.id, defaultProjectId])
 
   // All projects (no type filter)
-  const allProjects = projects
+  const allProjects = favorittForst(projects)
 
   const exec = (cmd, val=null) => { editorRef.current?.focus(); document.execCommand(cmd, false, val); triggerAutoSave() }
 
@@ -617,7 +618,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
           <select value={projectVal} onChange={e => setProjectVal(e.target.value)}
             style={{ ...fi, fontWeight: projectVal ? 600 : 400 }}>
             <option value="">— Utan prosjekt —</option>
-            {allProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {allProjects.map(p => <option key={p.id} value={p.id}>{prosjektValTekst(p)}</option>)}
             <option value="__new__">＋ Nytt prosjekt…</option>
           </select>
           {projectVal==='__new__' && (
@@ -763,7 +764,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
             style={{ ...fi, fontWeight: projectVal && projectVal!=='__new__' ? 600 : 400,
               padding: isMeeting ? '8px 10px' : '10px 13px' }}>
             <option value="">— Utan prosjekt —</option>
-            {allProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {allProjects.map(p => <option key={p.id} value={p.id}>{prosjektValTekst(p)}</option>)}
             <option value="__new__">＋ Nytt prosjekt…</option>
           </select>
           {projectVal==='__new__' && (

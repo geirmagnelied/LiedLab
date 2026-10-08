@@ -181,3 +181,9 @@ Cowork-arbeidsflyten kravde. Skilnaden frå Cowork:
   kjelda** — same-namngjevne dokument i "Digitale verktøy"-prosjektet på
   claude.ai kan verte forelda over tid; oppdater helst begge stadar, eller
   i det minste denne mappa, ved nye endringar.
+
+## Timeliste: flytt timar, favorittprosjekt og DTM-nummer (8. okt. 2026)
+
+- **Flytt timar** (`TimeTracker.jsx`): knappen «⇄ Flytt timar» flyttar alle lagra timar for dagen ein dag tilbake/fram eller til ein vald dato, med stadfesting og «Angre flytting». Datoar vert sette til kl. 12 lokal tid fordi `ymd()` bruker UTC.
+- **Favorittprosjekt**: `projectFavoritt.js` (`favorittForst`, `prosjektValTekst`) sorterer favorittar først i prosjektvelgjaren (TopBar, med ★-veksling), timelista, notatskjemaet og «Flytt til prosjekt». Tidslinje/kalender er urørde (fargar følgjer rekkjefølgja).
+- **DTM cellelagring**: feil ved lagring (t.d. duplikat dokumentnummer) vert viste i eit banner (`cellevarsel` i `DTMModule.jsx`), ikkje `alert()`. I Electron på Windows sluttar tekstfelt å ta imot tastetrykk etter ein `alert()`.

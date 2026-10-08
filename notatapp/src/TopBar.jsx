@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import { favorittForst } from './projectFavoritt'
 
 // Søkbar prosjektveljar (typeahead) i staden for ein vanleg <select> —
 // brukar sitt eige krav 29. sept. 2026: TopBar sitt prosjektval skal
 // kunne SØKJAST i, ikkje berre scrollast gjennom. Reint klientside-filter
 // over den alt innlasta `projects`-lista (ingen database-tur nødvendig,
 // til skilnad frå SokeFelt.jsx sitt innhaldssøk).
-function ProsjektVelger({ projects, activeProjectId, onSelectProject }) {
+function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFavorite }) {
   const [open, setOpen] = useState(false)
   const [sok, setSok]   = useState('')
   const boksRef = useRef(null)
@@ -19,9 +20,10 @@ function ProsjektVelger({ projects, activeProjectId, onSelectProject }) {
     return () => document.removeEventListener('mousedown', lukk)
   }, [open])
 
+  const sortert = favorittForst(projects)
   const treff = sok.trim()
-    ? projects.filter(p => merkelapp(p).toLowerCase().includes(sok.trim().toLowerCase()))
-    : projects
+    ? sortert.filter(p => merkelapp(p).toLowerCase().includes(sok.trim().toLowerCase()))
+    : sortert
 
   return (
     <div ref={boksRef} style={{ position:'relative' }}>
@@ -49,12 +51,17 @@ function ProsjektVelger({ projects, activeProjectId, onSelectProject }) {
             {treff.length === 0 ? (
               <div style={{ padding:'10px 12px', fontSize:12, color:'var(--text3)' }}>Ingen treff.</div>
             ) : treff.map(p => (
-              <button key={p.id} type="button" onClick={() => { onSelectProject(p.id); setOpen(false); setSok('') }}
-                style={{ display:'block', width:'100%', textAlign:'left', padding:'7px 12px', border:'none',
-                  background: p.id === activeProjectId ? 'var(--brandbg)' : 'transparent', color:'var(--text)',
-                  fontSize:12.5, fontWeight: p.id === activeProjectId ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)' }}>
-                {merkelapp(p)}
-              </button>
+              <div key={p.id} style={{ display:'flex', alignItems:'center', background: p.id === activeProjectId ? 'var(--brandbg)' : 'transparent' }}>
+                <button type="button" title={p.favorite ? 'Fjern favoritt' : 'Marker som favoritt'}
+                  onClick={e => { e.stopPropagation(); onToggleFavorite?.(p.id) }}
+                  style={{ border:'none', background:'transparent', cursor:'pointer', padding:'7px 4px 7px 10px', fontSize:14, lineHeight:1,
+                    color: p.favorite ? '#E0A800' : 'var(--text3)', opacity: p.favorite ? 1 : .55 }}>{p.favorite ? '★' : '☆'}</button>
+                <button type="button" onClick={() => { onSelectProject(p.id); setOpen(false); setSok('') }}
+                  style={{ flex:1, display:'block', textAlign:'left', padding:'7px 12px 7px 6px', border:'none', background:'transparent', color:'var(--text)',
+                    fontSize:12.5, fontWeight: p.id === activeProjectId ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)' }}>
+                  {merkelapp(p)}
+                </button>
+              </div>
             ))}
           </div>
         </div>
@@ -63,7 +70,7 @@ function ProsjektVelger({ projects, activeProjectId, onSelectProject }) {
   )
 }
 
-export default function TopBar({ projects, activeProjectId, onSelectProject, onOpenSettings,
+export default function TopBar({ projects, activeProjectId, onSelectProject, onToggleFavorite, onOpenSettings,
                                   offices = [], activeOfficeId, onSetOffice, onAddOffice }) {
   const [showNewOffice,  setShowNewOffice]  = useState(false)
   const [newOfficeName,  setNewOfficeName]  = useState('')
@@ -185,7 +192,7 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onO
           letterSpacing: '.03em', textTransform: 'uppercase' }}>
           Prosjekt
         </span>
-        <ProsjektVelger projects={projects} activeProjectId={activeProjectId} onSelectProject={onSelectProject}/>
+        <ProsjektVelger projects={projects} activeProjectId={activeProjectId} onSelectProject={onSelectProject} onToggleFavorite={onToggleFavorite}/>
       </div>
 
       <div style={{ flex: 1 }}/>
