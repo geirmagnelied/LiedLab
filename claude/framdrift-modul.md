@@ -129,3 +129,8 @@ møte = sirkel). Ingenting vert lagra dobbelt.
 - **Timefordeling i tabellvisinga** (`FramdriftTimeMatrise.jsx`): foldbar seksjon under tabellen — éin rad per aktivitet (▸ utvid for personar × veker), totalrad og sum per person. Same tal som «Timar per veke».
 - **Personell**: kolonnane Fornamn/Etternamn (`prosjekt_personell.fornamn/etternamn`, migrasjon køyrt; `namn` = «fornamn etternamn»). «Legg meg til»/standardpersonell hentar namn frå tidlegare rad med same e-post, kontometadata eller e-post på forma fornamn.etternamn.
 - **Redigering i Electron**: etter `alert()/confirm()/prompt()` sluttar tekstfelt å ta imot tastetrykk i Electron/Windows. `fokusFiks` (preload) + IPC `fokus-fiks` (main) tek fokuset tilbake etter kvar dialog; `main.jsx` pakkar dialogfunksjonane. Krev ny .exe.
+
+## Person-underrader i tabellen og fast sidefelt (12. okt. 2026, kveld)
+
+- **Tabellvisinga** (`FramdriftTabell.jsx`): aktivitetar med timar og personar har ▸/▾ i namnecella; open gjev ein **underrad per person** (fargeprikk, del %, timar) og vekekolonnar («Veke 42» …) viser timane per veke for fase, aktivitet og person. «Utvid alle personar / Fold saman alle» i ei linje over tabellen. `DataTabell` fekk valfri prop `radGruppe` (`{ forelder(rad) }`): underrader følgjer forelderen uansett sortering, går utanom filter og vert ikkje summerte i totalraden. Den separate matrisa (`FramdriftTimeMatrise`) er fjerna.
+- **Fast venstrefelt** (kvit bakgrunn, kollapsbart, hugsa i `liedlab-framdrift-panel-open`): viser **planoversikt** (`FramdriftOversikt.jsx`: tal, samla framdrift, timar per person, neste i planen) når ingenting er valt, og **eigenskapane** til valt element når noko er valt (× fjernar utvalet).

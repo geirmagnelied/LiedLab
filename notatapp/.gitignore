@@ -5,5 +5,6 @@ dist
 .env.*.local
 *.local
 release
+release-ny
 .DS_Store
 Thumbs.db

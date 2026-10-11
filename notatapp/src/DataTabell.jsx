@@ -171,6 +171,8 @@ export default function DataTabell({
   defaultSortering,
   rutenettRedigering = false, // valfri; sjå kommentar øvst i fila
   visingsFilter, // valfri; [{ namn, kolonnar:[key,...]|null }] — «Vising»-nedtrekk i verktøylinja, null = vis alle
+  radGruppe, // valfri; { forelder(rad) → forelder-id | null } — rader med forelder følgjer rett etter forelderen (uavhengig av sortering),
+             // går utanom filter (følgjer forelderen) og vert ikkje summert i totalraden. Brukt til person-underrader i Framdrift.
   standardSynlegeKolonnar, // valfri; [key,...] — overstyrer standard skjulte-utrekninga (elles kol.standardSkjult)
                            // med «alt UNNATEKE desse er skjult» — brukt når SAME kolonnedefinisjonar (t.d.
                            // DTMTabell sin BASE_COLUMNS) skal ha ULIK standardvising avhengig av KVEN som
@@ -382,8 +384,11 @@ export default function DataTabell({
   // ── Filter + sortering ──────────────────────────────────────────
   const filtrerte = useMemo(() => {
     const aktive = Object.entries(prefs.filter).filter(([, v]) => v && v.length)
-    return (dataRader || []).filter(r => aktive.every(([k, valde]) => valde.includes(tekst(r, k))))
-  }, [dataRader, prefs.filter, tekst])
+    const passerer = r => aktive.every(([k, valde]) => valde.includes(tekst(r, k)))
+    if (!radGruppe) return (dataRader || []).filter(passerer)
+    const okForelder = new Set((dataRader || []).filter(r => radGruppe.forelder(r) == null && passerer(r)).map(radId))
+    return (dataRader || []).filter(r => { const f = radGruppe.forelder(r); return f == null ? okForelder.has(radId(r)) : okForelder.has(f) })
+  }, [dataRader, prefs.filter, tekst, radGruppe]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fast = !!radRekkjefolge && !!prefs.fastRekkjefolge
   const rader = useMemo(() => {
@@ -404,11 +409,18 @@ export default function DataTabell({
     }
     // «Fest til toppen» (radMeny.erFesta) vinn alltid over vanleg sortering —
     // festa rader vert flytta fremst, elles urørt rekkjefølgje.
-    if (!radMeny?.erFesta) return sortert
+    // Underrader (radGruppe) rett etter forelderen, uansett sortering
+    const grupper = (liste) => {
+      if (!radGruppe) return liste
+      const barn = new Map()
+      for (const r of liste) { const f = radGruppe.forelder(r); if (f != null) { if (!barn.has(f)) barn.set(f, []); barn.get(f).push(r) } }
+      return liste.filter(r => radGruppe.forelder(r) == null).flatMap(r => [r, ...(barn.get(radId(r)) || [])])
+    }
+    if (!radMeny?.erFesta) return grupper(sortert)
     const festa = sortert.filter(r => radMeny.erFesta(r))
     const resten = sortert.filter(r => !radMeny.erFesta(r))
-    return [...festa, ...resten]
-  }, [filtrerte, prefs.sortering, kolMap, sorteringsverdi, radMeny, fast, radRekkjefolge])
+    return grupper([...festa, ...resten])
+  }, [filtrerte, prefs.sortering, kolMap, sorteringsverdi, radMeny, fast, radRekkjefolge, radGruppe]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Rutenettvisning: lagring med Angre-historikk + Excel-dra-og-fyll ──
   const settVerdiMedAngre = useCallback((id, key, gammalVerdi, nyVerdi) => {
@@ -1123,6 +1135,7 @@ export default function DataTabell({
                   }
                   if (kol.art !== 'tal' || kol.ikkjeSummer) return <td key={k} style={{ height:radhøgd, padding:cellePad, ...pinnStil }}/>
                   const sum = rader.reduce((s, r) => {
+                    if (radGruppe && radGruppe.forelder(r) != null) return s // underrader tel ikkje dobbelt
                     const v = sorteringsverdi(r, k)
                     return s + (typeof v === 'number' && isFinite(v) ? v : 0)
                   }, 0)
