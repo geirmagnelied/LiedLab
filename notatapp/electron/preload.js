@@ -9,6 +9,10 @@
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
+// Windows/Electron-feil: etter window.alert()/confirm()/prompt() sluttar tekstfelt å ta imot tastetrykk
+// (fokuset heng att i dialogen). Nettsida kallar denne rett etter ein dialog; main.js tek fokuset tilbake.
+contextBridge.exposeInMainWorld('fokusFiks', () => ipcRenderer.send('fokus-fiks'))
+
 contextBridge.exposeInMainWorld('resultatdokumentAPI', {
   // Hentar den absolutte filstien til ei fil som vart droppa frå
   // Windows Utforskar (File-objekt frå ein drop-event).

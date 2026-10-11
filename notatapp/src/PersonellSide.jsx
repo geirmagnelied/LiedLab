@@ -40,7 +40,7 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
 
   const leggTil = async (felt = {}) => {
     setFeil('')
-    const rad = { user_id: userId, project_id: pid, namn: 'Ny person', rolle: '', prosent: 100, epost: '', merknad: '',
+    const rad = { user_id: userId, project_id: pid, namn: 'Ny person', fornamn: 'Ny', etternamn: 'person', rolle: '', prosent: 100, epost: '', merknad: '',
       sortering: personar.length, ...felt }
     const { data, error } = await supabase.from('prosjekt_personell').insert(rad).select().single()
     if (error) { setFeil('Klarte ikkje legge til: ' + error.message); return null }
@@ -59,9 +59,17 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
     if (!gammal) return
     let ny = verdi
     if (key === 'prosent') ny = Math.max(0, Math.min(100, parseFloat(String(verdi).replace(',', '.')) || 0))
-    if (key === 'namn') { ny = String(verdi).trim(); if (!ny) return }
-    setPersonar(ps => ps.map(p => (p.id === id ? { ...p, [key]: ny } : p)))
-    const { error } = await supabase.from('prosjekt_personell').update({ [key]: ny, updated_at: new Date().toISOString() })
+    if (key === 'fornamn' || key === 'etternamn') ny = String(verdi).trim()
+    // «namn» (brukt i Framdrift) = fornamn + etternamn
+    const endring = { [key]: ny }
+    if (key === 'fornamn' || key === 'etternamn') {
+      const f = key === 'fornamn' ? ny : (gammal.fornamn || ''), e = key === 'etternamn' ? ny : (gammal.etternamn || '')
+      const nytt = [f, e].filter(Boolean).join(' ')
+      if (!nytt) return
+      endring.namn = nytt
+    }
+    setPersonar(ps => ps.map(p => (p.id === id ? { ...p, ...endring } : p)))
+    const { error } = await supabase.from('prosjekt_personell').update({ ...endring, updated_at: new Date().toISOString() })
       .eq('id', id).eq('user_id', userId)
     if (error) { setFeil('Klarte ikkje lagre: ' + error.message); setPersonar(ps => ps.map(p => (p.id === id ? gammal : p))) }
   }
@@ -87,7 +95,8 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
   }
 
   const kolonnar = [
-    { key: 'namn',    label: 'Namn',        art: 'tekst', redigerbar: true, w: 220, utanFilter: true },
+    { key: 'fornamn',   label: 'Fornamn',   art: 'tekst', redigerbar: true, w: 150, utanFilter: true },
+    { key: 'etternamn', label: 'Etternamn', art: 'tekst', redigerbar: true, w: 170, utanFilter: true },
     { key: 'rolle',   label: 'Rolle',       art: 'val',   redigerbar: true, w: 180 },
     { key: 'prosent', label: 'Prosent',     art: 'tal',   redigerbar: true, w: 90, ikkjeSummer: true },
     { key: 'kapasitet', label: 'Kapasitet t/veke', art: 'tal', beregna: true, w: 140, ikkjeSummer: true },
@@ -95,6 +104,8 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
     { key: 'merknad', label: 'Merknad',     art: 'tekst', redigerbar: true, w: 260, utanFilter: true },
   ]
   const hentVerdi = (p, key) => {
+    if (key === 'fornamn' && !p.fornamn && p.namn) return p.namn.replace(/\s+\S+$/, '') // eldre rader utan oppdelt namn
+    if (key === 'etternamn' && !p.etternamn && /\s/.test(p.namn || '')) return p.namn.match(/\S+$/)[0]
     if (key === 'kapasitet') return kapasitetPerVeke(kal, +p.prosent || 0)
     if (key === 'prosent') return p.prosent ?? ''
     return p[key] ?? ''

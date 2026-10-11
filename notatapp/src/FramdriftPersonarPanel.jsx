@@ -4,20 +4,40 @@ import { useRef, useState } from 'react'
 //  «Fordel timar på personell» for ein aktivitet (eigenskapspanelet i
 //  Framdrift). Ei samansett stolpe viser kor stor del av timane kvar person
 //  tek; dra i skiljelinjene mellom personane for å flytte delen (snapp til 5 %,
-//  hald Alt for 1 %). Delane summerer alltid til 100 %. Timar per person =
-//  forventa timar totalt × del. Vert brukt i «Timar per veke»-rada og i
-//  overbelastningsvarselet (framdriftTimar.js → personDelar).
+//  hald Alt for 1 %). Delane summerer alltid til 100 %. Ein person sin del kan
+//  LÅSAST (🔒): då vert han aldri endra av dragingar eller av at andre vert
+//  lagt til/fjerna — berre dei ulåste delane flyttar seg. Timar per person =
+//  forventa timar totalt × del. Brukt i «Timar per veke» og overbelastning
+//  (framdriftTimar.js → personDelar).
 // ═══════════════════════════════════════════════════════════════════
 
 export const PERSONFARGAR = ['#0F766E', '#1565C0', '#B5296B', '#C2570C', '#6D28D9', '#8A6D00', '#0E7490', '#B91C1C']
 
-// Fordel 100 % jamt på n personar (rest til dei fyrste)
-export function likeDelar(namnListe) {
-  const n = namnListe.length
-  if (!n) return []
-  const grunn = Math.floor(100 / n)
-  let rest = 100 - grunn * n
-  return namnListe.map(namn => ({ namn, del: grunn + (rest-- > 0 ? 1 : 0) }))
+const sum = (liste) => liste.reduce((a, p) => a + p.del, 0)
+
+// Fordel `mengd` prosent på dei ulåste (i same forhold som dei har no, elles jamt); rest til den største
+function fordelPaaUlaaste(personar, mengd) {
+  const ny = personar.map(p => ({ ...p }))
+  const fri = ny.filter(p => !p.last)
+  if (!fri.length) return ny
+  const grunnlag = sum(fri)
+  fri.forEach(p => { p.del = grunnlag > 0 ? Math.round(p.del * mengd / grunnlag) : Math.floor(mengd / fri.length) })
+  const avvik = mengd - sum(fri)
+  if (avvik !== 0) { const st = fri.reduce((m, p) => (p.del > m.del ? p : m), fri[0]); st.del += avvik }
+  fri.forEach(p => { if (p.del < 0) p.del = 0 })
+  return ny
+}
+
+// Fordel 100 % jamt (låste delar held seg)
+export function likeDelar(personar) {
+  const ny = personar.map(p => ({ ...p }))
+  const fri = ny.filter(p => !p.last)
+  if (!fri.length) return ny
+  const rest = 100 - sum(ny.filter(p => p.last))
+  const grunn = Math.max(0, Math.floor(rest / fri.length))
+  let r = Math.max(0, rest - grunn * fri.length)
+  fri.forEach(p => { p.del = grunn + (r-- > 0 ? 1 : 0) })
+  return ny
 }
 
 export default function FramdriftPersonarPanel({ el, personell, onEndre }) {
@@ -28,51 +48,62 @@ export default function FramdriftPersonarPanel({ el, personell, onEndre }) {
   const timar = +el.timar || 0
   const finst = new Set(personar.map(p => p.namn.toLowerCase()))
   const ledige = (personell || []).filter(p => !finst.has(p.namn.trim().toLowerCase()))
+  const lastSum = sum(personar.filter(p => p.last))
 
   const leggTil = (namn) => {
     namn = (namn || '').trim()
     if (!namn || finst.has(namn.toLowerCase())) return
     if (!personar.length) { onEndre([{ namn, del: 100 }]); return }
-    // Ny person får ein jamn del; dei andre vert skalerte ned i same forhold
-    const nyDel = Math.round(100 / (personar.length + 1))
-    const skalert = personar.map(p => ({ ...p, del: Math.max(0, Math.round(p.del * (100 - nyDel) / 100)) }))
-    const sum = skalert.reduce((a, p) => a + p.del, 0) + nyDel
-    skalert[0].del += 100 - sum
-    onEndre([...skalert, { namn, del: nyDel }])
+    const fri = personar.filter(p => !p.last)
+    if (!fri.length) { window.alert('Alle delane er låste — lås opp minst ein person for å gi plass til ein ny.'); return }
+    const tilgjengeleg = 100 - lastSum
+    const nyDel = Math.min(Math.round(100 / (personar.length + 1)), tilgjengeleg)
+    const ny = fordelPaaUlaaste(personar, tilgjengeleg - nyDel)
+    onEndre([...ny, { namn, del: nyDel }])
   }
   const fjern = (i) => {
     const rest = personar.filter((_, j) => j !== i)
     if (!rest.length) { onEndre([]); return }
-    const sumRest = rest.reduce((a, p) => a + p.del, 0) || 1
-    const ny = rest.map(p => ({ ...p, del: Math.round(p.del * 100 / sumRest) }))
-    ny[0].del += 100 - ny.reduce((a, p) => a + p.del, 0)
-    onEndre(ny)
+    const harFri = rest.some(p => !p.last)
+    const grunnlag = harFri ? rest : rest.map(p => ({ ...p, last: false })) // alle låste → lås opp så summen kan bli 100
+    onEndre(fordelPaaUlaaste(grunnlag, 100 - sum(grunnlag.filter(p => p.last))).map(p => ({ ...p })))
   }
+  const veksleLas = (i) => onEndre(personar.map((p, j) => (j === i ? { ...p, last: !p.last } : p)))
+
+  // Sett éin persons del med tal; differansen går til dei andre ulåste
   const settDel = (i, v) => {
-    // flyttar differansen til/frå nabo-personen (neste, ev. førre) slik at summen held seg 100
-    v = Math.max(0, Math.min(100, Math.round(+v || 0)))
-    if (personar.length < 2) return
-    const ny = personar.map(p => ({ ...p }))
-    const nabo = i < ny.length - 1 ? i + 1 : i - 1
-    const maks = ny[i].del + ny[nabo].del
-    v = Math.min(v, maks)
-    ny[nabo].del = maks - v; ny[i].del = v
-    onEndre(ny)
+    if (personar.length < 2 || personar[i].last) return
+    const andreUlaaste = personar.filter((p, j) => j !== i && !p.last)
+    if (!andreUlaaste.length) return
+    const maks = 100 - sum(personar.filter((p, j) => j !== i && p.last))
+    v = Math.max(0, Math.min(maks, Math.round(+v || 0)))
+    const tmp = personar.map((p, j) => (j === i ? { ...p, del: v, last: true } : p)) // hald denne fast medan resten fordeler seg
+    const ny = fordelPaaUlaaste(tmp, 100 - sum(tmp.filter(p => p.last)))
+    onEndre(ny.map((p, j) => (j === i ? { ...p, last: !!personar[i].last } : p)))
   }
 
+  // Skilje i: veks nærmaste ulåste til venstre (≤ i), skrumpar nærmaste ulåste til høgre (≥ i+1)
+  const skiljePar = (i) => {
+    let g = i; while (g >= 0 && personar[g].last) g--
+    let s2 = i + 1; while (s2 < personar.length && personar[s2].last) s2++
+    return g >= 0 && s2 < personar.length ? [g, s2] : null
+  }
   const startSkilje = (ev, i) => {
+    const par = skiljePar(i)
+    if (!par) return
     ev.preventDefault()
+    const [g, s2] = par
     const breidd = stolpeRef.current?.getBoundingClientRect().width || 1
     const x0 = ev.clientX
     const start = personar.map(p => ({ ...p }))
-    const par = start[i].del + start[i + 1].del
+    const sumPar = start[g].del + start[s2].del
     setDragIdx(i)
     const mv = (e2) => {
       const snapp = e2.altKey ? 1 : 5
-      let d = start[i].del + ((e2.clientX - x0) / breidd) * 100
-      d = Math.max(0, Math.min(par, Math.round(d / snapp) * snapp))
+      let d = start[g].del + ((e2.clientX - x0) / breidd) * 100
+      d = Math.max(0, Math.min(sumPar, Math.round(d / snapp) * snapp))
       const ny = start.map(p => ({ ...p }))
-      ny[i].del = d; ny[i + 1].del = par - d
+      ny[g].del = d; ny[s2].del = sumPar - d
       onEndre(ny)
     }
     const opp = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); setDragIdx(null); document.body.style.cursor = '' }
@@ -82,14 +113,14 @@ export default function FramdriftPersonarPanel({ el, personell, onEndre }) {
   }
 
   const timarFor = (del) => Math.round(timar * del / 100 * 2) / 2
-  let akk = 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <span className="fd-etikett">Fordel timar på personell</span>
         <div style={{ flex: 1 }}/>
-        {personar.length > 1 && <button className="fd-knapp" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => onEndre(likeDelar(personar.map(p => p.namn)))}>Jamt</button>}
+        {personar.length > 1 && <button className="fd-knapp" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => onEndre(likeDelar(personar))}
+          title="Fordel like mykje på alle ulåste">Jamt</button>}
       </div>
 
       {personar.length === 0 ? (
@@ -101,24 +132,21 @@ export default function FramdriftPersonarPanel({ el, personell, onEndre }) {
         <>
           <div ref={stolpeRef} style={{ position: 'relative', display: 'flex', height: 30, borderRadius: 7, overflow: 'visible',
             background: 'var(--bg3)', border: '1px solid var(--border)', userSelect: 'none' }}>
-            {personar.map((p, i) => {
-              const farge = PERSONFARGAR[i % PERSONFARGAR.length]
-              const venstre = akk; akk += p.del
-              return (
-                <div key={p.namn} title={`${p.namn}: ${p.del} %${timar ? ` · ${timarFor(p.del)} t` : ''}`}
-                  style={{ width: `${p.del}%`, background: farge, color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', overflow: 'hidden', whiteSpace: 'nowrap', borderRadius: i === 0 ? '6px 0 0 6px' : i === personar.length - 1 ? '0 6px 6px 0' : 0,
-                    position: 'relative', transition: dragIdx == null ? 'width .12s' : 'none' }} data-venstre={venstre}>
-                  {p.del >= 12 ? `${p.del}%` : ''}
-                </div>
-              )
-            })}
+            {personar.map((p, i) => (
+              <div key={p.namn} title={`${p.namn}: ${p.del} %${timar ? ` · ${timarFor(p.del)} t` : ''}${p.last ? ' (låst)' : ''}`}
+                style={{ width: `${p.del}%`, background: PERSONFARGAR[i % PERSONFARGAR.length], color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', overflow: 'hidden', whiteSpace: 'nowrap', borderRadius: i === 0 ? '6px 0 0 6px' : i === personar.length - 1 ? '0 6px 6px 0' : 0,
+                  boxShadow: p.last ? 'inset 0 0 0 2px rgba(255,255,255,.55)' : undefined, transition: dragIdx == null ? 'width .12s' : 'none' }}>
+                {p.del >= 14 ? `${p.last ? '🔒 ' : ''}${p.del}%` : ''}
+              </div>
+            ))}
             {personar.slice(0, -1).map((_, i) => {
               const posisjon = personar.slice(0, i + 1).reduce((a, p) => a + p.del, 0)
+              const kan = !!skiljePar(i)
               return (
-                <div key={i} onMouseDown={e => startSkilje(e, i)} title="Dra for å flytte delen (Alt = 1 %)"
-                  style={{ position: 'absolute', left: `calc(${posisjon}% - 6px)`, top: -3, bottom: -3, width: 12, cursor: 'col-resize', zIndex: 3,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div key={i} onMouseDown={e => startSkilje(e, i)} title={kan ? 'Dra for å flytte delen (Alt = 1 %)' : 'Låst — lås opp ein av personane for å flytte'}
+                  style={{ position: 'absolute', left: `calc(${posisjon}% - 6px)`, top: -3, bottom: -3, width: 12, cursor: kan ? 'col-resize' : 'not-allowed', zIndex: 3,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: kan ? 1 : 0.45 }}>
                   <div style={{ width: 4, height: '100%', borderRadius: 2, background: '#fff', border: '1px solid rgba(0,0,0,.35)', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }}/>
                 </div>
               )
@@ -131,12 +159,17 @@ export default function FramdriftPersonarPanel({ el, personell, onEndre }) {
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: PERSONFARGAR[i % PERSONFARGAR.length], flexShrink: 0 }}/>
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)', fontWeight: 600 }}>{p.namn}</span>
                 {personar.length > 1 && (
-                  <input type="number" min="0" max="100" value={p.del} onChange={e => settDel(i, e.target.value)}
+                  <input type="number" min="0" max="100" value={p.del} disabled={p.last} onChange={e => settDel(i, e.target.value)}
                     style={{ width: 46, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 5, fontSize: 12, textAlign: 'right',
-                      background: 'var(--bg2)', color: 'var(--text)', fontFamily: 'var(--mono)' }}/>
+                      background: p.last ? 'var(--bg3)' : 'var(--bg2)', color: 'var(--text)', fontFamily: 'var(--mono)' }}/>
                 )}
                 <span style={{ fontSize: 11, color: 'var(--text3)', width: 12 }}>%</span>
                 <span style={{ fontSize: 11.5, color: 'var(--text2)', width: 44, textAlign: 'right', fontFamily: 'var(--mono)' }}>{timar ? `${timarFor(p.del)} t` : ''}</span>
+                {personar.length > 1 && (
+                  <button onClick={() => veksleLas(i)} title={p.last ? 'Låst — klikk for å låse opp' : 'Lås prosentdelen til ' + p.namn}
+                    style={{ border: 'none', background: p.last ? 'var(--brandbg2)' : 'none', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '2px 3px', borderRadius: 4,
+                      opacity: p.last ? 1 : .45 }}>{p.last ? '🔒' : '🔓'}</button>
+                )}
                 <button onClick={() => fjern(i)} title="Fjern frå aktiviteten"
                   style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 15, lineHeight: 1, padding: 0 }}>×</button>
               </div>

@@ -3,9 +3,9 @@ import { addDays, parseISO } from 'date-fns'
 import { supabase } from './supabase'
 import FramdriftTidslinje from './FramdriftTidslinje'
 import FramdriftTabell from './FramdriftTabell'
+import FramdriftTimeMatrise from './FramdriftTimeMatrise'
 import FramdriftImportModal from './FramdriftImportModal'
 import FramdriftTimarPanel from './FramdriftTimarPanel'
-import FramdriftVerktoy from './FramdriftVerktoy'
 import { sikrStandardPersonell } from './personellStandard'
 import FramdriftPersonarPanel from './FramdriftPersonarPanel'
 import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
@@ -93,6 +93,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const [angreAntal, setAngreAntal] = useState(0)
   const [visTimar, setVisTimar] = useState(true)
   const [dokument, setDokument] = useState([])     // DTM-dokument for valt prosjekt (til leveransekopling/framdrift)
+  const [panelOpen, setPanelOpen] = useState(() => { try { return localStorage.getItem('liedlab-framdrift-panel-open') !== '0' } catch { return true } })
+  const veksleOpen = (v) => { setPanelOpen(v); try { localStorage.setItem('liedlab-framdrift-panel-open', v ? '1' : '0') } catch { /* privat modus */ } }
   const [koblingMelding, setKoblingMelding] = useState(null)
   const [leveransarOpen, setLeveransarOpen] = useState(false)
   const [personell, setPersonell] = useState([]) // prosjekt_personell for valt prosjekt (Prosjekt → Personell)
@@ -317,11 +319,6 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
         <span style={{ fontSize: 11.5, fontWeight: 600, color: lagringStatus === 'feil' ? '#FCA5A5' : 'rgba(255,255,255,.75)' }}>{lagStatusTekst}</span>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
-      {aktivtProsjekt && (
-        <FramdriftVerktoy onLeggTil={leggTil} onMal={() => setMalOpen(true)} onImport={() => setImportOpen(true)} onAngre={angre} angreAntal={angreAntal}/>
-      )}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
       {!aktivtProsjekt ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
           <div style={{ width: 72, height: 72, borderRadius: 18, background: 'var(--brandbg2)', display: 'flex',
@@ -344,6 +341,14 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                 {ZOOM.map(([k, t]) => <button key={k} className={zoom === k ? 'pa' : ''} onClick={() => setZoom(k)}>{t}</button>)}
               </div>
             )}
+            <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
+            <button className="fd-knapp hovud" onClick={() => leggTil('fase')}>+ Ny fase</button>
+            <button className="fd-knapp" onClick={() => leggTil('aktivitet')}>+ Ny aktivitet</button>
+            <button className="fd-knapp" onClick={() => leggTil('milepael')}>+ Milepæl</button>
+            <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
+            <button className="fd-knapp" onClick={() => setMalOpen(true)}>Malar…</button>
+            <button className="fd-knapp" onClick={() => setImportOpen(true)}>Importer…</button>
+            <button className="fd-knapp" onClick={angre} disabled={!angreAntal} title="Angre siste endring (Ctrl+Z)">↶ Angre</button>
             <div style={{ flex: 1 }}/>
             {visning === 'tidslinje' && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text2)', cursor: 'pointer' }}>
@@ -364,18 +369,15 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <div style={{ color: 'var(--text3)', fontSize: 13 }}>Lastar plan…</div>
           ) : (
             <div style={{ flex: 1, display: 'flex', gap: 12, minHeight: 0 }}>
-              {visning === 'tidslinje' ? (
-                <FramdriftTidslinje rader={rader} elementer={elementer} valgt={valgt} onVelg={setValgt}
-                  onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
-                  timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
-                  onKoble={koble} onFjernAvh={fjernAvh}
-                  lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
-              ) : (
-                <FramdriftTabell dokMap={dokMap} elementer={elementer} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
+              {/* Eigenskapspanel for valt element — kollapsbar kolonne heilt til venstre i modulen */}
+              {sel && !panelOpen && (
+                <div onClick={() => veksleOpen(true)} title="Vis eigenskapar" style={{ width: 30, flexShrink: 0, cursor: 'pointer', border: '1.5px solid var(--border)',
+                  borderRadius: 'var(--r2)', background: 'var(--bg3)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 10, gap: 10 }}>
+                  <span style={{ fontSize: 15, color: 'var(--text3)' }}>›</span>
+                  <span style={{ writingMode: 'vertical-rl', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text3)' }}>Eigenskapar</span>
+                </div>
               )}
-
-              {/* Eigenskapspanel for valt element */}
-              {sel && (
+              {sel && panelOpen && (
                 <div style={{ width: 290, flexShrink: 0, overflow: 'auto', border: '1.5px solid var(--border)',
                   borderRadius: 'var(--r2)', background: 'var(--bg2)', padding: 14, display: 'flex', flexDirection: 'column', gap: 11 }}>
                   <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -383,6 +385,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                       {TYPE_NAMN[sel.type]}
                     </span>
                     <div style={{ flex: 1 }}/>
+                    <button onClick={() => veksleOpen(false)} title="Skjul panelet"
+                      style={{ border: 'none', background: 'none', fontSize: 17, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, marginRight: 4 }}>‹</button>
                     <button onClick={() => setValgt(null)} title="Lukk"
                       style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1 }}>×</button>
                   </div>
@@ -514,13 +518,24 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                   </div>
                 </div>
               )}
+              {visning === 'tidslinje' ? (
+                <FramdriftTidslinje rader={rader} elementer={elementer} valgt={valgt} onVelg={setValgt}
+                  onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
+                  timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
+                  onKoble={koble} onFjernAvh={fjernAvh}
+                  lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
+              ) : (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'auto' }}>
+                  <FramdriftTabell dokMap={dokMap} elementer={elementer} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
+                  <FramdriftTimeMatrise elementer={elementer} kal={kal}/>
+                </div>
+              )}
+
             </div>
           )}
         </div>
       )}
 
-      </div>
-      </div>
       {leveransarOpen && sel?.type === 'aktivitet' && (
         <FramdriftLeveransarVindauge el={sel} dokument={dokument} elementer={elementer} onLukk={() => setLeveransarOpen(false)}
           onLeveransar={ids => oppdater(elementer.map(x => (x.id === sel.id ? { ...x, leveransar: ids } : x)))}

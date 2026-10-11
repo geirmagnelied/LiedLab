@@ -7,6 +7,14 @@ import './index.css'
 import { supabase } from './supabase.js'
 import { useState, useEffect } from 'react'
 
+// Electron/Windows: etter alert()/confirm()/prompt() sluttar tekstfelt å ta imot tastetrykk. Be skalet ta fokuset tilbake.
+if (typeof window !== 'undefined' && window.fokusFiks) {
+  for (const namn of ['alert', 'confirm', 'prompt']) {
+    const original = window[namn].bind(window)
+    window[namn] = (...args) => { const r = original(...args); setTimeout(() => window.fokusFiks(), 0); return r }
+  }
+}
+
 // Utan denne fanga ALDRI appen opp uventa render-/effekt-feil — éin einaste
 // ukjend feil (t.d. eit kall til ein preload-metode som endå ikkje er lasta
 // på nytt etter ei electron/main.js-endring) kræsja HEILE React-treet til

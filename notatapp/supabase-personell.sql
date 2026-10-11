@@ -45,3 +45,7 @@ DROP POLICY IF EXISTS "kontor_kalender_update" ON kontor_kalender;
 CREATE POLICY "kontor_kalender_select" ON kontor_kalender FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "kontor_kalender_insert" ON kontor_kalender FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "kontor_kalender_update" ON kontor_kalender FOR UPDATE USING (auth.uid() = user_id);
+
+-- 12. okt. 2026: fornamn/etternamn (namn = «fornamn etternamn», brukt i Framdrift). Køyrt via Supabase MCP.
+ALTER TABLE prosjekt_personell ADD COLUMN IF NOT EXISTS fornamn TEXT DEFAULT '';
+ALTER TABLE prosjekt_personell ADD COLUMN IF NOT EXISTS etternamn TEXT DEFAULT '';

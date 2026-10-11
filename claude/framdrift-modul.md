@@ -121,3 +121,11 @@ møte = sirkel). Ingenting vert lagra dobbelt.
 - **Farge på element**: felt `farge` (hex) på fase/aktivitet/milepæl; fargeveljar i eigenskapspanelet (12 fargar, eigen farge, ⊘ = følgjer fasen). Brukt i stolpe og namnekolonne.
 - **Personell**: den som opprettar eit prosjekt vert lagt inn som personell (`personellStandard.js`; frå `useStore.addProject` og `ProsjektModule.nyttProsjekt`). Eksisterande prosjekt utan personell får brukaren lagt inn fyrste gong personell-lista/Framdrift vert opna (éin gong per prosjekt, merkt i localStorage). Ny knapp «+ Legg meg til» i Prosjekt → Personell.
 - **Electron**: vindauget startar maksimert og vert synleg når sida er klar (`electron/main.js`). Merk: .exe-en lastar den LIVE nettsida (Vercel), så kodeendringar i `src/` kjem fyrst etter push.
+
+## Justeringar 12. okt. 2026
+
+- **Eigenskapspanelet** (valt element) ligg no som ei **kollapsbar kolonne heilt til venstre** i modulen (‹ for å skjule, smal stolpe «Eigenskapar» for å vise att; hugsa i `liedlab-framdrift-panel-open`). Knappane «+ Ny fase / + Ny aktivitet / + Milepæl / Malar / Importer / Angre» er tilbake i topplinja; `FramdriftVerktoy.jsx` er fjerna.
+- **Lås prosentdel** (`FramdriftPersonarPanel.jsx`): 🔒 per person (`personar[].last`). Låste delar vert aldri endra av dragingar, tal-felt, «Jamt» eller når nokon vert lagt til/fjerna; skilje mellom låste vert sperra.
+- **Timefordeling i tabellvisinga** (`FramdriftTimeMatrise.jsx`): foldbar seksjon under tabellen — éin rad per aktivitet (▸ utvid for personar × veker), totalrad og sum per person. Same tal som «Timar per veke».
+- **Personell**: kolonnane Fornamn/Etternamn (`prosjekt_personell.fornamn/etternamn`, migrasjon køyrt; `namn` = «fornamn etternamn»). «Legg meg til»/standardpersonell hentar namn frå tidlegare rad med same e-post, kontometadata eller e-post på forma fornamn.etternamn.
+- **Redigering i Electron**: etter `alert()/confirm()/prompt()` sluttar tekstfelt å ta imot tastetrykk i Electron/Windows. `fokusFiks` (preload) + IPC `fokus-fiks` (main) tek fokuset tilbake etter kvar dialog; `main.jsx` pakkar dialogfunksjonane. Krev ny .exe.
