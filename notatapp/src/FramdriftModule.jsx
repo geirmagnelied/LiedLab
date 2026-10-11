@@ -5,6 +5,9 @@ import FramdriftTidslinje from './FramdriftTidslinje'
 import FramdriftTabell from './FramdriftTabell'
 import FramdriftImportModal from './FramdriftImportModal'
 import FramdriftTimarPanel from './FramdriftTimarPanel'
+import FramdriftPersonarPanel from './FramdriftPersonarPanel'
+import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
+import { leveransarFerdig, effektivFerdig, brukarAuto } from './framdriftFerdig'
 import useKontorkalender from './useKontorkalender'
 import { timarPerVeke, overbelastning } from './framdriftTimar'
 import { MALAR } from './framdriftMalar'
@@ -66,6 +69,9 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const [importOpen, setImportOpen] = useState(false)
   const [angreAntal, setAngreAntal] = useState(0)
   const [visTimar, setVisTimar] = useState(true)
+  const [dokument, setDokument] = useState([])     // DTM-dokument for valt prosjekt (til leveransekopling/framdrift)
+  const [koblingMelding, setKoblingMelding] = useState(null)
+  const [leveransarOpen, setLeveransarOpen] = useState(false)
   const [personell, setPersonell] = useState([]) // prosjekt_personell for valt prosjekt (Prosjekt → Personell)
   const { kal } = useKontorkalender(userId)
 
@@ -121,6 +127,15 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
       .then(({ data }) => { if (!avbrote) setPersonell(data || []) })
     return () => { avbrote = true }
   }, [userId, activeProjectId])
+
+  const lastDokument = useCallback(() => {
+    if (!userId || !activeProjectId) { setDokument([]); return Promise.resolve() }
+    return supabase.from('dtm_dokumenter').select('id,nr,tittel,fag,fase,delprosjekt,ferdigstillelse,timebudsjett,i_leveranseplan')
+      .eq('user_id', userId).eq('project_id', activeProjectId).order('nr')
+      .then(({ data }) => setDokument(data || []))
+  }, [userId, activeProjectId])
+  useEffect(() => { lastDokument() }, [lastDokument])
+  const dokMap = useMemo(() => new Map(dokument.map(d => [d.id, d])), [dokument])
 
   // Lagre ulagra endringar når modulen vert lukka
   useEffect(() => () => {
@@ -205,7 +220,9 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     if (key === 'timar') { settFelt(id, 'timar', Math.max(0, Math.round((parseFloat(String(verdi).replace(',', '.')) || 0) * 2) / 2)); return }
     if (key === 'fordeling') { const f = ['fast', 'start', 'midt', 'slutt'].find(k => k === String(verdi).toLowerCase()); if (f) settFelt(id, 'fordeling', f); return }
     if (key === 'ferdig') {
-      const n = Math.max(0, Math.min(100, parseInt(verdi, 10) || 0)); settFelt(id, 'ferdig', n); return
+      // å skrive eit tal i tabellen er ei skjønnsmessig vurdering → overstyrer utrekning frå leveransar
+      const n = Math.max(0, Math.min(100, parseInt(verdi, 10) || 0))
+      oppdater(elementer.map(e => (e.id === id ? { ...e, ferdig: n, ferdigModus: 'skjonn' } : e))); return
     }
     if (key === 'start' || key === 'slutt') {
       const d = parseDato(verdi)
@@ -215,6 +232,14 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
       key === 'start' ? settStart(id, iso(d)) : settSlutt(id, iso(d))
     }
   }
+
+  // «Startar når A er ferdig»-kopling dratt direkte i tidslinja: B (til) startar når A (fra) er ferdig
+  const koble = (fraId, tilId) => {
+    const feil = avhengnadFeil(elementer, tilId, fraId)
+    if (feil) { setKoblingMelding(feil); setTimeout(() => setKoblingMelding(null), 4000); return }
+    oppdater(leggTilAvhengnad(elementer, tilId, fraId))
+  }
+  const fjernAvh = (fraId, tilId) => oppdater(fjernAvhengnad(elementer, tilId, fraId))
 
   const leggTil = (type) => {
     const valdFase = sel?.type === 'fase' ? sel.id : sel?.forelder ?? null
@@ -309,6 +334,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             )}
           </div>
 
+          {koblingMelding && <div style={{ marginBottom: 8, padding: '6px 12px', background: 'var(--dangerbg, #fdecea)', color: 'var(--danger)', borderRadius: 6, fontSize: 12.5, flexShrink: 0 }}>{koblingMelding}</div>}
           {lastar ? (
             <div style={{ color: 'var(--text3)', fontSize: 13 }}>Lastar plan…</div>
           ) : (
@@ -316,10 +342,11 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
               {visning === 'tidslinje' ? (
                 <FramdriftTidslinje rader={rader} elementer={elementer} valgt={valgt} onVelg={setValgt}
                   onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
-                  timarKart={timarKart} overlast={overlast} visTimar={visTimar}
+                  timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
+                  onKoble={koble} onFjernAvh={fjernAvh}
                   lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
               ) : (
-                <FramdriftTabell elementer={elementer} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
+                <FramdriftTabell dokMap={dokMap} elementer={elementer} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
               )}
 
               {/* Eigenskapspanel for valt element */}
@@ -385,17 +412,38 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                     <span className="fd-etikett">Ansvarleg</span>
                     <TekstFelt verdi={sel.ansvarleg || ''} list="fd-personell" placeholder={personell.length ? 'Vel frå personell, eller skriv' : ''} onLagre={v => settFelt(sel.id, 'ansvarleg', v.trim())}/>
                   </label>
-                  {sel.type === 'aktivitet' && (
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span className="fd-etikett">Ferdig: {sel.ferdig || 0} %</span>
-                      <input type="range" min="0" max="100" step="5" value={sel.ferdig || 0}
-                        onChange={e => settFelt(sel.id, 'ferdig', +e.target.value)}/>
-                    </label>
-                  )}
+                  {sel.type === 'aktivitet' && (() => {
+                    const auto = brukarAuto(sel, dokMap)
+                    const res = leveransarFerdig(sel, dokMap)
+                    const antal = (sel.leveransar || []).length
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span className="fd-etikett">Framdrift: {effektivFerdig(sel, dokMap)} %{auto ? ' (frå leveransar)' : antal ? ' (skjønn)' : ''}</span>
+                        {!auto && (
+                          <input type="range" min="0" max="100" step="5" value={sel.ferdig || 0}
+                            onChange={e => settFelt(sel.id, 'ferdig', +e.target.value)}/>
+                        )}
+                        {auto && <div style={{ height: 8, borderRadius: 4, background: 'var(--bg3)', overflow: 'hidden' }}>
+                          <div style={{ width: res.prosent + '%', height: '100%', background: '#0F766E' }}/></div>}
+                        <button className="fd-knapp" onClick={() => { lastDokument(); setLeveransarOpen(true) }}>
+                          ⛓ Kople leveransar{antal ? ' (' + antal + ')' : '…'}
+                        </button>
+                        {antal > 0 && (
+                          <div className="fd-seg" style={{ alignSelf: 'flex-start' }}>
+                            <button className={auto ? 'pa' : ''} onClick={() => settFelt(sel.id, 'ferdigModus', 'auto')}>Auto</button>
+                            <button className={!auto ? 'pa' : ''} onClick={() => settFelt(sel.id, 'ferdigModus', 'skjonn')}>Skjønn</button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {sel.type === 'aktivitet' && (
                     <FramdriftTimarPanel el={sel} kal={kal}
                       onTimar={n => settFelt(sel.id, 'timar', n)} onFordeling={f => settFelt(sel.id, 'fordeling', f)}/>
+                  )}
+                  {sel.type === 'aktivitet' && (
+                    <FramdriftPersonarPanel el={sel} personell={personell} onEndre={p => settFelt(sel.id, 'personar', p)}/>
                   )}
                   {sel.type === 'fase' && (() => {
                     const sum = elementer.filter(c => c.forelder === sel.id && c.type === 'aktivitet').reduce((a, c) => a + (+c.timar || 0), 0)
@@ -445,6 +493,11 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
         </div>
       )}
 
+      {leveransarOpen && sel?.type === 'aktivitet' && (
+        <FramdriftLeveransarVindauge el={sel} dokument={dokument} elementer={elementer} onLukk={() => setLeveransarOpen(false)}
+          onLeveransar={ids => oppdater(elementer.map(x => (x.id === sel.id ? { ...x, leveransar: ids } : x)))}
+          onModus={m => settFelt(sel.id, 'ferdigModus', m)} onFerdig={n => settFelt(sel.id, 'ferdig', n)}/>
+      )}
       {malOpen && <MalVindauge harPlan={elementer.length > 0} onLukk={() => setMalOpen(false)} onBruk={brukMal}/>}
       {importOpen && <FramdriftImportModal harPlan={elementer.length > 0} onLukk={() => setImportOpen(false)} onImporter={importer}/>}
     </div>

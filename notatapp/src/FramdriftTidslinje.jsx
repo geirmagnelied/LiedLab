@@ -3,7 +3,8 @@ import { addDays, differenceInCalendarDays, startOfWeek, endOfWeek, getISOWeek, 
 import { nb } from 'date-fns/locale'
 import { helligdagNamn } from './helligdagar'
 import { tilDato, formaterDato } from './framdriftDato'
-import { beregnDatoar, harBorn } from './framdriftLogikk'
+import { beregnDatoar, harBorn, avhengnadFeil } from './framdriftLogikk'
+import { effektivFerdig, faseFerdig } from './framdriftFerdig'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Tidslinja (Gantt) i Framdrift-modulen — sjå claude/framdrift-modul.md.
@@ -25,10 +26,14 @@ const MOTE_FARGE = '#1565C0'
 const VALG_FARGE = '#1E3A8A'
 
 export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
-                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar }) {
+                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh }) {
   const dagB = DAGB[zoom] || DAGB.veke
   const scrollRef = useRef(null)
   const [drag, setDrag] = useState(null) // { id, modus, d }
+  const flateRef = useRef(null)
+  const [hoverId, setHoverId] = useState(null)        // stolpe musa er over (viser koplingspunktet)
+  const [hoverPil, setHoverPil] = useState(null)      // avhengnadspil musa er over (klikk fjernar)
+  const [kobling, setKobling] = useState(null)        // { fraId, x, y, malId, ok } under ei dra-kopling
   const idag = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d }, [])
 
   const { fra, til } = useMemo(() => {
@@ -135,6 +140,45 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
     window.addEventListener('mouseup', opp)
   }
 
+  // ── Dra-kopling: dra frå sirkelen på høgre kant av ein stolpe og slepp på ein annan rad →
+  //    «den andre startar når denne er ferdig» (same som å legge til avhengnad i panelet)
+  const startKobling = (ev, el) => {
+    ev.preventDefault(); ev.stopPropagation()
+    onVelg(el.id)
+    const rect = () => flateRef.current.getBoundingClientRect()
+    const finnMal = (e2) => {
+      const r = rect()
+      const idx = Math.floor((e2.clientY - r.top) / RAD_H)
+      const mal = radar[idx]
+      if (!mal || mal.id === el.id || mal.type === 'hendingar' || mal.type === 'timar') return { malId: null, ok: false }
+      return { malId: mal.id, ok: !avhengnadFeil(elementer, mal.id, el.id) }
+    }
+    const mv = (e2) => { const r = rect(); setKobling({ fraId: el.id, x: e2.clientX - r.left, y: e2.clientY - r.top, ...finnMal(e2) }) }
+    const opp = (e2) => {
+      window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); document.body.style.cursor = ''
+      const m = finnMal(e2); setKobling(null)
+      if (m.malId != null) onKoble?.(el.id, m.malId)
+    }
+    document.body.style.cursor = 'crosshair'
+    mv(ev)
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
+  }
+  const koplingspunkt = (e, l, w, y) => {
+    if (!onKoble) return null
+    const vis = hoverId === e.id || valgt === e.id || kobling?.fraId === e.id
+    const sone = (
+      <div key={'k' + e.id} onMouseEnter={() => setHoverId(e.id)} onMouseLeave={() => setHoverId(h => (h === e.id ? null : h))}
+        style={{ position: 'absolute', left: l - 2, top: y + 2, width: w + 28, height: RAD_H - 4, zIndex: 3 }}/>
+    )
+    const punkt = vis && (
+      <div key={'p' + e.id} onMouseDown={ev => startKobling(ev, e)} onMouseEnter={() => setHoverId(e.id)}
+        title={'Dra til ein annan aktivitet: den startar når «' + e.namn + '» er ferdig'}
+        style={{ position: 'absolute', left: l + w + 5, top: y + RAD_H / 2 - 7, width: 14, height: 14, borderRadius: '50%', zIndex: 7, cursor: 'crosshair',
+          background: '#fff', border: '2.5px solid ' + VALG_FARGE, boxShadow: '0 1px 4px rgba(0,0,0,.35)' }}/>
+    )
+    return [sone, punkt]
+  }
+
   const visDatoar = (e) => {
     if (!drag) return { start: e.start, slutt: e.slutt }
     if (drag.id === e.id) return beregnDatoar(e, drag.modus, drag.d)
@@ -165,7 +209,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
       const sti = x2 >= x1 + 8
         ? `M${x1},${y1} H${x1 + 6} V${y2} H${x2 - 1}`
         : `M${x1},${y1} H${x1 + 6} V${midY} H${x2 - 8} V${y2} H${x2 - 1}`
-      pilar.push({ key: `${p.id}-${e.id}`, sti, x2, y2 })
+      pilar.push({ key: `${p.id}-${e.id}`, sti, x2, y2, fraId: p.id, tilId: e.id })
     }
   }
 
@@ -255,9 +299,10 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                     borderRadius: r.type === 'aktivitet' ? 3 : 0 }}/>
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     fontSize: erFase ? 13 : 12.5, fontWeight: erFase ? 800 : 500, color: 'var(--text)' }}>{r.namn}</span>
-                  {r.type === 'aktivitet' && r.ferdig > 0 && (
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text3)' }}>{r.ferdig}%</span>
+                  {r.type === 'aktivitet' && effektivFerdig(r, dokMap) > 0 && (
+                    <span title={(r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? 'Rekna ut frå kopla leveransar' : 'Skjønn'} style={{ fontSize: 10.5, fontWeight: 700, color: (r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? '#0F766E' : 'var(--text3)' }}>{(r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? '⛓ ' : ''}{effektivFerdig(r, dokMap)}%</span>
                   )}
+                  {erFase && faseFerdig(elementer, r, dokMap) > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text3)' }}>{faseFerdig(elementer, r, dokMap)}%</span>}
                 </div>
               )
             })}
@@ -265,7 +310,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
           </div>
 
           {/* ── Tidslinje-flate ── */}
-          <div style={{ position: 'relative', width: breiddTotal, flexShrink: 0, height: Math.max(radar.length, 1) * RAD_H }}
+          <div ref={flateRef} style={{ position: 'relative', width: breiddTotal, flexShrink: 0, height: Math.max(radar.length, 1) * RAD_H }}
             onMouseDown={() => onVelg(null)}>
             {bakgrunn.map((b, i) => (
               <div key={i} title={b.tittel} style={{ position: 'absolute', left: b.left, width: b.width, top: 0, bottom: 0,
@@ -318,12 +363,42 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
             <svg width={breiddTotal} height={Math.max(radar.length, 1) * RAD_H}
               style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', zIndex: 2 }}>
               {pilar.map(p => (
-                <g key={p.key}>
-                  <path d={p.sti} fill="none" stroke="#64748B" strokeWidth="1.4"/>
-                  <path d={`M${p.x2 - 1},${p.y2} l-5,-3.5 v7 z`} fill="#64748B"/>
+                <g key={p.key} onMouseEnter={() => setHoverPil(p.key)} onMouseLeave={() => setHoverPil(h => (h === p.key ? null : h))}>
+                  <title>Klikk for å fjerne avhengnaden (Angre set han attende)</title>
+                  <path d={p.sti} fill="none" stroke="transparent" strokeWidth="10" style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                    onMouseDown={ev => ev.stopPropagation()} onClick={() => onFjernAvh?.(p.fraId, p.tilId)}/>
+                  <path d={p.sti} fill="none" stroke={hoverPil === p.key ? '#DC2626' : '#64748B'} strokeWidth={hoverPil === p.key ? 2.4 : 1.4}/>
+                  <path d={`M${p.x2 - 1},${p.y2} l-5,-3.5 v7 z`} fill={hoverPil === p.key ? '#DC2626' : '#64748B'}/>
                 </g>
               ))}
             </svg>
+
+            {/* Dra-kopling: elastisk linje + markert målrad */}
+            {kobling && (() => {
+              const fra = rader.find(r => r.id === kobling.fraId)
+              const fd = fra && visDatoar(fra)
+              const ri = radIndeks.get(kobling.fraId)
+              const x1 = fd ? x(tilDato(fd.slutt)) + dagB + 8 : 0
+              const y1 = ri * RAD_H + RAD_H / 2
+              const mi = kobling.malId != null ? radIndeks.get(kobling.malId) : null
+              const farge = kobling.malId == null ? '#64748B' : kobling.ok ? '#16A34A' : '#DC2626'
+              const mal = kobling.malId != null ? rader.find(r => r.id === kobling.malId) : null
+              return (
+                <>
+                  {mi != null && <div style={{ position: 'absolute', left: 0, right: 0, top: mi * RAD_H, height: RAD_H, background: farge + '22', outline: '2px solid ' + farge, outlineOffset: -2, zIndex: 1, pointerEvents: 'none' }}/>}
+                  <svg width={breiddTotal} height={Math.max(radar.length, 1) * RAD_H} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', zIndex: 15 }}>
+                    <path d={'M' + x1 + ',' + y1 + ' C' + (x1 + 60) + ',' + y1 + ' ' + (kobling.x - 60) + ',' + kobling.y + ' ' + kobling.x + ',' + kobling.y}
+                      fill="none" stroke={farge} strokeWidth="2.2" strokeDasharray="6 4"/>
+                    <circle cx={kobling.x} cy={kobling.y} r="5" fill={farge}/>
+                  </svg>
+                  <div style={{ position: 'absolute', left: Math.min(kobling.x + 14, breiddTotal - 260), top: kobling.y + 10, zIndex: 16, pointerEvents: 'none',
+                    background: '#111', color: '#fff', fontSize: 11.5, fontWeight: 700, padding: '4px 9px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+                    {mal ? (kobling.ok ? '«' + mal.namn + '» startar når «' + (fra?.namn || '') + '» er ferdig' : (avhengnadFeil(elementer, mal.id, kobling.fraId) || 'Ikkje mogleg'))
+                      : 'Slepp på aktiviteten som skal starte etterpå'}
+                  </div>
+                </>
+              )
+            })()}
 
             {/* Stolpar */}
             {rader.map(e => {
@@ -355,6 +430,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                         outline: sel ? `2.5px solid ${VALG_FARGE}` : '2px solid #fff', outlineOffset: sel ? 1 : 0 }}/>
                     <div style={{ position: 'absolute', left: cx + 14, top: y, height: RAD_H, display: 'flex', alignItems: 'center',
                       fontSize: 11.5, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>{e.namn}</div>
+                    {koplingspunkt(e, l, dagB - 8, y)}
                     {dato}
                   </div>
                 )
@@ -365,7 +441,10 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                   <div key={e.id}>
                     <div title={tipp} onMouseDown={ev => startDrag(ev, e, 'flytt')}
                       style={{ position: 'absolute', left: l, top: y + 9, width: w, height: 11, background: farge,
-                        borderRadius: 2, cursor: 'grab', zIndex: 4, outline: sel ? `2.5px solid ${VALG_FARGE}` : undefined, outlineOffset: 1 }}/>
+                        borderRadius: 2, cursor: 'grab', zIndex: 4, outline: sel ? `2.5px solid ${VALG_FARGE}` : undefined, outlineOffset: 1, overflow: 'hidden' }}>
+                      {faseFerdig(elementer, e, dokMap) > 0 && <div style={{ width: faseFerdig(elementer, e, dokMap) + '%', height: '100%', background: 'rgba(0,0,0,.30)' }}/>}
+                    </div>
+                    {koplingspunkt(e, l, w, y)}
                     <div style={{ position: 'absolute', left: l, top: y + 20, width: 0, height: 0, borderLeft: `6px solid ${farge}`,
                       borderBottom: '6px solid transparent', pointerEvents: 'none', zIndex: 4 }}/>
                     <div style={{ position: 'absolute', left: l + w - 6, top: y + 20, width: 0, height: 0, borderRight: `6px solid ${farge}`,
@@ -384,7 +463,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                       cursor: 'grab', zIndex: 4, overflow: 'hidden', display: 'flex', alignItems: 'center',
                       outline: sel ? `2.5px solid ${VALG_FARGE}` : undefined, outlineOffset: 1,
                       boxShadow: '0 1px 2px rgba(0,0,0,.25)' }}>
-                    {e.ferdig > 0 && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.min(100, e.ferdig)}%`,
+                    {effektivFerdig(e, dokMap) > 0 && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.min(100, effektivFerdig(e, dokMap))}%`,
                       background: 'rgba(0,0,0,.30)' }}/>}
                     {w >= 90 && <span style={{ position: 'relative', padding: '0 14px 0 8px', fontSize: 11.5, fontWeight: 700, color: '#fff',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>{e.namn}</span>}
@@ -393,6 +472,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                     style={{ position: 'absolute', left: l - 1, top: y + 7, width: 7, height: 20, cursor: 'ew-resize', zIndex: 5 }}/>
                   <div onMouseDown={ev => startDrag(ev, e, 'slutt')} title="Dra for å endre slutten"
                     style={{ position: 'absolute', left: l + w - 6, top: y + 7, width: 7, height: 20, cursor: 'ew-resize', zIndex: 5 }}/>
+                  {koplingspunkt(e, l, w, y)}
                   {w < 90 && <div style={{ position: 'absolute', left: l + w + 7, top: y, height: RAD_H, display: 'flex', alignItems: 'center',
                     fontSize: 11.5, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>{e.namn}</div>}
                   {dato}

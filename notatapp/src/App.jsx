@@ -1,3 +1,4 @@
+import Dashboard from './Dashboard'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useStore } from './useStore'
 import AppRail, { PARENT_AV_MODUL } from './AppRail'
@@ -51,7 +52,7 @@ export default function App({ userId, userEmail }) {
   const [mobileSheet,       setMobileSheet]       = useState(false)
   const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
   const [showSettings,      setShowSettings]      = useState(false)
-  const [activeModule,      setActiveModule]      = useState('notatar') // 'notatar' | 'timar' | 'kvalitet'
+  const [activeModule,      setActiveModule]      = useState('dashboard') // startsida; elles 'notatar' | 'timar' | 'kvalitet' …
   const [selectedNoteId,    setSelectedNoteId]    = useState(null) // markert (enkeltklikka) notat i NoteTabell — vist i NotePreview
   const [previewWidth,      setPreviewWidth]      = useState(() => {
     try { const v = parseInt(localStorage.getItem('liedlab-notat-preview-w')); return isNaN(v) ? 380 : v }
@@ -371,7 +372,7 @@ export default function App({ userId, userEmail }) {
         </div>
         {/* Module switcher pills */}
         <div style={{ display:'flex', gap:3, marginRight:4 }}>
-          {[{k:'notatar',l:'N'},{k:'kalender',l:'Ka'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'farge',l:'F'},{k:'dtm',l:'DTM'},{k:'bilete',l:'B'},{k:'framdrift',l:'Fd'}].map(m => (
+          {[{k:'dashboard',l:'D'},{k:'notatar',l:'N'},{k:'kalender',l:'Ka'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'farge',l:'F'},{k:'dtm',l:'DTM'},{k:'bilete',l:'B'},{k:'framdrift',l:'Fd'}].map(m => (
             <button key={m.k} onClick={() => { setActiveModule(m.k); if(m.k!=='notatar') setView('notatar') }}
               style={{ width:24,height:24,borderRadius:6,border:'none',
                 background: activeModule===m.k ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.08)',
@@ -423,6 +424,7 @@ export default function App({ userId, userEmail }) {
 
       {/* Mobile content */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
+        {activeModule === 'dashboard' && <Dashboard userId={userId} userEmail={userEmail} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>}
         {activeModule === 'notatar' && (
           <>
             {view==='notatar' && (
@@ -496,6 +498,8 @@ export default function App({ userId, userEmail }) {
         activeProjectId={selectedProjectId}
         onSelectProject={setSelectedProjectId}
         onToggleFavorite={toggleFavorite}
+        activeModule={activeModule}
+        onModuleChange={setActiveModule}
         onOpenSettings={() => setShowSettings(true)}
         offices={offices}
         activeOfficeId={activeOfficeId}
@@ -514,7 +518,7 @@ export default function App({ userId, userEmail }) {
       {/* Rail 2 — undermenyen til paraply-modulane (Admin/Gjeremål), sjå
           claude/appreil-struktur.md. Vist BERRE når gjeldande modul høyrer
           til éin av desse. */}
-      {PARENT_AV_MODUL[activeModule] && (
+      {PARENT_AV_MODUL[activeModule] && PARENT_AV_MODUL[activeModule] !== 'admin' && (
         <AppRailUndermeny
           toppNokkel={PARENT_AV_MODUL[activeModule]}
           activeModule={activeModule}
@@ -525,7 +529,9 @@ export default function App({ userId, userEmail }) {
       {/* Module content area — felles kolonne med botn-statuslinje for alle modular */}
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
       <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
-      {activeModule === 'prosjekt' ? (
+      {activeModule === 'dashboard' ? (
+        <Dashboard userId={userId} userEmail={userEmail} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>
+      ) : activeModule === 'prosjekt' ? (
         <ProsjektModule userId={userId} projects={officeProjects} offices={offices}
           activeOfficeId={activeOfficeId} addProject={addProject}
           activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>
@@ -700,7 +706,7 @@ export default function App({ userId, userEmail }) {
 )
 }
 
-const MODULE_LABELS = { notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
+const MODULE_LABELS = { dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())

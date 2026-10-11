@@ -56,6 +56,15 @@ export function fordelTimar(el, kal = STANDARD_KONTORKALENDER) {
   return aktive.map((v, i) => ({ veke: format(v.mandag, 'yyyy-MM-dd'), timar: Math.max(0, rund[i]) }))
 }
 
+// Kven som gjer jobben i ein aktivitet: [{ namn, del (prosent, sum 100) }].
+// Bruker `personar` (Framdrift → «Fordel timar på personell») viss sett, elles ansvarleg = 100 %.
+export function personDelar(e) {
+  const p = (e.personar || []).filter(x => x && x.namn && +x.del > 0)
+  if (p.length) return p.map(x => ({ namn: x.namn.trim(), del: +x.del }))
+  const a = (e.ansvarleg || '').trim()
+  return a ? [{ namn: a, del: 100 }] : []
+}
+
 // Timar per veke for heile planen, med fordeling per ansvarleg person.
 // Berre aktivitetar tel (fasar og milepælar ville gjeve dobbeltrekning).
 // Gjev Map(veke → { total, perPerson: { namn: timar } }).
@@ -67,8 +76,7 @@ export function timarPerVeke(elementer, kal = STANDARD_KONTORKALENDER) {
       if (!kart.has(veke)) kart.set(veke, { total: 0, perPerson: {} })
       const v = kart.get(veke)
       v.total += timar
-      const person = (e.ansvarleg || '').trim()
-      if (person) v.perPerson[person] = (v.perPerson[person] || 0) + timar
+      for (const { namn, del } of personDelar(e)) v.perPerson[namn] = (v.perPerson[namn] || 0) + timar * del / 100
     }
   }
   return kart

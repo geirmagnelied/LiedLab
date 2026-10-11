@@ -5,12 +5,12 @@ import { useState } from 'react'
 // modul-komponent — dei viser berre undermodulane sine i AppRailUndermeny
 // (rail 2). Resten av modulane er framleis direkte, uendra topp-nivå-val.
 const MODULES = [
-  { key: 'admin',     letter: 'A',   label: 'Admin',    color: '#85B7EB', born: ['prosjekt', 'kunde', 'kontordrift'] },
+  { key: 'dashboard', letter: 'D',   label: 'Dashboard', color: '#A78BFA' },
+  { key: 'dtm',       letter: 'DTM', label: 'Dokument, tegningar og modellar', color: '#E9C46A' },
   { key: 'gjeremaal', letter: 'G',   label: 'Gjeremål', color: '#52B788', born: ['notatar', 'oppgaver', 'saker'] },
   { key: 'timar',     letter: 'T',   label: 'Timar',    color: '#60A5D4' },
   { key: 'kvalitet',  letter: 'KS',  label: 'Kvalitetssystem', color: '#EC9A5A' },
   { key: 'farge',     letter: 'F',   label: 'Farge',    color: '#C084B6' },
-  { key: 'dtm',       letter: 'DTM', label: 'Dokument, tegningar og modellar', color: '#E9C46A' },
   { key: 'bilete',    letter: 'B',   label: 'Bilete',   color: '#F4A261' },
   { key: 'framdrift', letter: 'Fd',  label: 'Framdrift', color: '#34D399' },
   { key: 'kalender',  letter: 'Ka',  label: 'Kalender', color: '#2A9D8F' },

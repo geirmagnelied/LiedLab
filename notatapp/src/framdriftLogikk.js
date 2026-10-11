@@ -180,8 +180,12 @@ export function leggTilAvhengnad(els, id, predId) {
   const e = med.find(x => x.id === id)
   const k = krav(med, e)
   if (!k) return med
-  const ny = beregnDatoar({ ...e, start: k }, 'flytt', 0)
-  return settElement(med, id, ny.start, ny.slutt, { beholdVarigheit: true })
+  // Behald varigheita (tidlegare vart ho til 1 dag fordi `start` var overskriven før utrekninga)
+  let slutt
+  if (e.type === 'milepael') slutt = k
+  else if (e.type === 'fase' && harBorn(med, e.id)) slutt = iso(addDays(tilDato(e.slutt), Math.round((tilDato(k) - tilDato(e.start)) / 86400000)))
+  else slutt = iso(leggTilArbeidsdagar(tilDato(k), varigheit(e) - 1))
+  return settElement(med, id, k, slutt, { beholdVarigheit: true })
 }
 
 export function fjernAvhengnad(els, id, predId) {

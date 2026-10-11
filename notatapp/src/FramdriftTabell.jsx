@@ -2,6 +2,8 @@ import { useCallback } from 'react'
 import DataTabell from './DataTabell'
 import { formaterDato } from './framdriftDato'
 import { antalArbeidsdagar } from './framdriftLogikk'
+import { effektivFerdig, faseFerdig } from './framdriftFerdig'
+import { personDelar } from './framdriftTimar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Tabellvisinga av framdriftsplanen — tynn wrapper rundt DataTabell
@@ -21,12 +23,13 @@ const KOLONNAR = [
   { key: 'varig',     label: 'Arbeidsdagar', art: 'tal',  beregna: true, ikkjeSummer: true, w: 110 },
   { key: 'ansvarleg', label: 'Ansvarleg',   art: 'val',   redigerbar: true, w: 140 },
   { key: 'ferdig',    label: 'Ferdig %',    art: 'tal',   redigerbar: true, ikkjeSummer: true, w: 90 },
+  { key: 'levnr',     label: 'Leveransar',  art: 'tal',   beregna: true, ikkjeSummer: true, w: 90 },
   { key: 'timar',     label: 'Timar',       art: 'tal',   redigerbar: true, w: 80 },
   { key: 'fordeling', label: 'Fordeling',   art: 'val',   redigerbar: true, val: ['Fast', 'Start', 'Midt', 'Slutt'], w: 100 },
   { key: 'avh',       label: 'Startar etter', art: 'tekst', beregna: true, utanFilter: true, w: 240 },
 ]
 
-export default function FramdriftTabell({ elementer, valgt, onVelg, onEndreFelt }) {
+export default function FramdriftTabell({ dokMap, elementer, valgt, onVelg, onEndreFelt }) {
   const namnPaId = useCallback((id) => elementer.find(e => e.id === id)?.namn || '', [elementer])
 
   const hentVerdi = useCallback((e, key) => {
@@ -37,14 +40,15 @@ export default function FramdriftTabell({ elementer, valgt, onVelg, onEndreFelt 
       case 'start': return formaterDato(e.start)
       case 'slutt': return formaterDato(e.slutt)
       case 'varig': return e.type === 'milepael' ? '' : antalArbeidsdagar(e)
-      case 'ansvarleg': return e.ansvarleg || ''
-      case 'ferdig': return e.type === 'aktivitet' ? (e.ferdig || 0) : ''
+      case 'ansvarleg': { const p = personDelar(e); return (e.personar || []).length ? p.map(x => x.namn + (p.length > 1 ? ' ' + x.del + '%' : '')).join(', ') : (e.ansvarleg || '') }
+      case 'ferdig': return e.type === 'aktivitet' ? effektivFerdig(e, dokMap) : e.type === 'fase' ? faseFerdig(elementer, e, dokMap) : ''
+      case 'levnr': return e.type === 'aktivitet' ? ((e.leveransar || []).length || '') : ''
       case 'timar': return e.type === 'aktivitet' ? (e.timar || 0) : e.type === 'fase' ? elementer.filter(c => c.forelder === e.id).reduce((a, c) => a + (+c.timar || 0), 0) : ''
       case 'fordeling': return e.type === 'aktivitet' && e.timar > 0 ? ({ fast: 'Fast', start: 'Start', midt: 'Midt', slutt: 'Slutt' }[e.fordeling || 'fast']) : ''
       case 'avh': return (e.avh || []).map(namnPaId).filter(Boolean).join(', ')
       default: return ''
     }
-  }, [namnPaId])
+  }, [namnPaId, dokMap, elementer])
 
   const hentSorteringsverdi = useCallback((e, key) => {
     if (key === 'start') return e.start

@@ -107,3 +107,10 @@ møte = sirkel). Ingenting vert lagra dobbelt.
   veke enn kapasiteten (arbeidstimar den veka × prosent), får vekecella raud ramme og tooltipen listar kven og kor
   mykje; verktøylinja viser tal overbelasta veker. Berre aktivitetar i DETTE prosjektet tel (ikkje på tvers av prosjekt).
 - «Ansvarleg» på ein aktivitet foreslår namn frå personell-lista (fritekst er framleis lov).
+
+## Raskare kopling, leveransar og personfordeling (11. okt. 2026)
+
+- **Dra-kopling i tidslinja**: hald musa over ein stolpe (eller vel han) → ein sirkel dukkar opp på høgre kant. Dra frå sirkelen og slepp på ein annan rad: «den startar når denne er ferdig» (grøn markering = lov, raud = ikkje mogleg, t.d. sirkel). Klikk på ei avhengnadspil fjernar ho (Angre set ho attende). `FramdriftTidslinje.jsx` (`startKobling`), handlarar `koble`/`fjernAvh` i `FramdriftModule.jsx`. Fiksa same dag: `leggTilAvhengnad` mista varigheita (aktiviteten vart 1 dag).
+- **Leveransar kopla til aktivitet** (`FramdriftLeveransarVindauge.jsx`, flyttbart/skalerbart): to kolonnar — DTM-dokument til venstre (søk, filter Ledige/Leveranseplan/Alle, marker fleire, dra eller ＋) og kopla dokument til høgre. Lagra som `leveransar: [dtm_dokumenter.id]` på aktiviteten. Knapp «⛓ Kople leveransar» i eigenskapspanelet.
+- **Framdrift frå leveransar** (`framdriftFerdig.js`): `ferdigModus` `'auto'` (standard når det finst kopla leveransar) = snitt av «Ferdigstillelse» i DTM, vekta med timebudsjett viss ALLE har det, elles enkelt snitt; `'skjonn'` = brukaren sitt eige tal i `ferdig` (overstyrer). Å skrive eit tal i tabellkolonna «Ferdig %» set skjønn. Fasar viser snittet av aktivitetane (vekta med arbeidsdagar). Vist som mørk fyll i stolpane, ⛓ i namnekolonna, og i tabellen (ny kolonne «Leveransar»).
+- **Fordel timar på personell** (`FramdriftPersonarPanel.jsx`): `personar: [{namn, del}]` (sum 100 %) per aktivitet. Samansett stolpe med skiljelinjer å dra (snapp 5 %, Alt = 1 %), tal-felt, snarvegsknappar frå personell-lista, «Jamt». `personDelar()` i `framdriftTimar.js` styrer «Timar per veke» og overbelastning; utan `personar` gjeld `ansvarleg` = 100 %.
