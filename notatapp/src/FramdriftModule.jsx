@@ -5,6 +5,8 @@ import FramdriftTidslinje from './FramdriftTidslinje'
 import FramdriftTabell from './FramdriftTabell'
 import FramdriftImportModal from './FramdriftImportModal'
 import FramdriftTimarPanel from './FramdriftTimarPanel'
+import FramdriftVerktoy from './FramdriftVerktoy'
+import { sikrStandardPersonell } from './personellStandard'
 import FramdriftPersonarPanel from './FramdriftPersonarPanel'
 import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
 import { leveransarFerdig, effektivFerdig, brukarAuto } from './framdriftFerdig'
@@ -46,6 +48,27 @@ const CSS = `
 
 const ZOOM = [['dag', 'Dag'], ['veke', 'Veke'], ['manad', 'Månad'], ['kvartal', 'Kvartal']]
 const TYPE_NAMN = { fase: 'Fase', aktivitet: 'Aktivitet', milepael: 'Milepæl' }
+
+const FARGEVAL = ['#2D6A4F', '#1565C0', '#B5296B', '#C2570C', '#0E7490', '#6D28D9', '#8A6D00', '#B91C1C', '#475569', '#0F766E', '#D97706', '#7C3AED']
+function FargeVelgar({ verdi, onVelg }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <span className="fd-etikett">Farge</span>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+        <button type="button" title="Standard (følgjer fasen)" onClick={() => onVelg('')}
+          style={{ width: 22, height: 22, borderRadius: 6, cursor: 'pointer', fontSize: 11, color: 'var(--text3)', background: 'var(--bg3)',
+            border: !verdi ? '2.5px solid var(--text)' : '1.5px solid var(--border)', padding: 0 }}>⊘</button>
+        {FARGEVAL.map(f => (
+          <button key={f} type="button" title={f} onClick={() => onVelg(f)}
+            style={{ width: 22, height: 22, borderRadius: 6, cursor: 'pointer', background: f, padding: 0,
+              border: verdi.toLowerCase() === f.toLowerCase() ? '2.5px solid var(--text)' : '1.5px solid rgba(0,0,0,.15)' }}/>
+        ))}
+        <input type="color" value={verdi || '#2D6A4F'} onChange={e => onVelg(e.target.value)} title="Eigen farge"
+          style={{ width: 26, height: 24, padding: 0, border: '1.5px solid var(--border)', borderRadius: 6, background: 'none', cursor: 'pointer' }}/>
+      </div>
+    </div>
+  )
+}
 
 // Tekstfelt som fyrst lagrar ved Enter/forlating av feltet (ikkje kvar tast)
 function TekstFelt({ verdi, onLagre, type = 'text', ...rest }) {
@@ -124,7 +147,12 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     let avbrote = false
     if (!userId || !activeProjectId) { setPersonell([]); return }
     supabase.from('prosjekt_personell').select('*').eq('user_id', userId).eq('project_id', activeProjectId).order('sortering').order('id')
-      .then(({ data }) => { if (!avbrote) setPersonell(data || []) })
+      .then(async ({ data }) => {
+        let liste = data || []
+        const ny = await sikrStandardPersonell(userId, activeProjectId, liste)
+        if (ny) liste = [ny]
+        if (!avbrote) setPersonell(liste)
+      })
     return () => { avbrote = true }
   }, [userId, activeProjectId])
 
@@ -289,6 +317,11 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
         <span style={{ fontSize: 11.5, fontWeight: 600, color: lagringStatus === 'feil' ? '#FCA5A5' : 'rgba(255,255,255,.75)' }}>{lagStatusTekst}</span>
       </div>
 
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
+      {aktivtProsjekt && (
+        <FramdriftVerktoy onLeggTil={leggTil} onMal={() => setMalOpen(true)} onImport={() => setImportOpen(true)} onAngre={angre} angreAntal={angreAntal}/>
+      )}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
       {!aktivtProsjekt ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
           <div style={{ width: 72, height: 72, borderRadius: 18, background: 'var(--brandbg2)', display: 'flex',
@@ -311,14 +344,6 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                 {ZOOM.map(([k, t]) => <button key={k} className={zoom === k ? 'pa' : ''} onClick={() => setZoom(k)}>{t}</button>)}
               </div>
             )}
-            <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
-            <button className="fd-knapp hovud" onClick={() => leggTil('fase')}>+ Fase</button>
-            <button className="fd-knapp" onClick={() => leggTil('aktivitet')}>+ Aktivitet</button>
-            <button className="fd-knapp" onClick={() => leggTil('milepael')}>+ Milepæl</button>
-            <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
-            <button className="fd-knapp" onClick={() => setMalOpen(true)}>Malar…</button>
-            <button className="fd-knapp" onClick={() => setImportOpen(true)}>Importer…</button>
-            <button className="fd-knapp" onClick={angre} disabled={!angreAntal} title="Angre siste endring (Ctrl+Z)">↶ Angre</button>
             <div style={{ flex: 1 }}/>
             {visning === 'tidslinje' && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text2)', cursor: 'pointer' }}>
@@ -366,6 +391,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                     <TekstFelt verdi={sel.namn} onLagre={v => v.trim() && settFelt(sel.id, 'namn', v.trim())}/>
                   </label>
 
+                  <FargeVelgar verdi={sel.farge || ''} onVelg={f => settFelt(sel.id, 'farge', f)}/>
                   {erRullaFase(sel) ? (
                     <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 }}>
                       {formaterDato(sel.start)} – {formaterDato(sel.slutt)}<br/>
@@ -493,6 +519,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
         </div>
       )}
 
+      </div>
+      </div>
       {leveransarOpen && sel?.type === 'aktivitet' && (
         <FramdriftLeveransarVindauge el={sel} dokument={dokument} elementer={elementer} onLukk={() => setLeveransarOpen(false)}
           onLeveransar={ids => oppdater(elementer.map(x => (x.id === sel.id ? { ...x, leveransar: ids } : x)))}

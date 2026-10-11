@@ -265,6 +265,7 @@ export function useStore(userId) {
       created_at: new Date().toISOString(),
     })
     if (!error) {
+      import('./personellStandard').then(m => { m.merkSeedet(id); m.leggTilMegSomPersonell(userId, id, { eksisterande: [] }) })
       setProjects(ps => [...ps, { id, name, favorite: false, type, officeId, createdAt: new Date().toISOString() }]
         .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || a.name.localeCompare(b.name)))
     }

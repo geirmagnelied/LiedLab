@@ -102,6 +102,7 @@ function createWindow() {
     height: 900,
     icon: path.join(__dirname, '..', 'icon.png'),
     backgroundColor: '#0A0A0A',
+    show: false, // vis fyrst når sida er klar, maksimert (ein fast 1440×900-ramme vart for stor på mindre/skalerte skjermar)
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -113,6 +114,8 @@ function createWindow() {
   // Prøv lokal dev-server fyrst (viss «npm run dev» køyrer i ein annan
   // terminal, t.d. under utvikling/testing), så den tilsikta live-adressa,
   // så Vercel sin eigen adresse som siste sikkerheitsnett.
+  win.once('ready-to-show', () => { win.maximize(); win.show() })
+  setTimeout(() => { if (!win.isVisible()) { win.maximize(); win.show() } }, 6000) // sikkerheitsnett
   loadWithFallback(win, [DEV_URL, PROD_URL, PROD_URL_BACKUP])
 }
 

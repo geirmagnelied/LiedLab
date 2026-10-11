@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase'
 import NummereringVal from './NummereringVal'
 import PersonellSide from './PersonellSide'
+import { leggTilMegSomPersonell, merkSeedet } from './personellStandard'
 import KontorkalenderSide from './KontorkalenderSide'
 import { STANDARD_NUMMERERING } from './teikningsnummer'
 
@@ -290,6 +291,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     }
     const { error } = await supabase.from('projects').insert(row)
     if (!error) {
+      merkSeedet(id); leggTilMegSomPersonell(userId, id, { eksisterande: [] })
       await loadProsjekt()
       setSelected(id)
       setForm({ ...details, projectNumber: nr, status: 'tilbod', name: row.name })

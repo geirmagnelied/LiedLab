@@ -3,6 +3,7 @@ import { supabase } from './supabase'
 import DataTabell from './DataTabell'
 import useKontorkalender from './useKontorkalender'
 import { kapasitetPerVeke } from './kontorkalender'
+import { leggTilMegSomPersonell, sikrStandardPersonell } from './personellStandard'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Personell per prosjekt (Prosjekt-modulen, eiga side) — kven som arbeider
@@ -29,7 +30,10 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
     const { data, error } = await supabase.from('prosjekt_personell').select('*')
       .eq('user_id', userId).eq('project_id', pid).order('sortering').order('id')
     if (error) setFeil('Klarte ikkje lese personell — er migrasjonen køyrd? ' + error.message)
-    setPersonar(data || [])
+    let liste = data || []
+    // Brukaren som eig prosjektet skal vere med som standard (éin gong per prosjekt)
+    if (!error) { const ny = await sikrStandardPersonell(userId, pid, liste); if (ny) liste = [ny] }
+    setPersonar(liste)
     setLastar(false)
   }, [userId, pid])
   useEffect(() => { last() }, [last])
@@ -42,6 +46,12 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
     if (error) { setFeil('Klarte ikkje legge til: ' + error.message); return null }
     setPersonar(p => [...p, data])
     return data
+  }
+
+  const leggTilMeg = async () => {
+    setFeil('')
+    const ny = await leggTilMegSomPersonell(userId, pid, { eksisterande: personar })
+    if (ny) setPersonar(p => [...p, ny]); else setFeil('Du ligg alt inne i lista.')
   }
 
   const settVerdi = async (id, key, verdi) => {
@@ -105,6 +115,7 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button style={{ ...knapp, background: 'var(--brand)', borderColor: 'var(--brand)', color: '#fff' }} onClick={() => leggTil()}>+ Legg til person</button>
+        <button style={knapp} onClick={leggTilMeg} title="Legg inn deg sjølv (innlogga brukar) i prosjektet">+ Legg meg til</button>
         {andreProsjekt.length > 0 && (
           <select value="" onChange={e => kopierFra(e.target.value)}
             style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12.5, fontFamily: 'var(--font)', background: 'var(--bg2)', color: 'var(--text2)' }}>

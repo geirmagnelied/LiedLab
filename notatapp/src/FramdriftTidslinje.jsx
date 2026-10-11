@@ -100,6 +100,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
 
   const fasar = useMemo(() => elementer.filter(e => e.type === 'fase'), [elementer])
   const fargeFor = (e) => {
+    if (e.farge) return e.farge
     const rot = e.type === 'fase' ? e : elementer.find(f => f.id === e.forelder)
     const i = rot ? fasar.findIndex(f => f.id === rot.id) : -1
     return i >= 0 ? FASEFARGAR[i % FASEFARGAR.length] : NEUTRAL
