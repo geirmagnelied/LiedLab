@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 import { getISOWeek } from 'date-fns'
-import { fordelTimar, formVekt, FORDELINGAR, STYRKE_MAKS, prisKartFra, snittpris, personDelar } from './framdriftTimar'
+import { fordelTimar, formVekt, FORDELINGAR, STYRKE_MAKS, prisKartFra, snittpris, personDelar, prisFor } from './framdriftTimar'
 import { tilDato } from './framdriftDato'
 
 // ═══════════════════════════════════════════════════════════════════
@@ -110,11 +110,11 @@ export default function FramdriftTimarPanel({ el, kal, personell, onEndre }) {
           </label>
           <div style={{ fontSize: 12, lineHeight: 1.55, background: 'var(--bg3)', borderRadius: 7, padding: '7px 9px', color: 'var(--text2)' }}>
             {sp.utanPersonar ? <>Legg til personar (under) og sett timepris i Prosjekt → Personell for å rekne ut timane.</>
-              : sp.manglar.length ? <span style={{ color: 'var(--danger)' }}>Manglar timepris for: <b>{sp.manglar.join(', ')}</b> (Prosjekt → Personell).</span>
+              : sp.manglar.length ? <span style={{ color: 'var(--danger)' }}>Manglar timepris for: <b>{sp.manglar.join(', ')}</b> — sett han under personfordelinga, eller i Prosjekt → Personell.</span>
               : <>Snittpris <b>{kr(sp.pris)} kr/t</b> (vekta etter personfordelinga) → <b>{el.timar || 0} timar</b>.</>}
             {!sp.utanPersonar && !sp.manglar.length && personar.length > 0 && el.timar > 0 && (
               <div style={{ marginTop: 3, color: 'var(--text3)' }}>
-                {personar.map(p => `${p.namn.split(' ')[0]}: ${Math.round(el.timar * p.del / 100 * 2) / 2} t = ${kr(el.timar * p.del / 100 * (prisar.get(p.namn.toLowerCase()) || 0))} kr`).join(' · ')}
+                {personar.map(p => `${p.namn.split(' ')[0]}: ${Math.round(el.timar * p.del / 100 * 2) / 2} t = ${kr(el.timar * p.del / 100 * prisFor(p, prisar))} kr`).join(' · ')}
               </div>
             )}
           </div>

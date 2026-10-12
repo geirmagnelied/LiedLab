@@ -11,7 +11,7 @@ import FramdriftPersonarPanel from './FramdriftPersonarPanel'
 import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
 import { leveransarFerdig, effektivFerdig, brukarAuto } from './framdriftFerdig'
 import useKontorkalender from './useKontorkalender'
-import { timarPerVeke, overbelastning, medEffektiveTimar, personDelar } from './framdriftTimar'
+import { timarPerVeke, overbelastning, medEffektiveTimar, personDelar, prisKartFra } from './framdriftTimar'
 import { MALAR } from './framdriftMalar'
 import { iso, tilDato, parseDato, nesteArbeidsdag, forrigeArbeidsdag, formaterDato } from './framdriftDato'
 import {
@@ -481,7 +481,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                     <FramdriftTimarPanel el={selEff} kal={kal} personell={personell} onEndre={p => settFelter(sel.id, p)}/>
                   )}
                   {sel.type === 'aktivitet' && (
-                    <FramdriftPersonarPanel el={selEff} personell={personell} onEndre={p => settFelt(sel.id, 'personar', p)}/>
+                    <FramdriftPersonarPanel el={selEff} personell={personell} prisar={prisKartFra(personell)} onEndre={p => settFelt(sel.id, 'personar', p)}/>
                   )}
                   {sel.type === 'fase' && (() => {
                     const sum = elEff.filter(c => c.forelder === sel.id && c.type === 'aktivitet').reduce((a, c) => a + (+c.timar || 0), 0)

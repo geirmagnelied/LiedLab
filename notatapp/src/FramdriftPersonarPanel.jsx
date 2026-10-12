@@ -40,7 +40,7 @@ export function likeDelar(personar) {
   return ny
 }
 
-export default function FramdriftPersonarPanel({ el, personell, onEndre }) {
+export default function FramdriftPersonarPanel({ el, personell, prisar, onEndre }) {
   const personar = el.personar || []
   const stolpeRef = useRef(null)
   const [dragIdx, setDragIdx] = useState(null)
@@ -155,7 +155,8 @@ export default function FramdriftPersonarPanel({ el, personell, onEndre }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {personar.map((p, i) => (
-              <div key={p.namn} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5 }}>
+              <div key={p.namn} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5 }}>
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: PERSONFARGAR[i % PERSONFARGAR.length], flexShrink: 0 }}/>
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)', fontWeight: 600 }}>{p.namn}</span>
                 {personar.length > 1 && (
@@ -172,6 +173,16 @@ export default function FramdriftPersonarPanel({ el, personell, onEndre }) {
                 )}
                 <button onClick={() => fjern(i)} title="Fjern frå aktiviteten"
                   style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 15, lineHeight: 1, padding: 0 }}>×</button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 17, fontSize: 11, color: 'var(--text3)' }}>
+                <span>Timepris i aktiviteten</span>
+                <input type="number" min="0" step="50" value={p.pris || ''} placeholder={prisar?.get(p.namn.toLowerCase()) ? String(prisar.get(p.namn.toLowerCase())) : 'kr/t'}
+                  onChange={e => { const n = parseFloat(e.target.value); onEndre(personar.map((x, j) => (j === i ? { ...x, pris: n > 0 ? n : null } : x))) }}
+                  title={p.pris ? 'Eigen timepris for denne aktiviteten (overstyrer prosjektets)' : 'Tomt = prosjektets timepris frå Personell'}
+                  style={{ width: 68, padding: '1px 4px', border: '1px solid ' + (p.pris ? 'var(--brand)' : 'var(--border)'), borderRadius: 5, fontSize: 11.5, textAlign: 'right',
+                    background: 'var(--bg2)', color: 'var(--text)', fontFamily: 'var(--mono)' }}/>
+                <span>kr/t{p.pris ? '' : prisar?.get(p.namn.toLowerCase()) ? ' (standard)' : ''}</span>
+              </div>
               </div>
             ))}
           </div>

@@ -185,6 +185,26 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
     return [sone, punkt]
   }
 
+  // ── Ta tak i tidslinja og dra ho: hald nede på ein tom flate (eller datooverskrifta) og dra i alle retningar.
+  //    Eit enkelt klikk (utan dragning) fjernar utvalet som før.
+  const startPan = (ev) => {
+    if (ev.button !== 0 || !scrollRef.current) return
+    ev.preventDefault()
+    const sc = scrollRef.current
+    const x0 = ev.clientX, y0 = ev.clientY, sl = sc.scrollLeft, st = sc.scrollTop
+    let flytta = false
+    const mv = (e2) => {
+      const dx = e2.clientX - x0, dy = e2.clientY - y0
+      if (!flytta && Math.abs(dx) + Math.abs(dy) > 3) { flytta = true; document.body.style.cursor = 'grabbing' }
+      if (flytta) { sc.scrollLeft = sl - dx; sc.scrollTop = st - dy }
+    }
+    const opp = () => {
+      window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); document.body.style.cursor = ''
+      if (!flytta) onVelg(null)
+    }
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
+  }
+
   const visDatoar = (e) => {
     if (!drag) return { start: e.start, slutt: e.slutt }
     if (drag.id === e.id) return beregnDatoar(e, drag.modus, drag.d)
@@ -236,7 +256,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
             fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text3)' }}>
             Fase / aktivitet
           </div>
-          <div style={{ position: 'relative', width: breiddTotal, flexShrink: 0 }}>
+          <div onMouseDown={startPan} title="Dra for å flytte tidslinja" style={{ position: 'relative', width: breiddTotal, flexShrink: 0, cursor: 'grab' }}>
             {manader.map((m, i) => (
               <div key={i} style={{ position: 'absolute', left: m.left, width: m.width, top: 0, height: 22,
                 borderRight: '1px solid var(--border)', padding: '4px 8px', fontSize: 11.5, fontWeight: 800,
@@ -330,8 +350,8 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
           </div>
 
           {/* ── Tidslinje-flate ── */}
-          <div ref={flateRef} style={{ position: 'relative', width: breiddTotal, flexShrink: 0, height: Math.max(radar.length, 1) * RAD_H }}
-            onMouseDown={() => onVelg(null)}>
+          <div ref={flateRef} style={{ position: 'relative', width: breiddTotal, flexShrink: 0, height: Math.max(radar.length, 1) * RAD_H, cursor: 'grab' }}
+            onMouseDown={startPan}>
             {bakgrunn.map((b, i) => (
               <div key={i} title={b.tittel} style={{ position: 'absolute', left: b.left, width: b.width, top: 0, bottom: 0,
                 background: b.helg ? 'rgba(185,28,28,.10)' : 'rgba(100,116,139,.09)' }}/>

@@ -69,7 +69,7 @@ export function fordelTimar(el, kal = STANDARD_KONTORKALENDER) {
 // Bruker `personar` (Framdrift → «Fordel timar på personell») viss sett, elles ansvarleg = 100 %.
 export function personDelar(e) {
   const p = (e.personar || []).filter(x => x && x.namn && +x.del > 0)
-  if (p.length) return p.map(x => ({ namn: x.namn.trim(), del: +x.del }))
+  if (p.length) return p.map(x => ({ namn: x.namn.trim(), del: +x.del, pris: +x.pris > 0 ? +x.pris : null }))
   const a = (e.ansvarleg || '').trim()
   return a ? [{ namn: a, del: 100 }] : []
 }
@@ -80,11 +80,14 @@ export function personDelar(e) {
 // prosent av TIMANE (ikkje av beløpet): snittpris = Σ (del_i % × timepris_i).
 export const prisKartFra = (personell) => new Map((personell || []).filter(p => +p.timepris > 0).map(p => [p.namn.trim().toLowerCase(), +p.timepris]))
 
+// Timepris for ein person i DENNE aktiviteten: aktivitetens eigen pris (personar[].pris) går føre prosjektets timepris
+export const prisFor = (d, prisar) => (+d.pris > 0 ? +d.pris : (prisar.get(d.namn.toLowerCase()) || 0))
+
 export function snittpris(el, prisar) {
   const delar = personDelar(el)
   if (!delar.length) return { pris: 0, manglar: [], utanPersonar: true }
-  const manglar = delar.filter(d => !prisar.get(d.namn.toLowerCase())).map(d => d.namn)
-  const pris = delar.reduce((s, d) => s + (d.del / 100) * (prisar.get(d.namn.toLowerCase()) || 0), 0)
+  const manglar = delar.filter(d => !prisFor(d, prisar)).map(d => d.namn)
+  const pris = delar.reduce((s, d) => s + (d.del / 100) * prisFor(d, prisar), 0)
   return { pris, manglar, utanPersonar: false }
 }
 
