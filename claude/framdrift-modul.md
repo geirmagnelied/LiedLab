@@ -160,3 +160,11 @@ møte = sirkel). Ingenting vert lagra dobbelt.
 - **Sum per person**: under «Timar per veke» i tidslinja (▸) og som gruppa «Timar per person (alle aktivitetar)» nedst i tabellen: éi rad per person med timar per veke og sum. Innanfor ein aktivitet viser person-underradene (▸ framfor aktiviteten) kvar person sine timar per veke. Overbelastning merkast raudt.
 - **Excel-eksport** (`framdriftEksport.js`, `exceljs` lasta først ved bruk, eigen chunk): «⇩ Excel ▾» → **Berre tabell** (alle kolonnar + timar per veke, personar som underrader) eller **Tabell med tidslinje** (vekekolonnane teiknar stolpane i fargar, ◆ for milepælar, timar i cella). Eige ark «Timar per person». Filnamn «Framdrift <prosjekt> (…) <dato>.xlsx».
 - **Ansvarleg = person i fordelinga**: er ingen fordelt, men ein er sett som ansvarleg, står han som 100 % i fordelingspanelet, så timepris kan setjast utan å leggje personen til på nytt.
+
+## Import frå ISY Prosjekt Plan (13. okt. 2026)
+
+ISY Prosjekt Plan (Norconsult Digital) eksporterer via Fil → Eksporter prosjekt… → «til MS Project» til **MS Project XML (.xml)**. Importen i Framdrift («Importer…» → vel .xml) les no denne fila fullt ut (`parseMspXml` i `framdriftImport.js`; testa mot ei ekte eksportfil, 55 oppgåver):
+- **Hierarki** frå `OutlineLevel`: nivå 1-sammendrag → fase, djupare sammendrag → summasjonsaktivitet, blad → aktivitet, milepæl → milepæl.
+- **ISY-felt** (utvida attributt, kjend att på alias «…(ISY)»): Text10 = **aktivitetskode** (`kode`), `Work` = **timar**, `FixedCost` ÷ 100 = **budsjett** (kr; MSP/ISY lagrar kostnader i hundredelar), **timerate** = budsjett ÷ timar, Number1 = **påløpte timar**, Cost1 ÷ 100 = **påløpt honorar**, Physical % Complete = **framdrift** (skjønn). Aktivitetar under ein «Ufakturerbart»-overordna får budsjettype Ufakturerbart. Tala bruker komma som desimal.
+- **Avhengnader** (slutt → start) vert med; andre typar og avhengnader til overordna med born vert hoppa over. Ressursar/ressurstilknytningar og Number2/Cost2 (gjenståande) vert ikkje importerte (reknast frå budsjett − påløpt). Vanlege MS Project-filer bruker standardfelta (Work, FixedCost, ActualWork) på same måte.
+- `ISY/`-mappa i repo-rota er lagt i `.gitignore` (kundedata).

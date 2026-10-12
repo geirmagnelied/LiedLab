@@ -164,7 +164,11 @@ export function byggFraTabell(rader, kol, { harOverskrift = true } = {}) {
   return { elementer: rullOpp(ut), merknader }
 }
 
-// ── MS Project XML → plan ─────────────────────────────────────────────
+// ── MS Project XML → plan (inkl. eksport frå ISY Prosjekt Plan) ───────────
+// Hierarki frå OutlineLevel: nivå 1-sammendrag → fase, djupare sammendrag → summasjonsaktivitet (aktivitet med
+// underaktivitetar), blad → aktivitet, milepæl → milepæl. ISY-felt (ExtendedAttribute): Text10 = aktivitetskode,
+// Number1 = påløpte timar, Cost1 = påløpt honorar + utlegg, «Physical % Complete» = virkeleg framdrift (timevekta).
+// MSP/ISY lagrar kostnader i hundredelar (øre): 247600 = 2 476 kr. Work = budsjetterte timar, FixedCost = budsjett (honorar).
 export function parseMspXml(tekst) {
   const doc = new DOMParser().parseFromString(tekst, 'application/xml')
   if (doc.getElementsByTagName('parsererror').length) throw new Error('Fila er ikkje gyldig XML.')
@@ -177,12 +181,25 @@ export function parseMspXml(tekst) {
     return ''
   }
   const datoDel = (s) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null)
+  const tal = (s) => { const n = parseFloat(String(s ?? '').replace(/\s/g, '').replace(',', '.')); return Number.isFinite(n) ? n : 0 }
+  const timar = (s) => { const m = /PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+)M)?/.exec(s || ''); return m ? (parseFloat(m[1] || 0) + (parseInt(m[2] || 0, 10) / 60)) : 0 }
+
+  // Utvida felt (definisjonar på prosjektnivå): FieldName → { id, alias }
+  const def = {}
+  for (const d of Array.from(doc.getElementsByTagName('ExtendedAttribute'))) {
+    const namn = verdi(d, 'FieldName')
+    if (namn) def[namn] = { id: verdi(d, 'FieldID'), alias: verdi(d, 'Alias') }
+  }
+  const erIsy = /ISY/i.test(def.Number1?.alias || '') || /ISY/i.test(def.Cost1?.alias || '')
+  const feltId = (namn) => def[namn]?.id
+  const kodeFelt = (def.Text10 && (/code|kode/i.test(def.Text10.alias) || erIsy)) ? feltId('Text10') : null
 
   const uidTilId = new Map()
   const ut = []
-  const lenker = [] // { id, predUid, type }
-  let fase = null
-  let hoppaNivå = 0, hoppaTom = 0
+  const lenker = []
+  const stakk = [] // { nivå, id, ufakt }
+  let hoppaTom = 0
+  const tel = { fasar: 0, summ: 0, akt: 0, mil: 0, medPaalopt: 0, medBudsjett: 0 }
   for (const t of oppgaver) {
     const uid = verdi(t, 'UID')
     const nivå = parseInt(verdi(t, 'OutlineLevel'), 10) || 1
@@ -193,15 +210,52 @@ export function parseMspXml(tekst) {
     const slutt = datoDel(verdi(t, 'Finish'))
     if (!start || !slutt) { hoppaTom++; continue }
     const milepael = verdi(t, 'Milestone') === '1'
-    if (sammendrag && nivå > 1) { hoppaNivå++; continue }
+
+    // Overordna frå disposisjonsnivået
+    while (stakk.length && stakk[stakk.length - 1].nivå >= nivå) stakk.pop()
+    const overordna = stakk.length ? stakk[stakk.length - 1] : null
+    const type = sammendrag && nivå === 1 ? 'fase' : milepael ? 'milepael' : 'aktivitet'
+
+    // Utvida felt på oppgåva
+    const ext = {}
+    for (const e of barn(t)) if (e.localName === 'ExtendedAttribute') ext[verdi(e, 'FieldID')] = verdi(e, 'Value')
+    const ev = (felt) => (feltId(felt) ? ext[feltId(felt)] : undefined)
+
+    const fysisk = tal(verdi(t, 'PhysicalPercentComplete'))
+    const prosent = tal(verdi(t, 'PercentComplete'))
+    const framdrift = Math.max(0, Math.min(100, Math.round(erIsy || fysisk > 0 ? fysisk : prosent)))
     const el = {
-      id: nyId(), type: sammendrag ? 'fase' : milepael ? 'milepael' : 'aktivitet', namn,
-      start, slutt: milepael ? start : slutt, forelder: null, avh: [],
-      ansvarleg: '', ferdig: Math.min(100, parseInt(verdi(t, 'PercentComplete'), 10) || 0), fasekode: '',
+      id: nyId(), type, namn, start, slutt: milepael ? start : slutt, forelder: overordna ? overordna.id : null, avh: [],
+      ansvarleg: '', ferdig: framdrift, fasekode: '',
     }
-    if (sammendrag) fase = el.id
-    else if (nivå > 1) el.forelder = fase
-    else fase = null
+    if (sammendrag && type === 'aktivitet') el.summ = true
+    const kode = kodeFelt ? (ext[kodeFelt] || '') : ''
+    if (kode) el.kode = kode
+
+    const ufakt = /ufakturerbar/i.test(namn) || (overordna && overordna.ufakt)
+    if (type === 'aktivitet' && !sammendrag) {
+      // blad-aktivitet: timar, budsjett, påløpt, timerate
+      const work = timar(verdi(t, 'Work'))
+      const fast = tal(verdi(t, 'FixedCost')) / 100
+      const kost = tal(verdi(t, 'Cost')) / 100
+      const budsjett = Math.round(fast > 0 ? fast : kost)
+      if (work > 0) { el.timar = Math.round(work * 2) / 2; el.modus = 'timar'; el.fordeling = 'fast' }
+      if (budsjett > 0) { el.budsjett = budsjett; tel.medBudsjett++ }
+      if (work > 0 && budsjett > 0) el.timerate = Math.round(budsjett / work)
+      const paaTimar = erIsy ? tal(ev('Number1')) : timar(verdi(t, 'ActualWork'))
+      if (paaTimar > 0) el.palopTimar = Math.round(paaTimar * 2) / 2
+      const paaHon = erIsy ? tal(ev('Cost1')) / 100 : tal(verdi(t, 'ActualCost')) / 100
+      if (paaHon) el.palopHonorar = Math.round(paaHon)
+      if (paaTimar > 0 || paaHon) tel.medPaalopt++
+      if (ufakt) el.budsjettType = 'Ufakturerbart'
+      if (framdrift > 0) el.ferdigModus = 'skjonn'
+    }
+    if (type === 'fase') tel.fasar++
+    else if (type === 'milepael') tel.mil++
+    else if (sammendrag) tel.summ++
+    else tel.akt++
+
+    stakk.push({ nivå, id: el.id, ufakt })
     uidTilId.set(uid, el.id)
     ut.push(el)
     for (const p of barn(t)) {
@@ -209,19 +263,24 @@ export function parseMspXml(tekst) {
       lenker.push({ id: el.id, predUid: verdi(p, 'PredecessorUID'), type: verdi(p, 'Type') })
     }
   }
+  const harBorn = (id) => ut.some(c => c.forelder === id)
   let andreTypar = 0, utan = 0
   for (const l of lenker) {
     const predId = uidTilId.get(l.predUid)
     if (l.type && l.type !== '1') { andreTypar++; continue }
     if (!predId || predId === l.id) { utan++; continue }
     const el = ut.find(e => e.id === l.id)
-    if (el.type !== 'fase' || !ut.some(c => c.forelder === el.id)) el.avh.push(predId)
-    else utan++
+    // ikkje avhengnad mellom overordna og eigne underaktivitetar, og ikkje på overordna med born (datoane deira følgjer borna)
+    const pred = ut.find(e => e.id === predId)
+    if ((el.type !== 'milepael' && harBorn(el.id)) || (pred && pred.forelder === el.id) || (el.forelder === predId)) { utan++; continue }
+    el.avh.push(predId)
   }
-  if (hoppaNivå) merknader.push(`${hoppaNivå} djupare sammendragsoppgåve${hoppaNivå === 1 ? '' : 'r'} vart slått saman inn i fasen over (planen har berre tre nivå).`)
+  merknader.push(`Importerte ${tel.fasar} fase${tel.fasar === 1 ? '' : 'r'}, ${tel.summ} summasjonsaktivitet${tel.summ === 1 ? '' : 'ar'}, ${tel.akt} aktivitet${tel.akt === 1 ? '' : 'ar'} og ${tel.mil} milepæl${tel.mil === 1 ? '' : 'ar'} — hierarkiet er henta frå disposisjonsnivået (OutlineLevel/PNS).`)
+  if (erIsy) merknader.push(`ISY Prosjekt Plan-fil kjend att: aktivitetskode (Text10), timar (Work), budsjett (Fixed cost → kr), påløpte timar (Number1), påløpt honorar (Cost1) og virkeleg framdrift (Physical % Complete) er med. ${tel.medBudsjett} aktivitetar har budsjett og ${tel.medPaalopt} har påløpt. Timerate er rekna som budsjett ÷ timar.`)
+  else merknader.push('Timar (Work), faste kostnader og påløpt er lest frå standardfelta i MS Project. Ressursar og ressurstilknytningar er ikkje med.')
   if (andreTypar) merknader.push(`${andreTypar} avhengnad${andreTypar === 1 ? '' : 'er'} av andre typar enn «slutt → start» vart hoppa over.`)
-  if (utan) merknader.push(`${utan} avhengnad${utan === 1 ? '' : 'er'} peika på oppgåver som ikkje vart med, og vart hoppa over.`)
+  if (utan) merknader.push(`${utan} avhengnad${utan === 1 ? '' : 'er'} peika på oppgåver som ikkje vart med (eller på overordna med underaktivitetar), og vart hoppa over.`)
   if (hoppaTom) merknader.push(`${hoppaTom} oppgåve${hoppaTom === 1 ? '' : 'r'} vart hoppa over (tomme eller utan datoar, inkl. prosjektsammendraget).`)
-  merknader.push('Ressursar og kostnader er ikkje med. Kritisk line og nivellering vert ikkje rekna ut på nytt.')
+  merknader.push('Summasjonar (fasar og overordna aktivitetar) får datoar, timar og framdrift rekna frå underaktivitetane. Kritisk line og nivellering vert ikkje rekna ut på nytt.')
   return { elementer: rullOpp(ut), merknader }
 }
