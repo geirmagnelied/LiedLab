@@ -11,7 +11,8 @@ import { useRef, useState } from 'react'
 //  (framdriftTimar.js → personDelar).
 // ═══════════════════════════════════════════════════════════════════
 
-export const PERSONFARGAR = ['#0F766E', '#1565C0', '#B5296B', '#C2570C', '#6D28D9', '#8A6D00', '#0E7490', '#B91C1C']
+import { PALETT, personFarge } from './personFarge'
+export const PERSONFARGAR = PALETT
 
 const sum = (liste) => liste.reduce((a, p) => a + p.del, 0)
 
@@ -40,8 +41,9 @@ export function likeDelar(personar) {
   return ny
 }
 
-export default function FramdriftPersonarPanel({ el, personell, prisar, onEndre }) {
-  const personar = el.personar || []
+export default function FramdriftPersonarPanel({ el, personell, prisar, fargeKart, onEndre }) {
+  // Er ingen fordelt, men ein person er sett som ANSVARLEG, står han her som 100 % — slik at timepris kan setjast utan å leggje han til på nytt
+  const personar = (el.personar && el.personar.length) ? el.personar : ((el.ansvarleg || '').trim() ? [{ namn: el.ansvarleg.trim(), del: 100 }] : [])
   const stolpeRef = useRef(null)
   const [dragIdx, setDragIdx] = useState(null)
   const [nyNamn, setNyNamn] = useState('')
@@ -134,7 +136,7 @@ export default function FramdriftPersonarPanel({ el, personell, prisar, onEndre 
             background: 'var(--bg3)', border: '1px solid var(--border)', userSelect: 'none' }}>
             {personar.map((p, i) => (
               <div key={p.namn} title={`${p.namn}: ${p.del} %${timar ? ` · ${timarFor(p.del)} t` : ''}${p.last ? ' (låst)' : ''}`}
-                style={{ width: `${p.del}%`, background: PERSONFARGAR[i % PERSONFARGAR.length], color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center',
+                style={{ width: `${p.del}%`, background: personFarge(p.namn, fargeKart), color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center',
                   justifyContent: 'center', overflow: 'hidden', whiteSpace: 'nowrap', borderRadius: i === 0 ? '6px 0 0 6px' : i === personar.length - 1 ? '0 6px 6px 0' : 0,
                   boxShadow: p.last ? 'inset 0 0 0 2px rgba(255,255,255,.55)' : undefined, transition: dragIdx == null ? 'width .12s' : 'none' }}>
                 {p.del >= 14 ? `${p.last ? '🔒 ' : ''}${p.del}%` : ''}
@@ -157,7 +159,7 @@ export default function FramdriftPersonarPanel({ el, personell, prisar, onEndre 
             {personar.map((p, i) => (
               <div key={p.namn} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5 }}>
-                <span style={{ width: 10, height: 10, borderRadius: 3, background: PERSONFARGAR[i % PERSONFARGAR.length], flexShrink: 0 }}/>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: personFarge(p.namn, fargeKart), flexShrink: 0 }}/>
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)', fontWeight: 600 }}>{p.namn}</span>
                 {personar.length > 1 && (
                   <input type="number" min="0" max="100" value={p.del} disabled={p.last} onChange={e => settDel(i, e.target.value)}
@@ -186,6 +188,7 @@ export default function FramdriftPersonarPanel({ el, personell, prisar, onEndre 
               </div>
             ))}
           </div>
+          {!el.personar?.length && el.ansvarleg && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Ansvarleg ({el.ansvarleg}) tek alle timane. Endre prosenten ved å leggje til fleire personar, eller sett timepris her.</div>}
           {!timar && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Legg inn «Forventa timar totalt» for å sjå timar per person.</div>}
         </>
       )}

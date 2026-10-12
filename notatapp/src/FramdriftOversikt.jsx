@@ -3,7 +3,7 @@ import { differenceInCalendarDays, format } from 'date-fns'
 import { effektivFerdig } from './framdriftFerdig'
 import { antalArbeidsdagar } from './framdriftLogikk'
 import { formaterDato, tilDato } from './framdriftDato'
-import { PERSONFARGAR } from './FramdriftPersonarPanel'
+import { personFarge } from './personFarge'
 
 // Planoversikt — vist i det faste venstrefeltet i Framdrift når ingenting er valt.
 // (Når ein aktivitet/fase/milepæl er vald, tek eigenskapane over same felt.)
@@ -14,7 +14,7 @@ const Tal = ({ verdi, tekst }) => (
   </div>
 )
 
-export default function FramdriftOversikt({ prosjektNamn, elementer, dokMap, timarKart, overlast, hendingar, onVelg }) {
+export default function FramdriftOversikt({ prosjektNamn, elementer, dokMap, timarKart, overlast, hendingar, onVelg, fargeKart }) {
   const d = useMemo(() => {
     const fasar = elementer.filter(e => e.type === 'fase')
     const foreldre = new Set(elementer.filter(e => e.forelder != null).map(e => e.forelder))
@@ -67,7 +67,7 @@ export default function FramdriftOversikt({ prosjektNamn, elementer, dokMap, tim
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
             {Object.entries(d.perPerson).sort((a, b) => b[1] - a[1]).map(([n, t], i) => (
               <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5 }}>
-                <span style={{ width: 9, height: 9, borderRadius: 3, background: PERSONFARGAR[i % PERSONFARGAR.length], flexShrink: 0 }}/>
+                <span style={{ width: 9, height: 9, borderRadius: 3, background: personFarge(n, fargeKart), flexShrink: 0 }}/>
                 <span style={{ flex: 1, color: 'var(--text)', fontWeight: 600 }}>{n}</span>
                 <span style={{ fontFamily: 'var(--mono)', color: 'var(--text2)' }}>{Math.round(t * 2) / 2} t</span>
               </div>

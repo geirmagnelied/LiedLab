@@ -6,7 +6,8 @@ import { tilDato, formaterDato } from './framdriftDato'
 import { beregnDatoar, harBorn, avhengnadFeil, forfedrar, erSumm, kanFlytteTil } from './framdriftLogikk'
 import { effektivFerdig, faseFerdig } from './framdriftFerdig'
 import { fordelTimar, personDelar } from './framdriftTimar'
-import { PERSONFARGAR } from './FramdriftPersonarPanel'
+import { personFarge } from './personFarge'
+import { KOLONNE_DEF, bygVerdiar } from './framdriftVerdiar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Tidslinja (Gantt) i Framdrift-modulen — sjå claude/framdrift-modul.md.
@@ -19,7 +20,7 @@ import { PERSONFARGAR } from './FramdriftPersonarPanel'
 // ═══════════════════════════════════════════════════════════════════
 
 const RAD_H = 34
-const VENSTRE = 300
+const NAMN_B = 300 // breidda på namnekolonna; valde ekstrakolonnar kjem til høgre for ho
 const DAGB = { dag: 30, veke: 14, manad: 5, kvartal: 2.2 }
 const FASEFARGAR = ['#2D6A4F', '#1565C0', '#B5296B', '#C2570C', '#0E7490', '#6D28D9', '#8A6D00']
 const NEUTRAL = '#475569'
@@ -28,8 +29,22 @@ const MOTE_FARGE = '#1565C0'
 const VALG_FARGE = '#1E3A8A'
 
 export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
-                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki }) {
+                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki, fargeKart, prisar }) {
   const dagB = DAGB[zoom] || DAGB.veke
+  // Ekstrakolonnar i tabellen til venstre for tidslinja (høgreklikk på overskrifta). Val vert hugsa på denne maskina.
+  const [valgteKol, setValgteKol] = useState(() => { try { const v = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol')); return Array.isArray(v) ? v : [] } catch { return [] } })
+  const lagreKol = (n) => { setValgteKol(n); try { localStorage.setItem('liedlab-framdrift-tl-kol', JSON.stringify(n)) } catch { /* privat modus */ } }
+  const [kolMeny, setKolMeny] = useState(null) // { x, y }
+  const [persTotOpen, setPersTotOpen] = useState(false)
+  const kolDefs = valgteKol.map(k => KOLONNE_DEF.find(d => d.key === k)).filter(Boolean)
+  const VENSTRE = NAMN_B + kolDefs.reduce((a, d) => a + d.w, 0)
+  const verdiar = useMemo(() => bygVerdiar({ elementer, dokMap, prisar }), [elementer, dokMap, prisar])
+  useEffect(() => {
+    if (!kolMeny) return
+    const lukk = (e) => { if (!e.target.closest?.('[data-kolmeny]')) setKolMeny(null) }
+    document.addEventListener('mousedown', lukk)
+    return () => document.removeEventListener('mousedown', lukk)
+  }, [kolMeny])
   const scrollRef = useRef(null)
   const [drag, setDrag] = useState(null) // { id, modus, d }
   const flateRef = useRef(null)
@@ -112,13 +127,15 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
   const harTimar = visTimar && timarKart && timarKart.size > 0
   const maksTimar = harTimar ? Math.max(...[...timarKart.values()].map(v => v.total)) : 0
   const sumTimar = harTimar ? [...timarKart.values()].reduce((s2, v) => s2 + v.total, 0) : 0
+  const persNamn = harTimar ? [...new Set([...timarKart.values()].flatMap(v => Object.keys(v.perPerson)))].sort((a, b) => a.localeCompare(b, 'nb')) : []
   const kanUtvide = (e) => e.type === 'aktivitet' && +e.timar > 0 && personDelar(e).length > 0
   const radar = [
     ...(visHendingar ? [{ id: '__hendingar', type: 'hendingar' }] : []),
     ...rader.flatMap(e => (utvida?.has(e.id) && kanUtvide(e)
-      ? [e, ...personDelar(e).map((p, i) => ({ id: 'p:' + e.id + ':' + p.namn, type: 'person', akt: e, namn: p.namn, del: p.del, farge: PERSONFARGAR[i % PERSONFARGAR.length] }))]
+      ? [e, ...personDelar(e).map((p) => ({ id: 'p:' + e.id + ':' + p.namn, type: 'person', akt: e, namn: p.namn, del: p.del, farge: personFarge(p.namn, fargeKart) }))]
       : [e])),
     ...(harTimar ? [{ id: '__timar', type: 'timar' }] : []),
+    ...(harTimar && persTotOpen ? persNamn.map(n => ({ id: 'pt:' + n, type: 'persontot', namn: n })) : []),
   ]
   const radIndeks = new Map(radar.map((r, i) => [r.id, i]))
 
@@ -156,7 +173,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
       const r = rect()
       const idx = Math.floor((e2.clientY - r.top) / RAD_H)
       const mal = radar[idx]
-      if (!mal || mal.id === el.id || mal.type === 'hendingar' || mal.type === 'timar' || mal.type === 'person') return { malId: null, ok: false }
+      if (!mal || mal.id === el.id || mal.type === 'hendingar' || mal.type === 'timar' || mal.type === 'person' || mal.type === 'persontot') return { malId: null, ok: false }
       return { malId: mal.id, ok: !avhengnadFeil(elementer, mal.id, el.id) }
     }
     const mv = (e2) => { const r = rect(); setKobling({ fraId: el.id, x: e2.clientX - r.left, y: e2.clientY - r.top, ...finnMal(e2) }) }
@@ -284,10 +301,18 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
         {/* ── Overskrift ── */}
         <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 8, height: topH, background: 'var(--bg3)',
           borderBottom: '2px solid var(--border)' }}>
-          <div style={{ position: 'sticky', left: 0, zIndex: 9, width: VENSTRE, flexShrink: 0, background: 'var(--bg3)',
-            borderRight: '1px solid var(--border)', display: 'flex', alignItems: 'flex-end', padding: '0 12px 8px',
+          <div onContextMenu={e => { e.preventDefault(); setKolMeny({ x: e.clientX, y: e.clientY }) }} title="Høgreklikk for å velje kolonnar"
+            style={{ position: 'sticky', left: 0, zIndex: 9, width: VENSTRE, flexShrink: 0, background: 'var(--bg3)',
+            borderRight: '1px solid var(--border)', display: 'flex', alignItems: 'flex-end',
             fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text3)' }}>
-            Fase / aktivitet
+            <div style={{ width: NAMN_B, flexShrink: 0, padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              Fase / aktivitet
+              <button type="button" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setKolMeny({ x: r.left, y: r.bottom + 4 }) }} title="Vel kolonnar (kan òg opnast med høgreklikk)"
+                style={{ border: '1px solid var(--border)', background: 'var(--bg2)', borderRadius: 5, cursor: 'pointer', fontSize: 11, padding: '0 6px', color: 'var(--text2)', fontWeight: 800 }}>＋ Kolonnar</button>
+            </div>
+            {kolDefs.map(d => (
+              <div key={d.key} style={{ width: d.w, flexShrink: 0, padding: '0 6px 8px', textAlign: d.hogre ? 'right' : 'left', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{d.label}</div>
+            ))}
           </div>
           <div onMouseDown={startPan} title="Dra for å flytte tidslinja" style={{ position: 'relative', width: breiddTotal, flexShrink: 0, cursor: 'grab' }}>
             {manader.map((m, i) => (
@@ -332,6 +357,8 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                 return (
                   <div key={r.id} style={{ height: RAD_H, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
                     borderBottom: '1px solid var(--border)', background: 'var(--bg3)', fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>
+                    <button type="button" onClick={() => setPersTotOpen(v => !v)} title={persTotOpen ? 'Skjul timar per person' : 'Vis timar per person (alle aktivitetar)'}
+                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', width: 14, padding: 0, fontSize: 11, color: 'var(--brand)', fontWeight: 800 }}>{persTotOpen ? '▾' : '▸'}</button>
                     <span style={{ width: 9, height: 9, background: '#0F766E', borderRadius: 2, flexShrink: 0 }}/>
                     Timar per veke
                     <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--text3)' }}>{Math.round(sumTimar * 2) / 2} t totalt</span>
@@ -344,6 +371,16 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                     borderBottom: '1px solid var(--border)', background: 'var(--bg3)', fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>
                     <span style={{ width: 9, height: 9, background: FRIST_FARGE, transform: 'rotate(45deg)', flexShrink: 0 }}/>
                     Fristar og møte ({hendingar.length})
+                  </div>
+                )
+              }
+              if (r.type === 'persontot') {
+                const sumP = [...timarKart.values()].reduce((a, v) => a + (v.perPerson[r.namn] || 0), 0)
+                return (
+                  <div key={r.id} style={{ height: RAD_H, display: 'flex', alignItems: 'center', gap: 7, paddingLeft: 30, paddingRight: 12, borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 3, background: personFarge(r.namn, fargeKart), flexShrink: 0 }}/>
+                    <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Sum {r.namn}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text2)', fontFamily: 'var(--mono)' }}>{Math.round(sumP * 2) / 2} t</span>
                   </div>
                 )
               }
@@ -362,11 +399,11 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
               const sel = valgt === r.id
               return (
                 <div key={r.id} onClick={() => onVelg(r.id)}
-                  style={{ height: RAD_H, display: 'flex', alignItems: 'center', gap: 7, paddingLeft: 10 + (r.nivå || 0) * 20,
-                    paddingRight: 8, borderBottom: '1px solid var(--border)', cursor: 'pointer',
+                  style={{ height: RAD_H, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', cursor: 'pointer',
                     background: sel ? 'var(--brandbg2)' : erFase ? 'var(--bg3)' : 'transparent',
                     boxShadow: sel ? `inset 3px 0 0 ${VALG_FARGE}` : undefined }}
                   title={`${r.namn}\n${formaterDato(r.start)} – ${formaterDato(r.slutt)}`}>
+                  <div style={{ width: NAMN_B, flexShrink: 0, height: '100%', display: 'flex', alignItems: 'center', gap: 7, paddingLeft: 10 + (r.nivå || 0) * 20, paddingRight: 8, overflow: 'hidden' }}>
                   {onFlyttHierarki && <span onMouseDown={e => startHDrag(e, r)} title="Dra for å flytte i hierarkiet (over/under ei rad = same nivå, midt på = underaktivitet)"
                     style={{ width: 10, flexShrink: 0, cursor: 'grab', color: 'var(--text3)', opacity: .55, fontSize: 13, lineHeight: 1, userSelect: 'none', marginLeft: -4 }}>⠿</span>}
                   {harBorn(elementer, r.id) && r.type !== 'milepael' ? (
@@ -386,6 +423,12 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                     <span title={(r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? 'Rekna ut frå kopla leveransar' : 'Skjønn'} style={{ fontSize: 10.5, fontWeight: 700, color: (r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? '#0F766E' : 'var(--text3)' }}>{(r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? '⛓ ' : ''}{effektivFerdig(r, dokMap)}%</span>
                   )}
                   {erFase && r.type !== 'milepael' && faseFerdig(elementer, r, dokMap) > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text3)' }}>{faseFerdig(elementer, r, dokMap)}%</span>}
+                  </div>
+                  {kolDefs.map(d => (
+                    <div key={d.key} style={{ width: d.w, flexShrink: 0, padding: '0 6px', textAlign: d.hogre ? 'right' : 'left', fontSize: 12, color: 'var(--text2)', fontFamily: ['pns', 'kode', 'start', 'slutt'].includes(d.key) ? 'var(--mono)' : undefined,
+                      overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: erFase ? 700 : 400 }}
+                      title={String(verdiar.verdi(r, d.key))}>{verdiar.verdi(r, d.key)}</div>
+                  ))}
                 </div>
               )
             })}
@@ -442,6 +485,25 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
               )
             })}
 
+            {/* Sum per person per veke (alle aktivitetar) */}
+            {radar.filter(r => r.type === 'persontot').map(r => {
+              const i = radIndeks.get(r.id)
+              return [...timarKart.entries()].map(([veke, v]) => {
+                const t = Math.round((v.perPerson[r.namn] || 0) * 10) / 10
+                if (!t) return null
+                const ob = overlast?.get(veke)?.find(o => o.namn.toLowerCase() === r.namn.toLowerCase())
+                const farge = personFarge(r.namn, fargeKart)
+                return (
+                  <div key={r.id + veke} title={r.namn + ' — veke ' + getISOWeek(tilDato(veke)) + ' totalt: ' + t + ' t' + (ob ? ' (kapasitet ' + Math.round(ob.kapasitet * 2) / 2 + ' t — overbelasta)' : '')}
+                    style={{ position: 'absolute', left: x(tilDato(veke)) + 1, width: dagB * 7 - 2, top: i * RAD_H + 5, height: RAD_H - 10, borderRadius: 4, background: farge + '40',
+                      outline: ob ? '2px solid #DC2626' : undefined, outlineOffset: -1, color: ob ? '#B91C1C' : 'var(--text)', fontSize: 10.5, fontWeight: 800,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 3 }}>
+                    {dagB * 7 >= 24 ? t : ''}
+                  </div>
+                )
+              })
+            })}
+
             {/* Person-underrader: timar per veke for kvar person */}
             {radar.filter(r => r.type === 'person').map(r => {
               const i = radIndeks.get(r.id)
@@ -451,7 +513,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                 return (
                   <div key={r.id + v.veke} title={r.namn + ' — veke ' + getISOWeek(tilDato(v.veke)) + ': ' + t + ' t'}
                     style={{ position: 'absolute', left: x(tilDato(v.veke)) + 1, width: dagB * 7 - 2, top: i * RAD_H + 5, height: RAD_H - 10, borderRadius: 4,
-                      background: r.farge + '33', color: 'var(--text)', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 3 }}>
+                      background: r.farge + '40', color: 'var(--text)', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 3 }}>
                     {dagB * 7 >= 24 && t > 0 ? t : ''}
                   </div>
                 )
@@ -585,6 +647,25 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
             )}
           </div>
         </div>
+
+        {kolMeny && (
+          <div data-kolmeny="1" style={{ position: 'fixed', left: Math.min(kolMeny.x, window.innerWidth - 230), top: Math.min(kolMeny.y, window.innerHeight - 440), width: 220, maxHeight: 430, overflow: 'auto', zIndex: 400,
+            background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)', padding: 6 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text3)', padding: '6px 8px' }}>Kolonnar i tabellen</div>
+            {KOLONNE_DEF.map(d => (
+              <label key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 12.5, color: 'var(--text)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                <input type="checkbox" checked={valgteKol.includes(d.key)}
+                  onChange={e => lagreKol(e.target.checked ? [...valgteKol, d.key] : valgteKol.filter(k => k !== d.key))}/>
+                {d.label}
+              </label>
+            ))}
+            <div style={{ display: 'flex', gap: 6, padding: '6px 8px 4px' }}>
+              <button className="fd-knapp" style={{ flex: 1, padding: '3px 6px', fontSize: 11.5 }} onClick={() => lagreKol([])}>Fjern alle</button>
+              <button className="fd-knapp hovud" style={{ flex: 1, padding: '3px 6px', fontSize: 11.5 }} onClick={() => setKolMeny(null)}>Ferdig</button>
+            </div>
+          </div>
+        )}
 
         {rader.length === 0 && (
           <div style={{ position: 'absolute', left: VENSTRE, right: 0, top: topH + (visHendingar ? RAD_H : 0) + 20, textAlign: 'center',
