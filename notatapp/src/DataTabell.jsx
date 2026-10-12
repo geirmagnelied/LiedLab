@@ -1135,7 +1135,7 @@ export default function DataTabell({
                   }
                   if (kol.art !== 'tal' || kol.ikkjeSummer) return <td key={k} style={{ height:radhøgd, padding:cellePad, ...pinnStil }}/>
                   const sum = rader.reduce((s, r) => {
-                    if (radGruppe && radGruppe.forelder(r) != null) return s // underrader tel ikkje dobbelt
+                    if (radGruppe && (radGruppe.forelder(r) != null || radGruppe.ikkjeISum?.(r))) return s // underrader/summar tel ikkje dobbelt
                     const v = sorteringsverdi(r, k)
                     return s + (typeof v === 'number' && isFinite(v) ? v : 0)
                   }, 0)

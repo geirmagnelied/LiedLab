@@ -17,7 +17,8 @@ const Tal = ({ verdi, tekst }) => (
 export default function FramdriftOversikt({ prosjektNamn, elementer, dokMap, timarKart, overlast, hendingar, onVelg }) {
   const d = useMemo(() => {
     const fasar = elementer.filter(e => e.type === 'fase')
-    const akt = elementer.filter(e => e.type === 'aktivitet')
+    const foreldre = new Set(elementer.filter(e => e.forelder != null).map(e => e.forelder))
+    const akt = elementer.filter(e => e.type === 'aktivitet' && !foreldre.has(e.id) && !e.summ) // blad-aktivitetar (summasjonsaktivitetar tel ikkje)
     const mil = elementer.filter(e => e.type === 'milepael')
     const dagar = akt.map(a => Math.max(1, antalArbeidsdagar(a)))
     const sumDagar = dagar.reduce((a, b) => a + b, 0)

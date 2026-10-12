@@ -3,7 +3,7 @@ import { addDays, differenceInCalendarDays, startOfWeek, endOfWeek, getISOWeek, 
 import { nb } from 'date-fns/locale'
 import { helligdagNamn } from './helligdagar'
 import { tilDato, formaterDato } from './framdriftDato'
-import { beregnDatoar, harBorn, avhengnadFeil } from './framdriftLogikk'
+import { beregnDatoar, harBorn, avhengnadFeil, forfedrar, erSumm, kanFlytteTil } from './framdriftLogikk'
 import { effektivFerdig, faseFerdig } from './framdriftFerdig'
 import { fordelTimar, personDelar } from './framdriftTimar'
 import { PERSONFARGAR } from './FramdriftPersonarPanel'
@@ -28,7 +28,7 @@ const MOTE_FARGE = '#1565C0'
 const VALG_FARGE = '#1E3A8A'
 
 export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
-                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida }) {
+                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki }) {
   const dagB = DAGB[zoom] || DAGB.veke
   const scrollRef = useRef(null)
   const [drag, setDrag] = useState(null) // { id, modus, d }
@@ -103,7 +103,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
   const fasar = useMemo(() => elementer.filter(e => e.type === 'fase'), [elementer])
   const fargeFor = (e) => {
     if (e.farge) return e.farge
-    const rot = e.type === 'fase' ? e : elementer.find(f => f.id === e.forelder)
+    const rot = e.type === 'fase' ? e : forfedrar(elementer, e.id).find(f => f.type === 'fase')
     const i = rot ? fasar.findIndex(f => f.id === rot.id) : -1
     return i >= 0 ? FASEFARGAR[i % FASEFARGAR.length] : NEUTRAL
   }
@@ -205,12 +205,45 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
     window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
   }
 
+  // ── Dra ein rad i namnekolonna til ny plass i hierarkiet (grep ⠿): slepp over/under ei rad = same nivå som den,
+  //    midt på ei rad = blir underaktivitet (raden vert summasjonsaktivitet). Underaktivitetane følgjer med.
+  const navnRef = useRef(null)
+  const [hDrag, setHDrag] = useState(null) // { id, malId, pos, ok }
+  const startHDrag = (ev, r) => {
+    if (ev.button !== 0 || !onFlyttHierarki) return
+    ev.preventDefault(); ev.stopPropagation()
+    const x0 = ev.clientX, y0 = ev.clientY
+    let flytta = false
+    const finn = (cy) => {
+      const rect = navnRef.current.getBoundingClientRect()
+      const pos0 = (cy - rect.top) / RAD_H
+      const idx = Math.floor(pos0)
+      const mal = radar[idx]
+      if (!mal || !['fase', 'aktivitet', 'milepael'].includes(mal.type)) return { id: r.id, malId: null, pos: null, ok: false }
+      const frac = pos0 - idx
+      let pos = frac < 0.28 ? 'for' : frac > 0.72 ? 'etter' : 'inni'
+      if (pos === 'inni' && mal.type === 'milepael') pos = frac < 0.5 ? 'for' : 'etter'
+      return { id: r.id, malId: mal.id, pos, ok: kanFlytteTil(elementer, r.id, mal.id, pos) }
+    }
+    const mv = (e2) => {
+      if (!flytta && Math.abs(e2.clientX - x0) + Math.abs(e2.clientY - y0) > 4) { flytta = true; document.body.style.cursor = 'grabbing' }
+      if (flytta) setHDrag(finn(e2.clientY))
+    }
+    const opp = (e2) => {
+      window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); document.body.style.cursor = ''
+      const m = flytta ? finn(e2.clientY) : null
+      setHDrag(null)
+      if (m && m.ok) onFlyttHierarki(m.id, m.malId, m.pos)
+    }
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
+  }
+
   const visDatoar = (e) => {
     if (!drag) return { start: e.start, slutt: e.slutt }
     if (drag.id === e.id) return beregnDatoar(e, drag.modus, drag.d)
-    if (drag.modus === 'flytt' && e.forelder === drag.id) {
+    if (drag.modus === 'flytt' && forfedrar(elementer, e.id).some(a => a.id === drag.id)) {
       const f = elementer.find(x => x.id === drag.id)
-      if (f?.type === 'fase') {
+      if (f && erSumm(elementer, f) && harBorn(elementer, f.id)) {
         const nf = beregnDatoar(f, 'flytt', drag.d)
         const dd = differenceInCalendarDays(tilDato(nf.start), tilDato(f.start))
         return { start: format(addDays(tilDato(e.start), dd), 'yyyy-MM-dd'), slutt: format(addDays(tilDato(e.slutt), dd), 'yyyy-MM-dd') }
@@ -284,8 +317,16 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
 
         <div style={{ display: 'flex' }}>
           {/* ── Namnekolonne (klistra til venstre) ── */}
-          <div style={{ position: 'sticky', left: 0, zIndex: 6, width: VENSTRE, flexShrink: 0, background: 'var(--bg2)',
+          <div ref={navnRef} style={{ position: 'sticky', left: 0, zIndex: 6, width: VENSTRE, flexShrink: 0, background: 'var(--bg2)',
             borderRight: '1px solid var(--border)' }}>
+            {hDrag && hDrag.malId != null && (() => {
+              const mi = radIndeks.get(hDrag.malId)
+              const farge = hDrag.ok ? '#16A34A' : '#DC2626'
+              if (mi == null) return null
+              return hDrag.pos === 'inni'
+                ? <div style={{ position: 'absolute', left: 0, right: 0, top: mi * RAD_H, height: RAD_H, outline: '2px solid ' + farge, outlineOffset: -2, background: farge + '22', zIndex: 20, pointerEvents: 'none' }}/>
+                : <div style={{ position: 'absolute', left: 0, right: 0, top: (hDrag.pos === 'for' ? mi : mi + 1) * RAD_H - 2, height: 4, background: farge, zIndex: 20, pointerEvents: 'none' }}/>
+            })()}
             {radar.map(r => {
               if (r.type === 'timar') {
                 return (
@@ -317,7 +358,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                   </div>
                 )
               }
-              const erFase = r.type === 'fase'
+              const erFase = r.type === 'fase' || (r.type === 'aktivitet' && (r.summ || harBorn(elementer, r.id))) // fase / summasjonsaktivitet
               const sel = valgt === r.id
               return (
                 <div key={r.id} onClick={() => onVelg(r.id)}
@@ -326,7 +367,9 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                     background: sel ? 'var(--brandbg2)' : erFase ? 'var(--bg3)' : 'transparent',
                     boxShadow: sel ? `inset 3px 0 0 ${VALG_FARGE}` : undefined }}
                   title={`${r.namn}\n${formaterDato(r.start)} – ${formaterDato(r.slutt)}`}>
-                  {erFase && harBorn(elementer, r.id) ? (
+                  {onFlyttHierarki && <span onMouseDown={e => startHDrag(e, r)} title="Dra for å flytte i hierarkiet (over/under ei rad = same nivå, midt på = underaktivitet)"
+                    style={{ width: 10, flexShrink: 0, cursor: 'grab', color: 'var(--text3)', opacity: .55, fontSize: 13, lineHeight: 1, userSelect: 'none', marginLeft: -4 }}>⠿</span>}
+                  {harBorn(elementer, r.id) && r.type !== 'milepael' ? (
                     <button type="button" onClick={e => { e.stopPropagation(); onToggleLukka(r.id) }}
                       style={{ border: 'none', background: 'transparent', cursor: 'pointer', width: 16, padding: 0,
                         fontSize: 11, color: 'var(--text3)' }}>{lukka.has(r.id) ? '▸' : '▾'}</button>
@@ -342,7 +385,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                   {r.type === 'aktivitet' && effektivFerdig(r, dokMap) > 0 && (
                     <span title={(r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? 'Rekna ut frå kopla leveransar' : 'Skjønn'} style={{ fontSize: 10.5, fontWeight: 700, color: (r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? '#0F766E' : 'var(--text3)' }}>{(r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? '⛓ ' : ''}{effektivFerdig(r, dokMap)}%</span>
                   )}
-                  {erFase && faseFerdig(elementer, r, dokMap) > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text3)' }}>{faseFerdig(elementer, r, dokMap)}%</span>}
+                  {erFase && r.type !== 'milepael' && faseFerdig(elementer, r, dokMap) > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text3)' }}>{faseFerdig(elementer, r, dokMap)}%</span>}
                 </div>
               )
             })}
@@ -466,7 +509,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
               const farge = fargeFor(e)
               const sel = valgt === e.id
               const dragger = drag?.id === e.id
-              const erFase = e.type === 'fase'
+              const erFase = e.type === 'fase' || (e.type === 'aktivitet' && (e.summ || harBorn(elementer, e.id)))
               const tipp = `${e.namn}\n${formaterDato(vd.start)} – ${formaterDato(vd.slutt)}`
               const dato = dragger && (
                 <div style={{ position: 'absolute', left: l, top: y - 4, transform: 'translateY(-100%)', zIndex: 20,

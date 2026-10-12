@@ -9,7 +9,7 @@ import FramdriftTimarPanel from './FramdriftTimarPanel'
 import { sikrStandardPersonell } from './personellStandard'
 import FramdriftPersonarPanel from './FramdriftPersonarPanel'
 import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
-import { leveransarFerdig, effektivFerdig, brukarAuto } from './framdriftFerdig'
+import { leveransarFerdig, effektivFerdig, brukarAuto, faseFerdig } from './framdriftFerdig'
 import useKontorkalender from './useKontorkalender'
 import { timarPerVeke, overbelastning, medEffektiveTimar, personDelar, prisKartFra } from './framdriftTimar'
 import { MALAR } from './framdriftMalar'
@@ -17,6 +17,7 @@ import { iso, tilDato, parseDato, nesteArbeidsdag, forrigeArbeidsdag, formaterDa
 import {
   rullOpp, harBorn, beregnDatoar, settElement, avhengnadFeil, leggTilAvhengnad, fjernAvhengnad, slettElement,
   flyttRekkjefolgje, visingsrader, nyttElement, byggFraMal, FASEKODAR, antalArbeidsdagar,
+  erSumm, erRulla, flyttNode, innrykk, utrykk, settSumm, moglegeForeldre, forfedrar, etterkommarar, nivåAv, kanFlytteTil,
 } from './framdriftLogikk'
 
 // ═══════════════════════════════════════════════════════════════════
@@ -232,7 +233,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     oppdater(settElement(elementer, id, n.start, n.slutt, { beholdVarigheit: modus === 'flytt' }))
   }
 
-  const erRullaFase = (e) => e?.type === 'fase' && harBorn(elementer, e.id)
+  const erRullaFase = (e) => erRulla(elementer, e) // overordna med born: datoane følgjer underaktivitetane
 
   const settStart = (id, startIso) => {
     const e = elementer.find(x => x.id === id)
@@ -252,9 +253,17 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const endreFraTabell = (id, key, verdi) => {
     if (key === 'namn') { if (String(verdi).trim()) settFelt(id, 'namn', String(verdi).trim()); return }
     if (key === 'ansvarleg') { settFelt(id, 'ansvarleg', String(verdi).trim()); return }
+    if (['timar', 'budsjett', 'btype', 'timerate', 'palopTimar', 'palopHonorar', 'fordeling', 'ferdig'].includes(key) && erSumm(elementer, elementer.find(x => x.id === id))) return // summasjonsaktivitetar/fasar: summen kjem frå underaktivitetane
     if ((key === 'timar' || key === 'fordeling') && elementer.find(x => x.id === id)?.type !== 'aktivitet') return // timar høyrer til aktivitetar
     if (key === 'timar') { settFelter(id, { timar: Math.max(0, Math.round((parseFloat(String(verdi).replace(',', '.')) || 0) * 2) / 2), modus: 'timar' }); return }
     if (key === 'budsjett') { if (elementer.find(x => x.id === id)?.type !== 'aktivitet') return; settFelter(id, { budsjett: Math.max(0, Math.round(parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.')) || 0)), modus: 'budsjett' }); return }
+    if (key === 'kode') { settFelt(id, 'kode', String(verdi).trim()); return }
+    if (key === 'btype') { const t = ['Fastpris', 'Budsjettpris', 'Ufakturerbart'].find(k => k.toLowerCase() === String(verdi).trim().toLowerCase()); settFelt(id, 'budsjettType', t || ''); return }
+    if (key === 'timerate') { const n = parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.')); settFelt(id, 'timerate', n > 0 ? Math.round(n) : null); return }
+    if (key === 'palopTimar' || key === 'palopHonorar') {
+      const n = parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.'))
+      settFelt(id, key, n >= 0 ? (key === 'palopTimar' ? Math.round(n * 2) / 2 : Math.round(n)) : null); return
+    }
     if (key === 'fordeling') { const f = ['fast', 'start', 'midt', 'slutt'].find(k => k === String(verdi).toLowerCase()); if (f) settFelt(id, 'fordeling', f); return }
     if (key === 'ferdig') {
       // å skrive eit tal i tabellen er ei skjønnsmessig vurdering → overstyrer utrekning frå leveransar
@@ -278,8 +287,24 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   }
   const fjernAvh = (fraId, tilId) => oppdater(fjernAvhengnad(elementer, tilId, fraId))
 
+  // ── Hierarki: summasjonsaktivitetar, innrykk/utrykk, dra til ny plass ──
+  const opneForelder = (id) => { if (id != null) setLukka(l => { const n = new Set(l); n.delete(id); return n }) }
+  const flyttHierarki = (id, malId, pos) => {
+    if (!kanFlytteTil(elementer, id, malId, pos)) return
+    oppdater(flyttNode(elementer, id, malId, pos))
+    if (pos === 'inni') opneForelder(malId)
+  }
+  const gjerInnrykk = (id) => { const ny = innrykk(elementer, id); if (ny !== elementer) { oppdater(ny); const f = ny.find(x => x.id === id)?.forelder; opneForelder(f) } }
+  const gjerUtrykk = (id) => { const ny = utrykk(elementer, id); if (ny !== elementer) oppdater(ny) }
+  const veksleSumm = (id, pa) => {
+    const e = elementer.find(x => x.id === id)
+    if (!e) return
+    if (!pa && harBorn(elementer, id) && !window.confirm('Oppheve summasjonsaktiviteten «' + e.namn + '»? Underaktivitetane flyttar opp eitt nivå.')) return
+    oppdater(settSumm(elementer, id, pa))
+  }
+
   const leggTil = (type) => {
-    const valdFase = sel?.type === 'fase' ? sel.id : sel?.forelder ?? null
+    const valdFase = sel && erSumm(elementer, sel) && sel.type !== 'milepael' ? sel.id : sel?.forelder ?? null
     let start = new Date()
     const forelder = type === 'fase' ? null : valdFase
     const søsken = elementer.filter(e => (e.forelder ?? null) === (forelder ?? null) && (type === 'fase' ? e.type === 'fase' : true))
@@ -293,8 +318,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const slett = (id) => {
     const e = elementer.find(x => x.id === id)
     if (!e) return
-    const antall = e.type === 'fase' ? elementer.filter(c => c.forelder === id).length : 0
-    if (!window.confirm(`Slette «${e.namn}»${antall ? ` og dei ${antall} aktivitetane under` : ''}?`)) return
+    const antall = etterkommarar(elementer, id).length
+    if (!window.confirm(`Slette «${e.namn}»${antall ? ` og dei ${antall} underaktivitetane` : ''}?`)) return
     oppdater(slettElement(elementer, id)); setValgt(null)
   }
 
@@ -389,7 +414,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                   borderRadius: 'var(--r2)', background: '#FFFFFF', padding: 14, display: 'flex', flexDirection: 'column', gap: 11 }}>
                   <div style={{ display: 'flex', alignItems: 'center' }}>
                     <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--brand)' }}>
-                      {sel ? TYPE_NAMN[sel.type] : 'Planoversikt'}
+                      {sel ? (sel.type === 'aktivitet' && erSumm(elementer, sel) ? 'Summasjonsaktivitet' : TYPE_NAMN[sel.type]) : 'Planoversikt'}
                     </span>
                     <div style={{ flex: 1 }}/>
                     <button onClick={() => veksleOpen(false)} title="Skjul panelet"
@@ -408,7 +433,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                   {erRullaFase(sel) ? (
                     <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 }}>
                       {formaterDato(sel.start)} – {formaterDato(sel.slutt)}<br/>
-                      Datoane følgjer aktivitetane i fasen. Dra fasen på tidslinja for å flytte alle samstundes.
+                      Datoane følgjer underaktivitetane. Dra stolpen på tidslinja for å flytte alle samstundes.
                     </div>
                   ) : (
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -438,20 +463,35 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                     </label>
                   )}
                   {sel.type !== 'fase' && (
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span className="fd-etikett">Fase</span>
-                      <select className="fd-input" value={sel.forelder ?? ''}
-                        onChange={e => oppdater(rullOpp(elementer.map(x => (x.id === sel.id ? { ...x, forelder: e.target.value === '' ? null : +e.target.value } : x))))}>
-                        <option value="">(ingen fase)</option>
-                        {elementer.filter(f => f.type === 'fase').map(f => <option key={f.id} value={f.id}>{f.namn}</option>)}
-                      </select>
-                    </label>
+                    <>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span className="fd-etikett">Overordna (fase / summasjonsaktivitet)</span>
+                        <select className="fd-input" value={sel.forelder ?? ''}
+                          onChange={e => (e.target.value === '' ? flyttHierarki(sel.id, null, 'rot') : flyttHierarki(sel.id, +e.target.value, 'inni'))}>
+                          <option value="">(ingen — toppnivå)</option>
+                          {moglegeForeldre(elementer, sel.id).map(f => <option key={f.id} value={f.id}>{'\u00a0\u00a0'.repeat(nivåAv(elementer, f.id))}{f.type === 'fase' ? '▸ ' : ''}{f.namn}</option>)}
+                        </select>
+                      </label>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="fd-knapp" style={{ flex: 1 }} onClick={() => gjerUtrykk(sel.id)} disabled={sel.forelder == null}
+                          title="Flytt eitt nivå ut (blir søsken til overordna)">⇤ Flytt ut</button>
+                        <button className="fd-knapp" style={{ flex: 1 }} onClick={() => gjerInnrykk(sel.id)}
+                          title="Flytt eitt nivå inn (blir underaktivitet av aktiviteten over, som då vert summasjonsaktivitet)">⇥ Flytt inn</button>
+                      </div>
+                    </>
+                  )}
+                  {sel.type === 'aktivitet' && (
+                    <button className={'fd-knapp' + (erSumm(elementer, sel) ? ' hovud' : '')} onClick={() => veksleSumm(sel.id, !erSumm(elementer, sel))}
+                      disabled={erRulla(elementer, sel) && false}
+                      title={erSumm(elementer, sel) ? 'Opphev summasjonsaktivitet (underaktivitetane flyttar opp eitt nivå)' : 'Gjer aktiviteten til ein summasjonsaktivitet som samlar underaktivitetar — dra aktivitetar inn under han, eller bruk «Flytt inn»'}>
+                      {erSumm(elementer, sel) ? '✓ Summasjonsaktivitet — opphev' : '∑ Marker som summasjonsaktivitet'}
+                    </button>
                   )}
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span className="fd-etikett">Ansvarleg</span>
                     <TekstFelt verdi={sel.ansvarleg || ''} list="fd-personell" placeholder={personell.length ? 'Vel frå personell, eller skriv' : ''} onLagre={v => settFelt(sel.id, 'ansvarleg', v.trim())}/>
                   </label>
-                  {sel.type === 'aktivitet' && (() => {
+                  {sel.type === 'aktivitet' && !erSumm(elementer, sel) && (() => {
                     const auto = brukarAuto(sel, dokMap)
                     const res = leveransarFerdig(sel, dokMap)
                     const antal = (sel.leveransar || []).length
@@ -477,15 +517,24 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                     )
                   })()}
 
-                  {sel.type === 'aktivitet' && (
+                  {sel.type === 'aktivitet' && !erSumm(elementer, sel) && (
                     <FramdriftTimarPanel el={selEff} kal={kal} personell={personell} onEndre={p => settFelter(sel.id, p)}/>
                   )}
-                  {sel.type === 'aktivitet' && (
+                  {sel.type === 'aktivitet' && !erSumm(elementer, sel) && (
                     <FramdriftPersonarPanel el={selEff} personell={personell} prisar={prisKartFra(personell)} onEndre={p => settFelt(sel.id, 'personar', p)}/>
                   )}
-                  {sel.type === 'fase' && (() => {
-                    const sum = elEff.filter(c => c.forelder === sel.id && c.type === 'aktivitet').reduce((a, c) => a + (+c.timar || 0), 0)
-                    return sum > 0 ? <div style={{ fontSize: 12, color: 'var(--text2)' }}><b>{sum} t</b> forventa timar i fasen (sum av aktivitetane).</div> : null
+                  {sel.type !== 'milepael' && erSumm(elementer, sel) && (() => {
+                    const blad = etterkommarar(elEff, sel.id).filter(c => c.type === 'aktivitet' && !harBorn(elEff, c.id))
+                    const t = blad.reduce((a, c) => a + (+c.timar || 0), 0)
+                    const b = blad.reduce((a, c) => a + (+c.budsjett || 0), 0)
+                    const fd = faseFerdig(elEff, sel, dokMap)
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: 'var(--text2)', background: 'var(--bg3)', borderRadius: 8, padding: '8px 10px' }}>
+                        <div><b>{blad.length}</b> underaktivitet{blad.length === 1 ? '' : 'ar'} · <b>{Math.round(t * 2) / 2} t</b>{b > 0 ? <> · <b>{b.toLocaleString('nb-NO')} kr</b> budsjett</> : null}</div>
+                        <div>Samla framdrift <b>{fd} %</b></div>
+                        {blad.length === 0 && <div style={{ color: 'var(--text3)' }}>Ingen underaktivitetar enno — dra aktivitetar inn under denne i tidslinja, eller bruk «Flytt inn» på ein aktivitet rett under.</div>}
+                      </div>
+                    )
                   })()}
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -531,10 +580,10 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                 <FramdriftTidslinje rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
                   onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
                   timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
-                  onKoble={koble} onFjernAvh={fjernAvh}
+                  onKoble={koble} onFjernAvh={fjernAvh} onFlyttHierarki={flyttHierarki}
                   lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
               ) : (
-                <FramdriftTabell dokMap={dokMap} elementer={elEff} kal={kal} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
+                <FramdriftTabell dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
               )}
 
             </div>

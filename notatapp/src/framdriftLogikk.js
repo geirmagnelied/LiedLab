@@ -28,22 +28,46 @@ export function nyId() {
 
 export const harBorn = (els, id) => els.some(e => e.forelder === id)
 
+// ── Hierarki (13. okt. 2026): ein aktivitet kan vere SUMMASJONSAKTIVITET (har underaktivitetar, eller er markert
+//    `summ: true`), på vilkårleg djupn. Fasar er alltid toppnivå. Datoane til ein summasjonsaktivitet med born vert
+//    rekna ut frå borna (rullOpp), på same måte som for fasar. Milepælar kan ikkje ha born.
+export const erSumm = (els, e) => !!e && e.type !== 'milepael' && (e.type === 'fase' || !!e.summ || harBorn(els, e.id))
+// Ein «rulla» overordna har born (datoar følgjer borna)
+export const erRulla = (els, e) => !!e && e.type !== 'milepael' && harBorn(els, e.id)
+
+export function etterkommarar(els, id) {
+  const ut = []
+  const sett = new Set([id])
+  const kø = [id]
+  while (kø.length) {
+    const p = kø.shift()
+    for (const c of els) if (c.forelder === p && !sett.has(c.id)) { sett.add(c.id); ut.push(c); kø.push(c.id) }
+  }
+  return ut
+}
+export function forfedrar(els, id) {
+  const ut = []
+  let x = els.find(e => e.id === id)
+  let vern = 0
+  while (x && x.forelder != null && vern++ < 50) { x = els.find(e => e.id === x.forelder); if (x) ut.push(x) }
+  return ut
+}
+export const nivåAv = (els, id) => forfedrar(els, id).length
+
 const varigheit = (e) => arbeidsdagarMellom(tilDato(e.start), tilDato(e.slutt))
 
 // ── Rull opp: fase-datoar frå barna, milepæl har alltid slutt = start ────
 export function rullOpp(els) {
-  return els.map(e => {
-    if (e.type === 'milepael' && e.slutt !== e.start) return { ...e, slutt: e.start }
-    if (e.type === 'fase') {
-      const b = els.filter(c => c.forelder === e.id)
-      if (b.length) {
-        const st = b.reduce((m, c) => (c.start < m ? c.start : m), b[0].start)
-        const sl = b.reduce((m, c) => (c.slutt > m ? c.slutt : m), b[0].slutt)
-        if (st !== e.start || sl !== e.slutt) return { ...e, start: st, slutt: sl }
-      }
-    }
-    return e
-  })
+  let cur = els.map(e => (e.type === 'milepael' && e.slutt !== e.start ? { ...e, slutt: e.start } : e))
+  const dyp = (e) => nivåAv(cur, e.id)
+  const foreldre = cur.filter(e => e.type !== 'milepael' && harBorn(cur, e.id)).sort((a, b) => dyp(b) - dyp(a)) // djupast fyrst
+  for (const f of foreldre) {
+    const b = cur.filter(c => c.forelder === f.id)
+    const st = b.reduce((m, c) => (c.start < m ? c.start : m), b[0].start)
+    const sl = b.reduce((m, c) => (c.slutt > m ? c.slutt : m), b[0].slutt)
+    if (st !== f.start || sl !== f.slutt) cur = cur.map(x => (x.id === f.id ? { ...x, start: st, slutt: sl } : x))
+  }
+  return cur
 }
 
 // Tidlegaste lovlege start for `e` ut frå føregangarane (ISO), eller null.
@@ -80,10 +104,11 @@ function skyv(e, dd) {
 
 // Flytt `e` til ny start (behald varigheit). For ei fase med born: skyv alle barna.
 function flyttTil(els, e, nyStart) {
-  if (e.type === 'fase' && harBorn(els, e.id)) {
+  if (erRulla(els, e)) {
     const dd = Math.round((tilDato(nyStart) - tilDato(e.start)) / 86400000)
-    const barn = els.filter(c => c.forelder === e.id)
-    return { els: els.map(c => (c.forelder === e.id ? skyv(c, dd) : c)), endra: barn.map(c => c.id) }
+    const barn = etterkommarar(els, e.id)
+    const ider = new Set(barn.map(c => c.id))
+    return { els: els.map(c => (ider.has(c.id) ? skyv(c, dd) : c)), endra: barn.map(c => c.id) }
   }
   const ns = tilDato(nyStart)
   const slutt = e.type === 'milepael' ? nyStart : iso(leggTilArbeidsdagar(ns, varigheit(e) - 1))
@@ -111,8 +136,7 @@ export function propager(gml, ny, endraIds) {
       if (mål && mål !== s.start) {
         const r = flyttTil(cur, s, mål)
         cur = rullOpp(r.els)
-        kø.push(s.id, ...r.endra)
-        if (s.forelder) kø.push(s.forelder)
+        kø.push(s.id, ...r.endra, ...forfedrar(cur, s.id).map(f => f.id))
       }
     }
   }
@@ -126,10 +150,12 @@ export function settElement(gml, id, start, slutt, { beholdVarigheit = false } =
   if (!e) return gml
   const endra = [id]
   let cur
-  if (e.type === 'fase' && harBorn(gml, id)) {
+  if (erRulla(gml, e)) {
     const dd = Math.round((tilDato(start) - tilDato(e.start)) / 86400000)
-    cur = gml.map(c => (c.forelder === id ? skyv(c, dd) : c))
-    endra.push(...gml.filter(c => c.forelder === id).map(c => c.id))
+    const barn = etterkommarar(gml, id)
+    const ider = new Set(barn.map(c => c.id))
+    cur = gml.map(c => (ider.has(c.id) ? skyv(c, dd) : c))
+    endra.push(...barn.map(c => c.id))
   } else {
     let ns = start
     let sl = slutt
@@ -144,7 +170,7 @@ export function settElement(gml, id, start, slutt, { beholdVarigheit = false } =
     cur = gml.map(x => (x.id === id ? { ...x, start: ns, slutt: sl } : x))
   }
   cur = rullOpp(cur)
-  if (e.forelder) endra.push(e.forelder)
+  endra.push(...forfedrar(gml, id).map(f => f.id))
   return propager(gml, cur, endra)
 }
 
@@ -168,7 +194,7 @@ export function avhengnadFeil(els, id, predId) {
   const p = els.find(x => x.id === predId)
   if (!e || !p) return 'Fann ikkje elementet.'
   if ((e.avh || []).includes(predId)) return 'Avhengnaden finst alt.'
-  if (e.forelder === predId || p.forelder === id) return 'Ei fase kan ikkje vere avhengig av sine eigne aktivitetar.'
+  if (forfedrar(els, id).some(f => f.id === predId) || forfedrar(els, predId).some(f => f.id === id)) return 'Ein overordna aktivitet kan ikkje vere avhengig av sine eigne underaktivitetar (og omvendt).'
   if (girSyklus(els, id, predId)) return 'Avhengnaden ville laga ein sirkel.'
   return null
 }
@@ -183,7 +209,7 @@ export function leggTilAvhengnad(els, id, predId) {
   // Behald varigheita (tidlegare vart ho til 1 dag fordi `start` var overskriven før utrekninga)
   let slutt
   if (e.type === 'milepael') slutt = k
-  else if (e.type === 'fase' && harBorn(med, e.id)) slutt = iso(addDays(tilDato(e.slutt), Math.round((tilDato(k) - tilDato(e.start)) / 86400000)))
+  else if (erRulla(med, e)) slutt = iso(addDays(tilDato(e.slutt), Math.round((tilDato(k) - tilDato(e.start)) / 86400000)))
   else slutt = iso(leggTilArbeidsdagar(tilDato(k), varigheit(e) - 1))
   return settElement(med, id, k, slutt, { beholdVarigheit: true })
 }
@@ -196,7 +222,7 @@ export function fjernAvhengnad(els, id, predId) {
 export function slettElement(els, id) {
   const e = els.find(x => x.id === id)
   if (!e) return els
-  const bort = new Set([id, ...(e.type === 'fase' ? els.filter(c => c.forelder === id).map(c => c.id) : [])])
+  const bort = new Set([id, ...etterkommarar(els, id).map(c => c.id)])
   return rullOpp(els.filter(x => !bort.has(x.id)).map(x => ({ ...x, avh: (x.avh || []).filter(a => !bort.has(a)) })))
 }
 
@@ -215,18 +241,98 @@ export function flyttRekkjefolgje(els, id, dir) {
   return ut
 }
 
-// Flat visingsrekkjefølgje: toppnivå-element i rekkjefølgje, kvar fase fylgd av sine born.
+// Flat visingsrekkjefølgje (hierarki, vilkårleg djupn): toppnivå i rekkjefølgje, kvar fylgd av sine born (rekursivt).
+// Samanfolda (lukka) overordna skjuler alle etterkommarane sine.
 export function visingsrader(els, lukka) {
   const ut = []
-  for (const e of els) {
-    if (e.forelder != null) continue
-    ut.push({ ...e, nivå: 0 })
-    if (e.type === 'fase' && !lukka.has(e.id)) {
-      for (const c of els) if (c.forelder === e.id) ut.push({ ...c, nivå: 1 })
-    }
+  const sett = new Set()
+  const gaa = (e, nivå) => {
+    if (sett.has(e.id)) return
+    sett.add(e.id)
+    ut.push({ ...e, nivå })
+    if (!lukka.has(e.id)) for (const c of els) if (c.forelder === e.id) gaa(c, nivå + 1)
   }
+  for (const e of els) if (e.forelder == null) gaa(e, 0)
   return ut
 }
+
+// PNS-nivå (disposisjonsnummer 1, 1.1, 1.1.2 …) for kvart element ut frå plassering i hierarkiet. Map(id → «1.2.3»)
+export function pnsKart(els) {
+  const kart = new Map()
+  const gaa = (forelder, prefiks) => {
+    let i = 0
+    for (const e of els) if ((e.forelder ?? null) === forelder) { i++; const n = prefiks ? prefiks + '.' + i : String(i); kart.set(e.id, n); gaa(e.id, n) }
+  }
+  gaa(null, '')
+  return kart
+}
+
+// ── Endre hierarki ─────────────────────────────────────────────────────
+// Flyttar `id` (med alle underaktivitetane sine) til ny plass: pos = 'for' | 'etter' (søsken til mål) | 'inni' (siste barn av mål, som
+// då vert summasjonsaktivitet) | 'rot' (toppnivå, sist). Gjev uendra plan viss flyttinga ikkje er lov.
+export function kanFlytteTil(els, id, malId, pos) {
+  const e = els.find(x => x.id === id)
+  if (!e) return false
+  if (pos === 'rot') return true
+  const m = els.find(x => x.id === malId)
+  if (!m || m.id === id) return false
+  if (etterkommarar(els, id).some(c => c.id === malId)) return false // ikkje inn i seg sjølv
+  if (pos === 'inni') return m.type !== 'milepael' && e.type !== 'fase'
+  if (e.type === 'fase') return (m.forelder ?? null) === null // fasar berre på toppnivå
+  return true
+}
+
+export function flyttNode(els, id, malId, pos) {
+  if (!kanFlytteTil(els, id, malId, pos)) return els
+  const e = els.find(x => x.id === id)
+  const m = els.find(x => x.id === malId)
+  const nyForelder = pos === 'rot' ? null : pos === 'inni' ? m.id : (m.forelder ?? null)
+  let ut = els.filter(x => x.id !== id)
+  const flytta = { ...e, forelder: nyForelder }
+  let idx
+  if (pos === 'rot' || pos === 'inni') idx = ut.length
+  else idx = ut.findIndex(x => x.id === malId) + (pos === 'etter' ? 1 : 0)
+  ut = [...ut.slice(0, idx), flytta, ...ut.slice(idx)]
+  if (pos === 'inni' && m.type === 'aktivitet' && !m.summ) ut = ut.map(x => (x.id === m.id ? { ...x, summ: true } : x))
+  // Fjern avhengnader mellom det flytta elementet (og det som heng under) og dei nye overordna (og omvendt)
+  const sub = new Set([id, ...etterkommarar(ut, id).map(c => c.id)])
+  const fedre = new Set(forfedrar(ut, id).map(f => f.id))
+  ut = ut.map(x => {
+    if (sub.has(x.id)) return { ...x, avh: (x.avh || []).filter(a => !fedre.has(a)) }
+    if (fedre.has(x.id)) return { ...x, avh: (x.avh || []).filter(a => !sub.has(a)) }
+    return x
+  })
+  return rullOpp(ut)
+}
+
+// Innrykk: blir underaktivitet av førre søsken (som då vert summasjonsaktivitet). Utrykk: eit nivå opp, rett etter overordna.
+export function innrykk(els, id) {
+  const e = els.find(x => x.id === id)
+  if (!e || e.type === 'fase') return els
+  const sosken = els.filter(x => (x.forelder ?? null) === (e.forelder ?? null))
+  const i = sosken.findIndex(x => x.id === id)
+  for (let j = i - 1; j >= 0; j--) if (sosken[j].type !== 'milepael') return flyttNode(els, id, sosken[j].id, 'inni')
+  return els
+}
+export function utrykk(els, id) {
+  const e = els.find(x => x.id === id)
+  if (!e || e.forelder == null) return els
+  return flyttNode(els, id, e.forelder, 'etter')
+}
+
+// Marker/opphev summasjonsaktivitet. Opphev: underaktivitetane flyttar opp eit nivå (rett etter den som vart oppheva).
+export function settSumm(els, id, pa) {
+  const e = els.find(x => x.id === id)
+  if (!e || e.type !== 'aktivitet') return els
+  if (pa) return els.map(x => (x.id === id ? { ...x, summ: true } : x))
+  let ut = els.map(x => (x.id === id ? { ...x, summ: false } : x))
+  const born = ut.filter(c => c.forelder === id)
+  for (const c of [...born].reverse()) ut = flyttNode(ut, c.id, id, 'etter')
+  return rullOpp(ut)
+}
+
+// Gyldige overordna for `id` (til «Overordna»-nedtrekk): ikkje seg sjølv/etterkommarar, ikkje milepælar
+export const moglegeForeldre = (els, id) => els.filter(x => x.type !== 'milepael' && kanFlytteTil(els, id, x.id, 'inni'))
 
 export const FASEKODAR = [
   { kode: '01', namn: 'Skisseprosjekt' },

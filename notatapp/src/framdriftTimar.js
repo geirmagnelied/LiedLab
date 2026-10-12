@@ -1,5 +1,6 @@
 import { addDays, format } from 'date-fns'
 import { tilDato } from './framdriftDato'
+import { harBorn } from './framdriftLogikk'
 import { arbeidstimarIVeke, vekeStart, STANDARD_KONTORKALENDER } from './kontorkalender'
 
 // ═══════════════════════════════════════════════════════════════════
@@ -83,7 +84,9 @@ export const prisKartFra = (personell) => new Map((personell || []).filter(p => 
 // Timepris for ein person i DENNE aktiviteten: aktivitetens eigen pris (personar[].pris) går føre prosjektets timepris
 export const prisFor = (d, prisar) => (+d.pris > 0 ? +d.pris : (prisar.get(d.namn.toLowerCase()) || 0))
 
+// `el.timerate` (kr/t, sett direkte på aktiviteten) OVERSTYRER utrekninga frå personane.
 export function snittpris(el, prisar) {
+  if (+el.timerate > 0) return { pris: +el.timerate, manglar: [], utanPersonar: false, manuell: true }
   const delar = personDelar(el)
   if (!delar.length) return { pris: 0, manglar: [], utanPersonar: true }
   const manglar = delar.filter(d => !prisFor(d, prisar)).map(d => d.namn)
@@ -112,8 +115,9 @@ export const medEffektiveTimar = (elementer, personell) => {
 // Gjev Map(veke → { total, perPerson: { namn: timar } }).
 export function timarPerVeke(elementer, kal = STANDARD_KONTORKALENDER) {
   const kart = new Map()
+  const foreldre = new Set(elementer.filter(e => e.forelder != null).map(e => e.forelder))
   for (const e of elementer) {
-    if (e.type !== 'aktivitet') continue
+    if (e.type !== 'aktivitet' || foreldre.has(e.id)) continue // summasjonsaktivitetar tel ikkje (summen av underaktivitetane tel)
     for (const { veke, timar } of fordelTimar(e, kal)) {
       if (!kart.has(veke)) kart.set(veke, { total: 0, perPerson: {} })
       const v = kart.get(veke)

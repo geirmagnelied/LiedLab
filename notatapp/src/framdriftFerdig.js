@@ -1,4 +1,4 @@
-import { antalArbeidsdagar as varigheit } from './framdriftLogikk'
+import { antalArbeidsdagar as varigheit, etterkommarar, harBorn } from './framdriftLogikk'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Framdrift frå leveransar (DTM). Ein aktivitet kan ha kopla til
@@ -40,7 +40,8 @@ export function effektivFerdig(el, dokMap) {
 
 // Framdrift for ei fase: snitt av aktivitetane, vekta med arbeidsdagar
 export function faseFerdig(elementer, fase, dokMap) {
-  const born = elementer.filter(e => e.forelder === fase.id && e.type === 'aktivitet')
+  // alle BLAD-aktivitetar under (fase eller summasjonsaktivitet), på alle nivå
+  const born = etterkommarar(elementer, fase.id).filter(e => e.type === 'aktivitet' && !harBorn(elementer, e.id))
   if (!born.length) return 0
   const dagar = born.map(b => Math.max(1, varigheit(b)))
   const sum = dagar.reduce((a, b) => a + b, 0)
