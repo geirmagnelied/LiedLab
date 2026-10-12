@@ -28,6 +28,7 @@ const BASE_KOLONNAR = [
   { key: 'ansvarleg', label: 'Ansvarleg',   art: 'val',   redigerbar: true, w: 140 },
   { key: 'ferdig',    label: 'Ferdig %',    art: 'tal',   redigerbar: true, ikkjeSummer: true, w: 90 },
   { key: 'levnr',     label: 'Leveransar',  art: 'tal',   beregna: true, ikkjeSummer: true, w: 90 },
+  { key: 'budsjett',  label: 'Budsjett kr', art: 'tal',   redigerbar: true, w: 110 },
   { key: 'timar',     label: 'Timar',       art: 'tal',   redigerbar: true, w: 80 },
   { key: 'fordeling', label: 'Fordeling',   art: 'val',   redigerbar: true, val: ['Fast', 'Start', 'Midt', 'Slutt'], w: 100 },
   { key: 'avh',       label: 'Startar etter', art: 'tekst', beregna: true, utanFilter: true, w: 240 },
@@ -105,6 +106,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
       case 'varig': return e.type === 'milepael' ? '' : antalArbeidsdagar(e)
       case 'ansvarleg': { const p = personDelar(e); return (e.personar || []).length ? p.map(x => x.namn + (p.length > 1 ? ' ' + x.del + '%' : '')).join(', ') : (e.ansvarleg || '') }
       case 'ferdig': return e.type === 'aktivitet' ? effektivFerdig(e, dokMap) : e.type === 'fase' ? faseFerdig(elementer, e, dokMap) : ''
+      case 'budsjett': return e.type === 'aktivitet' ? (e.budsjett || '') : e.type === 'fase' ? (elementer.filter(c => c.forelder === e.id).reduce((a, c) => a + (+c.budsjett || 0), 0) || '') : ''
       case 'levnr': return e.type === 'aktivitet' ? ((e.leveransar || []).length || '') : ''
       case 'timar': return e.type === 'aktivitet' ? (e.timar || 0) : e.type === 'fase' ? elementer.filter(c => c.forelder === e.id).reduce((a, c) => a + (+c.timar || 0), 0) : ''
       case 'fordeling': return e.type === 'aktivitet' && e.timar > 0 ? ({ fast: 'Fast', start: 'Start', midt: 'Midt', slutt: 'Slutt' }[e.fordeling || 'fast']) : ''

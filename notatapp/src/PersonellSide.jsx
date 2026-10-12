@@ -60,6 +60,7 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
     let ny = verdi
     if (key === 'prosent') ny = Math.max(0, Math.min(100, parseFloat(String(verdi).replace(',', '.')) || 0))
     if (key === 'fornamn' || key === 'etternamn') ny = String(verdi).trim()
+    if (key === 'timepris') { const n = parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.')); ny = Number.isFinite(n) && n >= 0 ? n : null }
     // «namn» (brukt i Framdrift) = fornamn + etternamn
     const endring = { [key]: ny }
     if (key === 'fornamn' || key === 'etternamn') {
@@ -99,6 +100,7 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
     { key: 'etternamn', label: 'Etternamn', art: 'tekst', redigerbar: true, w: 170, utanFilter: true },
     { key: 'rolle',   label: 'Rolle',       art: 'val',   redigerbar: true, w: 180 },
     { key: 'prosent', label: 'Prosent',     art: 'tal',   redigerbar: true, w: 90, ikkjeSummer: true },
+    { key: 'timepris', label: 'Timepris kr/t', art: 'tal', redigerbar: true, w: 120, ikkjeSummer: true },
     { key: 'kapasitet', label: 'Kapasitet t/veke', art: 'tal', beregna: true, w: 140, ikkjeSummer: true },
     { key: 'epost',   label: 'E-post',      art: 'tekst', redigerbar: true, w: 220, utanFilter: true },
     { key: 'merknad', label: 'Merknad',     art: 'tekst', redigerbar: true, w: 260, utanFilter: true },
@@ -108,6 +110,7 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
     if (key === 'etternamn' && !p.etternamn && /\s/.test(p.namn || '')) return p.namn.match(/\S+$/)[0]
     if (key === 'kapasitet') return kapasitetPerVeke(kal, +p.prosent || 0)
     if (key === 'prosent') return p.prosent ?? ''
+    if (key === 'timepris') return p.timepris ?? ''
     return p[key] ?? ''
   }
   const andreProsjekt = (prosjektListe || []).filter(p => p.id !== pid && !p.deletedAt)

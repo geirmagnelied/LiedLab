@@ -11,7 +11,7 @@ import FramdriftPersonarPanel from './FramdriftPersonarPanel'
 import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
 import { leveransarFerdig, effektivFerdig, brukarAuto } from './framdriftFerdig'
 import useKontorkalender from './useKontorkalender'
-import { timarPerVeke, overbelastning } from './framdriftTimar'
+import { timarPerVeke, overbelastning, medEffektiveTimar, personDelar } from './framdriftTimar'
 import { MALAR } from './framdriftMalar'
 import { iso, tilDato, parseDato, nesteArbeidsdag, forrigeArbeidsdag, formaterDato } from './framdriftDato'
 import {
@@ -213,11 +213,16 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     return ut.sort((a, b) => a.dato - b.dato)
   }, [notes, activeProjectId])
 
-  const rader = useMemo(() => visingsrader(elementer, lukka), [elementer, lukka])
-  const timarKart = useMemo(() => timarPerVeke(elementer, kal), [elementer, kal])
+  // Plan med EFFEKTIVE timar (frå budsjett ÷ snittpris når modus = budsjett) — brukt til visning og utrekning; redigering går mot råplanen (elementer)
+  const elEff = useMemo(() => medEffektiveTimar(elementer, personell), [elementer, personell])
+  const rader = useMemo(() => visingsrader(elEff, lukka), [elEff, lukka])
+  const timarKart = useMemo(() => timarPerVeke(elEff, kal), [elEff, kal])
+  const [utvida, setUtvida] = useState(() => new Set()) // aktivitetar med opne person-underrader (tidslinje)
+  const toggleUtvida = (id) => setUtvida(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const overlast = useMemo(() => overbelastning(timarKart, personell, kal), [timarKart, personell, kal])
   const talOverlast = overlast.size
   const sel = elementer.find(e => e.id === valgt) || null
+  const selEff = elEff.find(e => e.id === valgt) || null
 
   // ── Handlingar ──
   const endreFraTidslinje = (id, modus, d) => {
@@ -241,13 +246,15 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     const s = iso(forrigeArbeidsdag(tilDato(sluttIso)))
     oppdater(settElement(elementer, id, e.start, s < e.start ? e.start : s))
   }
+  const settFelter = (id, patch) => oppdater(elementer.map(e => (e.id === id ? { ...e, ...patch } : e)))
   const settFelt = (id, felt, verdi) => oppdater(elementer.map(e => (e.id === id ? { ...e, [felt]: verdi } : e)))
 
   const endreFraTabell = (id, key, verdi) => {
     if (key === 'namn') { if (String(verdi).trim()) settFelt(id, 'namn', String(verdi).trim()); return }
     if (key === 'ansvarleg') { settFelt(id, 'ansvarleg', String(verdi).trim()); return }
     if ((key === 'timar' || key === 'fordeling') && elementer.find(x => x.id === id)?.type !== 'aktivitet') return // timar høyrer til aktivitetar
-    if (key === 'timar') { settFelt(id, 'timar', Math.max(0, Math.round((parseFloat(String(verdi).replace(',', '.')) || 0) * 2) / 2)); return }
+    if (key === 'timar') { settFelter(id, { timar: Math.max(0, Math.round((parseFloat(String(verdi).replace(',', '.')) || 0) * 2) / 2), modus: 'timar' }); return }
+    if (key === 'budsjett') { if (elementer.find(x => x.id === id)?.type !== 'aktivitet') return; settFelter(id, { budsjett: Math.max(0, Math.round(parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.')) || 0)), modus: 'budsjett' }); return }
     if (key === 'fordeling') { const f = ['fast', 'start', 'midt', 'slutt'].find(k => k === String(verdi).toLowerCase()); if (f) settFelt(id, 'fordeling', f); return }
     if (key === 'ferdig') {
       // å skrive eit tal i tabellen er ei skjønnsmessig vurdering → overstyrer utrekning frå leveransar
@@ -390,7 +397,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                     {sel && <button onClick={() => setValgt(null)} title="Fjern utval (vis planoversikt)"
                       style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1 }}>×</button>}
                   </div>
-                  {!sel && <FramdriftOversikt prosjektNamn={aktivtProsjekt?.name} elementer={elementer} dokMap={dokMap} timarKart={timarKart} overlast={overlast} hendingar={hendingar} onVelg={setValgt}/>}
+                  {!sel && <FramdriftOversikt prosjektNamn={aktivtProsjekt?.name} elementer={elEff} dokMap={dokMap} timarKart={timarKart} overlast={overlast} hendingar={hendingar} onVelg={setValgt}/>}
                   {sel && (<>
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span className="fd-etikett">Namn</span>
@@ -471,14 +478,13 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                   })()}
 
                   {sel.type === 'aktivitet' && (
-                    <FramdriftTimarPanel el={sel} kal={kal}
-                      onTimar={n => settFelt(sel.id, 'timar', n)} onFordeling={f => settFelt(sel.id, 'fordeling', f)}/>
+                    <FramdriftTimarPanel el={selEff} kal={kal} personell={personell} onEndre={p => settFelter(sel.id, p)}/>
                   )}
                   {sel.type === 'aktivitet' && (
-                    <FramdriftPersonarPanel el={sel} personell={personell} onEndre={p => settFelt(sel.id, 'personar', p)}/>
+                    <FramdriftPersonarPanel el={selEff} personell={personell} onEndre={p => settFelt(sel.id, 'personar', p)}/>
                   )}
                   {sel.type === 'fase' && (() => {
-                    const sum = elementer.filter(c => c.forelder === sel.id && c.type === 'aktivitet').reduce((a, c) => a + (+c.timar || 0), 0)
+                    const sum = elEff.filter(c => c.forelder === sel.id && c.type === 'aktivitet').reduce((a, c) => a + (+c.timar || 0), 0)
                     return sum > 0 ? <div style={{ fontSize: 12, color: 'var(--text2)' }}><b>{sum} t</b> forventa timar i fasen (sum av aktivitetane).</div> : null
                   })()}
 
@@ -522,13 +528,13 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                 </div>
               )}
               {visning === 'tidslinje' ? (
-                <FramdriftTidslinje rader={rader} elementer={elementer} valgt={valgt} onVelg={setValgt}
+                <FramdriftTidslinje rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
                   onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
                   timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
                   onKoble={koble} onFjernAvh={fjernAvh}
                   lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
               ) : (
-                <FramdriftTabell dokMap={dokMap} elementer={elementer} kal={kal} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
+                <FramdriftTabell dokMap={dokMap} elementer={elEff} kal={kal} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
               )}
 
             </div>

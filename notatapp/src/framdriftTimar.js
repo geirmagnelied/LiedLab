@@ -31,7 +31,12 @@ const FORM = {
   slutt: (t) => 0.1 + 1.8 * t,
 }
 
-export const formVekt = (key, t) => (FORM[key] || FORM.fast)(t)
+// Kor kraftig forma er (0 = flat, 1 = standard, opp til 2 = ekstrem). «styrke» skalerer avviket frå flat fordeling.
+export const STYRKE_MAKS = 2
+export const formVekt = (key, t, styrke = 1) => {
+  const w = (FORM[key] || FORM.fast)(t)
+  return Math.max(0.03, 1 + (Number.isFinite(styrke) ? styrke : 1) * (w - 1))
+}
 
 // Timar per veke for éin aktivitet: [{ veke:'yyyy-MM-dd' (måndag), timar }]
 export function fordelTimar(el, kal = STANDARD_KONTORKALENDER) {
@@ -45,9 +50,13 @@ export function fordelTimar(el, kal = STANDARD_KONTORKALENDER) {
   let aktive = veker.filter(v => v.kap > 0)
   // Ingen arbeidstimar i heile perioden (t.d. berre fridagar): fordel likt over alle vekene
   if (!aktive.length) aktive = veker.map(v => ({ ...v, kap: 1 }))
-  const form = FORM[el.fordeling] || FORM.fast
   const n = aktive.length
-  const vekt = aktive.map((v, i) => v.kap * form(n === 1 ? 0.5 : (i + 0.5) / n))
+  const styrke = el.fordelingStyrke ?? 1
+  const vekt = aktive.map((v, i) => {
+    // «eigen»: brukaren har dratt stolpane sjølv (eigenVekt per veke, nøkkel = måndag)
+    if (el.fordeling === 'eigen') return v.kap * Math.max(0.02, +(el.eigenVekt?.[format(v.mandag, 'yyyy-MM-dd')] ?? 1))
+    return v.kap * formVekt(el.fordeling || 'fast', n === 1 ? 0.5 : (i + 0.5) / n, styrke)
+  })
   const sum = vekt.reduce((a, b) => a + b, 0)
   const rund = vekt.map(w => Math.round((w / sum) * total * 2) / 2)
   // juster slik at summen blir nøyaktig `total`: legg avviket på den største veka
@@ -63,6 +72,36 @@ export function personDelar(e) {
   if (p.length) return p.map(x => ({ namn: x.namn.trim(), del: +x.del }))
   const a = (e.ansvarleg || '').trim()
   return a ? [{ namn: a, del: 100 }] : []
+}
+
+// ── Timepris og budsjett ────────────────────────────────────────────
+// Ein aktivitet kan ha FORVENTA TIMAR (fast) eller eit BUDSJETT (fastpris, kr; modus 'budsjett'). Med budsjett er
+// timane eit RESULTAT: budsjett ÷ snittpris, der snittprisen er vekta med personfordelinga — fordelinga er alltid
+// prosent av TIMANE (ikkje av beløpet): snittpris = Σ (del_i % × timepris_i).
+export const prisKartFra = (personell) => new Map((personell || []).filter(p => +p.timepris > 0).map(p => [p.namn.trim().toLowerCase(), +p.timepris]))
+
+export function snittpris(el, prisar) {
+  const delar = personDelar(el)
+  if (!delar.length) return { pris: 0, manglar: [], utanPersonar: true }
+  const manglar = delar.filter(d => !prisar.get(d.namn.toLowerCase())).map(d => d.namn)
+  const pris = delar.reduce((s, d) => s + (d.del / 100) * (prisar.get(d.namn.toLowerCase()) || 0), 0)
+  return { pris, manglar, utanPersonar: false }
+}
+
+// Effektive timar for ein aktivitet (frå budsjett viss modus = 'budsjett')
+export function effektiveTimar(el, prisar) {
+  if (el.type !== 'aktivitet') return +el.timar || 0
+  if (el.modus === 'budsjett') {
+    const { pris } = snittpris(el, prisar)
+    return pris > 0 ? Math.round(((+el.budsjett || 0) / pris) * 2) / 2 : 0
+  }
+  return +el.timar || 0
+}
+
+// Heile planen med effektive timar (for visning/utrekning; redigering brukar råplanen)
+export const medEffektiveTimar = (elementer, personell) => {
+  const prisar = prisKartFra(personell)
+  return elementer.map(e => (e.type === 'aktivitet' && e.modus === 'budsjett' ? { ...e, timar: effektiveTimar(e, prisar) } : e))
 }
 
 // Timar per veke for heile planen, med fordeling per ansvarleg person.

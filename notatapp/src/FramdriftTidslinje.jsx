@@ -5,6 +5,8 @@ import { helligdagNamn } from './helligdagar'
 import { tilDato, formaterDato } from './framdriftDato'
 import { beregnDatoar, harBorn, avhengnadFeil } from './framdriftLogikk'
 import { effektivFerdig, faseFerdig } from './framdriftFerdig'
+import { fordelTimar, personDelar } from './framdriftTimar'
+import { PERSONFARGAR } from './FramdriftPersonarPanel'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Tidslinja (Gantt) i Framdrift-modulen — sjå claude/framdrift-modul.md.
@@ -26,7 +28,7 @@ const MOTE_FARGE = '#1565C0'
 const VALG_FARGE = '#1E3A8A'
 
 export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
-                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh }) {
+                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida }) {
   const dagB = DAGB[zoom] || DAGB.veke
   const scrollRef = useRef(null)
   const [drag, setDrag] = useState(null) // { id, modus, d }
@@ -110,9 +112,12 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
   const harTimar = visTimar && timarKart && timarKart.size > 0
   const maksTimar = harTimar ? Math.max(...[...timarKart.values()].map(v => v.total)) : 0
   const sumTimar = harTimar ? [...timarKart.values()].reduce((s2, v) => s2 + v.total, 0) : 0
+  const kanUtvide = (e) => e.type === 'aktivitet' && +e.timar > 0 && personDelar(e).length > 0
   const radar = [
     ...(visHendingar ? [{ id: '__hendingar', type: 'hendingar' }] : []),
-    ...rader,
+    ...rader.flatMap(e => (utvida?.has(e.id) && kanUtvide(e)
+      ? [e, ...personDelar(e).map((p, i) => ({ id: 'p:' + e.id + ':' + p.namn, type: 'person', akt: e, namn: p.namn, del: p.del, farge: PERSONFARGAR[i % PERSONFARGAR.length] }))]
+      : [e])),
     ...(harTimar ? [{ id: '__timar', type: 'timar' }] : []),
   ]
   const radIndeks = new Map(radar.map((r, i) => [r.id, i]))
@@ -151,7 +156,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
       const r = rect()
       const idx = Math.floor((e2.clientY - r.top) / RAD_H)
       const mal = radar[idx]
-      if (!mal || mal.id === el.id || mal.type === 'hendingar' || mal.type === 'timar') return { malId: null, ok: false }
+      if (!mal || mal.id === el.id || mal.type === 'hendingar' || mal.type === 'timar' || mal.type === 'person') return { malId: null, ok: false }
       return { malId: mal.id, ok: !avhengnadFeil(elementer, mal.id, el.id) }
     }
     const mv = (e2) => { const r = rect(); setKobling({ fraId: el.id, x: e2.clientX - r.left, y: e2.clientY - r.top, ...finnMal(e2) }) }
@@ -281,6 +286,17 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                   </div>
                 )
               }
+              if (r.type === 'person') {
+                return (
+                  <div key={r.id} onClick={() => onVelg(r.akt.id)} style={{ height: RAD_H, display: 'flex', alignItems: 'center', gap: 7, paddingLeft: 10 + ((r.akt.nivå || 0) + 1) * 20 + 16,
+                    paddingRight: 8, borderBottom: '1px solid var(--border)', background: 'var(--bg3)', cursor: 'pointer' }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 3, background: r.farge, flexShrink: 0 }}/>
+                    <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text2)' }}>{r.namn}</span>
+                    {r.akt.personar?.length > 1 && <span style={{ fontSize: 10.5, color: 'var(--text3)' }}>{r.del}%</span>}
+                    <span style={{ fontSize: 10.5, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{Math.round((+r.akt.timar || 0) * r.del / 100 * 2) / 2} t</span>
+                  </div>
+                )
+              }
               const erFase = r.type === 'fase'
               const sel = valgt === r.id
               return (
@@ -294,6 +310,9 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                     <button type="button" onClick={e => { e.stopPropagation(); onToggleLukka(r.id) }}
                       style={{ border: 'none', background: 'transparent', cursor: 'pointer', width: 16, padding: 0,
                         fontSize: 11, color: 'var(--text3)' }}>{lukka.has(r.id) ? '▸' : '▾'}</button>
+                  ) : kanUtvide(r) && onToggleUtvida ? (
+                    <button type="button" onClick={e => { e.stopPropagation(); onToggleUtvida(r.id) }} title={utvida?.has(r.id) ? 'Skjul personar' : 'Vis personar og timar per veke'}
+                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', width: 16, padding: 0, fontSize: 11, color: 'var(--brand)', fontWeight: 800 }}>{utvida?.has(r.id) ? '▾' : '▸'}</button>
                   ) : <span style={{ width: 16, flexShrink: 0 }}/>}
                   <span style={{ width: r.type === 'milepael' ? 9 : 10, height: r.type === 'milepael' ? 9 : 10, flexShrink: 0,
                     background: fargeFor(r), transform: r.type === 'milepael' ? 'rotate(45deg)' : undefined,
@@ -358,6 +377,22 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                   {dagB * 7 >= 24 ? tekst : ''}
                 </div>
               )
+            })}
+
+            {/* Person-underrader: timar per veke for kvar person */}
+            {radar.filter(r => r.type === 'person').map(r => {
+              const i = radIndeks.get(r.id)
+              const vk = fordelTimar(r.akt, kal)
+              return vk.map(v => {
+                const t = Math.round(v.timar * r.del / 100 * 10) / 10
+                return (
+                  <div key={r.id + v.veke} title={r.namn + ' — veke ' + getISOWeek(tilDato(v.veke)) + ': ' + t + ' t'}
+                    style={{ position: 'absolute', left: x(tilDato(v.veke)) + 1, width: dagB * 7 - 2, top: i * RAD_H + 5, height: RAD_H - 10, borderRadius: 4,
+                      background: r.farge + '33', color: 'var(--text)', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 3 }}>
+                    {dagB * 7 >= 24 && t > 0 ? t : ''}
+                  </div>
+                )
+              })
             })}
 
             {/* Avhengnadspilar */}
