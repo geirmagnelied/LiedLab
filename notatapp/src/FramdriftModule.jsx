@@ -604,7 +604,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                 forbrukKart={forbrukKart} fargeKart={fargeKart} dokument={dokument} hogde={bemH} open={bemOpen}
                 onHogde={(h, ferdig) => { setBemH(h); if (ferdig) { try { localStorage.setItem('liedlab-framdrift-bem-h', String(h)) } catch { /* privat modus */ } } }}
                 onOpen={v => { setBemOpen(v); try { localStorage.setItem('liedlab-framdrift-bem-open', v ? '1' : '0') } catch { /* privat modus */ } }}
-                onEndrePersonar={arr => sel && settFelt(sel.id, 'personar', arr)}
+                onEndre={patch => sel && settFelter(sel.id, patch)}
                 onKopleLeveransar={() => { lastDokument(); setLeveransarOpen(true) }}
                 onFerdigModus={m => sel && settFelt(sel.id, 'ferdigModus', m)} onFerdig={n => sel && settFelt(sel.id, 'ferdig', n)}/>
               </div>

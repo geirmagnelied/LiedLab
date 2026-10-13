@@ -27,7 +27,8 @@ export const KOLONNE_DEF = [
   { key: 'palopHonorar', label: 'Påløpt kostnad', w: 100, hogre: true },
   { key: 'gjenTimar',    label: 'Gjenst. timar', w: 90, hogre: true },
   { key: 'gjenBudsjett', label: 'Gjenst. budsjett', w: 110, hogre: true },
-  { key: 'avh',          label: 'Startar etter', w: 150 },
+  { key: 'avh',          label: 'Forgjengere',  w: 150 },
+  { key: 'etterf',       label: 'Etterfølgere', w: 150 },
 ]
 
 const TYPE_NAMN = { fase: 'Fase', aktivitet: 'Aktivitet', milepael: 'Milepæl' }
@@ -55,7 +56,7 @@ export function bygVerdiar({ elementer, dokMap, prisar }) {
       case 'start': return formaterDato(e.start)
       case 'slutt': return e.type === 'milepael' ? '' : formaterDato(e.slutt)
       case 'varig': return e.type === 'milepael' ? '' : antalArbeidsdagar(e)
-      case 'ansvarleg': { const p = personDelar(e); return (e.personar || []).length ? p.map(x => x.namn + (p.length > 1 ? ' ' + x.del + '%' : '')).join(', ') : (e.ansvarleg || '') }
+      case 'ansvarleg': { const p = personDelar(e); return (e.personar || []).length ? p.map(x => x.namn + (p.length > 1 ? ' ' + Math.round(x.del * 10) / 10 + '%' : '')).join(', ') : (e.ansvarleg || '') }
       case 'ferdig': return e.type === 'aktivitet' ? effektivFerdig(e, dokMap) : e.type === 'fase' ? faseFerdig(elementer, e, dokMap) : ''
       case 'levnr': return e.type === 'aktivitet' && !erSammen(e) ? ((e.leveransar || []).length || '') : ''
       case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjettType || '') : ''
@@ -81,6 +82,7 @@ export function bygVerdiar({ elementer, dokMap, prisar }) {
         const v = !erSammen(e) ? ((+e.budsjett || palopHon(e)) ? g(e) : '') : sumBlad(e, g)
         return v === '' || v === 0 ? (v === 0 && erSammen(e) ? '' : v) : Math.round(v)
       }
+      case 'etterf': return elementer.filter(x => (x.avh || []).includes(e.id)).map(x => x.namn).join(', ')
       case 'avh': return (e.avh || []).map(namnPaId).filter(Boolean).join(', ')
       default: return ''
     }

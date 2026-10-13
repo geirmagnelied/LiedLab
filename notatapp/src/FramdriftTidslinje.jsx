@@ -422,7 +422,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                     paddingRight: 8, borderBottom: '1px solid var(--border)', background: 'var(--bg3)', cursor: 'pointer' }}>
                     <span style={{ width: 9, height: 9, borderRadius: 3, background: r.farge, flexShrink: 0 }}/>
                     <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text2)' }}>{r.namn}</span>
-                    {r.akt.personar?.length > 1 && <span style={{ fontSize: 10.5, color: 'var(--text3)' }}>{r.del}%</span>}
+                    {r.akt.personar?.length > 1 && <span style={{ fontSize: 10.5, color: 'var(--text3)' }}>{Math.round(r.del * 10) / 10}%</span>}
                     <span style={{ fontSize: 10.5, color: 'var(--text3)', fontFamily: 'var(--mono)' }} title="planlagt / påløpt">{Math.round((+r.akt.timar || 0) * r.del / 100 * 2) / 2} t{(() => { const f = faktiskFor(forbrukKart?.get(r.akt.id), r.namn); return f ? <b style={{ color: '#1565C0' }}> / {Math.round(f.total * 10) / 10}</b> : null })()}</span>
                   </div>
                 )

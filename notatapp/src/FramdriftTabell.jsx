@@ -168,7 +168,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
       case 'start': return formaterDato(e.start)
       case 'slutt': return formaterDato(e.slutt)
       case 'varig': return e.type === 'milepael' ? '' : antalArbeidsdagar(e)
-      case 'ansvarleg': { const p = personDelar(e); return (e.personar || []).length ? p.map(x => x.namn + (p.length > 1 ? ' ' + x.del + '%' : '')).join(', ') : (e.ansvarleg || '') }
+      case 'ansvarleg': { const p = personDelar(e); return (e.personar || []).length ? p.map(x => x.namn + (p.length > 1 ? ' ' + Math.round(x.del * 10) / 10 + '%' : '')).join(', ') : (e.ansvarleg || '') }
       case 'ferdig': return e.type === 'aktivitet' ? effektivFerdig(e, dokMap) : e.type === 'fase' ? faseFerdig(elementer, e, dokMap) : ''
       case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjettType || '') : ''
       case 'budsjett': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjett || '') : e.type !== 'milepael' ? (bladUnder(e).reduce((a, c) => a + (+c.budsjett || 0), 0) || '') : ''
@@ -215,7 +215,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
     if (e.type === 'person') {
       return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, paddingLeft: 26, color: 'var(--text2)' }}>
         <span style={{ width: 9, height: 9, borderRadius: 3, background: e.farge, flexShrink: 0 }}/>{e.namn}
-        {e.akt.personar?.length > 1 && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{e.del}%</span>}
+        {e.akt.personar?.length > 1 && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{Math.round(e.del * 10) / 10}%</span>}
       </span>
     }
     const innrykk = (e.nivå || 0) * 16
