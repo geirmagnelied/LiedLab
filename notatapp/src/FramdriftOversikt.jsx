@@ -93,7 +93,7 @@ export default function FramdriftOversikt({ prosjektNamn, elementer, dokMap, tim
               </div>
             ))}
           </div>
-          {forbrukUtanTimar > 0 && <div style={{ fontSize: 11.5, color: 'var(--danger)', marginTop: 4 }}>{Math.round(forbrukUtanTimar * 10) / 10} t er ikkje kopla til ein aktivitet (sett «Aktivitetskode» på aktiviteten).</div>}
+          {forbrukUtanTimar > 0 && <div style={{ fontSize: 11.5, color: 'var(--danger)', marginTop: 4 }}>{Math.round(forbrukUtanTimar * 10) / 10} t er ikkje kopla til ein aktivitet (legg aktivitetsnummeret foran aktivitetsnamnet).</div>}
         </div>
       )}
 

@@ -5,8 +5,8 @@ import { parseForbruk, kopleForbruk } from './framdriftForbruk'
 // ═══════════════════════════════════════════════════════════════════
 //  Importer forbruk (påløpte timar) frå timeføringsrapporten (Excel: Dato, Periode, Ansatt, Aktivitet, Timer,
 //  Beskrivelse). Rapporten sin periode (t.d. 01.09.–30.09.) vert ERSTATTA i prosjektet, så ein kan importere ei
-//  oppdatert rapport utan å få timane dobbelt. Aktivitetar vert kopla på aktivitetskode (kode, eller «611 …» i namnet),
-//  elles på namn; timar utan kopling vert lista her og lagra, og kjem med så snart ein aktivitet får rett kode.
+//  oppdatert rapport utan å få timane dobbelt. Aktivitetar vert kopla på aktivitetsNUMMERET som står først i namnet («611 ARK …») eller i feltet Aktivitetskode —
+//  namnet elles vert ikkje brukt, så det kan endrast fritt; timar utan kopling vert lista her og lagra, og kjem med så snart ein aktivitet får rett kode.
 //  Same format vert lese av den ukentlege automatiske importen (scripts/importer-forbruk.mjs).
 // ═══════════════════════════════════════════════════════════════════
 
@@ -92,7 +92,7 @@ export default function FramdriftForbrukModal({ userId, prosjekt, elementer, onL
                     return (
                       <tr key={a}>
                         <td style={td}>{a || '(utan aktivitet)'}</td>
-                        <td style={{ ...td, color: e ? 'var(--text)' : 'var(--danger)', fontWeight: e ? 600 : 700 }}>{e ? '✓ ' + e.namn : 'Ikkje kopla — set «Aktivitetskode» ' + (rader[0].kode || '') + ' på rett aktivitet'}</td>
+                        <td style={{ ...td, color: e ? 'var(--text)' : 'var(--danger)', fontWeight: e ? 600 : 700 }}>{e ? '✓ ' + e.namn : 'Ikkje kopla — legg nummeret ' + (rader[0].kode || '') + ' foran aktivitetsnamnet (t.d. «' + (rader[0].kode || '') + ' …»)'}</td>
                         <td style={{ ...td, textAlign: 'right', fontFamily: 'var(--mono)' }}>{fmt(t)}</td>
                       </tr>
                     )
@@ -100,7 +100,7 @@ export default function FramdriftForbrukModal({ userId, prosjekt, elementer, onL
                 </tbody>
               </table>
               <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                {fmt(koplaTimar)} t av {fmt(sum)} t vert kopla til aktivitetar. Timar utan kopling vert likevel lagra, og kjem med når ein aktivitet får rett aktivitetskode (kolonnen «Aktivitetskode» i tabellen).
+                {fmt(koplaTimar)} t av {fmt(sum)} t vert kopla til aktivitetar. Timar utan kopling vert likevel lagra, og kjem med så snart ein aktivitet får rett nummer foran namnet (eller i kolonnen «Aktivitetskode»).
               </div>
             </>
           )}

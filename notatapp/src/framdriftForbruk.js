@@ -88,20 +88,29 @@ export function parseForbruk(aoa) {
 }
 
 // ── Kopling til aktivitetane i planen ──────────────────────────────────
-const norm = (s) => String(s || '').toLowerCase().replace(/^\s*\S*\d\S*\s+/, '').replace(/[^a-z0-9æøå]+/g, '')
-const utanKode = (s) => String(s || '').replace(/^\s*\S*\d\S*\s*[-–]?\s*/, '')
+// Aktivitetsnamn kan endre seg, aktivitetsnummer gjer det ikkje: ein aktivitet vert kopla på NUMMERET som står FØRST i namnet
+// («611 ARK prosjektering» → 611), eller på feltet «Aktivitetskode» (kode) viss det er sett. Namnet elles vert ikkje brukt.
+export const aktivitetsnummer = (e) => {
+  const k = String(e.kode || '').trim()
+  if (k) return k.toLowerCase()
+  const m = /^\s*(\S*\d\S*)(?=\s|$|-)/.exec(String(e.namn || ''))
+  return m ? m[1].toLowerCase() : ''
+}
 
 // → { perAkt: Map(aktivitetId → rader[]), utan: Map(aktivitetsstreng → { timar, kode }) }
 export function kopleForbruk(elementer, rader) {
-  const akt = elementer.filter(e => e.type === 'aktivitet')
   const foreldre = new Set(elementer.filter(e => e.forelder != null).map(e => e.forelder))
+  const perNr = new Map()
+  for (const e of elementer.filter(x => x.type === 'aktivitet')) {
+    const nr = aktivitetsnummer(e)
+    if (!nr) continue
+    if (!perNr.has(nr)) perNr.set(nr, [])
+    perNr.get(nr).push(e)
+  }
   const finn = (r) => {
-    const kode = (r.kode || '').toLowerCase()
-    const bladForst = (liste) => liste.find(e => !foreldre.has(e.id) && !e.summ) || liste[0]
-    let treff = kode ? akt.filter(e => (e.kode || '').toLowerCase() === kode) : []
-    if (!treff.length) treff = akt.filter(e => e.namn.trim().toLowerCase() === r.aktivitet.toLowerCase() || (kode && new RegExp('^' + kode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\s|$|-)', 'i').test(e.namn.trim())))
-    if (!treff.length) { const n = norm(r.aktivitet) || norm(utanKode(r.aktivitet)); treff = n ? akt.filter(e => norm(e.namn) === n || norm(utanKode(e.namn)) === n) : [] }
-    return treff.length ? bladForst(treff) : null
+    const liste = perNr.get((r.kode || '').toLowerCase())
+    if (!liste || !liste.length) return null
+    return liste.find(e => !foreldre.has(e.id) && !e.summ) || liste[0] // blad-aktivitet går føre ein summasjon med same nummer
   }
   const perAkt = new Map(), utan = new Map()
   for (const r of rader) {
