@@ -35,7 +35,9 @@ const BASE_KOLONNAR = [
   { key: 'budsjett',  label: 'Budsjett kr', art: 'tal',   redigerbar: true, w: 110 },
   { key: 'timerate',  label: 'Timerate kr/t', art: 'tal', redigerbar: true, ikkjeSummer: true, w: 110 },
   { key: 'palopTimar', label: 'Påløpte timar', art: 'tal', redigerbar: true, w: 110 },
-  { key: 'palopHonorar', label: 'Påløpt honorar kr', art: 'tal', redigerbar: true, w: 140 },
+  { key: 'palopHonorar', label: 'Påløpt kostnad kr', art: 'tal', redigerbar: true, w: 140 },
+  { key: 'gjenTimar', label: 'Gjenstående timar', art: 'tal', beregna: true, w: 120 },
+  { key: 'gjenBudsjett', label: 'Gjenstående budsjett kr', art: 'tal', beregna: true, w: 150 },
   { key: 'timar',     label: 'Timar',       art: 'tal',   redigerbar: true, w: 80 },
   { key: 'fordeling', label: 'Fordeling',   art: 'val',   redigerbar: true, val: ['Fast', 'Start', 'Midt', 'Slutt'], w: 100 },
   { key: 'avh',       label: 'Startar etter', art: 'tekst', beregna: true, utanFilter: true, w: 240 },
@@ -177,6 +179,18 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
         return t > 0 ? (Math.round(b.reduce((a, c) => a + (+c.timar || 0) * rateFor(c), 0) / t) || '') : ''
       }
       case 'palopTimar': return e.type === 'milepael' ? '' : !erSammen(e) ? (e.palopTimar ?? '') : (bladUnder(e).reduce((a, c) => a + (+c.palopTimar || 0), 0) || '')
+      case 'gjenTimar': {
+        if (e.type === 'milepael') return ''
+        const g = (c) => (+c.timar || 0) - (+c.palopTimar || 0)
+        const v = !erSammen(e) ? ((+e.timar || +e.palopTimar) ? g(e) : '') : bladUnder(e).reduce((a, c) => a + g(c), 0)
+        return v === '' ? '' : Math.round(v * 10) / 10
+      }
+      case 'gjenBudsjett': {
+        if (e.type === 'milepael') return ''
+        const g = (c) => (+c.budsjett || 0) - palopHon(c)
+        const v = !erSammen(e) ? ((+e.budsjett || palopHon(e)) ? g(e) : '') : bladUnder(e).reduce((a, c) => a + g(c), 0)
+        return v === '' ? '' : Math.round(v)
+      }
       case 'palopHonorar': return e.type === 'milepael' ? '' : !erSammen(e) ? (palopHon(e) || '') : (bladUnder(e).reduce((a, c) => a + palopHon(c), 0) || '')
       case 'levnr': return e.type === 'aktivitet' ? ((e.leveransar || []).length || '') : ''
       case 'timar': return e.type === 'milepael' ? '' : !erSammen(e) ? (e.timar || 0) : bladUnder(e).reduce((a, c) => a + (+c.timar || 0), 0)

@@ -17,7 +17,7 @@ export const PERSONFARGAR = PALETT
 const sum = (liste) => liste.reduce((a, p) => a + p.del, 0)
 
 // Fordel `mengd` prosent på dei ulåste (i same forhold som dei har no, elles jamt); rest til den største
-function fordelPaaUlaaste(personar, mengd) {
+export function fordelPaaUlaaste(personar, mengd) {
   const ny = personar.map(p => ({ ...p }))
   const fri = ny.filter(p => !p.last)
   if (!fri.length) return ny

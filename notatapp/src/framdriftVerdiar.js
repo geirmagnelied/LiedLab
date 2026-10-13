@@ -10,7 +10,7 @@ import { personDelar, snittpris } from './framdriftTimar'
 
 export const KOLONNE_DEF = [
   { key: 'pns',          label: 'PNS',          w: 64 },
-  { key: 'kode',         label: 'Kode',         w: 70 },
+  { key: 'kode',         label: 'Aktivitetskode', w: 104 },
   { key: 'type',         label: 'Type',         w: 84 },
   { key: 'fase',         label: 'Overordna',    w: 130 },
   { key: 'start',        label: 'Start',        w: 84 },
@@ -24,11 +24,17 @@ export const KOLONNE_DEF = [
   { key: 'timerate',     label: 'Timerate',     w: 76, hogre: true },
   { key: 'timar',        label: 'Timar',        w: 64, hogre: true },
   { key: 'palopTimar',   label: 'Påløpt t',     w: 72, hogre: true },
-  { key: 'palopHonorar', label: 'Påløpt kr',    w: 90, hogre: true },
+  { key: 'palopHonorar', label: 'Påløpt kostnad', w: 100, hogre: true },
+  { key: 'gjenTimar',    label: 'Gjenst. timar', w: 90, hogre: true },
+  { key: 'gjenBudsjett', label: 'Gjenst. budsjett', w: 110, hogre: true },
   { key: 'avh',          label: 'Startar etter', w: 150 },
 ]
 
 const TYPE_NAMN = { fase: 'Fase', aktivitet: 'Aktivitet', milepael: 'Milepæl' }
+
+// Kolonnar som kan redigerast direkte i tabellen (dobbeltklikk). Summasjonar/fasar: berre namn, kode og ansvarleg.
+export const REDIGERBARE = new Set(['namn', 'kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'btype', 'budsjett', 'timerate', 'timar', 'palopTimar', 'palopHonorar'])
+export const BTYPAR = ['', 'Fastpris', 'Budsjettpris', 'Ufakturerbart']
 
 export function bygVerdiar({ elementer, dokMap, prisar }) {
   const pns = pnsKart(elementer)
@@ -63,6 +69,18 @@ export function bygVerdiar({ elementer, dokMap, prisar }) {
       case 'timar': return e.type === 'milepael' ? '' : !erSammen(e) ? (e.timar || 0) : sumBlad(e, c => +c.timar || 0)
       case 'palopTimar': return e.type === 'milepael' ? '' : !erSammen(e) ? (e.palopTimar ?? '') : (sumBlad(e, c => +c.palopTimar || 0) || '')
       case 'palopHonorar': return e.type === 'milepael' ? '' : !erSammen(e) ? (palopHon(e) || '') : (sumBlad(e, palopHon) || '')
+      case 'gjenTimar': {
+        if (e.type === 'milepael') return ''
+        const g = (c) => (+c.timar || 0) - (+c.palopTimar || 0)
+        const v = !erSammen(e) ? ((+e.timar || +e.palopTimar) ? g(e) : '') : sumBlad(e, g)
+        return v === '' ? '' : Math.round(v * 10) / 10
+      }
+      case 'gjenBudsjett': {
+        if (e.type === 'milepael') return ''
+        const g = (c) => (+c.budsjett || 0) - palopHon(c)
+        const v = !erSammen(e) ? ((+e.budsjett || palopHon(e)) ? g(e) : '') : sumBlad(e, g)
+        return v === '' || v === 0 ? (v === 0 && erSammen(e) ? '' : v) : Math.round(v)
+      }
       case 'avh': return (e.avh || []).map(namnPaId).filter(Boolean).join(', ')
       default: return ''
     }

@@ -7,15 +7,15 @@ import FramdriftOversikt from './FramdriftOversikt'
 import FramdriftImportModal from './FramdriftImportModal'
 import FramdriftTimarPanel from './FramdriftTimarPanel'
 import { sikrStandardPersonell } from './personellStandard'
-import FramdriftPersonarPanel from './FramdriftPersonarPanel'
+import FramdriftBemanning from './FramdriftBemanning'
 import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
 import { personFargeKart } from './personFarge'
 import { eksporterExcel } from './framdriftEksport'
 import FramdriftForbrukModal from './FramdriftForbrukModal'
-import { kopleForbruk, bygForbrukKart } from './framdriftForbruk'
+import { kopleForbruk, bygForbrukKart, nokkelNamn } from './framdriftForbruk'
 import { leveransarFerdig, effektivFerdig, brukarAuto, faseFerdig } from './framdriftFerdig'
 import useKontorkalender from './useKontorkalender'
-import { timarPerVeke, overbelastning, medEffektiveTimar, personDelar, prisKartFra } from './framdriftTimar'
+import { timarPerVeke, overbelastning, medEffektiveTimar, personDelar, prisKartFra, snittpris, prisFor } from './framdriftTimar'
 import { MALAR } from './framdriftMalar'
 import { iso, tilDato, parseDato, nesteArbeidsdag, forrigeArbeidsdag, formaterDato } from './framdriftDato'
 import {
@@ -102,6 +102,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const veksleOpen = (v) => { setPanelOpen(v); try { localStorage.setItem('liedlab-framdrift-panel-open', v ? '1' : '0') } catch { /* privat modus */ } }
   const [forbrukRader, setForbrukRader] = useState([]) // framdrift_forbruk for valt prosjekt (påløpte timar per dato/person/aktivitet)
   const [forbrukOpen, setForbrukOpen] = useState(false)
+  const [bemH, setBemH] = useState(() => { try { const v = +localStorage.getItem('liedlab-framdrift-bem-h'); return v >= 120 ? v : 230 } catch { return 230 } })
+  const [bemOpen, setBemOpen] = useState(() => { try { return localStorage.getItem('liedlab-framdrift-bem-open') !== '0' } catch { return true } })
   const [eksportMeny, setEksportMeny] = useState(false)
   const [eksporterer, setEksporterer] = useState(false)
   const [koblingMelding, setKoblingMelding] = useState(null)
@@ -238,8 +240,18 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   // Påløpte timar frå forbruksrapporten (importert) går føre manuelt innskrivne
   const elEff = useMemo(() => elBase.map(e => {
     const a = e.type === 'aktivitet' ? forbrukKart.get(e.id) : null
-    return a && !harBorn(elBase, e.id) ? { ...e, palopTimar: Math.round(a.total * 100) / 100, palopKilde: 'forbruk' } : e
-  }), [elBase, forbrukKart])
+    if (!a || harBorn(elBase, e.id)) return e
+    const prisarMap = prisKartFra(personell)
+    const delar = personDelar(e)
+    const snitt = snittpris(e, prisarMap).pris
+    let kost = 0
+    for (const [namn, p] of a.personer) {
+      const d = delar.find(x => nokkelNamn(x.namn) === nokkelNamn(namn))
+      const r = d ? prisFor(d, prisarMap) : (prisarMap.get((namn || '').toLowerCase()) || 0)
+      kost += p.total * (r || snitt || 0)
+    }
+    return { ...e, palopTimar: Math.round(a.total * 100) / 100, palopKilde: 'forbruk', ...(kost > 0 ? { palopHonorar: Math.round(kost) } : {}) }
+  }), [elBase, forbrukKart, personell])
   const rader = useMemo(() => visingsrader(elEff, lukka), [elEff, lukka])
   const fargeKart = useMemo(() => personFargeKart(personell), [personell])
   const timarKart = useMemo(() => timarPerVeke(elEff, kal), [elEff, kal])
@@ -482,29 +494,10 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                   </label>
 
                   <FargeVelgar verdi={sel.farge || ''} onVelg={f => settFelt(sel.id, 'farge', f)}/>
-                  {erRullaFase(sel) ? (
-                    <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 }}>
-                      {formaterDato(sel.start)} – {formaterDato(sel.slutt)}<br/>
-                      Datoane følgjer underaktivitetane. Dra stolpen på tidslinja for å flytte alle samstundes.
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                        <span className="fd-etikett">{sel.type === 'milepael' ? 'Dato' : 'Start'}</span>
-                        <TekstFelt type="date" verdi={sel.start} onLagre={v => settStart(sel.id, v)}/>
-                      </label>
-                      {sel.type !== 'milepael' && (
-                        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                          <span className="fd-etikett">Slutt</span>
-                          <TekstFelt type="date" verdi={sel.slutt} onLagre={v => settSlutt(sel.id, v)}/>
-                        </label>
-                      )}
-                    </div>
-                  )}
-                  {sel.type !== 'milepael' && (
-                    <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{antalArbeidsdagar(sel)} arbeidsdagar</div>
-                  )}
-
+                  <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6, background: 'var(--bg3)', borderRadius: 7, padding: '6px 9px' }}>
+                    {formaterDato(sel.start)}{sel.type !== 'milepael' ? ' – ' + formaterDato(sel.slutt) + ' · ' + antalArbeidsdagar(sel) + ' arbeidsdagar' : ''}<br/>
+                    <span style={{ fontSize: 11 }}>{erRullaFase(sel) ? 'Datoane følgjer underaktivitetane.' : 'Datoar, timar, budsjett, timerate og ansvarleg skriv du direkte i tabellen (dobbeltklikk).'}</span>
+                  </div>
                   {sel.type === 'fase' && (
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <span className="fd-etikett">Fasekode (teikningsnummer)</span>
@@ -539,41 +532,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                       {erSumm(elementer, sel) ? '✓ Summasjonsaktivitet — opphev' : '∑ Marker som summasjonsaktivitet'}
                     </button>
                   )}
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <span className="fd-etikett">Ansvarleg</span>
-                    <TekstFelt verdi={sel.ansvarleg || ''} list="fd-personell" placeholder={personell.length ? 'Vel frå personell, eller skriv' : ''} onLagre={v => settFelt(sel.id, 'ansvarleg', v.trim())}/>
-                  </label>
-                  {sel.type === 'aktivitet' && !erSumm(elementer, sel) && (() => {
-                    const auto = brukarAuto(sel, dokMap)
-                    const res = leveransarFerdig(sel, dokMap)
-                    const antal = (sel.leveransar || []).length
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <span className="fd-etikett">Framdrift: {effektivFerdig(sel, dokMap)} %{auto ? ' (frå leveransar)' : antal ? ' (skjønn)' : ''}</span>
-                        {!auto && (
-                          <input type="range" min="0" max="100" step="5" value={sel.ferdig || 0}
-                            onChange={e => settFelt(sel.id, 'ferdig', +e.target.value)}/>
-                        )}
-                        {auto && <div style={{ height: 8, borderRadius: 4, background: 'var(--bg3)', overflow: 'hidden' }}>
-                          <div style={{ width: res.prosent + '%', height: '100%', background: '#0F766E' }}/></div>}
-                        <button className="fd-knapp" onClick={() => { lastDokument(); setLeveransarOpen(true) }}>
-                          ⛓ Kople leveransar{antal ? ' (' + antal + ')' : '…'}
-                        </button>
-                        {antal > 0 && (
-                          <div className="fd-seg" style={{ alignSelf: 'flex-start' }}>
-                            <button className={auto ? 'pa' : ''} onClick={() => settFelt(sel.id, 'ferdigModus', 'auto')}>Auto</button>
-                            <button className={!auto ? 'pa' : ''} onClick={() => settFelt(sel.id, 'ferdigModus', 'skjonn')}>Skjønn</button>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })()}
-
                   {sel.type === 'aktivitet' && !erSumm(elementer, sel) && (
                     <FramdriftTimarPanel el={selEff} kal={kal} personell={personell} onEndre={p => settFelter(sel.id, p)}/>
-                  )}
-                  {sel.type === 'aktivitet' && !erSumm(elementer, sel) && (
-                    <FramdriftPersonarPanel fargeKart={fargeKart} el={selEff} personell={personell} prisar={prisKartFra(personell)} onEndre={p => settFelt(sel.id, 'personar', p)}/>
                   )}
                   {sel.type !== 'milepael' && erSumm(elementer, sel) && (() => {
                     const blad = etterkommarar(elEff, sel.id).filter(c => c.type === 'aktivitet' && !harBorn(elEff, c.id))
@@ -628,8 +588,10 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                   </>)}
                 </div>
               )}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+              <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
               {visning === 'tidslinje' ? (
-                <FramdriftTidslinje forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
+                <FramdriftTidslinje onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
                   onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
                   timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
                   onKoble={koble} onFjernAvh={fjernAvh} onFlyttHierarki={flyttHierarki}
@@ -637,6 +599,15 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
               ) : (
                 <FramdriftTabell forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
               )}
+              </div>
+              <FramdriftBemanning el={selEff && selEff.type === 'aktivitet' ? selEff : null} summ={!!(sel && erSumm(elementer, sel))} personell={personell} prisar={prisKartFra(personell)}
+                forbrukKart={forbrukKart} fargeKart={fargeKart} dokument={dokument} hogde={bemH} open={bemOpen}
+                onHogde={(h, ferdig) => { setBemH(h); if (ferdig) { try { localStorage.setItem('liedlab-framdrift-bem-h', String(h)) } catch { /* privat modus */ } } }}
+                onOpen={v => { setBemOpen(v); try { localStorage.setItem('liedlab-framdrift-bem-open', v ? '1' : '0') } catch { /* privat modus */ } }}
+                onEndrePersonar={arr => sel && settFelt(sel.id, 'personar', arr)}
+                onKopleLeveransar={() => { lastDokument(); setLeveransarOpen(true) }}
+                onFerdigModus={m => sel && settFelt(sel.id, 'ferdigModus', m)} onFerdig={n => sel && settFelt(sel.id, 'ferdig', n)}/>
+              </div>
 
             </div>
           )}

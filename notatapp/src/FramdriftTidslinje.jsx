@@ -8,7 +8,7 @@ import { effektivFerdig, faseFerdig } from './framdriftFerdig'
 import { fordelTimar, personDelar } from './framdriftTimar'
 import { personFarge } from './personFarge'
 import { personerMedForbruk, faktiskFor } from './framdriftForbruk'
-import { KOLONNE_DEF, bygVerdiar } from './framdriftVerdiar'
+import { KOLONNE_DEF, bygVerdiar, REDIGERBARE, BTYPAR } from './framdriftVerdiar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Tidslinja (Gantt) i Framdrift-modulen — sjå claude/framdrift-modul.md.
@@ -21,7 +21,7 @@ import { KOLONNE_DEF, bygVerdiar } from './framdriftVerdiar'
 // ═══════════════════════════════════════════════════════════════════
 
 const RAD_H = 34
-const NAMN_B = 300 // breidda på namnekolonna; valde ekstrakolonnar kjem til høgre for ho
+const NAMN_STD = 300 // standardbreidd på namnekolonna; brukaren kan dra ho (og kvar kolonne) breiare/smalare
 const DAGB = { dag: 30, veke: 14, manad: 5, kvartal: 2.2 }
 const FASEFARGAR = ['#2D6A4F', '#1565C0', '#B5296B', '#C2570C', '#0E7490', '#6D28D9', '#8A6D00']
 const NEUTRAL = '#475569'
@@ -30,15 +30,42 @@ const MOTE_FARGE = '#1565C0'
 const VALG_FARGE = '#1E3A8A'
 
 export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
-                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki, fargeKart, prisar, forbrukKart }) {
+                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki, fargeKart, prisar, forbrukKart, onEndreFelt }) {
   const dagB = DAGB[zoom] || DAGB.veke
   // Ekstrakolonnar i tabellen til venstre for tidslinja (høgreklikk på overskrifta). Val vert hugsa på denne maskina.
-  const [valgteKol, setValgteKol] = useState(() => { try { const v = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol')); return Array.isArray(v) ? v : [] } catch { return [] } })
-  const lagreKol = (n) => { setValgteKol(n); try { localStorage.setItem('liedlab-framdrift-tl-kol', JSON.stringify(n)) } catch { /* privat modus */ } }
+  const STANDARD_KOL = ['kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'timar', 'budsjett', 'timerate']
+  const [valgteKol, setValgteKol] = useState(() => { try { const v = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v2')); return Array.isArray(v) ? v : STANDARD_KOL } catch { return STANDARD_KOL } })
+  const lagreKol = (n) => { setValgteKol(n); try { localStorage.setItem('liedlab-framdrift-tl-kol-v2', JSON.stringify(n)) } catch { /* privat modus */ } }
   const [kolMeny, setKolMeny] = useState(null) // { x, y }
   const [persTotOpen, setPersTotOpen] = useState(false)
   const kolDefs = valgteKol.map(k => KOLONNE_DEF.find(d => d.key === k)).filter(Boolean)
-  const VENSTRE = NAMN_B + kolDefs.reduce((a, d) => a + d.w, 0)
+  // Breidder (dratt av brukaren): namnekolonna + kvar ekstrakolonne
+  const [namnB, setNamnB] = useState(() => { try { const v = +localStorage.getItem('liedlab-framdrift-tl-namnb'); return v >= 140 ? v : NAMN_STD } catch { return NAMN_STD } })
+  const [kolB, setKolB] = useState(() => { try { return JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kolb')) || {} } catch { return {} } })
+  const NAMN_B = namnB
+  const kb = (d) => kolB[d.key] ?? d.w
+  const VENSTRE = NAMN_B + kolDefs.reduce((a, d) => a + kb(d), 0)
+  const [redigerer, setRedigerer] = useState(null) // { id, key } — celle i redigering (dobbeltklikk)
+  const startKolResize = (ev, key, bredde0) => {
+    ev.preventDefault(); ev.stopPropagation()
+    const x0 = ev.clientX
+    let siste = bredde0
+    const mv = (e2) => {
+      siste = Math.max(key === '__namn' ? 140 : 44, Math.min(900, Math.round(bredde0 + (e2.clientX - x0))))
+      key === '__namn' ? setNamnB(siste) : setKolB(b => ({ ...b, [key]: siste }))
+    }
+    const opp = () => {
+      window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); document.body.style.cursor = ''
+      try { if (key === '__namn') localStorage.setItem('liedlab-framdrift-tl-namnb', String(siste)); else setKolB(b => { localStorage.setItem('liedlab-framdrift-tl-kolb', JSON.stringify(b)); return b }) } catch { /* privat modus */ }
+    }
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
+  }
+  const handtak = (key, b) => (
+    <div onMouseDown={e => startKolResize(e, key, b)} onDoubleClick={e => { e.stopPropagation(); key === '__namn' ? setNamnB(NAMN_STD) : setKolB(x => { const n = { ...x }; delete n[key]; return n }) }}
+      title="Dra for å endre breidda (dobbeltklikk = standard)"
+      style={{ position: 'absolute', right: -3, top: 0, bottom: 0, width: 7, cursor: 'col-resize', zIndex: 12 }}/>
+  )
   const verdiar = useMemo(() => bygVerdiar({ elementer, dokMap, prisar }), [elementer, dokMap, prisar])
   useEffect(() => {
     if (!kolMeny) return
@@ -307,13 +334,16 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
             style={{ position: 'sticky', left: 0, zIndex: 9, width: VENSTRE, flexShrink: 0, background: 'var(--bg3)',
             borderRight: '1px solid var(--border)', display: 'flex', alignItems: 'flex-end',
             fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text3)' }}>
-            <div style={{ width: NAMN_B, flexShrink: 0, padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: NAMN_B, flexShrink: 0, padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
+              {handtak('__namn', NAMN_B)}
               Fase / aktivitet
               <button type="button" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setKolMeny({ x: r.left, y: r.bottom + 4 }) }} title="Vel kolonnar (kan òg opnast med høgreklikk)"
                 style={{ border: '1px solid var(--border)', background: 'var(--bg2)', borderRadius: 5, cursor: 'pointer', fontSize: 11, padding: '0 6px', color: 'var(--text2)', fontWeight: 800 }}>＋ Kolonnar</button>
             </div>
             {kolDefs.map(d => (
-              <div key={d.key} style={{ width: d.w, flexShrink: 0, padding: '0 6px 8px', textAlign: d.hogre ? 'right' : 'left', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{d.label}</div>
+              <div key={d.key} style={{ width: kb(d), flexShrink: 0, padding: '0 6px 8px', textAlign: d.hogre ? 'right' : 'left', whiteSpace: 'nowrap', position: 'relative' }} title={d.label}>
+                <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.label}</span>{handtak(d.key, kb(d))}
+              </div>
             ))}
           </div>
           <div onMouseDown={startPan} title="Dra for å flytte tidslinja" style={{ position: 'relative', width: breiddTotal, flexShrink: 0, cursor: 'grab' }}>
@@ -419,18 +449,47 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                   <span style={{ width: r.type === 'milepael' ? 9 : 10, height: r.type === 'milepael' ? 9 : 10, flexShrink: 0,
                     background: fargeFor(r), transform: r.type === 'milepael' ? 'rotate(45deg)' : undefined,
                     borderRadius: r.type === 'aktivitet' ? 3 : 0 }}/>
-                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    fontSize: erFase ? 13 : 12.5, fontWeight: erFase ? 800 : 500, color: 'var(--text)' }}>{r.namn}</span>
+                  {redigerer && redigerer.id === r.id && redigerer.key === 'namn' ? (
+                    <input autoFocus defaultValue={r.namn} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
+                      onBlur={e => { setRedigerer(null); if (e.target.value.trim() && e.target.value !== r.namn) onEndreFelt?.(r.id, 'namn', e.target.value) }}
+                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.currentTarget.value = r.namn; setRedigerer(null) } }}
+                      style={{ flex: 1, minWidth: 0, fontSize: 12.5, padding: '2px 5px', border: '1.5px solid var(--brand2)', borderRadius: 4, fontFamily: 'var(--font)', background: 'var(--bg2)', color: 'var(--text)' }}/>
+                  ) : (
+                    <span onDoubleClick={e => { if (onEndreFelt) { e.stopPropagation(); setRedigerer({ id: r.id, key: 'namn' }) } }} title="Dobbeltklikk for å endre namn"
+                      style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        fontSize: erFase ? 13 : 12.5, fontWeight: erFase ? 800 : 500, color: 'var(--text)' }}>{r.namn}</span>
+                  )}
                   {r.type === 'aktivitet' && effektivFerdig(r, dokMap) > 0 && (
                     <span title={(r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? 'Rekna ut frå kopla leveransar' : 'Skjønn'} style={{ fontSize: 10.5, fontWeight: 700, color: (r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? '#0F766E' : 'var(--text3)' }}>{(r.leveransar || []).length && r.ferdigModus !== 'skjonn' ? '⛓ ' : ''}{effektivFerdig(r, dokMap)}%</span>
                   )}
                   {erFase && r.type !== 'milepael' && faseFerdig(elementer, r, dokMap) > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text3)' }}>{faseFerdig(elementer, r, dokMap)}%</span>}
                   </div>
-                  {kolDefs.map(d => (
-                    <div key={d.key} style={{ width: d.w, flexShrink: 0, padding: '0 6px', textAlign: d.hogre ? 'right' : 'left', fontSize: 12, color: 'var(--text2)', fontFamily: ['pns', 'kode', 'start', 'slutt'].includes(d.key) ? 'var(--mono)' : undefined,
-                      overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: erFase ? 700 : 400 }}
-                      title={String(verdiar.verdi(r, d.key))}>{verdiar.verdi(r, d.key)}</div>
-                  ))}
+                  {kolDefs.map(d => {
+                    const redig = redigerer && redigerer.id === r.id && redigerer.key === d.key
+                    const kanRed = !!onEndreFelt && REDIGERBARE.has(d.key) && d.key !== 'namn'
+                      && (!erFase || ['kode', 'ansvarleg'].includes(d.key)) && !(r.type === 'milepael' && !['kode', 'start', 'ansvarleg'].includes(d.key))
+                    const v = verdiar.verdi(r, d.key)
+                    const gaa = () => { setRedigerer(null) }
+                    const lagre = (ny) => { gaa(); if (String(ny) !== String(v)) onEndreFelt(r.id, d.key, ny) }
+                    return (
+                      <div key={d.key} onDoubleClick={e => { if (kanRed) { e.stopPropagation(); setRedigerer({ id: r.id, key: d.key }) } }}
+                        style={{ width: kb(d), flexShrink: 0, padding: redig ? '0 2px' : '0 6px', textAlign: d.hogre ? 'right' : 'left', fontSize: 12, color: 'var(--text2)', fontFamily: ['pns', 'kode', 'start', 'slutt'].includes(d.key) ? 'var(--mono)' : undefined,
+                          overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: erFase ? 700 : 400, cursor: kanRed ? 'text' : undefined,
+                          background: kanRed && !redig ? 'rgba(21,101,192,.04)' : undefined, height: '100%', display: 'flex', alignItems: 'center', justifyContent: d.hogre ? 'flex-end' : 'flex-start' }}
+                        title={kanRed ? 'Dobbeltklikk for å endre' : String(v)}>
+                        {redig ? (d.key === 'btype' ? (
+                          <select autoFocus defaultValue={String(v)} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onChange={e => lagre(e.target.value)} onBlur={gaa}
+                            style={{ width: '100%', fontSize: 12, padding: '1px 2px', border: '1.5px solid var(--brand2)', borderRadius: 4, background: 'var(--bg2)', color: 'var(--text)' }}>
+                            {BTYPAR.map(t => <option key={t} value={t}>{t || '(ikkje sett)'}</option>)}
+                          </select>
+                        ) : (
+                          <input autoFocus defaultValue={String(v)} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
+                            onBlur={e => lagre(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.currentTarget.value = String(v); gaa() } }}
+                            style={{ width: '100%', fontSize: 12, padding: '1px 4px', border: '1.5px solid var(--brand2)', borderRadius: 4, fontFamily: 'var(--font)', background: 'var(--bg2)', color: 'var(--text)', textAlign: d.hogre ? 'right' : 'left' }}/>
+                        )) : (v === '' ? '' : (typeof v === 'number' && d.hogre && d.key !== 'ferdig' && d.key !== 'varig' ? v.toLocaleString('nb-NO') : v))}
+                      </div>
+                    )
+                  })}
                 </div>
               )
             })}

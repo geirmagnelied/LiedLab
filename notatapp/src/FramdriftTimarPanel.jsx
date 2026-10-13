@@ -89,37 +89,10 @@ export default function FramdriftTimarPanel({ el, kal, personell, onEndre }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-      <div className="fd-seg" style={{ alignSelf: 'flex-start' }}>
-        <button className={modus === 'timar' ? 'pa' : ''} onClick={() => onEndre({ modus: 'timar' })} title="Skriv inn forventa timar direkte">Timar</button>
-        <button className={modus === 'budsjett' ? 'pa' : ''} onClick={() => onEndre({ modus: 'budsjett' })}
-          title="Skriv inn budsjett/fastpris — timane vert rekna ut frå timeprisane og personfordelinga">Budsjett (fastpris)</button>
+      <div style={{ fontSize: 12, color: 'var(--text2)', background: 'var(--bg3)', borderRadius: 7, padding: '6px 9px', lineHeight: 1.55 }}>
+        <b>{el.timar || 0} timar</b>{el.modus === 'budsjett' ? ' (rekna frå budsjett ÷ timerate)' : ''}{el.budsjett ? <> · budsjett <b>{Math.round(el.budsjett).toLocaleString('nb-NO')} kr</b></> : null}
+        <div style={{ fontSize: 11, color: 'var(--text3)' }}>Timar, budsjett og timerate skriv du i tabellen, bemanning i vindauget under. Her styrer du berre fordelinga over vekene.</div>
       </div>
-
-      {modus === 'timar' ? (
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span className="fd-etikett">Forventa timar totalt</span>
-          <input className="fd-input" type="number" min="0" step="0.5" value={tv} placeholder="0"
-            onChange={e => setTv(e.target.value)} onBlur={lagreTimar} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}/>
-        </label>
-      ) : (
-        <>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span className="fd-etikett">Budsjett / fastpris (kr)</span>
-            <input className="fd-input" inputMode="numeric" value={bv} placeholder="0"
-              onChange={e => setBv(e.target.value)} onBlur={lagreBudsjett} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}/>
-          </label>
-          <div style={{ fontSize: 12, lineHeight: 1.55, background: 'var(--bg3)', borderRadius: 7, padding: '7px 9px', color: 'var(--text2)' }}>
-            {sp.utanPersonar ? <>Legg til personar (under) og sett timepris i Prosjekt → Personell for å rekne ut timane.</>
-              : sp.manglar.length ? <span style={{ color: 'var(--danger)' }}>Manglar timepris for: <b>{sp.manglar.join(', ')}</b> — sett han under personfordelinga, eller i Prosjekt → Personell.</span>
-              : <>Snittpris <b>{kr(sp.pris)} kr/t</b> (vekta etter personfordelinga) → <b>{el.timar || 0} timar</b>.</>}
-            {!sp.utanPersonar && !sp.manglar.length && personar.length > 0 && el.timar > 0 && (
-              <div style={{ marginTop: 3, color: 'var(--text3)' }}>
-                {personar.map(p => `${p.namn.split(' ')[0]}: ${Math.round(el.timar * p.del / 100 * 2) / 2} t = ${kr(el.timar * p.del / 100 * prisFor(p, prisar))} kr`).join(' · ')}
-              </div>
-            )}
-          </div>
-        </>
-      )}
 
       <div className="fd-etikett">Fordeling på vekene</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
