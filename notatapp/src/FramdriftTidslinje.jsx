@@ -7,6 +7,7 @@ import { beregnDatoar, harBorn, avhengnadFeil, forfedrar, erSumm, kanFlytteTil }
 import { effektivFerdig, faseFerdig } from './framdriftFerdig'
 import { fordelTimar, personDelar } from './framdriftTimar'
 import { personFarge } from './personFarge'
+import { personerMedForbruk, faktiskFor } from './framdriftForbruk'
 import { KOLONNE_DEF, bygVerdiar } from './framdriftVerdiar'
 
 // ═══════════════════════════════════════════════════════════════════
@@ -29,7 +30,7 @@ const MOTE_FARGE = '#1565C0'
 const VALG_FARGE = '#1E3A8A'
 
 export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
-                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki, fargeKart, prisar }) {
+                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki, fargeKart, prisar, forbrukKart }) {
   const dagB = DAGB[zoom] || DAGB.veke
   // Ekstrakolonnar i tabellen til venstre for tidslinja (høgreklikk på overskrifta). Val vert hugsa på denne maskina.
   const [valgteKol, setValgteKol] = useState(() => { try { const v = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol')); return Array.isArray(v) ? v : [] } catch { return [] } })
@@ -128,11 +129,12 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
   const maksTimar = harTimar ? Math.max(...[...timarKart.values()].map(v => v.total)) : 0
   const sumTimar = harTimar ? [...timarKart.values()].reduce((s2, v) => s2 + v.total, 0) : 0
   const persNamn = harTimar ? [...new Set([...timarKart.values()].flatMap(v => Object.keys(v.perPerson)))].sort((a, b) => a.localeCompare(b, 'nb')) : []
-  const kanUtvide = (e) => e.type === 'aktivitet' && +e.timar > 0 && personDelar(e).length > 0
+  const personerFor = (e) => personerMedForbruk(personDelar(e), forbrukKart?.get(e.id))
+  const kanUtvide = (e) => e.type === 'aktivitet' && ((+e.timar > 0 && personDelar(e).length > 0) || !!forbrukKart?.has(e.id))
   const radar = [
     ...(visHendingar ? [{ id: '__hendingar', type: 'hendingar' }] : []),
     ...rader.flatMap(e => (utvida?.has(e.id) && kanUtvide(e)
-      ? [e, ...personDelar(e).map((p) => ({ id: 'p:' + e.id + ':' + p.namn, type: 'person', akt: e, namn: p.namn, del: p.del, farge: personFarge(p.namn, fargeKart) }))]
+      ? [e, ...personerFor(e).map((p) => ({ id: 'p:' + e.id + ':' + p.namn, type: 'person', akt: e, namn: p.namn, del: p.del, farge: personFarge(p.namn, fargeKart) }))]
       : [e])),
     ...(harTimar ? [{ id: '__timar', type: 'timar' }] : []),
     ...(harTimar && persTotOpen ? persNamn.map(n => ({ id: 'pt:' + n, type: 'persontot', namn: n })) : []),
@@ -391,7 +393,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                     <span style={{ width: 9, height: 9, borderRadius: 3, background: r.farge, flexShrink: 0 }}/>
                     <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text2)' }}>{r.namn}</span>
                     {r.akt.personar?.length > 1 && <span style={{ fontSize: 10.5, color: 'var(--text3)' }}>{r.del}%</span>}
-                    <span style={{ fontSize: 10.5, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{Math.round((+r.akt.timar || 0) * r.del / 100 * 2) / 2} t</span>
+                    <span style={{ fontSize: 10.5, color: 'var(--text3)', fontFamily: 'var(--mono)' }} title="planlagt / påløpt">{Math.round((+r.akt.timar || 0) * r.del / 100 * 2) / 2} t{(() => { const f = faktiskFor(forbrukKart?.get(r.akt.id), r.namn); return f ? <b style={{ color: '#1565C0' }}> / {Math.round(f.total * 10) / 10}</b> : null })()}</span>
                   </div>
                 )
               }
@@ -507,14 +509,20 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
             {/* Person-underrader: timar per veke for kvar person */}
             {radar.filter(r => r.type === 'person').map(r => {
               const i = radIndeks.get(r.id)
-              const vk = fordelTimar(r.akt, kal)
-              return vk.map(v => {
-                const t = Math.round(v.timar * r.del / 100 * 10) / 10
+              const plan = new Map(fordelTimar(r.akt, kal).map(v => [v.veke, v.timar * r.del / 100]))
+              const fakt = faktiskFor(forbrukKart?.get(r.akt.id), r.namn)?.veke || new Map()
+              const alle = [...new Set([...plan.keys(), ...fakt.keys()])]
+              return alle.map(veke => {
+                const t = Math.round((plan.get(veke) || 0) * 10) / 10
+                const f = Math.round((fakt.get(veke) || 0) * 10) / 10
+                const smal = dagB * 7 >= 24
                 return (
-                  <div key={r.id + v.veke} title={r.namn + ' — veke ' + getISOWeek(tilDato(v.veke)) + ': ' + t + ' t'}
-                    style={{ position: 'absolute', left: x(tilDato(v.veke)) + 1, width: dagB * 7 - 2, top: i * RAD_H + 5, height: RAD_H - 10, borderRadius: 4,
-                      background: r.farge + '40', color: 'var(--text)', fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 3 }}>
-                    {dagB * 7 >= 24 && t > 0 ? t : ''}
+                  <div key={r.id + veke} title={r.namn + ' — veke ' + getISOWeek(tilDato(veke)) + ': planlagt ' + t + ' t' + (f ? ', påløpt ' + f + ' t' : '')}
+                    style={{ position: 'absolute', left: x(tilDato(veke)) + 1, width: dagB * 7 - 2, top: i * RAD_H + 3, height: RAD_H - 6, borderRadius: 4,
+                      background: t > 0 ? r.farge + '40' : 'var(--bg3)', border: f && !t ? '1px dashed ' + r.farge : undefined, color: 'var(--text)', fontSize: 10, fontWeight: 700, lineHeight: '12px',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', zIndex: 3 }}>
+                    {smal && t > 0 && <span>{t}</span>}
+                    {smal && f > 0 && <span style={{ color: '#1565C0', fontWeight: 800 }}>{f}</span>}
                   </div>
                 )
               })

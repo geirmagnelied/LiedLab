@@ -7,6 +7,7 @@ import { effektivFerdig, faseFerdig } from './framdriftFerdig'
 import { personDelar, fordelTimar, snittpris } from './framdriftTimar'
 import { vekeStart } from './kontorkalender'
 import { personFarge } from './personFarge'
+import { personerMedForbruk, faktiskFor } from './framdriftForbruk'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Tabellvisinga av framdriftsplanen — tynn wrapper rundt DataTabell
@@ -43,7 +44,8 @@ const BASE_KOLONNAR = [
 const fmtT = (n) => (n > 0 ? Math.round(n * 10) / 10 : '')
 const UKE = 'uke_'
 
-export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart }) {
+export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart }) {
+  const [vekeVisn, setVekeVisn] = useState('plan') // plan | palopt | begge — kva vekekolonnane viser
   const [persTotOpen, setPersTotOpen] = useState(false)
   const [utvida, setUtvida] = useState(() => new Set()) // aktivitets-id med opne person-underrader
   const namnPaId = useCallback((id) => elementer.find(e => e.id === id)?.namn || '', [elementer])
@@ -57,12 +59,13 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
 
   const veker = useMemo(() => {
     const alle = new Set([...vekeKart.values()].flatMap(k => [...k.keys()]))
+    if (forbrukKart) for (const a of forbrukKart.values()) for (const v of a.veke.keys()) alle.add(v)
     if (!alle.size) return []
     const s = [...alle].sort()
     const ut = []
     for (let d = vekeStart(tilDato(s[0])); d <= tilDato(s[s.length - 1]); d = addDays(d, 7)) ut.push(format(d, 'yyyy-MM-dd'))
     return ut
-  }, [vekeKart])
+  }, [vekeKart, forbrukKart])
 
   const kolonnar = useMemo(() => [
     ...BASE_KOLONNAR,
@@ -84,13 +87,14 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
     }
     return { kart, namn: [...kart.keys()].sort((a, b) => a.localeCompare(b, 'nb')) }
   }, [elementer, vekeKart])
-  const kanUtvide = (e) => e.type === 'aktivitet' && +e.timar > 0 && personDelar(e).length > 0
+  const personerFor = (e) => personerMedForbruk(personDelar(e), forbrukKart?.get(e.id))
+  const kanUtvide = (e) => e.type === 'aktivitet' && ((+e.timar > 0 && personDelar(e).length > 0) || !!forbrukKart?.has(e.id))
   const rader = useMemo(() => {
     const ut = []
     for (const e of visingsrader(elementer, lukka)) {
       ut.push(e)
       if (utvida.has(e.id) && kanUtvide(e)) {
-        personDelar(e).forEach((p) => ut.push({ id: `p:${e.id}:${p.namn}`, type: 'person', __forelder: e.id, namn: p.namn, del: p.del, farge: personFarge(p.namn, fargeKart), akt: e }))
+        personerFor(e).forEach((p) => ut.push({ id: `p:${e.id}:${p.namn}`, type: 'person', __forelder: e.id, namn: p.namn, del: p.del, farge: personFarge(p.namn, fargeKart), akt: e }))
       }
     }
     // «Timar per person» (alle aktivitetar): gruppe nedst, med éi rad per person
@@ -99,7 +103,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
       if (persTotOpen) persTot.namn.forEach(n => ut.push({ id: 'pt:' + n, type: 'persontot', __forelder: 'pg', namn: n, farge: personFarge(n, fargeKart) }))
     }
     return ut
-  }, [elementer, utvida, lukka, persTot, persTotOpen, fargeKart])
+  }, [elementer, utvida, lukka, persTot, persTotOpen, fargeKart, forbrukKart])
 
   const pns = useMemo(() => pnsKart(elementer), [elementer])
   const erSammen = useCallback((e) => e.type === 'fase' || (e.type === 'aktivitet' && (e.summ || harBorn(elementer, e.id))), [elementer])
@@ -122,8 +126,21 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
     return 0
   }, [vekeKart, elementer, erSammen, bladUnder, persTot])
 
+  const vekeFaktisk = useCallback((e, v) => {
+    if (!forbrukKart) return 0
+    if (e.type === 'aktivitet' && !erSammen(e)) return forbrukKart.get(e.id)?.veke.get(v) || 0
+    if (e.type === 'person') return faktiskFor(forbrukKart.get(e.akt.id), e.namn)?.veke.get(v) || 0
+    if (e.type === 'fase' || e.type === 'aktivitet') return bladUnder(e).reduce((a, c) => a + (forbrukKart.get(c.id)?.veke.get(v) || 0), 0)
+    return 0
+  }, [forbrukKart, erSammen, bladUnder])
+  const vekeCelle = (e, v) => {
+    const p = vekeTimar(e, v), f = vekeFaktisk(e, v)
+    if (vekeVisn === 'plan') return fmtT(p)
+    if (vekeVisn === 'palopt') return fmtT(f)
+    return p || f ? (fmtT(p) || '–') + ' / ' + (fmtT(f) || '–') : ''
+  }
   const hentVerdi = useCallback((e, key) => {
-    if (key.startsWith(UKE)) return fmtT(vekeTimar(e, key.slice(UKE.length)))
+    if (key.startsWith(UKE)) return vekeCelle(e, key.slice(UKE.length))
     if (e.type === 'persongruppe') return key === 'namn' ? e.namn : ''
     if (e.type === 'persontot') {
       if (key === 'namn') return e.namn
@@ -133,6 +150,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
     }
     if (e.type === 'person') {
       switch (key) {
+        case 'palopTimar': { const f = faktiskFor(forbrukKart?.get(e.akt.id), e.namn); return f ? fmtT(f.total) : '' }
         case 'namn': return e.namn
         case 'type': return 'Person'
         case 'timar': return fmtT((+e.akt.timar || 0) * e.del / 100)
@@ -166,7 +184,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
       case 'avh': return (e.avh || []).map(namnPaId).filter(Boolean).join(', ')
       default: return ''
     }
-  }, [namnPaId, dokMap, elementer, vekeTimar, pns, erSammen, bladUnder, rateFor, palopHon, persTot])
+  }, [namnPaId, dokMap, elementer, vekeTimar, vekeFaktisk, vekeVisn, forbrukKart, pns, erSammen, bladUnder, rateFor, palopHon, persTot])
 
   // Namnecella: ▸/▾ for å vise/skjule person-underradene; person-rader får innrykk og fargeprikk
   const lagCelle = useCallback((e, kol) => {
@@ -212,7 +230,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
   }, [utvida, lukka, elementer, erSammen, onToggleLukka, persTotOpen])
 
   const hentSorteringsverdi = useCallback((e, key) => {
-    if (key.startsWith(UKE)) return vekeTimar(e, key.slice(UKE.length))
+    if (key.startsWith(UKE)) return vekeVisn === 'palopt' ? vekeFaktisk(e, key.slice(UKE.length)) : vekeTimar(e, key.slice(UKE.length))
     if (e.type === 'person') return key === 'timar' ? (+e.akt.timar || 0) * e.del / 100 : undefined
     if (key === 'pns') return e.type === 'persongruppe' || e.type === 'persontot' ? 'zzz' : (pns.get(e.id) || '')
     if (e.type === 'persontot') return key === 'timar' ? [...(persTot.kart.get(e.namn)?.values() || [])].reduce((a, b) => a + b, 0) : (key.startsWith(UKE) ? vekeTimar(e, key.slice(UKE.length)) : undefined)
@@ -236,6 +254,9 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
         <span style={{ fontSize: 12, color: 'var(--text3)' }}>
           {utvidbare.length ? 'Trykk ▸ framfor ein aktivitet for å sjå personane og timefordelinga deira per veke.' : 'Legg inn «Timar» og personar på aktivitetane for å sjå timefordelinga her.'}
         </span>
+        <div className="fd-seg" title="Kva vekekolonnane viser">
+          {[['plan', 'Planlagt'], ['palopt', 'Påløpt'], ['begge', 'Plan / påløpt']].map(([k, t]) => <button key={k} className={vekeVisn === k ? 'pa' : ''} onClick={() => setVekeVisn(k)}>{t}</button>)}
+        </div>
         <div style={{ flex: 1 }}/>
         {utvidbare.length > 0 && (
           <button className="fd-knapp" style={{ padding: '3px 10px', fontSize: 11.5 }}

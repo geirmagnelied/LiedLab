@@ -11,6 +11,8 @@ import FramdriftPersonarPanel from './FramdriftPersonarPanel'
 import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
 import { personFargeKart } from './personFarge'
 import { eksporterExcel } from './framdriftEksport'
+import FramdriftForbrukModal from './FramdriftForbrukModal'
+import { kopleForbruk, bygForbrukKart } from './framdriftForbruk'
 import { leveransarFerdig, effektivFerdig, brukarAuto, faseFerdig } from './framdriftFerdig'
 import useKontorkalender from './useKontorkalender'
 import { timarPerVeke, overbelastning, medEffektiveTimar, personDelar, prisKartFra } from './framdriftTimar'
@@ -98,6 +100,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const [dokument, setDokument] = useState([])     // DTM-dokument for valt prosjekt (til leveransekopling/framdrift)
   const [panelOpen, setPanelOpen] = useState(() => { try { return localStorage.getItem('liedlab-framdrift-panel-open') !== '0' } catch { return true } })
   const veksleOpen = (v) => { setPanelOpen(v); try { localStorage.setItem('liedlab-framdrift-panel-open', v ? '1' : '0') } catch { /* privat modus */ } }
+  const [forbrukRader, setForbrukRader] = useState([]) // framdrift_forbruk for valt prosjekt (påløpte timar per dato/person/aktivitet)
+  const [forbrukOpen, setForbrukOpen] = useState(false)
   const [eksportMeny, setEksportMeny] = useState(false)
   const [eksporterer, setEksporterer] = useState(false)
   const [koblingMelding, setKoblingMelding] = useState(null)
@@ -172,6 +176,14 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   useEffect(() => { lastDokument() }, [lastDokument])
   const dokMap = useMemo(() => new Map(dokument.map(d => [d.id, d])), [dokument])
 
+  const lastForbruk = useCallback(() => {
+    if (!userId || !activeProjectId) { setForbrukRader([]); return Promise.resolve() }
+    return supabase.from('framdrift_forbruk').select('dato,vekeaar,vekenr,ansatt,ansatt_namn,aktivitet,kode,timar,beskrivelse')
+      .eq('user_id', userId).eq('project_id', activeProjectId).order('dato').limit(20000)
+      .then(({ data }) => setForbrukRader((data || []).map(r => ({ dato: r.dato, vekeaar: r.vekeaar, vekenr: r.vekenr, ansatt: r.ansatt, ansattNamn: r.ansatt_namn, aktivitet: r.aktivitet, kode: r.kode, timar: +r.timar || 0, beskrivelse: r.beskrivelse }))))
+  }, [userId, activeProjectId])
+  useEffect(() => { lastForbruk() }, [lastForbruk])
+
   // Lagre ulagra endringar når modulen vert lukka
   useEffect(() => () => {
     if (skitten.current && prosjektRef.current) { clearTimeout(lagreTimer.current); lagreNo(prosjektRef.current, elRef.current) }
@@ -219,7 +231,15 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   }, [notes, activeProjectId])
 
   // Plan med EFFEKTIVE timar (frå budsjett ÷ snittpris når modus = budsjett) — brukt til visning og utrekning; redigering går mot råplanen (elementer)
-  const elEff = useMemo(() => medEffektiveTimar(elementer, personell), [elementer, personell])
+  const forbruk = useMemo(() => kopleForbruk(elementer, forbrukRader), [elementer, forbrukRader])
+  const forbrukKart = useMemo(() => bygForbrukKart(forbruk.perAkt), [forbruk])
+  const forbrukUtanTimar = useMemo(() => [...forbruk.utan.values()].reduce((a, u) => a + u.timar, 0), [forbruk])
+  const elBase = useMemo(() => medEffektiveTimar(elementer, personell), [elementer, personell])
+  // Påløpte timar frå forbruksrapporten (importert) går føre manuelt innskrivne
+  const elEff = useMemo(() => elBase.map(e => {
+    const a = e.type === 'aktivitet' ? forbrukKart.get(e.id) : null
+    return a && !harBorn(elBase, e.id) ? { ...e, palopTimar: Math.round(a.total * 100) / 100, palopKilde: 'forbruk' } : e
+  }), [elBase, forbrukKart])
   const rader = useMemo(() => visingsrader(elEff, lukka), [elEff, lukka])
   const fargeKart = useMemo(() => personFargeKart(personell), [personell])
   const timarKart = useMemo(() => timarPerVeke(elEff, kal), [elEff, kal])
@@ -393,6 +413,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
             <button className="fd-knapp" onClick={() => setMalOpen(true)}>Malar…</button>
             <button className="fd-knapp" onClick={() => setImportOpen(true)}>Importer…</button>
+            <button className="fd-knapp" onClick={() => setForbrukOpen(true)} title="Importer påløpte timar frå timeføringsrapport (Excel)">⇩ Forbruk…</button>
             <button className="fd-knapp" onClick={angre} disabled={!angreAntal} title="Angre siste endring (Ctrl+Z)">↶ Angre</button>
             <span style={{ position: 'relative' }}>
               <button className="fd-knapp" onClick={() => setEksportMeny(v => !v)} disabled={!elementer.length || eksporterer} title="Eksporter planen til Excel">{eksporterer ? 'Eksporterer…' : '⇩ Excel ▾'}</button>
@@ -453,7 +474,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                     {sel && <button onClick={() => setValgt(null)} title="Fjern utval (vis planoversikt)"
                       style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1 }}>×</button>}
                   </div>
-                  {!sel && <FramdriftOversikt fargeKart={fargeKart} prosjektNamn={aktivtProsjekt?.name} elementer={elEff} dokMap={dokMap} timarKart={timarKart} overlast={overlast} hendingar={hendingar} onVelg={setValgt}/>}
+                  {!sel && <FramdriftOversikt forbrukKart={forbrukKart} forbrukUtanTimar={forbrukUtanTimar} fargeKart={fargeKart} prosjektNamn={aktivtProsjekt?.name} elementer={elEff} dokMap={dokMap} timarKart={timarKart} overlast={overlast} hendingar={hendingar} onVelg={setValgt}/>}
                   {sel && (<>
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span className="fd-etikett">Namn</span>
@@ -608,13 +629,13 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                 </div>
               )}
               {visning === 'tidslinje' ? (
-                <FramdriftTidslinje fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
+                <FramdriftTidslinje forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
                   onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
                   timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
                   onKoble={koble} onFjernAvh={fjernAvh} onFlyttHierarki={flyttHierarki}
                   lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
               ) : (
-                <FramdriftTabell fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
+                <FramdriftTabell forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
               )}
 
             </div>
@@ -628,6 +649,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
           onModus={m => settFelt(sel.id, 'ferdigModus', m)} onFerdig={n => settFelt(sel.id, 'ferdig', n)}/>
       )}
       {malOpen && <MalVindauge harPlan={elementer.length > 0} onLukk={() => setMalOpen(false)} onBruk={brukMal}/>}
+      {forbrukOpen && aktivtProsjekt && <FramdriftForbrukModal userId={userId} prosjekt={aktivtProsjekt} elementer={elementer} onLukk={() => setForbrukOpen(false)} onFerdig={() => { setForbrukOpen(false); lastForbruk() }}/>}
       {importOpen && <FramdriftImportModal harPlan={elementer.length > 0} onLukk={() => setImportOpen(false)} onImporter={importer}/>}
     </div>
   )

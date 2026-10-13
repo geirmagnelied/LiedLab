@@ -14,7 +14,7 @@ const Tal = ({ verdi, tekst }) => (
   </div>
 )
 
-export default function FramdriftOversikt({ prosjektNamn, elementer, dokMap, timarKart, overlast, hendingar, onVelg, fargeKart }) {
+export default function FramdriftOversikt({ prosjektNamn, elementer, dokMap, timarKart, overlast, hendingar, onVelg, fargeKart, forbrukKart, forbrukUtanTimar }) {
   const d = useMemo(() => {
     const fasar = elementer.filter(e => e.type === 'fase')
     const foreldre = new Set(elementer.filter(e => e.forelder != null).map(e => e.forelder))
@@ -28,10 +28,13 @@ export default function FramdriftOversikt({ prosjektNamn, elementer, dokMap, tim
     const slutt = elementer.length ? elementer.reduce((m, e) => (e.slutt > m ? e.slutt : m), elementer[0].slutt) : null
     const perPerson = {}
     for (const v of timarKart.values()) for (const [n, t] of Object.entries(v.perPerson)) perPerson[n] = (perPerson[n] || 0) + t
+    const paalopt = {}
+    let paaloptTot = 0
+    if (forbrukKart) for (const a of forbrukKart.values()) { paaloptTot += a.total; for (const [n, p] of a.personer) paalopt[n] = (paalopt[n] || 0) + p.total }
     const idag = format(new Date(), 'yyyy-MM-dd')
     const kommande = elementer.filter(e => e.type !== 'fase' && e.slutt >= idag).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 6)
-    return { fasar, akt, mil, framdrift, timar, start, slutt, perPerson, kommande }
-  }, [elementer, dokMap, timarKart])
+    return { fasar, akt, mil, framdrift, timar, start, slutt, perPerson, kommande, paalopt, paaloptTot }
+  }, [elementer, dokMap, timarKart, forbrukKart])
 
   const overlastAntal = overlast?.size || 0
 
@@ -73,6 +76,24 @@ export default function FramdriftOversikt({ prosjektNamn, elementer, dokMap, tim
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {d.paaloptTot > 0 && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span className="fd-etikett">Påløpte timar (frå timeføring)</span><span style={{ fontSize: 13, fontWeight: 800, color: '#1565C0' }}>{Math.round(d.paaloptTot * 10) / 10} t</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+            {Object.entries(d.paalopt).sort((a, b) => b[1] - a[1]).map(([n, t]) => (
+              <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 3, background: personFarge(n, fargeKart), flexShrink: 0 }}/>
+                <span style={{ flex: 1, color: 'var(--text)', fontWeight: 600 }}>{n}</span>
+                <span style={{ fontFamily: 'var(--mono)', color: '#1565C0' }}>{Math.round(t * 10) / 10} t</span>
+              </div>
+            ))}
+          </div>
+          {forbrukUtanTimar > 0 && <div style={{ fontSize: 11.5, color: 'var(--danger)', marginTop: 4 }}>{Math.round(forbrukUtanTimar * 10) / 10} t er ikkje kopla til ein aktivitet (sett «Aktivitetskode» på aktiviteten).</div>}
         </div>
       )}
 
