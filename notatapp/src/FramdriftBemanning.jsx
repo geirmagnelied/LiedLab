@@ -176,7 +176,7 @@ export default function FramdriftBemanning({ el, summ, personell, prisar, forbru
                     <td style={{ ...TD, ...GRAA, textAlign: 'left', fontFamily: 'var(--font)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 190 }}>{el.namn}</td>
                     <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
                       <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: personFarge(p.namn, fargeKart), marginRight: 6, verticalAlign: 'middle' }}/>
-                      {iPlan ? <Tekst verdi={p.namn} list="fd-bem-personell" bredde={190} onLagre={n => { if (n) settPersonar(personar.map((x, j) => (j === idx ? { ...x, namn: n } : x))) }}/>
+                      {nokkelNamn(p.namn) === nokkelNamn(el.ansvarleg) && <span title="Ansvarleg for aktiviteten" style={{ color: '#B45309', marginRight: 3 }}>★</span>}{iPlan ? <Tekst verdi={p.namn} list="fd-bem-personell" bredde={176} onLagre={n => { if (n) settPersonar(personar.map((x, j) => (j === idx ? { ...x, namn: n } : x))) }}/>
                         : <span style={{ fontWeight: 600 }}>{p.namn} <span style={{ fontSize: 11, color: 'var(--text3)' }}>(ført timar, ikkje i planen)</span></span>}
                     </td>
                     <td style={TD}>{iPlan ? <Tal verdi={avr2(t) || ''} bredde={78} tittel="Planlagde timar for ressursen — aktivitetens timar vert summen av ressurstimane"

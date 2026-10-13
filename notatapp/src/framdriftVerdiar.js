@@ -16,7 +16,8 @@ export const KOLONNE_DEF = [
   { key: 'start',        label: 'Start',        w: 84 },
   { key: 'slutt',        label: 'Slutt',        w: 84 },
   { key: 'varig',        label: 'Dagar',        w: 56, hogre: true },
-  { key: 'ansvarleg',    label: 'Ansvarleg',    w: 120 },
+  { key: 'ansvarleg',    label: 'Ansvarleg',    w: 130 },
+  { key: 'bemanning',    label: 'Bemanning',    w: 170 },
   { key: 'ferdig',       label: 'Ferdig %',     w: 70, hogre: true },
   { key: 'levnr',        label: 'Levering.',    w: 66, hogre: true },
   { key: 'btype',        label: 'Budsjettype',  w: 100 },
@@ -56,7 +57,8 @@ export function bygVerdiar({ elementer, dokMap, prisar }) {
       case 'start': return formaterDato(e.start)
       case 'slutt': return e.type === 'milepael' ? '' : formaterDato(e.slutt)
       case 'varig': return e.type === 'milepael' ? '' : antalArbeidsdagar(e)
-      case 'ansvarleg': { const p = personDelar(e); return (e.personar || []).length ? p.map(x => x.namn + (p.length > 1 ? ' ' + Math.round(x.del * 10) / 10 + '%' : '')).join(', ') : (e.ansvarleg || '') }
+      case 'ansvarleg': return e.ansvarleg || ''
+      case 'bemanning': { const p = personDelar(e); return p.length ? p.map(x => x.namn + (p.length > 1 ? ' ' + Math.round(x.del * 10) / 10 + '%' : '')).join(', ') : '' }
       case 'ferdig': return e.type === 'aktivitet' ? effektivFerdig(e, dokMap) : e.type === 'fase' ? faseFerdig(elementer, e, dokMap) : ''
       case 'levnr': return e.type === 'aktivitet' && !erSammen(e) ? ((e.leveransar || []).length || '') : ''
       case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjettType || '') : ''

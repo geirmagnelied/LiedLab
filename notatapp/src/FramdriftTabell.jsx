@@ -28,7 +28,8 @@ const BASE_KOLONNAR = [
   { key: 'start',     label: 'Start',       art: 'tekst', redigerbar: true, mono: true, w: 110 },
   { key: 'slutt',     label: 'Slutt',       art: 'tekst', redigerbar: true, mono: true, w: 110 },
   { key: 'varig',     label: 'Arbeidsdagar', art: 'tal',  beregna: true, ikkjeSummer: true, w: 110 },
-  { key: 'ansvarleg', label: 'Ansvarleg',   art: 'val',   redigerbar: true, w: 140 },
+  { key: 'ansvarleg', label: 'Ansvarleg',   art: 'val',   redigerbar: true, w: 150 },
+  { key: 'bemanning', label: 'Bemanning',   art: 'tekst', beregna: true, w: 190, utanFilter: true },
   { key: 'ferdig',    label: 'Ferdig %',    art: 'tal',   redigerbar: true, ikkjeSummer: true, w: 90 },
   { key: 'levnr',     label: 'Leveransar',  art: 'tal',   beregna: true, ikkjeSummer: true, w: 90 },
   { key: 'btype',     label: 'Budsjettype', art: 'val',   redigerbar: true, val: ['', 'Fastpris', 'Budsjettpris', 'Ufakturerbart'], w: 130 },
@@ -46,7 +47,7 @@ const BASE_KOLONNAR = [
 const fmtT = (n) => (n > 0 ? Math.round(n * 10) / 10 : '')
 const UKE = 'uke_'
 
-export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart }) {
+export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart, personell = [] }) {
   const [vekeVisn, setVekeVisn] = useState('plan') // plan | palopt | begge — kva vekekolonnane viser
   const [persTotOpen, setPersTotOpen] = useState(false)
   const [utvida, setUtvida] = useState(() => new Set()) // aktivitets-id med opne person-underrader
@@ -69,11 +70,13 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
     return ut
   }, [vekeKart, forbrukKart])
 
+  // «Ansvarleg» vert vald frå personellet i prosjektet (ikkje fri tekst)
+  const personNamn = useMemo(() => [...new Set((personell || []).map(p => p.namn).filter(Boolean))], [personell])
   const kolonnar = useMemo(() => [
-    ...BASE_KOLONNAR,
+    ...BASE_KOLONNAR.map(k => (k.key === 'ansvarleg' ? { ...k, val: ['', ...personNamn, ...new Set(elementer.map(e => e.ansvarleg).filter(a => a && !personNamn.includes(a)))] } : k)),
     ...veker.map(v => ({ key: UKE + v, label: 'Veke ' + getISOWeek(tilDato(v)), overskrift: ['Veke ' + getISOWeek(tilDato(v)), format(tilDato(v), 'dd.MM')],
       art: 'tal', beregna: true, w: 62, mono: true })),
-  ], [veker])
+  ], [veker, personNamn, elementer])
 
   // Sum per person per veke over alle blad-aktivitetar: Map(namn → Map(veke → timar))
   const persTot = useMemo(() => {
@@ -168,7 +171,8 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
       case 'start': return formaterDato(e.start)
       case 'slutt': return formaterDato(e.slutt)
       case 'varig': return e.type === 'milepael' ? '' : antalArbeidsdagar(e)
-      case 'ansvarleg': { const p = personDelar(e); return (e.personar || []).length ? p.map(x => x.namn + (p.length > 1 ? ' ' + Math.round(x.del * 10) / 10 + '%' : '')).join(', ') : (e.ansvarleg || '') }
+      case 'ansvarleg': return e.ansvarleg || ''
+      case 'bemanning': { const p = personDelar(e); return p.length ? p.map(x => x.namn + (p.length > 1 ? ' ' + Math.round(x.del * 10) / 10 + '%' : '')).join(', ') : '' }
       case 'ferdig': return e.type === 'aktivitet' ? effektivFerdig(e, dokMap) : e.type === 'fase' ? faseFerdig(elementer, e, dokMap) : ''
       case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjettType || '') : ''
       case 'budsjett': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjett || '') : e.type !== 'milepael' ? (bladUnder(e).reduce((a, c) => a + (+c.budsjett || 0), 0) || '') : ''
@@ -256,6 +260,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
   const hentRedigerVerdi = useCallback((e, key) => {
     if (key === 'start') return formaterDato(e.start)
     if (key === 'slutt') return formaterDato(e.slutt)
+    if (key === 'ansvarleg') return e.ansvarleg || ''
     return hentVerdi(e, key)
   }, [hentVerdi])
 

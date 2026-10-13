@@ -591,13 +591,13 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
               <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
               {visning === 'tidslinje' ? (
-                <FramdriftTidslinje onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
+                <FramdriftTidslinje personell={personell} onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
                   onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
                   timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
                   onKoble={koble} onFjernAvh={fjernAvh} onFlyttHierarki={flyttHierarki}
                   lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
               ) : (
-                <FramdriftTabell forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
+                <FramdriftTabell personell={personell} forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
               )}
               </div>
               <FramdriftBemanning el={selEff && selEff.type === 'aktivitet' ? selEff : null} summ={!!(sel && erSumm(elementer, sel))} personell={personell} prisar={prisKartFra(personell)}

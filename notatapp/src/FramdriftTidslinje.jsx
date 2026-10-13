@@ -30,7 +30,7 @@ const MOTE_FARGE = '#1565C0'
 const VALG_FARGE = '#1E3A8A'
 
 export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
-                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki, fargeKart, prisar, forbrukKart, onEndreFelt }) {
+                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki, fargeKart, prisar, forbrukKart, onEndreFelt, personell }) {
   const dagB = DAGB[zoom] || DAGB.veke
   // Ekstrakolonnar i tabellen til venstre for tidslinja (høgreklikk på overskrifta). Val vert hugsa på denne maskina.
   const STANDARD_KOL = ['kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'timar', 'budsjett', 'timerate']
@@ -466,7 +466,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                   </div>
                   {kolDefs.map(d => {
                     const redig = redigerer && redigerer.id === r.id && redigerer.key === d.key
-                    const kanRed = !!onEndreFelt && REDIGERBARE.has(d.key) && d.key !== 'namn'
+                    const kanRed = !!onEndreFelt && REDIGERBARE.has(d.key) && d.key !== 'namn' && d.key !== 'bemanning'
                       && (!erFase || ['kode', 'ansvarleg'].includes(d.key)) && !(r.type === 'milepael' && !['kode', 'start', 'ansvarleg'].includes(d.key))
                     const v = verdiar.verdi(r, d.key)
                     const gaa = () => { setRedigerer(null) }
@@ -477,7 +477,18 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                           overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: erFase ? 700 : 400, cursor: kanRed ? 'text' : undefined,
                           background: kanRed && !redig ? 'rgba(21,101,192,.04)' : undefined, height: '100%', display: 'flex', alignItems: 'center', justifyContent: d.hogre ? 'flex-end' : 'flex-start' }}
                         title={kanRed ? 'Dobbeltklikk for å endre' : String(v)}>
-                        {redig ? (d.key === 'btype' ? (
+                        {redig ? (d.key === 'ansvarleg' ? (
+                          <select autoFocus defaultValue={String(v)} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onChange={e => lagre(e.target.value)} onBlur={gaa}
+                            style={{ width: '100%', fontSize: 12, padding: '1px 2px', border: '1.5px solid var(--brand2)', borderRadius: 4, background: 'var(--bg2)', color: 'var(--text)' }}>
+                            {(() => {
+                              const namn = []
+                              for (const p of personell || []) if (p.namn && !namn.includes(p.namn)) namn.push(p.namn)
+                              for (const p of (r.personar || [])) if (p.namn && !namn.some(n => n.toLowerCase() === p.namn.toLowerCase())) namn.push(p.namn)
+                              if (v && !namn.includes(String(v))) namn.push(String(v))
+                              return [<option key="" value="">(ingen)</option>, ...namn.map(n => <option key={n} value={n}>{n}</option>)]
+                            })()}
+                          </select>
+                        ) : d.key === 'btype' ? (
                           <select autoFocus defaultValue={String(v)} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onChange={e => lagre(e.target.value)} onBlur={gaa}
                             style={{ width: '100%', fontSize: 12, padding: '1px 2px', border: '1.5px solid var(--brand2)', borderRadius: 4, background: 'var(--bg2)', color: 'var(--text)' }}>
                             {BTYPAR.map(t => <option key={t} value={t}>{t || '(ikkje sett)'}</option>)}
