@@ -15,7 +15,7 @@ export default function AppRailUndermeny({ toppNokkel, activeModule, onModuleCha
     <div style={{
       width: 132, minWidth: 132, flexShrink: 0,
       display: 'flex', flexDirection: 'column', gap: 3,
-      background: '#111214',
+      background: '#44484F',
       borderRight: '1px solid rgba(255,255,255,.08)',
       paddingTop: 14, paddingLeft: 6, paddingRight: 6,
       userSelect: 'none',

@@ -61,7 +61,7 @@ export default function AppRail({ activeModule, onModuleChange }) {
     <div style={{
       width: 52, minWidth: 52, flexShrink: 0,
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: '#0A0A0A',
+      background: '#3A3D43',
       borderRight: '1px solid rgba(255,255,255,.08)',
       paddingTop: 12, paddingBottom: 10,
       userSelect: 'none',
