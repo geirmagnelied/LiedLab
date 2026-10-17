@@ -15,8 +15,8 @@ export default function AppRailUndermeny({ toppNokkel, activeModule, onModuleCha
     <div style={{
       width: 132, minWidth: 132, flexShrink: 0,
       display: 'flex', flexDirection: 'column', gap: 3,
-      background: '#44484F',
-      borderRight: '1px solid rgba(255,255,255,.08)',
+      background: 'var(--bg)',
+      borderRight: '1px solid var(--border)',
       paddingTop: 14, paddingLeft: 6, paddingRight: 6,
       userSelect: 'none',
     }}>
@@ -27,12 +27,12 @@ export default function AppRailUndermeny({ toppNokkel, activeModule, onModuleCha
             style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 8, border: 'none',
-              background: active ? 'rgba(255,255,255,.14)' : 'transparent',
-              color: active ? '#fff' : 'rgba(255,255,255,.6)',
+              background: active ? 'var(--brandbg)' : 'transparent',
+              color: active ? 'var(--text)' : 'var(--text2)',
               fontSize: 12.5, fontWeight: active ? 700 : 500, cursor: 'pointer',
               textAlign: 'left', fontFamily: 'var(--font)', transition: 'background .15s, color .15s',
             }}
-            onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,.07)' }}
+            onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg3)' }}
             onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>
             <span style={{ width: 20, height: 20, borderRadius: 5, background: b.color, flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',

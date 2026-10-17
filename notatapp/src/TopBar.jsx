@@ -70,7 +70,7 @@ function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFa
   )
 }
 
-export default function TopBar({ projects, activeProjectId, onSelectProject, onToggleFavorite, onOpenSettings, activeModule, onModuleChange,
+export default function TopBar({ projects, activeProjectId, onSelectProject, onToggleFavorite, onOpenSettings, activeModule, onModuleChange, railBredde = 52,
                                   offices = [], activeOfficeId, onSetOffice, onAddOffice }) {
   const [menyOpen, setMenyOpen] = useState(false)
   const menyRef = useRef(null)
@@ -96,14 +96,14 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
       height: 54, minHeight: 54, flexShrink: 0,
       display: 'flex', alignItems: 'center',
       background: '#0A0A0A',
-      borderBottom: '1px solid rgba(255,255,255,.08)',
+      borderBottom: '1px solid #FFFFFF', // tynn kvit strek mellom toppfeltet og venstre navigasjonsfane
       userSelect: 'none',
       zIndex: 60,
     }}>
 
       {/* ── Logo-felt: same width as AppRail (52px), so it sits right above the module letters ── */}
       <div style={{
-        width: 52, minWidth: 52, height: '100%',
+        width: railBredde, minWidth: railBredde, height: '100%', transition: 'width .15s ease, min-width .15s ease',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         borderRight: '1px solid rgba(255,255,255,.08)',
       }} title="LiedLab">

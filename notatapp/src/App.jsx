@@ -1,7 +1,7 @@
 import Dashboard from './Dashboard'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useStore } from './useStore'
-import AppRail, { PARENT_AV_MODUL } from './AppRail'
+import AppRail, { PARENT_AV_MODUL, RAIL_MODUSAR, RAIL_BREIDD } from './AppRail'
 import AppRailUndermeny from './AppRailUndermeny'
 import KontordriftModule from './KontordriftModule'
 import FramdriftModule from './FramdriftModule'
@@ -52,6 +52,8 @@ export default function App({ userId, userEmail }) {
   const [mobileSheet,       setMobileSheet]       = useState(false)
   const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
   const [showSettings,      setShowSettings]      = useState(false)
+  const [railModus, setRailModus] = useState(() => { try { const v = localStorage.getItem('liedlab-rail-modus'); return RAIL_MODUSAR.includes(v) ? v : 'min' } catch { return 'min' } })
+  const settRailModus = (m) => { setRailModus(m); try { localStorage.setItem('liedlab-rail-modus', m) } catch { /* privat modus */ } }
   const [activeModule,      setActiveModule]      = useState('dashboard') // startsida; elles 'notatar' | 'timar' | 'kvalitet' …
   const [selectedNoteId,    setSelectedNoteId]    = useState(null) // markert (enkeltklikka) notat i NoteTabell — vist i NotePreview
   const [previewWidth,      setPreviewWidth]      = useState(() => {
@@ -500,6 +502,7 @@ export default function App({ userId, userEmail }) {
         onToggleFavorite={toggleFavorite}
         activeModule={activeModule}
         onModuleChange={setActiveModule}
+        railBredde={RAIL_BREIDD[railModus]}
         onOpenSettings={() => setShowSettings(true)}
         offices={offices}
         activeOfficeId={activeOfficeId}
@@ -513,6 +516,8 @@ export default function App({ userId, userEmail }) {
       <AppRail
         activeModule={activeModule}
         onModuleChange={setActiveModule}
+        modus={railModus}
+        onModus={settRailModus}
       />
 
       {/* Rail 2 — undermenyen til paraply-modulane (Admin/Gjeremål), sjå
