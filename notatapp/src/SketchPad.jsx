@@ -44,7 +44,7 @@ const SCALE_IN = 'input', SCALE_DONE = 'done'
 // Text+arrow state
 const TXT_IDLE = 'idle', TXT_TIP = 'tip', TXT_ANCHOR = 'anchor'
 
-export default function SketchPad({ onSave, onClose, existingDataUrl }) {
+export default function SketchPad({ onSave, onClose, existingDataUrl, innbygd = false }) {
   const canvasRef  = useRef(null)
   const overlayRef = useRef(null)
   const wrapRef    = useRef(null)
@@ -447,7 +447,7 @@ export default function SketchPad({ onSave, onClose, existingDataUrl }) {
     : 'crosshair'
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:1000, background:'#1a1a1a',
+    <div style={{ ...(innbygd ? { position:'relative', flex:1, minHeight:0, minWidth:0 } : { position:'fixed', inset:0, zIndex:1000 }), background:'#1a1a1a',
       display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
       {/* ── Toolbar ── */}

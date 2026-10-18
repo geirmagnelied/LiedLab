@@ -8,3 +8,6 @@
 
 ## Bokmål (omsetjar)
 `bokmalOmsetjar.js`: kjeldespråket er nynorsk; med språk = bokmål (Brukar → Brukarinfo → Språk) vert synleg tekst, placeholder og title omsett ord for ord i DOM-en (MutationObserver) — heile appen følgjer valet. Redigerbart innhald (contenteditable/input/textarea) og kode vert ikkje rørt, og nynorsk kan gjenopprettast utan omlasting. Legg nye ord i `ORD`; presise formuleringar legg ein i `sprak.js` (`t('nøkkel')`, går føre).
+
+## Skisse (VN) — retta 18. okt. 2026
+«Skisse» i VN er ein vanleg modul (`activeModule === 'skisse'`) som opnar `SketchPad` **innbygd i hovudvindauget** (`<SketchPad innbygd …>`, ikkje fullskjerm-overlegg). «Lagre» lagar skissa som notat (tittel «Skisse dato klokkeslett», valt prosjekt); «Avbryt» går til Dashboard. Fyrste versjon la overlegget i mobil-greina av `App.jsx`, så det vart aldri synleg på skrivebord.

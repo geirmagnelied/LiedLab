@@ -13,7 +13,7 @@ const MODULES = [
   { key: 'timar', ikon: Clock,     letter: 'T',   label: 'Timar',    color: '#60A5D4' },
   { key: 'kvalitet', ikon: ShieldCheck,  letter: 'KS',  label: 'Kvalitetssystem', color: '#EC9A5A' },
   { key: 'bilete', ikon: BileteIkon,    letter: 'B',   label: 'Bilete',   color: '#F4A261' },
-  { key: 'skisse',    ikon: PenTool, letter: 'Sk', label: 'Skisse', color: '#F59E0B', handling: 'skisse' },
+  { key: 'skisse',    ikon: PenTool, letter: 'Sk', label: 'Skisse', color: '#F59E0B' },
   { key: 'framdrift', ikon: GanttChartSquare, letter: 'Fd',  label: 'Framdrift', color: '#34D399' },
   { key: 'kalender', ikon: CalendarDays,  letter: 'Ka',  label: 'Kalender', color: '#2A9D8F' },
 ]

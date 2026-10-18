@@ -57,7 +57,6 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const [mobileSheet,       setMobileSheet]       = useState(false)
   const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
   const [showSettings,      setShowSettings]      = useState(false)
-  const [visSkisse, setVisSkisse] = useState(false)   // Skisse-snarveg frå VN
   const [skisseMelding, setSkisseMelding] = useState('')
   const [railLive, setRailLive] = useState(null) // breidd på VN under dragning (så logorutå i toppen følgjer med)
   const [railModus, setRailModus] = useState(() => { try { const v = localStorage.getItem('liedlab-rail-modus'); return RAIL_MODUSAR.includes(v) ? v : 'min' } catch { return 'min' } })
@@ -185,6 +184,15 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const handleSetOffice = (id) => { setActiveOfficeId(id); setSelectedProjectId(null) }
 
   // Full save / done — used by task-only and explicit save
+  // Skisse (VN): lagrar skissa som notat i valt prosjekt
+  const lagreSkisse = async (url) => {
+    const d = new Date()
+    const tittel = 'Skisse ' + d.toLocaleDateString('nb-NO') + ' ' + d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
+    await addNote({ title: tittel, text: '', html: '', tasks: [], tag: null, projectId: selectedProjectId || null, sketchDataUrl: url, attachments: [], isMeeting: false })
+    setSkisseMelding('Skissa er lagra som notat: «' + tittel + '»')
+    setTimeout(() => setSkisseMelding(''), 6000)
+  }
+
   const handleAdd = async (data) => {
     const { title, text, html, tasks, tag, projectId, newProjName, sketchDataUrl,
             attachments, isMeeting: noteIsMeeting,
@@ -473,18 +481,6 @@ function AppInnhald({ userId, userEmail, brukar }) {
         <MobileTab v="fristar"  letter="F" label="Fristar"/>
       </div>
 
-      {visSkisse && (
-        <SketchPad existingDataUrl={null} onClose={() => setVisSkisse(false)}
-          onSave={async (url) => {
-            setVisSkisse(false)
-            const d = new Date()
-            const tittel = 'Skisse ' + d.toLocaleDateString('nb-NO') + ' ' + d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
-            await addNote({ title: tittel, text: '', html: '', tasks: [], tag: null, projectId: selectedProjectId || null, sketchDataUrl: url, attachments: [], isMeeting: false })
-            setSkisseMelding('Skissa er lagra som notat: «' + tittel + '»')
-            setTimeout(() => setSkisseMelding(''), 6000)
-          }}/>
-      )}
-      {skisseMelding && <div style={{ position: 'fixed', left: '50%', bottom: 56, transform: 'translateX(-50%)', zIndex: 1200, background: '#1B2A3A', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}>{skisseMelding}</div>}
 
       {view === 'new' && (
         <NoteModal
@@ -544,7 +540,6 @@ function AppInnhald({ userId, userEmail, brukar }) {
         modus={railModus}
         onModus={settRailModus}
         onLiveBredde={setRailLive}
-        onSkisse={() => setVisSkisse(true)}
       />
 
       {/* Rail 2 — undermenyen til paraply-modulane (Admin/Gjeremål), sjå
@@ -561,7 +556,12 @@ function AppInnhald({ userId, userEmail, brukar }) {
       {/* Module content area — felles kolonne med botn-statuslinje for alle modular */}
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
       <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
-      {activeModule === 'bruker' ? (
+      {activeModule === 'skisse' ? (
+        <div style={{ flex:1, display:'flex', minWidth:0, minHeight:0, position:'relative' }}>
+          <SketchPad innbygd existingDataUrl={null} onClose={() => setActiveModule('dashboard')} onSave={lagreSkisse}/>
+          {skisseMelding && <div style={{ position:'absolute', left:'50%', bottom:24, transform:'translateX(-50%)', zIndex:50, background:'#1B2A3A', color:'#fff', padding:'10px 18px', borderRadius:10, fontSize:13, fontWeight:600, boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>{skisseMelding}</div>}
+        </div>
+      ) : activeModule === 'bruker' ? (
         <BrukarModule userId={userId} userEmail={userEmail} brukar={brukar}/>
       ) : activeModule === 'dashboard' ? (
         <Dashboard userId={userId} userEmail={userEmail} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>
@@ -740,7 +740,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
 )
 }
 
-const MODULE_LABELS = { bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
+const MODULE_LABELS = { skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())
