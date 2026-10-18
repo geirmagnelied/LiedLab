@@ -230,10 +230,17 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
 
   // ── Tabell: sett inn, og rediger via høgreklikk-meny ─────────────────
   const [tableMenu, setTableMenu] = useState(null) // { x, y, cell, table }
+  // Word-liknande tabellverktøy: flytande verktøylinje når markøren står i ein tabell, dra i kolonnekanten for breidde, Tab = neste celle
+  const [tabellKtx, setTabellKtx] = useState(null)   // { cell, table } for markøren
+  const [verktoy, setVerktoy] = useState(null)       // { x, y } posisjon (fixed) for verktøylinja
+  const [visTabellVelger, setVisTabellVelger] = useState(false)
+  const [velgR, setVelgR] = useState({ r: 0, k: 0 })
+  const resizeRef = useRef(false)
 
-  const settInnTabell = () => {
+  const settInnTabell = (r = 3, k = 3) => {
+    setVisTabellVelger(false)
     editorRef.current?.focus()
-    document.execCommand('insertHTML', false, lagTabellHtml())
+    document.execCommand('insertHTML', false, lagTabellHtml(r, k))
     triggerAutoSave()
   }
 
@@ -269,8 +276,9 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
     return c
   }
   const settInnRad = (retning) => {
-    if (!tableMenu) return
-    const { cell, table } = tableMenu
+    const ktx = tableMenu || tabellKtx
+    if (!ktx) return
+    const { cell, table } = ktx
     const radIndeks = cell.parentElement.rowIndex + (retning === 'under' ? 1 : 0)
     const nyRad = table.insertRow(radIndeks)
     const malRad = table.rows[retning === 'under' ? radIndeks - 1 : radIndeks + 1]
@@ -279,35 +287,116 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
     setTableMenu(null); triggerAutoSave()
   }
   const settInnKolonne = (retning) => {
-    if (!tableMenu) return
-    const { cell, table } = tableMenu
+    const ktx = tableMenu || tabellKtx
+    if (!ktx) return
+    const { cell, table } = ktx
     const kolIndeks = cell.cellIndex + (retning === 'høgre' ? 1 : 0)
     for (const rad of table.rows) {
       const c = rad.insertCell(kolIndeks)
       c.innerHTML = '&nbsp;'
-      c.setAttribute('style', rad.cells[0]?.getAttribute('style') || TABELL_CELLE_STIL)
+      c.setAttribute('style', rad.cells[Math.max(0, Math.min(kolIndeks - (retning === 'høgre' ? 1 : 0), rad.cells.length - 1))]?.getAttribute('style') || TABELL_CELLE_STIL)
     }
+    oppdaterTabellBredde(table)
     setTableMenu(null); triggerAutoSave()
   }
   const slettRad = () => {
-    if (!tableMenu) return
-    const { cell, table } = tableMenu
+    const ktx = tableMenu || tabellKtx
+    if (!ktx) return
+    const { cell, table } = ktx
     if (table.rows.length <= 1) table.remove()
     else table.deleteRow(cell.parentElement.rowIndex)
     setTableMenu(null); triggerAutoSave()
   }
   const slettKolonne = () => {
-    if (!tableMenu) return
-    const { cell, table } = tableMenu
+    const ktx = tableMenu || tabellKtx
+    if (!ktx) return
+    const { cell, table } = ktx
     if (table.rows[0].cells.length <= 1) table.remove()
     else for (const rad of table.rows) rad.deleteCell(cell.cellIndex)
+    oppdaterTabellBredde(table)
     setTableMenu(null); triggerAutoSave()
   }
   const slettTabell = () => {
-    if (!tableMenu) return
-    tableMenu.table.remove()
+    const ktx = tableMenu || tabellKtx
+    if (!ktx) return
+    ktx.table.remove()
     setTableMenu(null); triggerAutoSave()
   }
+
+
+  // Fast kolonnebreidd (px) — gjer breidda på kolonnane dragbare. Konverterer ein vanleg (auto-)tabell fyrste gong.
+  const oppdaterTabellBredde = (table) => {
+    if (!table || table.style.tableLayout !== 'fixed' || !table.rows[0]) return
+    table.style.width = [...table.rows[0].cells].reduce((a, c) => a + (parseFloat(c.style.width) || 0), 0) + 'px'
+  }
+  const fiksTabell = (table) => {
+    if (table.style.tableLayout === 'fixed') return
+    const maal = [...table.rows[0].cells].map(c => c.getBoundingClientRect().width)
+    for (const rad of table.rows) [...rad.cells].forEach((c, i) => { c.style.width = Math.round(maal[i] ?? 80) + 'px'; c.style.minWidth = '30px' })
+    table.style.tableLayout = 'fixed'
+    oppdaterTabellBredde(table)
+  }
+  const naerKant = (cell, e) => { const r = cell.getBoundingClientRect(); const d = r.right - e.clientX; return d <= 5 && d >= -2 }
+  const handleEditorMouseMove = (e) => {
+    const ed = editorRef.current
+    if (!ed || resizeRef.current) return
+    const cell = e.target.closest?.('td, th')
+    ed.style.cursor = cell && ed.contains(cell) && naerKant(cell, e) ? 'col-resize' : ''
+  }
+  const handleEditorMouseDown = (e) => {
+    const cell = e.target.closest?.('td, th')
+    if (!cell || !editorRef.current?.contains(cell) || !naerKant(cell, e)) return
+    e.preventDefault()
+    const table = cell.closest('table')
+    fiksTabell(table)
+    const idx = cell.cellIndex, x0 = e.clientX, w0 = parseFloat(cell.style.width) || cell.getBoundingClientRect().width
+    resizeRef.current = true
+    const mv = (ev) => {
+      const w = Math.max(30, Math.round(w0 + ev.clientX - x0))
+      for (const rad of table.rows) { const c = rad.cells[idx]; if (c) c.style.width = w + 'px' }
+      oppdaterTabellBredde(table)
+    }
+    const opp = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); resizeRef.current = false; document.body.style.cursor = ''; triggerAutoSave() }
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
+  }
+  // Tab i ein tabell: neste celle (ny rad etter siste), Shift+Tab: førre
+  const handleTabITabell = (e) => {
+    const sel = window.getSelection()
+    const n = sel?.anchorNode
+    const el = n && (n.nodeType === 1 ? n : n.parentElement)
+    const cell = el?.closest?.('td, th')
+    const table = cell?.closest('table')
+    if (!cell || !table || !editorRef.current?.contains(table)) return false
+    e.preventDefault()
+    const alle = [...table.querySelectorAll('td, th')]
+    const i = alle.indexOf(cell)
+    let mal = e.shiftKey ? alle[i - 1] : alle[i + 1]
+    if (!mal && !e.shiftKey) {
+      const siste = table.rows[table.rows.length - 1]
+      const ny = table.insertRow(-1)
+      for (const c0 of siste.cells) { const c = ny.insertCell(); c.innerHTML = '&nbsp;'; c.setAttribute('style', c0.getAttribute('style') || TABELL_CELLE_STIL) }
+      mal = ny.cells[0]; triggerAutoSave()
+    }
+    if (mal) { const r = document.createRange(); r.selectNodeContents(mal); r.collapse(false); sel.removeAllRanges(); sel.addRange(r) }
+    return true
+  }
+  useEffect(() => {
+    const oppdater = () => {
+      const sel = window.getSelection()
+      const ed = editorRef.current
+      const n = sel?.anchorNode
+      const el = n && (n.nodeType === 1 ? n : n.parentElement)
+      const cell = el?.closest?.('td, th')
+      const table = cell?.closest('table')
+      if (!ed || !cell || !table || !ed.contains(table)) { setVerktoy(null); setTabellKtx(null); return }
+      const r = table.getBoundingClientRect()
+      setTabellKtx({ cell, table }); setVerktoy({ x: Math.max(8, r.left), y: Math.max(8, r.top - 44) })
+    }
+    document.addEventListener('selectionchange', oppdater)
+    window.addEventListener('scroll', oppdater, true); window.addEventListener('resize', oppdater)
+    return () => { document.removeEventListener('selectionchange', oppdater); window.removeEventListener('scroll', oppdater, true); window.removeEventListener('resize', oppdater) }
+  }, [])
 
   // ── Task auto-save ───────────────────────────────────────────────────
   const commitNewTask = () => {
@@ -881,7 +970,19 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
                 border:'1.5px solid rgba(0,0,0,.15)', cursor:'pointer', flexShrink:0 }}/>
           ))}
           <div style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }}/>
-          <TBtn onClick={settInnTabell} title="Sett inn tabell (høgreklikk i tabellen for å leggje til/fjerne rader og kolonnar)">⊞</TBtn>
+          <span style={{ position: 'relative', display: 'inline-block' }} onMouseLeave={() => setVisTabellVelger(false)}>
+            <TBtn onClick={() => setVisTabellVelger(v => !v)} title="Sett inn tabell — vel storleik. Når markøren står i ein tabell kjem ei verktøylinje over han; dra i kolonnekanten for å endre breidde.">⊞</TBtn>
+            {visTabellVelger && (
+              <div onMouseDown={e => e.preventDefault()} style={{ position: 'absolute', top: '100%', left: 0, zIndex: 400, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-lg)', padding: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 20px)', gap: 3 }}>
+                  {Array.from({ length: 48 }, (_, i) => { const r = Math.floor(i / 8) + 1, k = (i % 8) + 1; const pa = r <= velgR.r && k <= velgR.k
+                    return <div key={i} onMouseEnter={() => setVelgR({ r, k })} onClick={() => settInnTabell(r, k)}
+                      style={{ width: 20, height: 16, border: '1px solid ' + (pa ? 'var(--brand)' : 'var(--border)'), background: pa ? 'var(--brandbg2)' : 'var(--bg2)', cursor: 'pointer', borderRadius: 2 }}/> })}
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--text2)', textAlign: 'center', marginTop: 6 }}>{velgR.r ? velgR.r + ' rader × ' + velgR.k + ' kolonnar' : 'Vel storleik'}</div>
+              </div>
+            )}
+          </span>
           <div style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }}/>
           <TBtn onClick={()=>exec('removeFormat')} title="Fjern format.">✕</TBtn>
         </div>
@@ -890,11 +991,33 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
             fontSize:14, lineHeight:1.8, color:'var(--text)', background:'var(--bg2)' }}
           onInput={handleEditorInput}
           onContextMenu={handleEditorContextMenu}
-          onKeyDown={e => { if (e.key==='Enter' && (e.ctrlKey||e.metaKey)) handleSave() }}
+          onMouseMove={handleEditorMouseMove} onMouseDown={handleEditorMouseDown}
+          onKeyDown={e => { if (e.key==='Tab' && handleTabITabell(e)) return; if (e.key==='Enter' && (e.ctrlKey||e.metaKey)) handleSave() }}
           data-placeholder="Skriv notat, eller dra inn e-post / PDF…"/>
       </div>
 
       {/* ── Tabell-kontekstmeny (høgreklikk i ein tabellcelle) ── */}
+      {verktoy && tabellKtx && (
+        <div onMouseDown={e => e.preventDefault()}
+          style={{ position: 'fixed', left: Math.min(verktoy.x, window.innerWidth - 560), top: verktoy.y, zIndex: 350, display: 'flex', alignItems: 'center', gap: 3, padding: '4px 6px',
+            background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 9, boxShadow: 'var(--shadow-lg)' }}>
+          {[
+            ['Rad over', '＋↑', () => settInnRad('over')], ['Rad under', '＋↓', () => settInnRad('under')],
+            ['Kolonne til venstre', '＋←', () => settInnKolonne('venstre')], ['Kolonne til høgre', '＋→', () => settInnKolonne('høgre')],
+          ].map(([t, ikon, fn]) => (
+            <button key={t} onClick={fn} title={'Sett inn: ' + t} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 8px', borderRadius: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--text2)', fontFamily: 'var(--font)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--brandbg)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>{ikon}</button>
+          ))}
+          <span style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 3px' }}/>
+          {[['Slett rad', '✕ Rad', slettRad], ['Slett kolonne', '✕ Kolonne', slettKolonne], ['Slett heile tabellen', '🗑 Tabell', slettTabell]].map(([t, ikon, fn]) => (
+            <button key={t} onClick={fn} title={t} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 8px', borderRadius: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--danger)', fontFamily: 'var(--font)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(185,28,28,.10)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>{ikon}</button>
+          ))}
+          <span style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 3px' }}/>
+          <span style={{ fontSize: 11, color: 'var(--text3)', padding: '0 4px', whiteSpace: 'nowrap' }}>Dra i kolonnekanten for breidde · Tab = neste celle</span>
+        </div>
+      )}
+
       {tableMenu && (
         <div onMouseDown={e => e.stopPropagation()}
           style={{ position:'fixed', left:Math.min(tableMenu.x, window.innerWidth-210), top:tableMenu.y,
