@@ -1,0 +1,10 @@
+# Kontordrift: Ansatte og Kontorkalender (18. okt. 2026)
+
+- **Kontordrift** (opnar frå trestripa øvst til høgre) har to sider: **Ansatte** og **Kontorkalender** (flytta hit frå Prosjekt; `KontorkalenderSide.jsx` er uendra).
+- **Ansatte** (`AnsatteSide.jsx`, tabell `ansatte`, RLS per administrator = innlogga brukar): fornamn, etternamn, e-post, tittel, rolle (ansatt/administrator), standard timepris (kr/t), aktiv, invitasjonsstatus. Første gong vert innlogga brukar lagd inn som administrator. «**Send invitasjon**» kallar Supabase-funksjonen `inviter-ansatt` (Edge Function, `verify_jwt`) som sjekkar at du eig rada og kallar `auth.admin.inviteUserByEmail` — personen får e-post med lenke for å lage passord og logge inn. Status: Ikkje invitert / Invitasjon sendt / Har konto / Feila.
+  - NB: appen er per i dag **éin brukar = éi eiga datamengd** (RLS `auth.uid() = user_id`). Ein invitert får ein eigen konto, men ser ikkje administratoren sine prosjekt. Delt arbeidsområde (felles prosjekt/data) er neste steg og krev ny RLS-modell.
+- **Personell** (Prosjekt → Personell) vert no valt frå dei registrerte ansatte («＋ Legg til frå ansatte…»); namn, e-post, tittel (→ rolle) og standard timepris følgjer med (`prosjekt_personell.ansatt_id`). «Legg meg til» og «Kopier frå anna prosjekt» finst framleis.
+- **Prosjekt-landingsside**: når «Alle prosjekt» er valt øvst, viser Prosjekt-modulen ei landingsside med søk (namn, nummer, oppdragsgjevar), filter (Alle/Tilbod/Aktive/Arkiv/Papirkorg) og prosjektkort; den gamle blå prosjektlista til venstre er fjerna.
+
+## Bokmål (omsetjar)
+`bokmalOmsetjar.js`: kjeldespråket er nynorsk; med språk = bokmål (Brukar → Brukarinfo → Språk) vert synleg tekst, placeholder og title omsett ord for ord i DOM-en (MutationObserver) — heile appen følgjer valet. Redigerbart innhald (contenteditable/input/textarea) og kode vert ikkje rørt, og nynorsk kan gjenopprettast utan omlasting. Legg nye ord i `ORD`; presise formuleringar legg ein i `sprak.js` (`t('nøkkel')`, går føre).

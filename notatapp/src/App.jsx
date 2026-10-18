@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useStore } from './useStore'
 import BrukarModule from './BrukarModule'
 import SketchPad from './SketchPad'
+import { startBokmalOmsetjar } from './bokmalOmsetjar'
 import useBrukar from './useBrukar'
 import { SprakKontekst, lagT } from './sprak'
 import AppRail, { PARENT_AV_MODUL, RAIL_MODUSAR, RAIL_BREIDD } from './AppRail'
@@ -459,7 +460,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'saker' && <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'dtm' && <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
         {activeModule === 'bilete' && <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
-        {activeModule === 'kontordrift' && <KontordriftModule/>}
+        {activeModule === 'kontordrift' && <KontordriftModule userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>}
         {activeModule === 'framdrift' && <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId}/>}
       </div>
 
@@ -588,7 +589,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
       ) : activeModule === 'bilete' ? (
         <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>
       ) : activeModule === 'kontordrift' ? (
-        <KontordriftModule/>
+        <KontordriftModule userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>
       ) : activeModule === 'framdrift' ? (
         <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId}/>
       ) : (
@@ -772,6 +773,8 @@ export default function App({ userId, userEmail }) {
   const brukar = useBrukar(userId, userEmail)
   const sprak = brukar.sprak
   const verdi = useMemo(() => ({ sprak, t: lagT(sprak), settSprak: (s) => brukar.oppdater({ sprak: s }) }), [sprak]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Bokmål: omsetj heile appen (ord for ord) i DOM-en; nynorsk er kjeldespråket. Sjå bokmalOmsetjar.js
+  useEffect(() => { if (sprak !== 'bm') return undefined; return startBokmalOmsetjar() }, [sprak])
   return (
     <SprakKontekst.Provider value={verdi}>
       <AppInnhald userId={userId} userEmail={userEmail} brukar={brukar}/>

@@ -3,7 +3,6 @@ import { supabase } from './supabase'
 import NummereringVal from './NummereringVal'
 import PersonellSide from './PersonellSide'
 import { leggTilMegSomPersonell, merkSeedet } from './personellStandard'
-import KontorkalenderSide from './KontorkalenderSide'
 import { STANDARD_NUMMERERING } from './teikningsnummer'
 
 // ── Konstantar ────────────────────────────────────────────────────────
@@ -173,6 +172,71 @@ function tomtProsjekt() {
 }
 
 // ══════════════════════════════════════════════════════════════════
+//  Landingsside for Prosjekt (når «Alle prosjekt» er valt): søk + filter + kort. Klikk på eit prosjekt for å opne det.
+function ProsjektOversikt({ liste, loading, filter, setFilter, papirkorgTal, onVel, onNytt, onSlett, onGjenopprett, onSlettEndeleg }) {
+  const [sok, setSok] = useState('')
+  const q = sok.trim().toLowerCase()
+  const treff = liste.filter(p => !q || `${p.projectNumber || ''} ${p.name || ''} ${p.details?.oppdragsgivar || ''} ${p.details?.kunde || ''} ${p.details?.adresse || ''}`.toLowerCase().includes(q))
+  const dagar = (d) => Math.max(0, 30 - Math.floor((Date.now() - new Date(d).getTime()) / 86400000))
+  return (
+    <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', background:'var(--bg)' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'0 20px', height:50, flexShrink:0, background:'var(--brand)' }}>
+        <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em' }}>Prosjekt</span>
+        <span style={{ fontSize:12, color:'rgba(255,255,255,.7)' }}>{treff.length} prosjekt</span>
+        <div style={{ flex:1 }}/>
+        <button onClick={onNytt} style={{ padding:'6px 16px', borderRadius:'var(--r)', border:'1.5px solid rgba(255,255,255,.55)', background:'rgba(255,255,255,.18)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>＋ Nytt prosjekt</button>
+      </div>
+      <div style={{ flex:1, overflowY:'auto', padding:'26px 30px 40px' }}>
+        <div style={{ maxWidth:1200, margin:'0 auto' }}>
+          <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap', marginBottom:20 }}>
+            <input autoFocus value={sok} onChange={e => setSok(e.target.value)} placeholder="Søk etter prosjekt (namn, nummer, oppdragsgjevar)…"
+              style={{ flex:'1 1 360px', maxWidth:560, padding:'11px 14px', fontSize:14, border:'1.5px solid var(--border)', borderRadius:10, background:'var(--bg2)', color:'var(--text)', fontFamily:'var(--font)', outline:'none' }}/>
+            <div style={{ display:'flex', gap:4, background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:9, padding:3 }}>
+              {[['alle','Alle'],['tilbod','Tilbod'],['aktiv','Aktive'],['arkiv','Arkiv']].map(([k, l]) => (
+                <button key={k} onClick={() => setFilter(k)} style={{ border:'none', borderRadius:7, padding:'6px 14px', fontSize:12.5, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)',
+                  background: filter === k ? 'var(--bg2)' : 'transparent', color: filter === k ? 'var(--brand)' : 'var(--text3)', boxShadow: filter === k ? 'var(--shadow-sm)' : 'none' }}>{l}</button>
+              ))}
+              <button onClick={() => setFilter('papirkorg')} title="Papirkorg" style={{ border:'none', borderRadius:7, padding:'6px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)',
+                background: filter === 'papirkorg' ? 'rgba(220,38,38,.15)' : 'transparent', color: filter === 'papirkorg' ? 'var(--danger)' : 'var(--text3)' }}>🗑{papirkorgTal > 0 ? ' ' + papirkorgTal : ''}</button>
+            </div>
+          </div>
+          {loading && <div style={{ color:'var(--text3)', fontSize:13 }}>Lastar…</div>}
+          {!loading && treff.length === 0 && <div style={{ padding:'40px 10px', textAlign:'center', color:'var(--text3)', fontSize:14 }}>{q ? 'Ingen prosjekt passar søket.' : 'Ingen prosjekt enno — trykk «＋ Nytt prosjekt».'}</div>}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:14 }}>
+            {treff.map(p => {
+              const sc = STATUS_COLORS[p.status] || '#4A7560'
+              const iKorg = !!p.deletedAt
+              return (
+                <div key={p.id} onClick={() => !iKorg && onVel(p.id)}
+                  style={{ background:'var(--bg2)', border:'1.5px solid var(--border)', borderRadius:12, padding:'14px 16px', cursor: iKorg ? 'default' : 'pointer', transition:'box-shadow .15s, border-color .15s', display:'flex', flexDirection:'column', gap:8 }}
+                  onMouseEnter={e => { if (!iKorg) { e.currentTarget.style.borderColor = 'var(--brand2)'; e.currentTarget.style.boxShadow = 'var(--shadow-lg)' } }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <span style={{ fontFamily:'var(--mono)', fontSize:12, fontWeight:700, color:'var(--text3)' }}>{p.projectNumber || '—'}</span>
+                    <span style={{ padding:'2px 8px', borderRadius:4, background:sc, color:'#fff', fontSize:10, fontWeight:800, letterSpacing:'.05em', textTransform:'uppercase' }}>{STATUS_LABELS[p.status] || p.status}</span>
+                    <div style={{ flex:1 }}/>
+                    {!iKorg && <button onClick={e => { e.stopPropagation(); onSlett(p.id) }} title="Slett prosjekt" style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text3)', fontSize:13, opacity:.6 }}>🗑</button>}
+                  </div>
+                  <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', lineHeight:1.35 }}>{p.name}</div>
+                  {iKorg && (
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:12, color:'var(--danger)', fontWeight:600 }}>Slettast om {dagar(p.deletedAt)} dagar</span>
+                      <div style={{ flex:1 }}/>
+                      <button className="fd-knapp" style={{ padding:'3px 10px', fontSize:12, border:'1.5px solid var(--border)', borderRadius:6, background:'var(--bg2)', cursor:'pointer' }} onClick={e => { e.stopPropagation(); onGjenopprett(p.id) }}>Gjenopprett</button>
+                      <button style={{ padding:'3px 10px', fontSize:12, border:'1.5px solid var(--danger)', borderRadius:6, background:'transparent', color:'var(--danger)', cursor:'pointer' }} onClick={e => { e.stopPropagation(); onSlettEndeleg(p.id) }}>Slett endeleg</button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════
 export default function ProsjektModule({ userId, projects: existingProjects, offices,
                                           activeOfficeId, addProject, onProjectCreated,
                                           activeProjectId, onSetActiveProject }) {
@@ -292,6 +356,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     const { error } = await supabase.from('projects').insert(row)
     if (!error) {
       merkSeedet(id); leggTilMegSomPersonell(userId, id, { eksisterande: [] })
+      onSetActiveProject?.(id)
       await loadProsjekt()
       setSelected(id)
       setForm({ ...details, projectNumber: nr, status: 'tilbod', name: row.name })
@@ -501,141 +566,15 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   const bind = { form, set }
 
   // ══════════════════════════════════════════════════════════════
+  // «Alle prosjekt» valt øvst → landingsside med søk (i staden for den gamle prosjektlista til venstre)
+  if (!activeProjectId) {
+    return <ProsjektOversikt liste={filteredList} loading={loading} filter={filter} setFilter={setFilter} papirkorgTal={papirkorgTal}
+      onVel={selectProject} onNytt={nyttProsjekt} onSlett={slettProsjekt} onGjenopprett={gjenopprettProsjekt} onSlettEndeleg={slettEndeleg}/>
+  }
+
   return (
     <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
 
-      {/* ── Sidebar: prosjektliste ── */}
-      <aside className="sidebar-brand" style={{
-        width:sidebarWidth, minWidth:sidebarWidth, flexShrink:0,
-        display:'flex', flexDirection:'column', overflow:'hidden',
-      }}>
-        {/* Header */}
-        <div style={{ padding:'18px 16px 14px', borderBottom:'1px solid rgba(255,255,255,.12)' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-            <div style={{ width:32, height:32, borderRadius:9,
-              background:'rgba(255,255,255,.15)', display:'flex', alignItems:'center',
-              justifyContent:'center', fontSize:16, fontWeight:800, color:'#fff',
-              flexShrink:0, border:'1.5px solid rgba(255,255,255,.25)' }}>P</div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontWeight:700, fontSize:16, color:'#fff', letterSpacing:'-0.02em' }}>Prosjekt</div>
-              <div style={{ fontSize:11, color:'rgba(255,255,255,.55)', fontWeight:500 }}>
-                {filteredList.length} prosjekt
-              </div>
-            </div>
-          </div>
-
-          {/* Nytt prosjekt-knapp */}
-          <button onClick={nyttProsjekt}
-            style={{ width:'100%', padding:'9px 12px', borderRadius:'var(--r)',
-              border:'1.5px solid rgba(255,255,255,.35)', background:'rgba(255,255,255,.12)',
-              color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
-              fontFamily:'var(--font)', textAlign:'left' }}>
-            ＋ Nytt prosjekt
-          </button>
-        </div>
-
-        {/* Filter-pills */}
-        <div style={{ display:'flex', gap:4, padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,.08)', flexWrap:'wrap' }}>
-          {[['alle','Alle'],['tilbod','Tilbod'],['aktiv','Aktive'],['arkiv','Arkiv']].map(([k,l]) => (
-            <button key={k} onClick={() => setFilter(k)}
-              style={{ flex:1, padding:'4px 0', borderRadius:5, border:'none',
-                background: filter===k ? 'rgba(255,255,255,.2)' : 'transparent',
-                color: filter===k ? '#fff' : 'rgba(255,255,255,.5)',
-                fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-              {l}
-            </button>
-          ))}
-          <button onClick={() => setFilter('papirkorg')}
-            title="Papirkorg"
-            style={{ padding:'4px 10px', borderRadius:5, border:'none',
-              background: filter==='papirkorg' ? 'rgba(220,38,38,.35)' : 'transparent',
-              color: filter==='papirkorg' ? '#fff' : 'rgba(255,255,255,.5)',
-              fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)',
-              display:'flex', alignItems:'center', gap:3 }}>
-            🗑{papirkorgTal > 0 ? ` ${papirkorgTal}` : ''}
-          </button>
-        </div>
-
-        {/* Liste */}
-        <div style={{ flex:1, overflowY:'auto', paddingTop:4 }}>
-          {loading && <div style={{ padding:'12px 16px', color:'rgba(255,255,255,.4)', fontSize:12 }}>Lastar…</div>}
-          {!loading && filteredList.length === 0 && (
-            <div style={{ padding:'16px', color:'rgba(255,255,255,.35)', fontSize:12, textAlign:'center' }}>
-              Ingen prosjekt enno
-            </div>
-          )}
-          {filteredList.map(p => {
-            const ac = selected === p.id
-            const sc = STATUS_COLORS[p.status] || '#4A7560'
-            const inTrash = !!p.deletedAt
-            return (
-              <div key={p.id} onClick={() => !inTrash && selectProject(p.id)}
-                style={{ display:'flex', alignItems:'center', gap:8,
-                  padding:'8px 12px 8px 16px', cursor: inTrash ? 'default' : 'pointer',
-                  background: ac ? 'rgba(255,255,255,.15)' : 'transparent',
-                  borderLeft: `3px solid ${ac ? 'rgba(255,255,255,.85)' : 'transparent'}`,
-                  transition:'background .1s' }}
-                onMouseEnter={e => { if (!ac) e.currentTarget.style.background='rgba(255,255,255,.06)' }}
-                onMouseLeave={e => { if (!ac) e.currentTarget.style.background='transparent' }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:12, fontWeight:ac ? 700 : 500, color: ac ? '#fff' : 'rgba(255,255,255,.8)',
-                    overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                    {p.name}
-                  </div>
-                  <div style={{ fontSize:10, color:'rgba(255,255,255,.45)', marginTop:1, display:'flex', alignItems:'center', gap:6 }}>
-                    <span style={{ fontFamily:'var(--mono)' }}>{p.projectNumber || '—'}</span>
-                    {inTrash ? (
-                      <span style={{ color:'rgba(220,38,38,.85)', fontWeight:600 }}>
-                        Slettast om {dagarIgjen(p.deletedAt)} dagar
-                      </span>
-                    ) : (
-                      <span style={{ padding:'1px 6px', borderRadius:3,
-                        background:sc, color:'#fff', fontSize:9, fontWeight:700,
-                        letterSpacing:'.04em', textTransform:'uppercase' }}>
-                        {STATUS_LABELS[p.status] || p.status}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {inTrash ? (
-                  <div style={{ display:'flex', gap:4, flexShrink:0 }}>
-                    <button onClick={e => { e.stopPropagation(); gjenopprettProsjekt(p.id) }}
-                      title="Gjenopprett"
-                      style={{ padding:'4px 8px', borderRadius:5, border:'1px solid rgba(255,255,255,.3)',
-                        background:'rgba(255,255,255,.1)', color:'#fff', fontSize:10, fontWeight:600,
-                        cursor:'pointer', fontFamily:'var(--font)' }}>
-                      Gjenopprett
-                    </button>
-                    <button onClick={e => { e.stopPropagation(); slettEndeleg(p.id) }}
-                      title="Slett endeleg"
-                      style={{ padding:'4px 8px', borderRadius:5, border:'1px solid rgba(220,38,38,.4)',
-                        background:'rgba(220,38,38,.15)', color:'#fca5a5', fontSize:10, fontWeight:600,
-                        cursor:'pointer', fontFamily:'var(--font)' }}>
-                      ✕
-                    </button>
-                  </div>
-                ) : (
-                  <button onClick={e => { e.stopPropagation(); slettProsjekt(p.id) }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'rgba(252,165,165,.9)' }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity = '0' }}
-                    title="Slett prosjekt"
-                    style={{ padding:'4px 6px', borderRadius:5, border:'none',
-                      background:'transparent', color:'rgba(255,255,255,.3)', fontSize:12,
-                      cursor:'pointer', flexShrink:0, opacity:0, transition:'opacity .15s' }}>
-                    🗑
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Botntelling */}
-        <div style={{ padding:'8px 16px', borderTop:'1px solid rgba(255,255,255,.1)',
-          fontSize:11, color:'rgba(255,255,255,.3)' }}>
-          {prosjektList.filter(p => p.status === 'aktiv' && !p.deletedAt).length} aktive prosjekt
-        </div>
-      </aside>
 
       {/* ── Hovudinnhald: prosjektkort ── */}
       <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
@@ -681,7 +620,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
 
         {/* Fanerad: Prosjektkort · Personell · Kontorkalender */}
         <div style={{ display:'flex', gap:2, padding:'0 20px', borderBottom:'1px solid var(--border)', background:'var(--bg2)', flexShrink:0 }}>
-          {[['kort','Prosjektkort'],['personell','Personell'],['kalender','Kontorkalender']].map(([k, t]) => (
+          {[['kort','Prosjektkort'],['personell','Personell']].map(([k, t]) => (
             <button key={k} onClick={() => setSide(k)}
               style={{ padding:'11px 16px', border:'none', background:'transparent', cursor:'pointer', fontFamily:'var(--font)',
                 fontSize:13, fontWeight: side === k ? 800 : 600, color: side === k ? 'var(--brand)' : 'var(--text3)',
@@ -696,11 +635,6 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
             <PersonellSide userId={userId} prosjekt={prosjektList.find(p => p.id === selected)} prosjektListe={prosjektList}/>
           </div>
         )}
-        {side === 'kalender' && (
-          <div style={{ flex:1, overflowY:'auto', padding:'22px 28px' }}>
-            <KontorkalenderSide userId={userId}/>
-          </div>
-        )}
 
         {/* Prosjektkort */}
         {side === 'kort' && (
@@ -712,7 +646,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
                 display:'flex', alignItems:'center', justifyContent:'center',
                 fontSize:32, fontWeight:900, color:'var(--brand)', fontFamily:'var(--font)' }}>P</div>
               <p style={{ fontSize:14, color:'var(--text3)', textAlign:'center', maxWidth:360, lineHeight:1.7 }}>
-                Vel eit prosjekt frå lista til venstre, eller opprett eit nytt prosjekt.
+                Vel eit prosjekt øvst i vindauget, eller opprett eit nytt prosjekt.
               </p>
             </div>
           ) : (

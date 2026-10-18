@@ -83,6 +83,22 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
     setPersonar(ps => ps.filter(x => x.id !== id))
   }
 
+  // ── Ansatte (Kontordrift → Ansatte): personell vert valt frå dei registrerte ──
+  const [ansatte, setAnsatte] = useState([])
+  const lastAnsatte = useCallback(async () => {
+    if (!userId) return
+    const { data } = await supabase.from('ansatte').select('*').eq('user_id', userId).eq('aktiv', true).order('namn')
+    setAnsatte(data || [])
+  }, [userId])
+  useEffect(() => { lastAnsatte() }, [lastAnsatte])
+  const nokkel = (n) => String(n || '').toLowerCase().split(/[\s,]+/).filter(Boolean).sort().join(' ')
+  const ledigeAnsatte = ansatte.filter(a => !personar.some(p => p.ansatt_id === a.id || (a.epost && p.epost && a.epost.toLowerCase() === p.epost.toLowerCase()) || nokkel(p.namn) === nokkel(a.namn)))
+  const leggTilAnsatt = async (id) => {
+    const a = ansatte.find(x => String(x.id) === String(id))
+    if (!a) return
+    await leggTil({ namn: a.namn, fornamn: a.fornamn, etternamn: a.etternamn, epost: a.epost, rolle: a.tittel || '', timepris: a.timepris ?? null, ansatt_id: a.id })
+  }
+
   const kopierFra = async (fraId) => {
     if (!fraId) return
     const { data } = await supabase.from('prosjekt_personell').select('*').eq('user_id', userId).eq('project_id', +fraId).order('sortering')
@@ -128,7 +144,13 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button style={{ ...knapp, background: 'var(--brand)', borderColor: 'var(--brand)', color: '#fff' }} onClick={() => leggTil()}>+ Legg til person</button>
+        <button style={{ ...knapp, background: 'var(--brand)', borderColor: 'var(--brand)', color: '#fff' }} onClick={() => {}} hidden>+ Legg til person</button>
+        <select value="" onChange={e => { if (e.target.value) leggTilAnsatt(e.target.value) }} disabled={!ledigeAnsatte.length}
+          style={{ padding: '6px 8px', border: '1.5px solid var(--brand)', borderRadius: 7, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font)', background: 'var(--brand)', color: '#fff', cursor: 'pointer', opacity: ledigeAnsatte.length ? 1 : .6 }}
+          title="Personell vert valt blant dei som er registrerte som ansatte (Kontordrift → Ansatte)">
+          <option value="">{ansatte.length ? '＋ Legg til frå ansatte…' : 'Ingen ansatte registrerte'}</option>
+          {ledigeAnsatte.map(a => <option key={a.id} value={a.id} style={{ color: '#000' }}>{a.namn || a.epost}{a.tittel ? ' — ' + a.tittel : ''}</option>)}
+        </select>
         <button style={knapp} onClick={leggTilMeg} title="Legg inn deg sjølv (innlogga brukar) i prosjektet">+ Legg meg til</button>
         {andreProsjekt.length > 0 && (
           <select value="" onChange={e => kopierFra(e.target.value)}

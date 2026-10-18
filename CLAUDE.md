@@ -18,6 +18,7 @@ den relevante fila når ei oppgåve gjeld eit tema han dekkjer:
   av logikk derifrå — sjå fila for autoritative regex-mønster og kontekst
 - `claude/framdrift-modul.md` — Framdrift-modulen (faseplan/Gantt per prosjekt,
   avhengnader, malar, import av Excel/MS Project XML; tabell `framdrift_planar`)
+- `claude/kontordrift-modul.md` — Kontordrift: Ansatte (invitasjon), Kontorkalender, prosjektlanding, bokmål-omsetjar
 - `claude/brukar-modul.md` — Brukar-modulen (profil, kompetanse, prosjekterfaring) og språkval nn/bm
 - `claude/dtm-modul.md` — **under bygging** (frå 24. sept. 2026): DTM
   (Dokument, tegningar og modellar) erstattar Resultatdokument-modulen.
