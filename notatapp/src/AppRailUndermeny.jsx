@@ -1,4 +1,5 @@
 import { UNDERMODULAR } from './AppRail'
+import { useT } from './sprak'
 
 // ═══════════════════════════════════════════════════════════════════
 //  AppRailUndermeny — «venstrebar nr. 2», til høgre for den vanlege
@@ -8,6 +9,7 @@ import { UNDERMODULAR } from './AppRail'
 //  SAME, uendra modul-verdiane som før paraply-strukturen fanst).
 // ═══════════════════════════════════════════════════════════════════
 export default function AppRailUndermeny({ toppNokkel, activeModule, onModuleChange }) {
+  const { t } = useT()
   const born = UNDERMODULAR[toppNokkel]
   if (!born) return null
 
@@ -39,7 +41,7 @@ export default function AppRailUndermeny({ toppNokkel, activeModule, onModuleCha
               fontSize: b.letter.length > 1 ? 8.5 : 10.5, fontWeight: 800, color: '#111' }}>
               {b.letter}
             </span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('nav.' + b.key, b.label)}</span>
           </button>
         )
       })}

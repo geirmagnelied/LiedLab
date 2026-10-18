@@ -1,6 +1,9 @@
 import Dashboard from './Dashboard'
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useStore } from './useStore'
+import BrukarModule from './BrukarModule'
+import useBrukar from './useBrukar'
+import { SprakKontekst, lagT } from './sprak'
 import AppRail, { PARENT_AV_MODUL, RAIL_MODUSAR, RAIL_BREIDD } from './AppRail'
 import AppRailUndermeny from './AppRailUndermeny'
 import KontordriftModule from './KontordriftModule'
@@ -29,7 +32,7 @@ import DTMModule from './DTMModule'
 
 const INITIAL_TL_H  = 200
 
-export default function App({ userId, userEmail }) {
+function AppInnhald({ userId, userEmail, brukar }) {
   const { notes, projects, loading, addNote, updateNote, deleteNote, toggleDone,
           toggleNoteFavorite, toggleNotePinned,
           noteColumns, addNoteColumn, deleteNoteColumn, setNoteExtraValue,
@@ -52,6 +55,7 @@ export default function App({ userId, userEmail }) {
   const [mobileSheet,       setMobileSheet]       = useState(false)
   const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
   const [showSettings,      setShowSettings]      = useState(false)
+  const [railLive, setRailLive] = useState(null) // breidd på VN under dragning (så logorutå i toppen følgjer med)
   const [railModus, setRailModus] = useState(() => { try { const v = localStorage.getItem('liedlab-rail-modus'); return RAIL_MODUSAR.includes(v) ? v : 'min' } catch { return 'min' } })
   const settRailModus = (m) => { setRailModus(m); try { localStorage.setItem('liedlab-rail-modus', m) } catch { /* privat modus */ } }
   const [activeModule,      setActiveModule]      = useState('dashboard') // startsida; elles 'notatar' | 'timar' | 'kvalitet' …
@@ -426,6 +430,7 @@ export default function App({ userId, userEmail }) {
 
       {/* Mobile content */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
+        {activeModule === 'bruker' && <BrukarModule userId={userId} userEmail={userEmail} brukar={brukar}/>}
         {activeModule === 'dashboard' && <Dashboard userId={userId} userEmail={userEmail} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>}
         {activeModule === 'notatar' && (
           <>
@@ -502,7 +507,10 @@ export default function App({ userId, userEmail }) {
         onToggleFavorite={toggleFavorite}
         activeModule={activeModule}
         onModuleChange={setActiveModule}
-        railBredde={RAIL_BREIDD[railModus]}
+        railBredde={railLive ?? RAIL_BREIDD[railModus]}
+        brukarNamn={brukar.visNamn}
+        brukarBilete={brukar.bileteUrl}
+        onOpenBruker={() => setActiveModule('bruker')}
         onOpenSettings={() => setShowSettings(true)}
         offices={offices}
         activeOfficeId={activeOfficeId}
@@ -518,6 +526,7 @@ export default function App({ userId, userEmail }) {
         onModuleChange={setActiveModule}
         modus={railModus}
         onModus={settRailModus}
+        onLiveBredde={setRailLive}
       />
 
       {/* Rail 2 — undermenyen til paraply-modulane (Admin/Gjeremål), sjå
@@ -534,7 +543,9 @@ export default function App({ userId, userEmail }) {
       {/* Module content area — felles kolonne med botn-statuslinje for alle modular */}
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
       <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
-      {activeModule === 'dashboard' ? (
+      {activeModule === 'bruker' ? (
+        <BrukarModule userId={userId} userEmail={userEmail} brukar={brukar}/>
+      ) : activeModule === 'dashboard' ? (
         <Dashboard userId={userId} userEmail={userEmail} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>
       ) : activeModule === 'prosjekt' ? (
         <ProsjektModule userId={userId} projects={officeProjects} offices={offices}
@@ -711,7 +722,7 @@ export default function App({ userId, userEmail }) {
 )
 }
 
-const MODULE_LABELS = { dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
+const MODULE_LABELS = { bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())
@@ -737,4 +748,16 @@ function StatusBar({ activeModule }) {
       <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v9i</span>
     </div>
 )
+}
+
+// Rotkomponent: brukarprofil (inkl. språk) + språkkontekst rundt heile appen
+export default function App({ userId, userEmail }) {
+  const brukar = useBrukar(userId, userEmail)
+  const sprak = brukar.sprak
+  const verdi = useMemo(() => ({ sprak, t: lagT(sprak), settSprak: (s) => brukar.oppdater({ sprak: s }) }), [sprak]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <SprakKontekst.Provider value={verdi}>
+      <AppInnhald userId={userId} userEmail={userEmail} brukar={brukar}/>
+    </SprakKontekst.Provider>
+  )
 }

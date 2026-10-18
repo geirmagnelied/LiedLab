@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from './supabase'
+import { useT } from './sprak'
 
 // Startsida: midtstilte, flytande «kort» med siste aktivitet og status.
 // Notat/oppgåver kjem frå den alt innlasta store (props); timar og DTM-endringar
@@ -46,6 +47,7 @@ const Rad = ({ hovud, under, hogre, onKlikk }) => (
 )
 
 export default function Dashboard({ userId, userEmail, projects, notes, onOpneModul, onVelgProsjekt }) {
+  const { t, sprak } = useT()
   const prosjektNamn = useMemo(() => Object.fromEntries((projects || []).map(p => [p.id, p.name])), [projects])
   const prosjektIds = useMemo(() => new Set((projects || []).map(p => p.id)), [projects])
   const [timar, setTimar] = useState(null)   // { 'YYYY-MM-DD': timar }
@@ -84,7 +86,7 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
   const forfalne = opneOppgaver.filter(t => t.date && t.date < idag).length
 
   const timeNo = new Date().getHours()
-  const helsing = timeNo < 10 ? 'God morgon' : timeNo < 18 ? 'God dag' : 'God kveld'
+  const helsing = timeNo < 10 ? t('dash.godmorgon') : timeNo < 18 ? t('dash.goddag') : t('dash.godkveld')
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)', display: 'flex', justifyContent: 'center' }}>
@@ -92,20 +94,20 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-.02em', color: 'var(--text)' }}>{helsing}</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 4 }}>
-            {new Date().toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {new Date().toLocaleDateString(sprak === 'bm' ? 'nb-NO' : 'nn-NO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             {' · '}{(projects || []).length} prosjekt · {opneOppgaver.length ? `${opneOppgaver.length}+ opne oppgåver` : 'ingen opne oppgåver'}{forfalne ? ` · ${forfalne} forfalne` : ''}
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 18 }}>
-          <Kort tittel="Siste notat" ikon="✎" farge="#52B788" onKlikk={() => onOpneModul('notatar')}>
+          <Kort tittel={t('dash.sisteNotat')} ikon="✎" farge="#52B788" onKlikk={() => onOpneModul('notatar')}>
             {sisteNotat.length === 0 ? <Tom tekst="Ingen notat enno."/> : sisteNotat.map(n => (
               <Rad key={n.id} hovud={n.title || '(utan tittel)'} under={prosjektNamn[n.projectId] || 'Utan prosjekt'}
                 hogre={relTid(n.updatedAt || n.createdAt)} onKlikk={() => { if (n.projectId) onVelgProsjekt?.(n.projectId); onOpneModul('notatar') }}/>
             ))}
           </Kort>
 
-          <Kort tittel="Opne oppgåver" ikon="☑" farge="#4EADA3" onKlikk={() => onOpneModul('oppgaver')}>
+          <Kort tittel={t('dash.opneOppgaver')} ikon="☑" farge="#4EADA3" onKlikk={() => onOpneModul('oppgaver')}>
             {opneOppgaver.length === 0 ? <Tom tekst="Ingen opne oppgåver 🎉"/> : opneOppgaver.map(t => (
               <Rad key={t.notat.id + '-' + t.id} hovud={t.text} under={`${t.notat.title || 'Notat'} · ${prosjektNamn[t.notat.projectId] || 'Utan prosjekt'}`}
                 hogre={t.date ? <span style={{ color: t.date < idag ? 'var(--danger, #c0392b)' : undefined, fontWeight: t.date < idag ? 700 : 400 }}>{fmtKort(t.date)}</span> : ''}
@@ -113,7 +115,7 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
             ))}
           </Kort>
 
-          <Kort tittel="Timar denne veka" ikon="◷" farge="#60A5D4" onKlikk={() => onOpneModul('timar')} eigenKnapp="Før timar">
+          <Kort tittel={t('dash.timarVeka')} ikon="◷" farge="#60A5D4" onKlikk={() => onOpneModul('timar')} eigenKnapp="Før timar">
             {timar === null ? <Tom tekst="Lastar…"/> : (
               <div style={{ padding: '10px 10px 4px' }}>
                 <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{sumVeke.toFixed(1)} <span style={{ fontSize: 13, color: 'var(--text3)', fontWeight: 600 }}>t av 37,5</span></div>
@@ -134,7 +136,7 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
             )}
           </Kort>
 
-          <Kort tittel="Siste i DTM" ikon="▤" farge="#E9C46A" onKlikk={() => onOpneModul('dtm')}>
+          <Kort tittel={t('dash.sisteDtm')} ikon="▤" farge="#E9C46A" onKlikk={() => onOpneModul('dtm')}>
             {dtm === null ? <Tom tekst="Lastar…"/> : dtmSiste.length === 0 ? <Tom tekst="Ingen dokumentaktivitet enno."/> : dtmSiste.map(d => (
               <Rad key={d.id} hovud={<span style={{ fontFamily: 'var(--mono)' }}>{d.nr}</span>} under={`${d.tittel || ''}${prosjektNamn[d.project_id] ? ' · ' + prosjektNamn[d.project_id] : ''}`}
                 hogre={relTid(d.updated_at)} onKlikk={() => { onVelgProsjekt?.(d.project_id); onOpneModul('dtm') }}/>

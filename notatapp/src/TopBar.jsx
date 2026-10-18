@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useT } from './sprak'
 import { favorittForst } from './projectFavoritt'
 
 // Søkbar prosjektveljar (typeahead) i staden for ein vanleg <select> —
@@ -7,6 +8,7 @@ import { favorittForst } from './projectFavoritt'
 // over den alt innlasta `projects`-lista (ingen database-tur nødvendig,
 // til skilnad frå SokeFelt.jsx sitt innhaldssøk).
 function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFavorite }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [sok, setSok]   = useState('')
   const boksRef = useRef(null)
@@ -32,13 +34,13 @@ function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFa
           background: active ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.06)',
           color:'#fff', fontSize:13, fontWeight:600, fontFamily:'var(--font)', cursor:'pointer',
           maxWidth:320, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textAlign:'left' }}>
-        {active ? merkelapp(active) : '— Alle prosjekt —'}
+        {active ? merkelapp(active) : t('topp.alleProsjekt')}
       </button>
       {open && (
         <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, width:300, maxHeight:360,
           overflow:'hidden', display:'flex', flexDirection:'column', background:'var(--bg2)',
           border:'1px solid var(--border)', borderRadius:'var(--r2)', boxShadow:'var(--shadow-lg)', zIndex:300 }}>
-          <input autoFocus value={sok} onChange={e => setSok(e.target.value)} placeholder="Søk prosjekt…"
+          <input autoFocus value={sok} onChange={e => setSok(e.target.value)} placeholder={t('topp.sokProsjekt')}
             style={{ margin:8, padding:'7px 10px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
               background:'var(--bg)', color:'var(--text)', fontSize:12.5, fontFamily:'var(--font)', outline:'none' }}/>
           <div style={{ overflow:'auto' }}>
@@ -46,10 +48,10 @@ function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFa
               style={{ display:'block', width:'100%', textAlign:'left', padding:'7px 12px', border:'none',
                 background: !activeProjectId ? 'var(--brandbg)' : 'transparent', color:'var(--text)',
                 fontSize:12.5, fontWeight: !activeProjectId ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)' }}>
-              — Alle prosjekt —
+              {t('topp.alleProsjekt')}
             </button>
             {treff.length === 0 ? (
-              <div style={{ padding:'10px 12px', fontSize:12, color:'var(--text3)' }}>Ingen treff.</div>
+              <div style={{ padding:'10px 12px', fontSize:12, color:'var(--text3)' }}>{t('topp.ingenTreff')}</div>
             ) : treff.map(p => (
               <div key={p.id} style={{ display:'flex', alignItems:'center', background: p.id === activeProjectId ? 'var(--brandbg)' : 'transparent' }}>
                 <button type="button" title={p.favorite ? 'Fjern favoritt' : 'Marker som favoritt'}
@@ -70,8 +72,9 @@ function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFa
   )
 }
 
-export default function TopBar({ projects, activeProjectId, onSelectProject, onToggleFavorite, onOpenSettings, activeModule, onModuleChange, railBredde = 52,
+export default function TopBar({ projects, activeProjectId, onSelectProject, onToggleFavorite, onOpenSettings, activeModule, onModuleChange, railBredde = 52, brukarNamn = '', brukarBilete = '', onOpenBruker,
                                   offices = [], activeOfficeId, onSetOffice, onAddOffice }) {
+  const { t } = useT()
   const [menyOpen, setMenyOpen] = useState(false)
   const menyRef = useRef(null)
   useEffect(() => {
@@ -93,7 +96,7 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
 
   return (
     <div style={{
-      height: 54, minHeight: 54, flexShrink: 0,
+      height: 54, minHeight: 54, flexShrink: 0, position: 'relative',
       display: 'flex', alignItems: 'center',
       background: '#0A0A0A',
       borderBottom: '1px solid #FFFFFF', // tynn kvit strek mellom toppfeltet og venstre navigasjonsfane
@@ -195,15 +198,28 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
       <div style={{ width: 18 }}/>
 
       {/* ── Aktivt prosjekt-veljar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, zIndex: 5 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.4)',
           letterSpacing: '.03em', textTransform: 'uppercase' }}>
-          Prosjekt
+          {t('topp.prosjekt')}
         </span>
         <ProsjektVelger projects={projects} activeProjectId={activeProjectId} onSelectProject={onSelectProject} onToggleFavorite={onToggleFavorite}/>
       </div>
 
       <div style={{ flex: 1 }}/>
+
+      {/* ── Innlogga brukar (opnar Brukar-modulen) ── */}
+      {onOpenBruker && (
+        <button onClick={onOpenBruker} title={t('topp.minSide')}
+          style={{ display: 'flex', alignItems: 'center', gap: 9, height: 36, padding: '0 12px 0 5px', marginRight: 12, borderRadius: 18, cursor: 'pointer', flexShrink: 0,
+            background: activeModule === 'bruker' ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.08)', border: '1.5px solid rgba(255,255,255,.18)', color: '#fff', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 600 }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.18)')} onMouseLeave={e => (e.currentTarget.style.background = activeModule === 'bruker' ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.08)')}>
+          <span style={{ width: 26, height: 26, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>
+            {brukarBilete ? <img src={brukarBilete} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/> : ((brukarNamn || '?').trim()[0] || '?').toUpperCase()}
+          </span>
+          <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{brukarNamn}</span>
+        </button>
+      )}
 
       {/* ── Innstillingar ── */}
       <div ref={menyRef} style={{ position: 'relative', flexShrink: 0 }}>
@@ -229,7 +245,7 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
       {menyOpen && (
         <div style={{ position:'absolute', top:'calc(100% + 8px)', right:16, width:210, zIndex:300, background:'var(--bg2)',
           border:'1px solid var(--border)', borderRadius:'var(--r2)', boxShadow:'var(--shadow-lg)', padding:6 }}>
-          {[{ k:'prosjekt', l:'Prosjekt', c:'#85B7EB' }, { k:'kunde', l:'Kundar', c:'#D4537E' }, { k:'kontordrift', l:'Kontordrift', c:'#9CA3AF' }].map(m => (
+          {[{ k:'prosjekt', l:t('nav.prosjekt'), c:'#85B7EB' }, { k:'kunde', l:t('nav.kunde'), c:'#D4537E' }, { k:'kontordrift', l:t('nav.kontordrift'), c:'#9CA3AF' }].map(m => (
             <button key={m.k} onClick={() => { setMenyOpen(false); onModuleChange?.(m.k) }}
               style={{ display:'flex', alignItems:'center', gap:10, width:'100%', textAlign:'left', padding:'9px 12px', border:'none', borderRadius:6,
                 background: activeModule === m.k ? 'var(--brandbg)' : 'transparent', color:'var(--text)', fontSize:13, fontWeight: activeModule === m.k ? 700 : 500,
@@ -244,7 +260,7 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
             style={{ display:'block', width:'100%', textAlign:'left', padding:'9px 12px', border:'none', borderRadius:6, background:'transparent',
               color:'var(--text)', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'var(--font)' }}
             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            ⚙ Innstillingar
+            ⚙ {t('topp.innstillingar')}
           </button>
         </div>
       )}
