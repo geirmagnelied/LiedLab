@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useT } from './sprak'
-import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, GanttChartSquare, CalendarDays, ChevronsLeft, ChevronsRight, UserRound } from 'lucide-react'
+import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, GanttChartSquare, CalendarDays, ChevronsLeft, ChevronsRight, UserRound, PenTool } from 'lucide-react'
 
 // ── Paraply-struktur (brukar sitt eige krav 30. sept. 2026) ──────────
 // «Admin» og «Gjeremål» er reine NAVIGASJONS-paraplyar utan eigen
@@ -12,8 +12,8 @@ const MODULES = [
   { key: 'gjeremaal', ikon: ListChecks, letter: 'G',   label: 'Gjeremål', color: '#52B788', born: ['notatar', 'oppgaver', 'saker'] },
   { key: 'timar', ikon: Clock,     letter: 'T',   label: 'Timar',    color: '#60A5D4' },
   { key: 'kvalitet', ikon: ShieldCheck,  letter: 'KS',  label: 'Kvalitetssystem', color: '#EC9A5A' },
-  { key: 'farge', ikon: Palette,     letter: 'F',   label: 'Farge',    color: '#C084B6' },
   { key: 'bilete', ikon: BileteIkon,    letter: 'B',   label: 'Bilete',   color: '#F4A261' },
+  { key: 'skisse',    ikon: PenTool, letter: 'Sk', label: 'Skisse', color: '#F59E0B', handling: 'skisse' },
   { key: 'framdrift', ikon: GanttChartSquare, letter: 'Fd',  label: 'Framdrift', color: '#34D399' },
   { key: 'kalender', ikon: CalendarDays,  letter: 'Ka',  label: 'Kalender', color: '#2A9D8F' },
 ]
@@ -45,12 +45,12 @@ export const PARENT_AV_MODUL = Object.fromEntries(
 // ── Tre førehandsdefinerte breidder (som verktøylinja i Blender): 'min' = berre (stort) ikon, 'kort' = ikon + bokstavkode,
 //    'full' = ikon + full tekst. Knappen øvst bytter, og ein kan dra i høgre kant — breidda snappar til næraste av dei tre.
 //    Valet vert hugsa (localStorage) og styrer òg breidda på logorutå i toppfeltet.
-export const RAIL_MODUSAR = ['min', 'kort', 'full']
-export const RAIL_BREIDD = { min: 80, kort: 150, full: 270 }
+export const RAIL_MODUSAR = ['min', 'full']
+export const RAIL_BREIDD = { min: 64, full: 240 }
 const nærmaste = (b) => RAIL_MODUSAR.reduce((best, m) => (Math.abs(RAIL_BREIDD[m] - b) < Math.abs(RAIL_BREIDD[best] - b) ? m : best), 'min')
-const IKON = 38
+const IKON = 24
 
-export default function AppRail({ activeModule, onModuleChange, modus = 'min', onModus, onLiveBredde }) {
+export default function AppRail({ activeModule, onModuleChange, modus = 'min', onModus, onLiveBredde, onSkisse }) {
   const { t } = useT()
   const [hoveredModule, setHoveredModule] = useState(null)
   const [dragB, setDragB] = useState(null) // breidd under dragning (px)
@@ -62,6 +62,7 @@ export default function AppRail({ activeModule, onModuleChange, modus = 'min', o
   const MODUS_NAMN = { min: t('nav.berreIkon'), kort: t('nav.ikonBokstav'), full: t('nav.ikonTekst') }
 
   const handleClick = (mod) => {
+    if (mod.handling === 'skisse') { onSkisse?.(); return }
     if (mod.born) {
       if (PARENT_AV_MODUL[activeModule] === mod.key) return
       onModuleChange(mod.born[0])
@@ -86,15 +87,15 @@ export default function AppRail({ activeModule, onModuleChange, modus = 'min', o
   }
 
   const Knapp = ({ mod, active, hovered, ikon: Ikon, namn, kode, onClick, onEnter, onLeave }) => (
-    <div style={{ position: 'relative', marginBottom: 14 }}>
+    <div style={{ position: 'relative', marginBottom: 12 }}>
       <button onClick={onClick} onMouseEnter={onEnter} onMouseLeave={onLeave} title={namn}
         style={{
-          width: smal ? 58 : '100%', height: 58, borderRadius: 12, padding: smal ? 0 : '0 12px',
+          width: smal ? 46 : '100%', height: 46, borderRadius: 11, padding: smal ? 0 : '0 12px',
           border: '1.5px solid transparent', background: active ? 'var(--brandbg)' : hovered ? 'var(--bg3)' : 'transparent',
           display: 'flex', alignItems: 'center', justifyContent: smal ? 'center' : 'flex-start', gap: 14,
           cursor: 'pointer', transition: 'background .15s ease', position: 'relative', fontFamily: 'var(--font)',
         }}>
-        {active && <div style={{ position: 'absolute', left: smal ? -11 : -8, top: '50%', transform: 'translateY(-50%)', width: 4, height: 30, borderRadius: 2, background: mod.color }}/>}
+        {active && <div style={{ position: 'absolute', left: smal ? -11 : -8, top: '50%', transform: 'translateY(-50%)', width: 4, height: 22, borderRadius: 2, background: mod.color }}/>}
         <Ikon size={IKON} strokeWidth={active ? 2 : 1.7} color={active ? mod.color : 'var(--text2)'} style={{ flexShrink: 0 }}/>
         {visModus === 'kort' && <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '.02em', color: active ? 'var(--text)' : 'var(--text2)', whiteSpace: 'nowrap' }}>{kode}</span>}
         {visModus === 'full' && <span style={{ fontSize: 13.5, fontWeight: active ? 800 : 600, color: active ? 'var(--text)' : 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{namn}</span>}

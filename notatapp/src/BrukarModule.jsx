@@ -65,7 +65,7 @@ function BrukarInfo({ profil, oppdater, bileteUrl, userId, userEmail, t }) {
           <Felt etikett={t('bruker.poststad')} stil={{ flex: 1 }}><input className="bk-input" value={profil.poststad || ''} onChange={e => oppdater({ poststad: e.target.value })}/></Felt>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <Felt etikett={t('bruker.fodselsaar')} stil={{ width: 140 }}><input className="bk-input" type="number" min="1900" max="2100" value={profil.fodselsaar || ''} onChange={e => oppdater({ fodselsaar: e.target.value ? +e.target.value : null })}/></Felt>
+          <Felt etikett={t('bruker.fodselsdato')} stil={{ width: 190 }}><input className="bk-input" type="date" value={profil.fodselsdato || ''} onChange={e => oppdater({ fodselsdato: e.target.value || null })}/></Felt>
           <Felt etikett={t('bruker.epost')} stil={{ flex: 1 }}><input className="bk-input" value={userEmail || ''} disabled style={{ background: 'var(--bg3)' }}/></Felt>
         </div>
         <div>
@@ -75,7 +75,6 @@ function BrukarInfo({ profil, oppdater, bileteUrl, userId, userEmail, t }) {
               <button key={k} onClick={() => oppdater({ sprak: k })} className="bk-knapp" style={profil.sprak === k ? { background: 'var(--brand)', borderColor: 'var(--brand)', color: '#fff' } : undefined}>{namn}</button>
             ))}
           </div>
-          <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 6 }}>Valet gjeld heile appen (navigasjon, toppfelt og dei sidene som er omsette).</div>
         </div>
       </div>
     </div>
@@ -99,7 +98,7 @@ function Kompetanse({ profil, oppdater, t }) {
   const toggle = (id) => setOpe(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ maxWidth: 1430, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
       {kat.map(k => {
         const apen = ope.has(k.id)
         const sum = k.rader.reduce((a, r) => a + (+r.poeng || 0), 0)
@@ -116,8 +115,8 @@ function Kompetanse({ profil, oppdater, t }) {
             {apen && (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead><tr>
-                  <th className="bk-th" style={{ width: 80 }}>{t('komp.fra')}</th><th className="bk-th" style={{ width: 80 }}>{t('komp.til')}</th>
-                  <th className="bk-th">{t('komp.namn')}</th><th className="bk-th" style={{ width: '30%' }}>{t('komp.institusjon')}</th><th className="bk-th" style={{ width: 100 }}>{t('komp.poeng')}</th><th className="bk-th" style={{ width: 34 }}/>
+                  <th className="bk-th" style={{ width: 104 }}>{t('komp.fra')}</th><th className="bk-th" style={{ width: 104 }}>{t('komp.til')}</th>
+                  <th className="bk-th">{t('komp.namn')}</th><th className="bk-th" style={{ width: '30%' }}>{t('komp.institusjon')}</th><th className="bk-th" style={{ width: 130 }}>{t('komp.poeng')}</th><th className="bk-th" style={{ width: 34 }}/>
                 </tr></thead>
                 <tbody>
                   {k.rader.length === 0 && <tr><td colSpan={6} style={{ padding: 16, color: 'var(--text3)', fontSize: 12.5 }}>Ingen rader enno — trykk «＋ {t('komp.nyRad')}».</td></tr>}
@@ -171,75 +170,74 @@ function Prosjekterfaring({ profil, oppdater, userId, t }) {
       if (nye.length) endre(p.id, { bilete: [...(p.bilete || []), ...nye] })
     } catch (e) { setFeil(e.message) }
   }
+  const nytt = () => { const p = { id: nyId(), fra: '', til: '', namn: '', kategori: '', skildring: '', bra: '', rolle: '', kontakt: '', kontaktinfo: '', bilete: [] }; sett([p, ...pr]); setOpe(s => new Set(s).add(p.id)) }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ maxWidth: 1430, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
       <datalist id="bk-kategoriar">{KATEGORIAR.map(k => <option key={k} value={k}/>)}</datalist>
       {feil && <div style={{ color: 'var(--danger)', fontSize: 12.5 }}>{feil}</div>}
-      <div style={{ border: '1.5px solid var(--border)', borderRadius: 'var(--r2)', background: 'var(--bg2)', overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1250 }}>
-          <thead><tr>
-            <th className="bk-th" style={{ width: 34 }}/>
-            <th className="bk-th" style={{ width: 70 }}>{t('komp.fra')}</th><th className="bk-th" style={{ width: 70 }}>{t('komp.til')}</th>
-            <th className="bk-th" style={{ minWidth: 200 }}>{t('erf.namn')}</th><th className="bk-th" style={{ width: 150 }}>{t('erf.kategori')}</th>
-            <th className="bk-th" style={{ minWidth: 220 }}>{t('erf.skildring')}</th><th className="bk-th" style={{ width: 110 }}>BRA m²</th>
-            <th className="bk-th" style={{ width: 150 }}>{t('erf.rolle')}</th><th className="bk-th" style={{ width: 160 }}>{t('erf.kontakt')}</th><th className="bk-th" style={{ width: 170 }}>{t('erf.kontaktinfo')}</th>
-            <th className="bk-th" style={{ width: 70 }}>{t('erf.bilete')}</th><th className="bk-th" style={{ width: 34 }}/>
-          </tr></thead>
-          <tbody>
-            {pr.length === 0 && <tr><td colSpan={12} style={{ padding: 22, color: 'var(--text3)', fontSize: 13 }}>{t('erf.ingen')}</td></tr>}
-            {pr.map(p => {
-              const apen = ope.has(p.id)
-              return [
-                <tr key={p.id} style={{ background: apen ? 'var(--brandbg)' : undefined }}>
-                  <td className="bk-td"><button onClick={() => toggle(p.id)} title={apen ? t('felles.skjul') : t('felles.ekspander')} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--brand)', padding: '4px 6px' }}>{apen ? '▾' : '▸'}</button></td>
-                  <td className="bk-td"><input className="bk-celle" value={p.fra || ''} placeholder="ÅÅÅÅ" maxLength={4} onChange={e => endre(p.id, { fra: e.target.value })}/></td>
-                  <td className="bk-td"><input className="bk-celle" value={p.til || ''} placeholder="ÅÅÅÅ" maxLength={4} onChange={e => endre(p.id, { til: e.target.value })}/></td>
-                  <td className="bk-td"><input className="bk-celle" value={p.namn || ''} style={{ fontWeight: 700 }} onChange={e => endre(p.id, { namn: e.target.value })}/></td>
-                  <td className="bk-td"><input className="bk-celle" list="bk-kategoriar" value={p.kategori || ''} onChange={e => endre(p.id, { kategori: e.target.value })}/></td>
-                  <td className="bk-td" style={{ color: 'var(--text2)', fontSize: 12.5, padding: '8px 8px', cursor: 'pointer' }} onClick={() => toggle(p.id)} title="Klikk for å skrive/lese heile skildringa">
-                    <div style={{ maxHeight: 40, overflow: 'hidden', lineHeight: 1.45 }}>{p.skildring ? p.skildring.slice(0, 140) + (p.skildring.length > 140 ? '…' : '') : <span style={{ color: 'var(--text3)' }}>Klikk for å skrive…</span>}</div></td>
-                  <td className="bk-td"><input className="bk-celle" type="number" min="0" step="any" value={p.bra || ''} style={{ textAlign: 'right' }} onChange={e => endre(p.id, { bra: e.target.value })}/></td>
-                  <td className="bk-td"><input className="bk-celle" value={p.rolle || ''} onChange={e => endre(p.id, { rolle: e.target.value })}/></td>
-                  <td className="bk-td"><input className="bk-celle" value={p.kontakt || ''} onChange={e => endre(p.id, { kontakt: e.target.value })}/></td>
-                  <td className="bk-td"><input className="bk-celle" value={p.kontaktinfo || ''} onChange={e => endre(p.id, { kontaktinfo: e.target.value })}/></td>
-                  <td className="bk-td" style={{ padding: '8px 8px', fontSize: 12, color: 'var(--text2)', textAlign: 'center' }}>{(p.bilete || []).length ? '🖼 ' + p.bilete.length : ''}</td>
-                  <td className="bk-td"><button onClick={() => { if (window.confirm(`Slette prosjektet «${p.namn || '(utan namn)'}»?`)) { (p.bilete || []).forEach(slettBilete); sett(pr.filter(x => x.id !== p.id)) } }} title={t('felles.slett')} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 16 }}>×</button></td>
-                </tr>,
-                apen && (
-                  <tr key={p.id + 'x'} style={{ background: 'var(--brandbg)' }}>
-                    <td/>
-                    <td colSpan={11} style={{ padding: '6px 10px 18px', borderBottom: '2px solid var(--border)' }}>
-                      <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
-                        <div style={{ flex: '2 1 440px', minWidth: 320 }}>
-                          <span className="bk-etikett">{t('erf.skildring')}</span>
-                          <textarea className="bk-input" value={p.skildring || ''} onChange={e => endre(p.id, { skildring: e.target.value })}
-                            style={{ minHeight: 220, resize: 'vertical', lineHeight: 1.55, fontSize: 13.5 }} placeholder="Beskriv prosjektet: omfang, utfordringar, løysingar, resultat …"/>
-                        </div>
-                        <div style={{ flex: '1 1 320px', minWidth: 260 }}>
-                          <span className="bk-etikett">{t('erf.bilete')}</span>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                            {(p.bilete || []).map(s => (
-                              <div key={s} style={{ position: 'relative', width: 120, height: 90, borderRadius: 6, overflow: 'hidden', background: 'var(--bg3)', border: '1px solid var(--border)' }}>
-                                {urlar[s] && <img src={urlar[s]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>}
-                                <button onClick={() => { slettBilete(s); endre(p.id, { bilete: (p.bilete || []).filter(x => x !== s) }) }} title={t('felles.slett')}
-                                  style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
-                              </div>
-                            ))}
-                          </div>
-                          <label className="bk-knapp" style={{ display: 'inline-block' }}>＋ {t('erf.leggTilBilete')}
-                            <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { leggTilBilete(p, e.target.files); e.target.value = '' }}/></label>
-                        </div>
+      <div><button className="bk-knapp hovud" onClick={nytt}>＋ {t('erf.nytt')}</button></div>
+      {pr.length === 0 && <div style={{ padding: 22, color: 'var(--text3)', fontSize: 13 }}>{t('erf.ingen')}</div>}
+      {pr.map(p => {
+        const apen = ope.has(p.id)
+        const arstal = [p.fra, p.til].filter(Boolean).join('–')
+        return (
+          <div key={p.id} style={{ border: '1.5px solid var(--border)', borderRadius: 'var(--r2)', background: 'var(--bg2)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg3)' }}>
+              <button onClick={() => toggle(p.id)} title={apen ? t('felles.skjul') : t('felles.ekspander')} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--brand)', width: 20 }}>{apen ? '▾' : '▸'}</button>
+              <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text)' }}>{p.namn || '(utan namn)'}</span>
+              <span style={{ fontSize: 12, color: 'var(--text3)' }}>{[arstal, p.kategori, p.rolle].filter(Boolean).join(' · ')}{(p.bilete || []).length ? ' · 🖼 ' + p.bilete.length : ''}</span>
+              <div style={{ flex: 1 }}/>
+              <button className="bk-knapp" title={t('felles.slett')} onClick={() => { if (window.confirm('Slette prosjektet «' + (p.namn || '(utan namn)') + '»?')) { (p.bilete || []).forEach(slettBilete); sett(pr.filter(x => x.id !== p.id)) } }}>×</button>
+            </div>
+            {apen && (
+              <div style={{ padding: '4px 0 14px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr>
+                    <th className="bk-th" style={{ width: 104 }}>{t('komp.fra')}</th><th className="bk-th" style={{ width: 104 }}>{t('komp.til')}</th>
+                    <th className="bk-th">{t('erf.namn')}</th><th className="bk-th" style={{ width: '24%' }}>{t('erf.kategori')}</th>
+                    <th className="bk-th" style={{ width: 150 }}>BRA m²</th><th className="bk-th" style={{ width: '20%' }}>{t('erf.rolle')}</th>
+                  </tr></thead>
+                  <tbody><tr>
+                    <td className="bk-td"><input className="bk-celle" value={p.fra || ''} placeholder="ÅÅÅÅ" maxLength={4} onChange={e => endre(p.id, { fra: e.target.value })}/></td>
+                    <td className="bk-td"><input className="bk-celle" value={p.til || ''} placeholder="ÅÅÅÅ" maxLength={4} onChange={e => endre(p.id, { til: e.target.value })}/></td>
+                    <td className="bk-td"><input className="bk-celle" value={p.namn || ''} style={{ fontWeight: 700 }} onChange={e => endre(p.id, { namn: e.target.value })}/></td>
+                    <td className="bk-td"><input className="bk-celle" list="bk-kategoriar" value={p.kategori || ''} onChange={e => endre(p.id, { kategori: e.target.value })}/></td>
+                    <td className="bk-td"><input className="bk-celle" type="number" min="0" step="any" value={p.bra || ''} style={{ textAlign: 'right' }} onChange={e => endre(p.id, { bra: e.target.value })}/></td>
+                    <td className="bk-td"><input className="bk-celle" value={p.rolle || ''} onChange={e => endre(p.id, { rolle: e.target.value })}/></td>
+                  </tr></tbody>
+                </table>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}>
+                  <thead><tr><th className="bk-th" style={{ width: '40%' }}>{t('erf.kontakt')}</th><th className="bk-th">{t('erf.kontaktinfo')}</th></tr></thead>
+                  <tbody><tr>
+                    <td className="bk-td"><input className="bk-celle" value={p.kontakt || ''} onChange={e => endre(p.id, { kontakt: e.target.value })}/></td>
+                    <td className="bk-td"><input className="bk-celle" value={p.kontaktinfo || ''} onChange={e => endre(p.id, { kontaktinfo: e.target.value })} placeholder="Telefon, e-post …"/></td>
+                  </tr></tbody>
+                </table>
+                <div style={{ padding: '14px 14px 0' }}>
+                  <span className="bk-etikett">{t('erf.skildring')}</span>
+                  <textarea className="bk-input" value={p.skildring || ''} onChange={e => endre(p.id, { skildring: e.target.value })}
+                    style={{ minHeight: 190, resize: 'vertical', lineHeight: 1.55, fontSize: 13.5 }} placeholder="Beskriv prosjektet: omfang, utfordringar, løysingar, resultat …"/>
+                </div>
+                <div style={{ padding: '14px 14px 0' }}>
+                  <span className="bk-etikett">{t('erf.bilete')}</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
+                    {(p.bilete || []).map(s => (
+                      <div key={s} style={{ position: 'relative', width: 150, height: 112, borderRadius: 6, overflow: 'hidden', background: 'var(--bg3)', border: '1px solid var(--border)' }}>
+                        {urlar[s] && <img src={urlar[s]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>}
+                        <button onClick={() => { slettBilete(s); endre(p.id, { bilete: (p.bilete || []).filter(x => x !== s) }) }} title={t('felles.slett')}
+                          style={{ position: 'absolute', top: 3, right: 3, width: 20, height: 20, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
                       </div>
-                    </td>
-                  </tr>
-                ),
-              ]
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div><button className="bk-knapp hovud" onClick={() => { const p = { id: nyId(), fra: '', til: '', namn: '', kategori: '', skildring: '', bra: '', rolle: '', kontakt: '', kontaktinfo: '', bilete: [] }; sett([p, ...pr]); setOpe(s => new Set(s).add(p.id)) }}>＋ {t('erf.nytt')}</button></div>
+                    ))}
+                  </div>
+                  <label className="bk-knapp" style={{ display: 'inline-block' }}>＋ {t('erf.leggTilBilete')}
+                    <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { leggTilBilete(p, e.target.files); e.target.value = '' }}/></label>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

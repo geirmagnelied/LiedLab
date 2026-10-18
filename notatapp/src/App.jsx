@@ -2,6 +2,7 @@ import Dashboard from './Dashboard'
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useStore } from './useStore'
 import BrukarModule from './BrukarModule'
+import SketchPad from './SketchPad'
 import useBrukar from './useBrukar'
 import { SprakKontekst, lagT } from './sprak'
 import AppRail, { PARENT_AV_MODUL, RAIL_MODUSAR, RAIL_BREIDD } from './AppRail'
@@ -55,6 +56,8 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const [mobileSheet,       setMobileSheet]       = useState(false)
   const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
   const [showSettings,      setShowSettings]      = useState(false)
+  const [visSkisse, setVisSkisse] = useState(false)   // Skisse-snarveg frå VN
+  const [skisseMelding, setSkisseMelding] = useState('')
   const [railLive, setRailLive] = useState(null) // breidd på VN under dragning (så logorutå i toppen følgjer med)
   const [railModus, setRailModus] = useState(() => { try { const v = localStorage.getItem('liedlab-rail-modus'); return RAIL_MODUSAR.includes(v) ? v : 'min' } catch { return 'min' } })
   const settRailModus = (m) => { setRailModus(m); try { localStorage.setItem('liedlab-rail-modus', m) } catch { /* privat modus */ } }
@@ -378,7 +381,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         </div>
         {/* Module switcher pills */}
         <div style={{ display:'flex', gap:3, marginRight:4 }}>
-          {[{k:'dashboard',l:'D'},{k:'notatar',l:'N'},{k:'kalender',l:'Ka'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'farge',l:'F'},{k:'dtm',l:'DTM'},{k:'bilete',l:'B'},{k:'framdrift',l:'Fd'}].map(m => (
+          {[{k:'dashboard',l:'D'},{k:'notatar',l:'N'},{k:'kalender',l:'Ka'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'dtm',l:'DTM'},{k:'bilete',l:'B'},{k:'framdrift',l:'Fd'}].map(m => (
             <button key={m.k} onClick={() => { setActiveModule(m.k); if(m.k!=='notatar') setView('notatar') }}
               style={{ width:24,height:24,borderRadius:6,border:'none',
                 background: activeModule===m.k ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.08)',
@@ -469,6 +472,19 @@ function AppInnhald({ userId, userEmail, brukar }) {
         <MobileTab v="fristar"  letter="F" label="Fristar"/>
       </div>
 
+      {visSkisse && (
+        <SketchPad existingDataUrl={null} onClose={() => setVisSkisse(false)}
+          onSave={async (url) => {
+            setVisSkisse(false)
+            const d = new Date()
+            const tittel = 'Skisse ' + d.toLocaleDateString('nb-NO') + ' ' + d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
+            await addNote({ title: tittel, text: '', html: '', tasks: [], tag: null, projectId: selectedProjectId || null, sketchDataUrl: url, attachments: [], isMeeting: false })
+            setSkisseMelding('Skissa er lagra som notat: «' + tittel + '»')
+            setTimeout(() => setSkisseMelding(''), 6000)
+          }}/>
+      )}
+      {skisseMelding && <div style={{ position: 'fixed', left: '50%', bottom: 56, transform: 'translateX(-50%)', zIndex: 1200, background: '#1B2A3A', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}>{skisseMelding}</div>}
+
       {view === 'new' && (
         <NoteModal
           projects={projects} onAdd={handleAdd} onAutoSave={handleAutoSave}
@@ -527,6 +543,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         modus={railModus}
         onModus={settRailModus}
         onLiveBredde={setRailLive}
+        onSkisse={() => setVisSkisse(true)}
       />
 
       {/* Rail 2 — undermenyen til paraply-modulane (Admin/Gjeremål), sjå
@@ -692,10 +709,10 @@ function AppInnhald({ userId, userEmail, brukar }) {
       </div>
       )} {/* end module ternary */}
       </div>
-      {/* Felles botn-statuslinje for alle modular */}
+      </div>
+      </div>
+      {/* Felles botn-statuslinje: full breidd frå venstre til høgre, som toppfeltet */}
       <StatusBar activeModule={activeModule}/>
-      </div>
-      </div>
 
       {view === 'new' && (
         <NoteModal
