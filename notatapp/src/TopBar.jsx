@@ -33,7 +33,7 @@ function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFa
         style={{ padding:'6px 10px', borderRadius:6, border:'1.5px solid rgba(255,255,255,.22)',
           background: active ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.06)',
           color:'#fff', fontSize:13, fontWeight:600, fontFamily:'var(--font)', cursor:'pointer',
-          maxWidth:320, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textAlign:'left' }}>
+          whiteSpace:'nowrap', textAlign:'left' }}>
         {active ? merkelapp(active) : t('topp.alleProsjekt')}
       </button>
       {open && (
@@ -72,7 +72,7 @@ function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFa
   )
 }
 
-export default function TopBar({ projects, activeProjectId, onSelectProject, onToggleFavorite, onOpenSettings, activeModule, onModuleChange, railBredde = 52, brukarNamn = '', brukarBilete = '', onOpenBruker,
+export default function TopBar({ projects, activeProjectId, onSelectProject, onToggleFavorite, onOpenSettings, activeModule, onModuleChange, railBredde = 52, brukarNamn = '', brukarBilete = '', onOpenBruker, stadNamn = '',
                                   offices = [], activeOfficeId, onSetOffice, onAddOffice }) {
   const { t } = useT()
   const [menyOpen, setMenyOpen] = useState(false)
@@ -126,10 +126,20 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
       {/* ── Wordmark ── */}
       <div style={{ marginLeft: 12, fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,.75)',
         letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
-        LIEDLAB
+        {stadNamn || 'LiedLab'}
       </div>
 
-      <div style={{ width: 22 }}/>
+      
+      {/* ── Aktivt prosjekt-veljar ── */}
+      <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, zIndex: 5 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.4)',
+          letterSpacing: '.03em', textTransform: 'uppercase' }}>
+          {t('topp.prosjekt')}
+        </span>
+        <ProsjektVelger projects={projects} activeProjectId={activeProjectId} onSelectProject={onSelectProject} onToggleFavorite={onToggleFavorite}/>
+      </div>
+
+      <div style={{ flex: 1 }}/>
 
       {/* ── Kontor-veljar ── */}
       {onSetOffice && (
@@ -156,7 +166,7 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
           </select>
 
           {showNewOffice && (
-            <div style={{ position: 'absolute', top: '110%', left: 0, zIndex: 70, minWidth: 220,
+            <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 70, minWidth: 220,
               display: 'flex', flexDirection: 'column', gap: 6, padding: 10,
               background: '#151515', border: '1.5px solid rgba(255,255,255,.18)',
               borderRadius: 'var(--r)', boxShadow: '0 10px 30px rgba(0,0,0,.4)' }}>
@@ -195,18 +205,7 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
         </div>
       )}
 
-      <div style={{ width: 18 }}/>
-
-      {/* ── Aktivt prosjekt-veljar ── */}
-      <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, zIndex: 5 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.4)',
-          letterSpacing: '.03em', textTransform: 'uppercase' }}>
-          {t('topp.prosjekt')}
-        </span>
-        <ProsjektVelger projects={projects} activeProjectId={activeProjectId} onSelectProject={onSelectProject} onToggleFavorite={onToggleFavorite}/>
-      </div>
-
-      <div style={{ flex: 1 }}/>
+      <div style={{ width: 12 }}/>
 
       {/* ── Innlogga brukar (opnar Brukar-modulen) ── */}
       {onOpenBruker && (

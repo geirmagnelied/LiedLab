@@ -176,18 +176,6 @@ export default function BileteModule({ userId, userEmail, projects, activeProjec
     <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
       style={{ position:'relative', display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
 
-      {/* Topbar */}
-      <div style={{ display:'flex', alignItems:'center', gap:8, padding:'0 16px',
-        height:50, flexShrink:0, background:'var(--brand)', borderBottom:'1px solid rgba(255,255,255,.1)' }}>
-        <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em' }}>Bilete</span>
-        {aktivtProsjekt && (<>
-          <span style={{ color:'rgba(255,255,255,.3)' }}>·</span>
-          <span style={{ fontSize:13, color:'rgba(255,255,255,.7)', fontFamily:'var(--mono)' }}>
-            {aktivtProsjekt.projectNumber} {aktivtProsjekt.name}
-          </span>
-        </>)}
-      </div>
-
       {!aktivtProsjekt ? (
         <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:14 }}>
           <div style={{ width:72, height:72, borderRadius:18, background:'var(--brandbg2)',

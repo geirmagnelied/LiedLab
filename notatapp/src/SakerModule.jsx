@@ -318,7 +318,6 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     return (
       <div style={{ display:'flex', alignItems:'center', gap:10, padding:'0 16px',
         height:50, flexShrink:0, background:'var(--brand)', borderBottom:'1px solid rgba(255,255,255,.1)' }}>
-        <span style={{ fontSize:15, fontWeight:800, color:'#fff' }}>Saker</span>
         {activeProject && (
           <span style={{ fontSize:12, color:'rgba(255,255,255,.65)', fontFamily:'var(--mono)' }}>
             {activeProject.projectNumber}{' \u00B7 '}{activeProject.name}

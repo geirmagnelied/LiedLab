@@ -43,10 +43,6 @@ export default function TimarModule({ userId, projects, addProject, mode, active
         background: 'var(--brand)',
         borderBottom: '1px solid rgba(255,255,255,.1)',
       }}>
-        <span style={{
-          fontSize: 15, fontWeight: 800, color: '#fff',
-          letterSpacing: '-0.02em', marginRight: 12,
-        }}>Timar</span>
         <Tab v="registrer" letter="T" label="Timeregistrering"/>
         <Tab v="prognose"  letter="P" label="Prognose"/>
       </div>

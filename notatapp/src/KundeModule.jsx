@@ -411,7 +411,6 @@ export default function KundeModule({ userId, activeOfficeId }) {
         <div style={{ display:'flex', alignItems:'center', gap:8, padding:'0 16px',
           height:50, flexShrink:0, background:'var(--brand)',
           borderBottom:'1px solid rgba(255,255,255,.1)' }}>
-          <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em' }}>Kundar</span>
           {form && (
             <>
               <span style={{ color:'rgba(255,255,255,.3)' }}>·</span>

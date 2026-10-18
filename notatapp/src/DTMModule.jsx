@@ -840,9 +840,6 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       {/* Topbar */}
       <div style={{ display:'flex', alignItems:'center', gap:8, padding:'0 16px', flexWrap:'wrap',
         minHeight:50, flexShrink:0, background:'var(--brand)', borderBottom:'1px solid rgba(255,255,255,.1)' }}>
-        <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em' }}>
-          Dokument, tegningar og modellar (DTM)
-        </span>
         {/* Prosjektnummer/-namn er fjerna her (står alt i den svarte topplinja) —
             søket tek plassen, til høgre for overskrifta (brukar sitt krav 2. okt. 2026) */}
         {aktivtProsjekt && (

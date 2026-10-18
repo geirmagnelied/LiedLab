@@ -391,7 +391,6 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
       {/* Topbar — modulnamn fyrst */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', height: 50, flexShrink: 0,
         background: 'var(--brand)', borderBottom: '1px solid rgba(255,255,255,.1)' }}>
-        <span style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>Framdrift</span>
         <div style={{ flex: 1 }}/>
         <span style={{ fontSize: 11.5, fontWeight: 600, color: lagringStatus === 'feil' ? '#FCA5A5' : 'rgba(255,255,255,.75)' }}>{lagStatusTekst}</span>
       </div>

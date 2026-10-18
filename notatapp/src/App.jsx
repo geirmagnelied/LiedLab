@@ -520,6 +520,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         onToggleFavorite={toggleFavorite}
         activeModule={activeModule}
         onModuleChange={setActiveModule}
+        stadNamn={MODULE_LABELS[activeModule] || ''}
         railBredde={railLive ?? RAIL_BREIDD[railModus]}
         brukarNamn={brukar.visNamn}
         brukarBilete={brukar.bileteUrl}
@@ -740,7 +741,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
 )
 }
 
-const MODULE_LABELS = { skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
+const MODULE_LABELS = { skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())

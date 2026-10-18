@@ -181,7 +181,6 @@ function ProsjektOversikt({ liste, loading, filter, setFilter, papirkorgTal, onV
   return (
     <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', background:'var(--bg)' }}>
       <div style={{ display:'flex', alignItems:'center', gap:12, padding:'0 20px', height:50, flexShrink:0, background:'var(--brand)' }}>
-        <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em' }}>Prosjekt</span>
         <span style={{ fontSize:12, color:'rgba(255,255,255,.7)' }}>{treff.length} prosjekt</span>
         <div style={{ flex:1 }}/>
         <button onClick={onNytt} style={{ padding:'6px 16px', borderRadius:'var(--r)', border:'1.5px solid rgba(255,255,255,.55)', background:'rgba(255,255,255,.18)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>＋ Nytt prosjekt</button>
@@ -583,9 +582,6 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
         <div style={{ display:'flex', alignItems:'center', gap:8, padding:'0 16px',
           height:50, flexShrink:0, background:'var(--brand)',
           borderBottom:'1px solid rgba(255,255,255,.1)' }}>
-          <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em' }}>
-            Prosjekt
-          </span>
           {form && (
             <>
               <button onClick={lagreProsjekt}

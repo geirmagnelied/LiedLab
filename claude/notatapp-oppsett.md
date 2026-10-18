@@ -190,3 +190,9 @@ Cowork-arbeidsflyten kravde. Skilnaden frå Cowork:
 
 ## Venstre navigasjonsfane (VN) i lyst design, tre breidder (17. okt. 2026)
 `AppRail.jsx`: VN har lys bakgrunn (`var(--bg)`, same som modulbakgrunnen) og lucide-ikon per modul. Knappen øvst (»/«) bytter mellom tre førehandsdefinerte breidder, som verktøylinja i Blender: **min** (52 px, berre ikon), **kort** (96 px, ikon + bokstavkode), **full** (224 px, ikon + full tekst). Valet vert hugsa i `localStorage` (`liedlab-rail-modus`) og logorutå i toppfeltet (TN) følgjer breidda. Toppfeltet er framleis svart, med ei tynn kvit strek (1 px) mellom TN og VN. Undermenyen (`AppRailUndermeny.jsx`) har same lyse stil.
+
+## Toppfelt (TN) viser kvar ein er — 19. okt. 2026
+
+- `TopBar.jsx`: «LIEDLAB» er erstatta av `stadNamn` (modulnamnet frå `MODULE_LABELS` i `App.jsx`). Prosjektveljaren er alltid sentrert og har ikkje lenger makslengd/ellipse, så heile prosjektnamnet vert vist.
+- Kontor-veljaren (med «Nytt kontor»-popup, forankra til høgre) ligg no til høgre i TN, rett til venstre for brukarnamnet.
+- Den blå modullinja er fjerna i Bilete, Oppgåver og Kontordrift. I Kvalitetssystem står berre fanene Teikningar/Leveransekontroll (venstrejustert) og Info-knappen att. I dei andre modulane er berre modultittelen fjerna frå linja (knappar/fanar/søk står att).

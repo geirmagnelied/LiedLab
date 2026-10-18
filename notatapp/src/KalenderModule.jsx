@@ -356,9 +356,6 @@ export default function KalenderModule({ projects, notes, activeProjectId, onEdi
       {/* Topbar */}
       <div style={{ display:'flex', alignItems:'center', gap:8, padding:'0 16px', height:50,
         flexShrink:0, background:'var(--brand)', borderBottom:'1px solid rgba(255,255,255,.1)', flexWrap:'wrap' }}>
-        <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em', marginRight:6 }}>
-          Kalender
-        </span>
 
         <div style={{ display:'flex', gap:2, background:'rgba(255,255,255,.12)', borderRadius:8, padding:2 }}>
           {VISNINGAR.map(v => (

@@ -304,17 +304,9 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
       <div style={{ display:'flex', alignItems:'center', gap:4, padding:'0 16px',
         height:50, flexShrink:0, background:'var(--brand)',
         borderBottom:'1px solid rgba(255,255,255,.1)' }}>
-        <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em', marginRight:10 }}>
-          Kvalitetssystem
-        </span>
         <Fane vk="teikningar" lb="Teikningar" view={view} setView={setView}/>
         <Fane vk="kontroll"   lb="Leveransekontroll" view={view} setView={setView}/>
         <div style={{ flex:1 }}/>
-        {aktivtProsjekt && (
-          <span style={{ fontSize:13, color:'rgba(255,255,255,.7)', fontFamily:'var(--mono)', marginRight:10 }}>
-            {aktivtProsjekt.projectNumber} {aktivtProsjekt.name}
-          </span>
-        )}
         <InfoKnapp nummerering={hentNummerering(details)} onEndreNummerering={endreNummerering}/>
       </div>
 
