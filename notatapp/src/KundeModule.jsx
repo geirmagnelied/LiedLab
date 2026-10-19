@@ -409,18 +409,17 @@ export default function KundeModule({ userId, activeOfficeId }) {
 
         {/* Topbar */}
         <div style={{ display:'flex', alignItems:'center', gap:8, padding:'0 16px',
-          height:50, flexShrink:0, background:'var(--brand)',
-          borderBottom:'1px solid rgba(255,255,255,.1)' }}>
+          height:50, flexShrink:0, background:'var(--bg3)',
+          borderBottom:'1px solid var(--border)' }}>
           {form && (
             <>
-              <span style={{ color:'rgba(255,255,255,.3)' }}>·</span>
-              <span style={{ fontSize:13, color:'rgba(255,255,255,.7)' }}>{form.companyName || 'Ny kunde'}</span>
+              <span style={{ fontSize:13, color:'var(--text2)' }}>{form.companyName || 'Ny kunde'}</span>
               <div style={{ flex:1 }}/>
               {dirty && (
                 <button onClick={lagreKunde}
                   style={{ padding:'6px 16px', borderRadius:'var(--r)',
-                    border:'1.5px solid rgba(255,255,255,.4)',
-                    background:'rgba(255,255,255,.18)', color:'#fff',
+                    border:'1.5px solid var(--border)',
+                    background:'var(--brand)', color:'#fff',
                     fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
                   Lagre
                 </button>

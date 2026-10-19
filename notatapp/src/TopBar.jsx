@@ -261,6 +261,12 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             ⚙ {t('topp.innstillingar')}
           </button>
+          <button onClick={() => { setMenyOpen(false); import('./supabase').then(m => m.supabase.auth.signOut()) }}
+            style={{ display:'block', width:'100%', textAlign:'left', padding:'9px 12px', border:'none', borderRadius:6, background:'transparent',
+              color:'var(--text)', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'var(--font)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            ⎋ Logg ut
+          </button>
         </div>
       )}
       </div>

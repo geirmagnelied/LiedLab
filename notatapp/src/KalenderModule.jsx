@@ -344,8 +344,8 @@ export default function KalenderModule({ projects, notes, activeProjectId, onEdi
 
   const NavBtn = ({ onClick, children, title }) => (
     <button onClick={onClick} title={title}
-      style={{ background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.2)',
-        borderRadius:'var(--r)', color:'#fff', cursor:'pointer', padding:'5px 9px',
+      style={{ background:'rgba(255,255,255,.6)', border:'1px solid var(--border2)',
+        borderRadius:'var(--r)', color:'var(--text2)', cursor:'pointer', padding:'5px 9px',
         fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>
       {children}
     </button>
@@ -355,14 +355,14 @@ export default function KalenderModule({ projects, notes, activeProjectId, onEdi
     <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
       {/* Topbar */}
       <div style={{ display:'flex', alignItems:'center', gap:8, padding:'0 16px', height:50,
-        flexShrink:0, background:'var(--brand)', borderBottom:'1px solid rgba(255,255,255,.1)', flexWrap:'wrap' }}>
+        flexShrink:0, background:'var(--bg3)', borderBottom:'1px solid var(--border)', flexWrap:'wrap' }}>
 
-        <div style={{ display:'flex', gap:2, background:'rgba(255,255,255,.12)', borderRadius:8, padding:2 }}>
+        <div style={{ display:'flex', gap:2, background:'rgba(255,255,255,.5)', borderRadius:8, padding:2 }}>
           {VISNINGAR.map(v => (
             <button key={v.key} onClick={() => setVisning(v.key)}
               style={{ padding:'5px 12px', borderRadius:6, border:'none',
                 background: visning === v.key ? '#fff' : 'transparent',
-                color: visning === v.key ? 'var(--brand)' : 'rgba(255,255,255,.75)',
+                color: visning === v.key ? 'var(--brand)' : 'var(--text2)',
                 fontSize:12.5, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
               {v.label}
             </button>
@@ -373,18 +373,18 @@ export default function KalenderModule({ projects, notes, activeProjectId, onEdi
         <NavBtn onClick={iDag} title="Gå til i dag">I dag</NavBtn>
         <NavBtn onClick={() => gaa(1)} title="Neste">›</NavBtn>
 
-        <span style={{ fontSize:13.5, fontWeight:700, color:'#fff', textTransform:'capitalize', whiteSpace:'nowrap' }}>
+        <span style={{ fontSize:13.5, fontWeight:700, color:'var(--text)', textTransform:'capitalize', whiteSpace:'nowrap' }}>
           {tittelForVisning()}
         </span>
 
         <div style={{ flex:1 }}/>
 
         {aktivtProsjekt ? (
-          <span style={{ fontSize:12, color:'rgba(255,255,255,.8)', fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
+          <span style={{ fontSize:12, color:'var(--text2)', fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
             {aktivtProsjekt.projectNumber} {aktivtProsjekt.name}
           </span>
         ) : (
-          <span style={{ fontSize:12, color:'rgba(255,255,255,.55)', whiteSpace:'nowrap' }}>Alle prosjekt</span>
+          <span style={{ fontSize:12, color:'var(--text2)', whiteSpace:'nowrap' }}>Alle prosjekt</span>
         )}
       </div>
 

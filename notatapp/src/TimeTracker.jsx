@@ -92,7 +92,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
 
   const emptyRow = () => ({
     id: Date.now() + Math.random(), clientId: nyClientId(),
-    projectId: null, newProjName: '',
+    projectId: null, newProjName: '', activityNr: '',
     rawInput: '', hours: 0,
     startTime: null, endTime: null,
     description: '', submitted: false, isPersisted: false,
@@ -122,6 +122,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
           clientId:    String(r.id), // alt lagra, id endrar seg aldri meir
           projectId:   r.project_id,
           newProjName: '',
+          activityNr:  r.activity_nr || '',
           rawInput:    r.raw_input || '',
           hours:       r.hours || 0,
           startTime:   r.start_time,
@@ -137,6 +138,23 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
     return () => { cancelled = true }
   }, [date, userId])
 
+  // Forslag til aktivitetsnummer: nummera brukaren tidlegare har ført på same prosjekt (vist som nedtrekksforslag, fritt felt)
+  const [aktForslag, setAktForslag] = useState({})
+  useEffect(() => {
+    if (!userId) return
+    supabase.from('time_entries').select('project_id, activity_nr').eq('user_id', userId).not('activity_nr', 'is', null).limit(5000)
+      .then(({ data }) => {
+        const m = {}
+        for (const r of (data || [])) { const k = r.project_id || '__nopr__'; (m[k] = m[k] || new Set()).add(r.activity_nr) }
+        setAktForslag(Object.fromEntries(Object.entries(m).map(([k, v]) => [k, [...v].sort((a, b) => String(a).localeCompare(String(b), 'nb', { numeric: true }))])))
+      })
+  }, [userId])
+  const lærAkt = (pid, nr) => {
+    const v = (nr || '').trim(); if (!v) return
+    const k = pid || '__nopr__'
+    setAktForslag(prev => (prev[k] || []).includes(v) ? prev : { ...prev, [k]: [...(prev[k] || []), v].sort((a, b) => String(a).localeCompare(String(b), 'nb', { numeric: true })) })
+  }
+
   const updateRow = (rowId, changes) => {
     setEntries(prev => {
       const updated = prev.map(r => r.id === rowId ? { ...r, ...changes } : r)
@@ -150,7 +168,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
       const idx = updated.findIndex(r => r.id === rowId)
       const isLast = idx === updated.length - 1
       const row = updated[idx]
-      const hasContent = row.rawInput || row.description || row.projectId || row.newProjName?.trim()
+      const hasContent = row.rawInput || row.description || row.projectId || row.newProjName?.trim() || row.activityNr
       if (isLast && hasContent) {
         updated.push(emptyRow())
       }
@@ -195,7 +213,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
       setSaveStatus('idle')
       return
     }
-    const hasContent = row.rawInput || row.description || row.projectId || row.newProjName?.trim()
+    const hasContent = row.rawInput || row.description || row.projectId || row.newProjName?.trim() || row.activityNr
     if (!hasContent) { setSaveStatus('idle'); return }
 
     let pid = row.projectId
@@ -214,6 +232,7 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
       user_id:     userId,
       project_id:  pid,
       date:        ymd(date),
+      activity_nr: row.activityNr?.trim() || null,
       raw_input:   row.rawInput,
       hours:       row.hours || 0,
       start_time:  row.startTime,
@@ -414,11 +433,13 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
       <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--border)',
         borderRadius: 'var(--r2)', background: 'var(--bg2)' }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 90px 40px',
+        <div style={{ display: 'grid', gridTemplateColumns: '220px 110px 120px 1fr 80px 90px 40px',
           background: 'var(--bg3)', borderBottom: '2px solid var(--border)',
           position: 'sticky', top: 0, zIndex: 5 }}>
           <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
             textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Prosjekt</div>
+          <div title="Aktivitetsnummer — eit prosjekt kan ha fleire aktivitetar ein fører timar på" style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
+            textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Aktivitetsnr.</div>
           <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
             textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Tidsbruk</div>
           <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
@@ -437,7 +458,7 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
 
           return (
             <div key={row.clientId}
-              style={{ display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 90px 40px',
+              style={{ display: 'grid', gridTemplateColumns: '220px 110px 120px 1fr 80px 90px 40px',
                 borderBottom: '1px solid var(--border)',
                 background: isSubmitted ? 'var(--bg3)' : 'var(--bg2)',
                 opacity: isEmpty ? 0.7 : (isSubmitted ? 0.65 : 1),
@@ -482,6 +503,20 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
                     style={{ ...cellInput, fontWeight: 600, color: 'var(--brand)',
                       background: 'var(--brandbg)' }}/>
                 )}
+              </div>
+
+              <div style={{ borderRight: '1px solid var(--border)', position: 'relative' }}>
+                <input type="text" value={row.activityNr || ''}
+                  disabled={isSubmitted}
+                  list={'akt-' + row.clientId}
+                  onChange={e => updateRow(row.id, { activityNr: e.target.value })}
+                  onBlur={e => lærAkt(row.projectId, e.target.value)}
+                  placeholder="t.d. 101"
+                  style={{ ...cellInput, fontFamily: 'var(--mono)',
+                    color: isSubmitted ? 'var(--text3)' : 'var(--text)' }}/>
+                <datalist id={'akt-' + row.clientId}>
+                  {(aktForslag[row.projectId || '__nopr__'] || []).map(n => <option key={n} value={n}/>)}
+                </datalist>
               </div>
 
               <div style={{ borderRight: '1px solid var(--border)', position: 'relative' }}>
@@ -552,11 +587,12 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
               const proj = key === '__nopr__' ? null : projectMap[parseInt(key)]
               return (
                 <div key={key} style={{ display: 'grid',
-                  gridTemplateColumns: '220px 120px 1fr 80px 90px 40px',
+                  gridTemplateColumns: '220px 110px 120px 1fr 80px 90px 40px',
                   borderTop: '1px solid var(--border)' }}>
                   <div style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
                     {proj ? `📁 ${proj.name}` : '— Utan prosjekt —'}
                   </div>
+                  <div></div>
                   <div></div>
                   <div></div>
                   <div style={{ padding: '8px 12px', textAlign: 'right',
@@ -571,12 +607,13 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
           </div>
         )}
 
-        <div style={{ background: 'var(--brand)', color: '#fff',
-          display: 'grid', gridTemplateColumns: '220px 120px 1fr 80px 90px 40px' }}>
+        <div style={{ background: 'var(--bg3)', color: 'var(--text)', borderTop: '2px solid var(--border)',
+          display: 'grid', gridTemplateColumns: '220px 110px 120px 1fr 80px 90px 40px' }}>
           <div style={{ padding: '12px 14px', fontWeight: 700,
             textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 13 }}>
             Totalt {fmtDate(date)}
           </div>
+          <div></div>
           <div></div>
           <div></div>
           <div style={{ padding: '12px 12px', textAlign: 'right',

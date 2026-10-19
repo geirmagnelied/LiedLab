@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useStore } from './useStore'
 import BrukarModule from './BrukarModule'
 import SketchPad from './SketchPad'
+import { settEksportBrukar } from './notatPdf'
 import { startBokmalOmsetjar } from './bokmalOmsetjar'
 import useBrukar from './useBrukar'
 import { SprakKontekst, lagT } from './sprak'
@@ -318,10 +319,10 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const IcoBtn = ({ onClick, active, title, children }) => (
     <button onClick={onClick} title={title} aria-label={title}
       style={{ width:30,height:30,border:'1.5px solid',
-        borderColor:active?'rgba(255,255,255,.6)':'rgba(255,255,255,.2)',
-        background:active?'rgba(255,255,255,.25)':'rgba(255,255,255,.1)',
+        borderColor:active?'var(--brand)':'var(--border)',
+        background:active?'#fff':'rgba(255,255,255,.5)',
         borderRadius:'var(--r)',display:'flex',alignItems:'center',justifyContent:'center',
-        cursor:'pointer',color:active?'#fff':'rgba(255,255,255,.65)',flexShrink:0,transition:'all .15s' }}>
+        cursor:'pointer',color:active?'var(--brand)':'var(--text2)',flexShrink:0,transition:'all .15s' }}>
       {children}
     </button>
   )
@@ -332,13 +333,13 @@ function AppInnhald({ userId, userEmail, brukar }) {
       <button onClick={onClick||(() => { setView(v); if (v!=='new') setEditNote(null) })}
         style={{ display:'flex',alignItems:'center',gap:7,padding:'7px 14px',
           border:'1.5px solid',
-          borderColor:active?'rgba(255,255,255,.6)':'transparent',
-          background:active?'rgba(255,255,255,.18)':'transparent',
-          borderRadius:'var(--r)',color:active?'#fff':'rgba(255,255,255,.7)',
+          borderColor:active?'var(--brand)':'transparent',
+          background:active?'#fff':'transparent',
+          borderRadius:'var(--r)',color:active?'var(--brand)':'var(--text2)',
           fontSize:14,cursor:'pointer',fontWeight:active?700:500,transition:'all .15s' }}>
         {letter && <span style={{ width:20,height:20,borderRadius:5,
-          background: active?'rgba(255,255,255,.92)':'rgba(255,255,255,.18)',
-          color: active?'var(--brand)':'#fff',
+          background: active?'var(--brand)':'rgba(27,42,58,.1)',
+          color: active?'#fff':'var(--text2)',
           display:'flex',alignItems:'center',justifyContent:'center',
           fontSize:11,fontWeight:800,flexShrink:0 }}>{letter}</span>}
         {label}
@@ -603,11 +604,8 @@ function AppInnhald({ userId, userEmail, brukar }) {
           {/* Main */}
           <main style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0 }}>
             <div style={{ display:'flex',alignItems:'center',gap:4,padding:'0 16px',
-              borderBottom:'1px solid rgba(255,255,255,.1)',background:'var(--brand)',
+              borderBottom:'1px solid var(--border)',background:'var(--bg3)',
               height:50,flexShrink:0 }}>
-              <span style={{ fontSize:15, fontWeight:800, color:'#fff', letterSpacing:'-0.02em', marginRight:10 }}>
-                Notatapp
-              </span>
               {/* Søk — i den blå overskriftslinja, til høgre for overskrifta (brukar sitt krav 2. okt. 2026) */}
               {view==='notatar' && (
                 <div style={{ marginRight:10 }}>
@@ -617,53 +615,41 @@ function AppInnhald({ userId, userEmail, brukar }) {
               {/* Direkte snarvegar for notattypar */}
               <button onClick={()=>handleNewNote('regular')}
                 style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
-                  border:'1.5px solid rgba(255,255,255,.4)',
+                  border:'1.5px solid var(--border)',
                   borderRadius:'var(--r)',
-                  background:'rgba(255,255,255,.14)', color:'#fff',
+                  background:'#fff', color:'var(--brand)',
                   fontSize:14, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                 + Notat
               </button>
               <button onClick={()=>handleNewNote('meeting')}
                 style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
-                  border:'1.5px solid rgba(255,255,255,.25)',
+                  border:'1.5px solid var(--border)',
                   borderRadius:'var(--r)',
-                  background:'rgba(255,255,255,.08)', color:'rgba(255,255,255,.85)',
+                  background:'rgba(255,255,255,.6)', color:'var(--text2)',
                   fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
                 + Møte
               </button>
               <button onClick={()=>handleNewNote('referat')}
                 style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
-                  border:'1.5px solid rgba(255,255,255,.25)',
+                  border:'1.5px solid var(--border)',
                   borderRadius:'var(--r)',
-                  background:'rgba(255,255,255,.08)', color:'rgba(255,255,255,.85)',
+                  background:'rgba(255,255,255,.6)', color:'var(--text2)',
                   fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
                 + Referat
               </button>
               <button onClick={()=>handleNewNote('task')}
                 style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
-                  border:'1.5px solid rgba(255,255,255,.25)',
+                  border:'1.5px solid var(--border)',
                   borderRadius:'var(--r)',
-                  background:'rgba(255,255,255,.08)', color:'rgba(255,255,255,.85)',
+                  background:'rgba(255,255,255,.6)', color:'var(--text2)',
                   fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
                 + Oppgåve
               </button>
               <div style={{width:10}}/>
               <Tab v="fristar"  letter="F" label="Fristar"/>
               <div style={{flex:1}}/>
-              {selProj&&(
-                <div style={{ display:'flex',alignItems:'center',gap:7,fontSize:12,
-                  color:'rgba(255,255,255,.75)',marginRight:6 }}>
-                  <span style={{ width:7,height:7,borderRadius:'50%',background:'rgba(255,255,255,.6)' }}/>
-                  <span style={{ fontFamily:'var(--mono)',fontWeight:500 }}>{selProj.name}</span>
-                </div>
-              )}
               <IcoBtn onClick={()=>setTlCollapsed(v=>!v)} active={!tlCollapsed} title="Tidslinje"><span style={{fontWeight:800,fontSize:13}}>T</span></IcoBtn>
               <div style={{width:4}}/>
-              <div style={{fontSize:11,color:'rgba(255,255,255,.5)',maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{userEmail}</div>
-              <button onClick={()=>{ import('./supabase').then(m=>m.supabase.auth.signOut()) }}
-                style={{padding:'4px 10px',background:'rgba(255,255,255,.1)',border:'1px solid rgba(255,255,255,.2)',borderRadius:'var(--r)',color:'rgba(255,255,255,.8)',fontSize:11,cursor:'pointer',whiteSpace:'nowrap',marginLeft:4}}>
-                Logg ut
-              </button>
             </div>
 
             {view==='notatar' && (
@@ -754,17 +740,17 @@ function StatusBar({ activeModule }) {
   const dateStr = `${days[now.getDay()]} ${now.getDate()}. ${months[now.getMonth()]} ${now.getFullYear()}`
   const timeStr = now.toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false })
   return (
-    <div style={{ height:36, flexShrink:0, background:'#0A0A0A',
+    <div style={{ height:36, flexShrink:0, background:'var(--bg3)',
       display:'flex', alignItems:'center', justifyContent:'space-between',
-      padding:'0 16px', borderTop:'1px solid rgba(255,255,255,.1)' }}>
-      <span style={{ fontSize:12, color:'rgba(255,255,255,.55)', fontWeight:500 }}>
+      padding:'0 16px', borderTop:'1px solid var(--border)' }}>
+      <span style={{ fontSize:12, color:'var(--text2)', fontWeight:500 }}>
         LiedLab · {MODULE_LABELS[activeModule] || 'Notatar'}
       </span>
-      <span style={{ fontSize:13, color:'rgba(255,255,255,.9)', fontWeight:600,
+      <span style={{ fontSize:13, color:'var(--text)', fontWeight:600,
         fontFamily:'var(--mono)', letterSpacing:'.03em' }}>
         {dateStr} &nbsp;·&nbsp; {timeStr}
       </span>
-      <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v9i</span>
+      <span style={{ fontSize:11, color:'var(--text3)' }}>v9i</span>
     </div>
 )
 }
@@ -776,6 +762,8 @@ export default function App({ userId, userEmail }) {
   const verdi = useMemo(() => ({ sprak, t: lagT(sprak), settSprak: (s) => brukar.oppdater({ sprak: s }) }), [sprak]) // eslint-disable-line react-hooks/exhaustive-deps
   // Bokmål: omsetj heile appen (ord for ord) i DOM-en; nynorsk er kjeldespråket. Sjå bokmalOmsetjar.js
   useEffect(() => { if (sprak !== 'bm') return undefined; return startBokmalOmsetjar() }, [sprak])
+  // Namn på den som eksporterer (botntekst i PDF-eksport av notat)
+  useEffect(() => { settEksportBrukar(brukar.visNamn || userEmail) }, [brukar.visNamn, userEmail])
   return (
     <SprakKontekst.Provider value={verdi}>
       <AppInnhald userId={userId} userEmail={userEmail} brukar={brukar}/>

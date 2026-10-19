@@ -317,9 +317,9 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
   function ModuleTopbar() {
     return (
       <div style={{ display:'flex', alignItems:'center', gap:10, padding:'0 16px',
-        height:50, flexShrink:0, background:'var(--brand)', borderBottom:'1px solid rgba(255,255,255,.1)' }}>
+        height:50, flexShrink:0, background:'var(--bg3)', borderBottom:'1px solid var(--border)' }}>
         {activeProject && (
-          <span style={{ fontSize:12, color:'rgba(255,255,255,.65)', fontFamily:'var(--mono)' }}>
+          <span style={{ fontSize:12, color:'var(--text2)', fontFamily:'var(--mono)' }}>
             {activeProject.projectNumber}{' \u00B7 '}{activeProject.name}
           </span>
         )}

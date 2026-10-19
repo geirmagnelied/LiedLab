@@ -406,39 +406,39 @@ export default function Timeline({ notes, projects, height, onResize, onSelectNo
       {/* Toolbar */}
       <div style={{display:'flex',alignItems:'center',gap:6,padding:'0 14px',
         height:40,borderBottom:'1px solid var(--border)',flexShrink:0,
-        background:'var(--brand)',color:'#fff'}}>
-        <span style={{fontWeight:800,fontSize:13,color:"rgba(255,255,255,.85)"}}>T</span>
+        background:'var(--bg3)',color:'var(--text)'}}>
+        <span style={{fontWeight:800,fontSize:13,color:'var(--text2)'}}>T</span>
         <span style={{fontSize:11,fontWeight:800,letterSpacing:'.08em',
-          textTransform:'uppercase',color:'rgba(255,255,255,.85)'}}>Tidslinje</span>
+          textTransform:'uppercase',color:'var(--text2)'}}>Tidslinje</span>
 
         {/* Mode */}
         <div style={{display:'flex',gap:2,marginLeft:8,
-          background:'rgba(255,255,255,.12)',borderRadius:8,padding:2}}>
+          background:'rgba(255,255,255,.6)',borderRadius:8,padding:2}}>
           {[['month-week','Månad/Veke'],['week-day','Veke/Dag'],['day','7 Dagar']].map(([m,lbl])=>(
             <button key={m} onClick={()=>setMode(m)}
               style={{padding:'2px 10px',borderRadius:6,border:'none',
                 background:mode===m?'#fff':'transparent',
-                color:mode===m?'var(--brand)':'rgba(255,255,255,.7)',
+                color:mode===m?'var(--brand)':'var(--text2)',
                 fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
               {lbl}
             </button>
           ))}
         </div>
 
-        <button onClick={()=>navigate(-1)} style={{background:'none',border:'none',color:'rgba(255,255,255,.7)',cursor:'pointer',padding:'2px 3px',borderRadius:4,display:'flex'}}><span style={{fontWeight:800,fontSize:15}}>‹</span></button>
-        <button onClick={goToday} style={{padding:'2px 10px',borderRadius:10,border:'1px solid rgba(255,255,255,.3)',background:'rgba(255,255,255,.1)',color:'rgba(255,255,255,.9)',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>I dag</button>
-        <button onClick={()=>navigate(1)} style={{background:'none',border:'none',color:'rgba(255,255,255,.7)',cursor:'pointer',padding:'2px 3px',borderRadius:4,display:'flex'}}><span style={{fontWeight:800,fontSize:15}}>›</span></button>
+        <button onClick={()=>navigate(-1)} style={{background:'none',border:'none',color:'var(--text2)',cursor:'pointer',padding:'2px 3px',borderRadius:4,display:'flex'}}><span style={{fontWeight:800,fontSize:15}}>‹</span></button>
+        <button onClick={goToday} style={{padding:'2px 10px',borderRadius:10,border:'1px solid var(--border2)',background:'rgba(255,255,255,.6)',color:'var(--text2)',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>I dag</button>
+        <button onClick={()=>navigate(1)} style={{background:'none',border:'none',color:'var(--text2)',cursor:'pointer',padding:'2px 3px',borderRadius:4,display:'flex'}}><span style={{fontWeight:800,fontSize:15}}>›</span></button>
 
         <div style={{flex:1}}/>
-        <span style={{fontSize:10,color:'rgba(255,255,255,.4)',marginRight:4}}>{allTasks.length} oppgåver · dra notat hit</span>
+        <span style={{fontSize:10,color:'var(--text2)',marginRight:4}}>{allTasks.length} oppgåver · dra notat hit</span>
 
         {/* Filter */}
         <div style={{position:'relative'}}>
           <button onClick={()=>setShowFilter(v=>!v)}
             style={{display:'flex',alignItems:'center',gap:5,padding:'3px 10px',borderRadius:10,
-              border:'1px solid',borderColor:filterProjs.length>0?'#fff':'rgba(255,255,255,.3)',
-              background:filterProjs.length>0?'rgba(255,255,255,.25)':'rgba(255,255,255,.1)',
-              color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+              border:'1px solid',borderColor:filterProjs.length>0?'var(--brand)':'var(--border2)',
+              background:filterProjs.length>0?'#fff':'rgba(255,255,255,.6)',
+              color:'var(--text)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
             <span style={{fontWeight:800,fontSize:11}}>V</span>
             {filterProjs.length>0?`${filterProjs.length} prosjekt`:'Alle'}
           </button>

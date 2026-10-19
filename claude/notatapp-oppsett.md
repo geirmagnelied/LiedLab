@@ -196,3 +196,9 @@ Cowork-arbeidsflyten kravde. Skilnaden frå Cowork:
 - `TopBar.jsx`: «LIEDLAB» er erstatta av `stadNamn` (modulnamnet frå `MODULE_LABELS` i `App.jsx`). Prosjektveljaren er alltid sentrert og har ikkje lenger makslengd/ellipse, så heile prosjektnamnet vert vist.
 - Kontor-veljaren (med «Nytt kontor»-popup, forankra til høgre) ligg no til høgre i TN, rett til venstre for brukarnamnet.
 - Den blå modullinja er fjerna i Bilete, Oppgåver og Kontordrift. I Kvalitetssystem står berre fanene Teikningar/Leveransekontroll (venstrejustert) og Info-knappen att. I dei andre modulane er berre modultittelen fjerna frå linja (knappar/fanar/søk står att).
+
+## Lys modullinje, lys botnlinje (19. okt. 2026)
+- Den blå/mørke modullinja under TN er gjort lys blågrå (`var(--bg3)`, same som VN) i alle modular som har kontrollar der (Notatar, Prosjekt, Kundar, Saker, Kalender, Timar, Kvalitet, Framdrift, DTM, Brukar); plassering av søk/knappar/faner er uendra. Aktiv fane = kvit med grøn/blå kant og tekst.
+- Notat-linja: tittelen «Notatapp», prosjektnamn, e-post og «Logg ut» er fjerna. **Logg ut ligg no i hamburgermenyen i TN.**
+- Botnlinja (`StatusBar`) og Tidslinje-verktøylinja er lyse (ikkje mørk fylt).
+- Timar: totalrada er lys. Ny kolonne **Aktivitetsnr.** (kolonne `time_entries.activity_nr`, sjå `supabase-time-entries-activity-nr.sql`) — fritt tekstfelt med forslag (datalist) frå nummer brukaren tidlegare har ført på same prosjekt.

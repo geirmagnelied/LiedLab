@@ -180,10 +180,10 @@ function ProsjektOversikt({ liste, loading, filter, setFilter, papirkorgTal, onV
   const dagar = (d) => Math.max(0, 30 - Math.floor((Date.now() - new Date(d).getTime()) / 86400000))
   return (
     <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', background:'var(--bg)' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'0 20px', height:50, flexShrink:0, background:'var(--brand)' }}>
-        <span style={{ fontSize:12, color:'rgba(255,255,255,.7)' }}>{treff.length} prosjekt</span>
+      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'0 20px', height:50, flexShrink:0, background:'var(--bg3)' }}>
+        <span style={{ fontSize:12, color:'var(--text2)' }}>{treff.length} prosjekt</span>
         <div style={{ flex:1 }}/>
-        <button onClick={onNytt} style={{ padding:'6px 16px', borderRadius:'var(--r)', border:'1.5px solid rgba(255,255,255,.55)', background:'rgba(255,255,255,.18)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>＋ Nytt prosjekt</button>
+        <button onClick={onNytt} style={{ padding:'6px 16px', borderRadius:'var(--r)', border:'1.5px solid var(--border)', background:'rgba(255,255,255,.18)', color:'var(--text)', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>＋ Nytt prosjekt</button>
       </div>
       <div style={{ flex:1, overflowY:'auto', padding:'26px 30px 40px' }}>
         <div style={{ maxWidth:1200, margin:'0 auto' }}>
@@ -580,33 +580,32 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
 
         {/* Topbar */}
         <div style={{ display:'flex', alignItems:'center', gap:8, padding:'0 16px',
-          height:50, flexShrink:0, background:'var(--brand)',
-          borderBottom:'1px solid rgba(255,255,255,.1)' }}>
+          height:50, flexShrink:0, background:'var(--bg3)',
+          borderBottom:'1px solid var(--border)' }}>
           {form && (
             <>
               <button onClick={lagreProsjekt}
                 disabled={!dirty}
                 style={{ display:'flex', alignItems:'center', gap:6,
                   padding:'6px 16px', borderRadius:'var(--r)',
-                  border: dirty ? '1.5px solid rgba(255,255,255,.6)' : '1.5px solid rgba(255,255,255,.2)',
-                  background: dirty ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.06)',
-                  color: dirty ? '#fff' : 'rgba(255,255,255,.4)',
+                  border: dirty ? '1.5px solid var(--brand)' : '1.5px solid var(--border)',
+                  background: dirty ? 'var(--brand)' : 'rgba(255,255,255,.5)',
+                  color: dirty ? '#fff' : 'var(--text3)',
                   fontSize:13, fontWeight:700, cursor: dirty ? 'pointer' : 'default',
                   fontFamily:'var(--font)', transition:'all .15s' }}>
                 {dirty ? '● Lagre' : '✓ Lagra'}
               </button>
-              <span style={{ color:'rgba(255,255,255,.3)' }}>·</span>
-              <span style={{ fontSize:13, color:'rgba(255,255,255,.7)', fontFamily:'var(--mono)' }}>
+              <span style={{ fontSize:13, color:'var(--text2)', fontFamily:'var(--mono)' }}>
                 {form.projectNumber}
               </span>
-              <span style={{ fontSize:13, color:'rgba(255,255,255,.7)' }}>{form.name}</span>
+              <span style={{ fontSize:13, color:'var(--text2)' }}>{form.name}</span>
               <div style={{ flex:1 }}/>
               <button onClick={() => slettProsjekt(selected)}
                 title="Slett prosjekt"
                 style={{ display:'flex', alignItems:'center', gap:6,
                   padding:'6px 14px', borderRadius:'var(--r)',
-                  border:'1.5px solid rgba(255,255,255,.25)',
-                  background:'rgba(220,38,38,.18)', color:'rgba(255,255,255,.9)',
+                  border:'1.5px solid var(--border)',
+                  background:'rgba(220,38,38,.18)', color:'var(--text2)',
                   fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
                 🗑 Slett prosjekt
               </button>

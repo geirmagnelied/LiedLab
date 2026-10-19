@@ -13,10 +13,10 @@ export default function TimarModule({ userId, projects, addProject, mode, active
           display: 'flex', alignItems: 'center', gap: 7,
           padding: '7px 14px',
           border: '1.5px solid',
-          borderColor: active ? 'rgba(255,255,255,.6)' : 'transparent',
-          background: active ? 'rgba(255,255,255,.18)' : 'transparent',
+          borderColor: active ? 'var(--brand)' : 'transparent',
+          background: active ? '#fff' : 'transparent',
           borderRadius: 'var(--r)',
-          color: active ? '#fff' : 'rgba(255,255,255,.7)',
+          color: active ? 'var(--brand)' : 'var(--text2)',
           fontSize: 14, cursor: 'pointer',
           fontWeight: active ? 700 : 500,
           transition: 'all .15s',
@@ -24,8 +24,8 @@ export default function TimarModule({ userId, projects, addProject, mode, active
         }}>
         <span style={{
           width: 20, height: 20, borderRadius: 5,
-          background: active ? 'rgba(255,255,255,.92)' : 'rgba(255,255,255,.18)',
-          color: active ? 'var(--brand)' : '#fff',
+          background: active ? 'var(--brand)' : 'rgba(27,42,58,.1)',
+          color: active ? '#fff' : 'var(--text2)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 11, fontWeight: 800, flexShrink: 0,
         }}>{letter}</span>
@@ -40,8 +40,8 @@ export default function TimarModule({ userId, projects, addProject, mode, active
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6,
         padding: '0 16px', height: 50, flexShrink: 0,
-        background: 'var(--brand)',
-        borderBottom: '1px solid rgba(255,255,255,.1)',
+        background:'var(--bg3)',
+        borderBottom: '1px solid var(--border)',
       }}>
         <Tab v="registrer" letter="T" label="Timeregistrering"/>
         <Tab v="prognose"  letter="P" label="Prognose"/>

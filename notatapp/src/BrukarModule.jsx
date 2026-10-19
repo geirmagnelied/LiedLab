@@ -254,15 +254,15 @@ export default function BrukarModule({ userId, userEmail, brukar }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minWidth: 0, background: 'var(--bg)' }}>
       <style>{CSS}</style>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0 20px', height: 50, flexShrink: 0, background: 'var(--brand)' }}>
-        <div style={{ display: 'flex', gap: 4, marginLeft: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0 20px', height: 50, flexShrink: 0, background:'var(--bg3)', borderBottom:'1px solid var(--border)' }}>
+        <div style={{ display: 'flex', gap: 4 }}>
           {SIDER.map(([k, namn]) => (
             <button key={k} onClick={() => byt(k)} style={{ border: 'none', borderRadius: 7, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)',
-              background: side === k ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.14)', color: side === k ? 'var(--brand)' : '#fff' }}>{namn}</button>
+              background: side === k ? '#fff' : 'rgba(255,255,255,.5)', color: side === k ? 'var(--brand)' : 'var(--text2)' }}>{namn}</button>
           ))}
         </div>
         <div style={{ flex: 1 }}/>
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: status === 'feil' ? '#FCA5A5' : 'rgba(255,255,255,.8)' }}>{statusTekst}</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: status === 'feil' ? '#FCA5A5' : 'var(--text2)' }}>{statusTekst}</span>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '22px 26px 40px' }}>
         {lastar ? <div style={{ color: 'var(--text3)' }}>…</div>

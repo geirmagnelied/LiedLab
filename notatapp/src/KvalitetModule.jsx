@@ -55,9 +55,9 @@ function Fane({ vk, lb, view, setView }) {
   return (
     <button onClick={() => setView(vk)} style={{
       padding:'6px 13px', borderRadius:'var(--r)',
-      border: a ? '1.5px solid rgba(255,255,255,.55)' : '1.5px solid transparent',
-      background: a ? 'rgba(255,255,255,.18)' : 'transparent',
-      color: a ? '#fff' : 'rgba(255,255,255,.65)',
+      border: a ? '1.5px solid var(--brand)' : '1.5px solid transparent',
+      background: a ? '#fff' : 'transparent',
+      color: a ? 'var(--brand)' : 'var(--text2)',
       fontSize:13, fontWeight: a ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)' }}>{lb}</button>
   )
 }
@@ -82,8 +82,8 @@ function InfoKnapp({ nummerering, onEndreNummerering }) {
   return (
     <div className="ks-info" style={{ position:'relative' }}>
       <button onClick={() => setOpen(v => !v)} title="Korleis fungerer dette?"
-        style={{ width:24, height:24, borderRadius:'50%', border:'1.5px solid rgba(255,255,255,.45)',
-          background: open ? 'rgba(255,255,255,.24)' : 'rgba(255,255,255,.08)', color:'#fff',
+        style={{ width:24, height:24, borderRadius:'50%', border:'1.5px solid var(--border2)',
+          background: open ? '#fff' : 'rgba(255,255,255,.6)', color:'var(--text2)',
           fontSize:12, fontWeight:800, cursor:'pointer', fontFamily:'var(--font)', fontStyle:'italic' }}>i</button>
       {open && (
         <div style={{ position:'absolute', right:0, top:32, width:340, zIndex:200,
@@ -302,8 +302,8 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
 
       {/* Topbar */}
       <div style={{ display:'flex', alignItems:'center', gap:4, padding:'0 16px',
-        height:50, flexShrink:0, background:'var(--brand)',
-        borderBottom:'1px solid rgba(255,255,255,.1)' }}>
+        height:50, flexShrink:0, background:'var(--bg3)',
+        borderBottom:'1px solid var(--border)' }}>
         <Fane vk="teikningar" lb="Teikningar" view={view} setView={setView}/>
         <Fane vk="kontroll"   lb="Leveransekontroll" view={view} setView={setView}/>
         <div style={{ flex:1 }}/>
