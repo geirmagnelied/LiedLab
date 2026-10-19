@@ -740,17 +740,17 @@ function StatusBar({ activeModule }) {
   const dateStr = `${days[now.getDay()]} ${now.getDate()}. ${months[now.getMonth()]} ${now.getFullYear()}`
   const timeStr = now.toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false })
   return (
-    <div style={{ height:36, flexShrink:0, background:'var(--bg3)',
+    <div style={{ height:36, flexShrink:0, background:'#0A0A0A',
       display:'flex', alignItems:'center', justifyContent:'space-between',
-      padding:'0 16px', borderTop:'1px solid var(--border)' }}>
-      <span style={{ fontSize:12, color:'var(--text2)', fontWeight:500 }}>
+      padding:'0 16px', borderTop:'1px solid rgba(255,255,255,.1)' }}>
+      <span style={{ fontSize:12, color:'rgba(255,255,255,.55)', fontWeight:500 }}>
         LiedLab · {MODULE_LABELS[activeModule] || 'Notatar'}
       </span>
-      <span style={{ fontSize:13, color:'var(--text)', fontWeight:600,
+      <span style={{ fontSize:13, color:'rgba(255,255,255,.9)', fontWeight:600,
         fontFamily:'var(--mono)', letterSpacing:'.03em' }}>
         {dateStr} &nbsp;·&nbsp; {timeStr}
       </span>
-      <span style={{ fontSize:11, color:'var(--text3)' }}>v9i</span>
+      <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>v9i</span>
     </div>
 )
 }

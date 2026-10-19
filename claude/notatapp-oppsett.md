@@ -200,5 +200,5 @@ Cowork-arbeidsflyten kravde. Skilnaden frå Cowork:
 ## Lys modullinje, lys botnlinje (19. okt. 2026)
 - Den blå/mørke modullinja under TN er gjort lys blågrå (`var(--bg3)`, same som VN) i alle modular som har kontrollar der (Notatar, Prosjekt, Kundar, Saker, Kalender, Timar, Kvalitet, Framdrift, DTM, Brukar); plassering av søk/knappar/faner er uendra. Aktiv fane = kvit med grøn/blå kant og tekst.
 - Notat-linja: tittelen «Notatapp», prosjektnamn, e-post og «Logg ut» er fjerna. **Logg ut ligg no i hamburgermenyen i TN.**
-- Botnlinja (`StatusBar`) og Tidslinje-verktøylinja er lyse (ikkje mørk fylt).
-- Timar: totalrada er lys. Ny kolonne **Aktivitetsnr.** (kolonne `time_entries.activity_nr`, sjå `supabase-time-entries-activity-nr.sql`) — fritt tekstfelt med forslag (datalist) frå nummer brukaren tidlegare har ført på same prosjekt.
+- Tidslinje-verktøylinja er lys. Botnlinja (`StatusBar`, BN) er framleis mørk (vart gjort lys, så tilbakeført etter ønske).
+- Timar: totalrada er lys. Ny kolonne **Aktivitetsnr.** (kolonne `time_entries.activity_nr`, sjå `supabase-time-entries-activity-nr.sql`) — sama som aktivitetskode i Framdrift: nedtrekksmeny når prosjektet har aktivitetskodar i planen (kode-feltet, elles talet fremst i aktivitetsnamnet), elles fritt felt (kode eller ingenting).

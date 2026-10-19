@@ -138,22 +138,30 @@ export default function TimeTracker({ userId, projects, addProject, mode }) {
     return () => { cancelled = true }
   }, [date, userId])
 
-  // Forslag til aktivitetsnummer: nummera brukaren tidlegare har ført på same prosjekt (vist som nedtrekksforslag, fritt felt)
-  const [aktForslag, setAktForslag] = useState({})
+  // Aktivitetsnummer = aktivitetskode frå Framdrift-planen til prosjektet. Prosjekt med kodar i planen får nedtrekksmeny,
+  // andre prosjekt eit fritt felt (kode eller ingenting). Kode = feltet «Aktivitetskode», elles talet fremst i aktivitetsnamnet («611 ARK …»).
+  const [planKoder, setPlanKoder] = useState({})
   useEffect(() => {
     if (!userId) return
-    supabase.from('time_entries').select('project_id, activity_nr').eq('user_id', userId).not('activity_nr', 'is', null).limit(5000)
+    supabase.from('framdrift_planar').select('project_id, elementer').eq('user_id', userId)
       .then(({ data }) => {
         const m = {}
-        for (const r of (data || [])) { const k = r.project_id || '__nopr__'; (m[k] = m[k] || new Set()).add(r.activity_nr) }
-        setAktForslag(Object.fromEntries(Object.entries(m).map(([k, v]) => [k, [...v].sort((a, b) => String(a).localeCompare(String(b), 'nb', { numeric: true }))])))
+        for (const p of (data || [])) {
+          const liste = []
+          for (const e of (Array.isArray(p.elementer) ? p.elementer : [])) {
+            if (e.type !== 'aktivitet') continue
+            const namn = String(e.namn || '').trim()
+            const forste = /^(\d[\w.-]*)\s*(.*)$/.exec(namn)
+            const kode = String(e.kode || '').trim() || (forste ? forste[1] : '')
+            if (!kode) continue
+            const rest = forste && forste[1] === kode ? forste[2] : namn
+            if (!liste.some(x => x.kode === kode)) liste.push({ kode, namn: rest })
+          }
+          if (liste.length) m[p.project_id] = liste.sort((x, y) => x.kode.localeCompare(y.kode, 'nb', { numeric: true }))
+        }
+        setPlanKoder(m)
       })
   }, [userId])
-  const lærAkt = (pid, nr) => {
-    const v = (nr || '').trim(); if (!v) return
-    const k = pid || '__nopr__'
-    setAktForslag(prev => (prev[k] || []).includes(v) ? prev : { ...prev, [k]: [...(prev[k] || []), v].sort((a, b) => String(a).localeCompare(String(b), 'nb', { numeric: true })) })
-  }
 
   const updateRow = (rowId, changes) => {
     setEntries(prev => {
@@ -433,12 +441,12 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
       <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--border)',
         borderRadius: 'var(--r2)', background: 'var(--bg2)' }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '220px 110px 120px 1fr 80px 90px 40px',
+        <div style={{ display: 'grid', gridTemplateColumns: '220px 150px 120px 1fr 80px 90px 40px',
           background: 'var(--bg3)', borderBottom: '2px solid var(--border)',
           position: 'sticky', top: 0, zIndex: 5 }}>
           <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
             textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Prosjekt</div>
-          <div title="Aktivitetsnummer — eit prosjekt kan ha fleire aktivitetar ein fører timar på" style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
+          <div title="Aktivitetsnummer = aktivitetskode i Framdrift. Vel frå lista når prosjektet har kodar, elles skriv du kode (eller lèt vere)." style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
             textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Aktivitetsnr.</div>
           <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
             textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Tidsbruk</div>
@@ -458,7 +466,7 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
 
           return (
             <div key={row.clientId}
-              style={{ display: 'grid', gridTemplateColumns: '220px 110px 120px 1fr 80px 90px 40px',
+              style={{ display: 'grid', gridTemplateColumns: '220px 150px 120px 1fr 80px 90px 40px',
                 borderBottom: '1px solid var(--border)',
                 background: isSubmitted ? 'var(--bg3)' : 'var(--bg2)',
                 opacity: isEmpty ? 0.7 : (isSubmitted ? 0.65 : 1),
@@ -506,17 +514,24 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
               </div>
 
               <div style={{ borderRight: '1px solid var(--border)', position: 'relative' }}>
-                <input type="text" value={row.activityNr || ''}
-                  disabled={isSubmitted}
-                  list={'akt-' + row.clientId}
-                  onChange={e => updateRow(row.id, { activityNr: e.target.value })}
-                  onBlur={e => lærAkt(row.projectId, e.target.value)}
-                  placeholder="t.d. 101"
-                  style={{ ...cellInput, fontFamily: 'var(--mono)',
-                    color: isSubmitted ? 'var(--text3)' : 'var(--text)' }}/>
-                <datalist id={'akt-' + row.clientId}>
-                  {(aktForslag[row.projectId || '__nopr__'] || []).map(n => <option key={n} value={n}/>)}
-                </datalist>
+                {(planKoder[row.projectId] || []).length > 0 ? (
+                  <select value={row.activityNr || ''} disabled={isSubmitted}
+                    onChange={e => updateRow(row.id, { activityNr: e.target.value })}
+                    style={{ ...cellInput, fontFamily: 'var(--mono)', cursor: isSubmitted ? 'default' : 'pointer',
+                      color: isSubmitted ? 'var(--text3)' : (row.activityNr ? 'var(--text)' : 'var(--text3)'),
+                      appearance: 'none', backgroundImage:
+                        "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236B9A80' stroke-width='3'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+                      backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', paddingRight: 24 }}>
+                    <option value="">— Ingen —</option>
+                    {row.activityNr && !planKoder[row.projectId].some(x => x.kode === row.activityNr) && <option value={row.activityNr}>{row.activityNr}</option>}
+                    {planKoder[row.projectId].map(x => <option key={x.kode} value={x.kode}>{x.kode}{x.namn ? ' ' + x.namn : ''}</option>)}
+                  </select>
+                ) : (
+                  <input type="text" value={row.activityNr || ''} disabled={isSubmitted}
+                    onChange={e => updateRow(row.id, { activityNr: e.target.value })}
+                    placeholder="Kode (valfritt)"
+                    style={{ ...cellInput, fontFamily: 'var(--mono)', color: isSubmitted ? 'var(--text3)' : 'var(--text)' }}/>
+                )}
               </div>
 
               <div style={{ borderRight: '1px solid var(--border)', position: 'relative' }}>
@@ -587,7 +602,7 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
               const proj = key === '__nopr__' ? null : projectMap[parseInt(key)]
               return (
                 <div key={key} style={{ display: 'grid',
-                  gridTemplateColumns: '220px 110px 120px 1fr 80px 90px 40px',
+                  gridTemplateColumns: '220px 150px 120px 1fr 80px 90px 40px',
                   borderTop: '1px solid var(--border)' }}>
                   <div style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
                     {proj ? `📁 ${proj.name}` : '— Utan prosjekt —'}
@@ -608,7 +623,7 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
         )}
 
         <div style={{ background: 'var(--bg3)', color: 'var(--text)', borderTop: '2px solid var(--border)',
-          display: 'grid', gridTemplateColumns: '220px 110px 120px 1fr 80px 90px 40px' }}>
+          display: 'grid', gridTemplateColumns: '220px 150px 120px 1fr 80px 90px 40px' }}>
           <div style={{ padding: '12px 14px', fontWeight: 700,
             textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 13 }}>
             Totalt {fmtDate(date)}
