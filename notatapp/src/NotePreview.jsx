@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { fmtDateShort } from './sakerKonstantar'
+import { eksporterNotatPdf } from './notatPdf'
 
 // ═══════════════════════════════════════════════════════════════════
 //  NotePreview — skriveverna førehandsvisning av notatet som er
@@ -19,6 +21,17 @@ function tittelFor(n) {
 }
 
 export default function NotePreview({ note, projects, onEdit, onUpdateTask }) {
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const eksporterPdf = async () => {
+    if (pdfBusy || !note) return
+    setPdfBusy(true)
+    try {
+      const p = note.projectId ? (projects || []).find(x => x.id === note.projectId) : null
+      const { advarslar } = await eksporterNotatPdf(note, p ? ((p.projectNumber ? p.projectNumber + ' ' : '') + p.name) : '')
+      if (advarslar.length) alert('Desse PDF-vedlegga kunne ikkje leggjast med i eksporten: ' + advarslar.join(', '))
+    } catch (e) { console.error(e); alert('PDF-eksport feila: ' + (e.message || e)) }
+    setPdfBusy(false)
+  }
   if (!note) {
     return (
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center',
@@ -52,6 +65,12 @@ export default function NotePreview({ note, projects, onEdit, onUpdateTask }) {
               )}
             </div>
           </div>
+          <button onClick={eksporterPdf} disabled={pdfBusy} title="Eksporter til PDF (PDF-vedlegg vert med)"
+            style={{ padding:'6px 12px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
+              background:'var(--bg3)', color:'var(--text2)', fontWeight:700, fontSize:12,
+              cursor: pdfBusy ? 'wait' : 'pointer', whiteSpace:'nowrap', flexShrink:0, opacity: pdfBusy ? .6 : 1 }}>
+            {pdfBusy ? 'Lagar PDF…' : 'Eksporter PDF'}
+          </button>
           <button onClick={() => onEdit?.(note)}
             style={{ padding:'6px 12px', borderRadius:'var(--r)', border:'1.5px solid var(--brand2)',
               background:'var(--brandbg)', color:'var(--brand)', fontWeight:700, fontSize:12,

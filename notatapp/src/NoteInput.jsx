@@ -2,6 +2,7 @@ import { favorittForst, prosjektValTekst } from './projectFavoritt'
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { nextFriday, fmt } from './dateUtils'
 import SketchPad from './SketchPad'
+import { eksporterNotatPdf } from './notatPdf'
 import CaseTable from './CaseTable'
 
 // ── Tabell i redigeringsvindauget ────────────────────────────────────
@@ -412,6 +413,25 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
   const updateTask = (id, changes) => setTasks(ts => ts.map(t => t.id===id ? {...t,...changes} : t))
   const deleteTask = (id) => setTasks(ts => ts.filter(t => t.id!==id))
 
+  // Eksport til PDF av notatet slik det står no (PDF-vedlegg vert lagde inn bak notatsidene)
+  const eksporterPdf = async () => {
+    if (pdfBusy) return
+    setPdfBusy(true)
+    try {
+      const html = editorRef.current?.innerHTML?.trim() || ''
+      const text = editorRef.current?.innerText?.trim() || ''
+      const pid = (projectVal && projectVal !== '__new__') ? parseInt(projectVal) : null
+      const prosjekt = pid ? (projects || []).find(p => p.id === pid) : null
+      const { advarslar } = await eksporterNotatPdf({
+        ...(editNote || {}),
+        title: titleRef.current?.value?.trim() || text.substring(0, 60) || 'Utan tittel', text, html, tasks, sketchDataUrl, attachments,
+        isMeeting: isMeeting || false, isReferat: isReferat || false, meetingTime, meetingLocation, attendees: isMeeting ? attendees : [],
+      }, prosjekt ? ((prosjekt.projectNumber ? prosjekt.projectNumber + ' ' : '') + prosjekt.name) : '')
+      if (advarslar.length) alert('Desse PDF-vedlegga kunne ikkje leggjast med i eksporten: ' + advarslar.join(', '))
+    } catch (e) { console.error(e); alert('PDF-eksport feila: ' + (e.message || e)) }
+    setPdfBusy(false)
+  }
+
   const handleSave = async () => {
     // Kanseller ventande auto-lagring — vi lagrar no direkte med fersk state
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null }
@@ -449,6 +469,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
 
   const [attachments, setAttachments] = useState([])
   const [uploading,   setUploading]   = useState(false)
+  const [pdfBusy,     setPdfBusy]     = useState(false)
   const [undoStack,   setUndoStack]   = useState([])
   const [saveStatus,  setSaveStatus]  = useState('idle')   // 'idle' | 'saving' | 'saved'
   const [createdId,   setCreatedId]   = useState(null)
@@ -617,7 +638,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
   const handleDrop = (e) => {
     e.preventDefault(); setDragActive(false)
     const files = [...e.dataTransfer.files]
-    if (files.length > 0) { processFile(files[0]) }
+    if (files.length > 0) { (async () => { for (const f of files) await processFile(f) })() }
   }
 
   // tabIndex={-1}: verktøylinja skal ikkje vere ein del av Tab-rekkjefølgja —
@@ -1180,6 +1201,18 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
             fontSize:13, fontWeight:600, cursor:'pointer', transition:'all .15s' }}>
           
           {sketchDataUrl ? 'Rediger skisse' : 'Legg til skisse'}
+        </button>
+        <label title="Legg ei PDF ved notatet (kan òg dragast rett inn i vindauget)"
+          style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 18px', background:'var(--bg3)', border:'1.5px solid var(--border)',
+            borderRadius:'var(--r)', color:'var(--text2)', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+          Legg til PDF
+          <input type="file" accept="application/pdf,.pdf" multiple style={{ display:'none' }}
+            onChange={async e => { const fl = [...e.target.files]; e.target.value = ''; for (const f of fl) await processFile(f) }}/>
+        </label>
+        <button onClick={eksporterPdf} disabled={pdfBusy} title="Eksporter notatet til PDF (PDF-vedlegg vert med)"
+          style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 18px', background:'var(--bg3)', border:'1.5px solid var(--border)',
+            borderRadius:'var(--r)', color:'var(--text2)', fontSize:13, fontWeight:600, cursor: pdfBusy ? 'wait' : 'pointer', opacity: pdfBusy ? .6 : 1 }}>
+          {pdfBusy ? 'Lagar PDF…' : 'Eksporter PDF'}
         </button>
         <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--text3)' }}>
           {saveStatus === 'saving' && <><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:'var(--warn)',animation:'pulse 1s infinite'}}/>Lagrar…</>}

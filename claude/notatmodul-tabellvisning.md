@@ -247,3 +247,9 @@ Appen er ein tynn Electron-skal rundt den same, live nettsida
 lokale kodeendringar i `src/`-mappa er difor **ikkje** synlege på nettsida
 eller i den vanlege `start.bat`-oppstarten før dei er bygde og publiserte
 dit (typisk via `git push` til repoet som Vercel-deployen byggjer frå).
+
+## PDF-eksport og PDF-vedlegg — 19. okt. 2026
+
+- `notatapp/src/notatPdf.js` → `eksporterNotatPdf(note, prosjektNamn)`: teiknar notatet (type/nr., tittel, prosjekt, møtefelt, innhald inkl. tabellar, oppgåver, skisse, vedleggsliste) med `html2canvas` til A4-sider (brot på kvit rad), og legg PDF-vedlegg inn bak notatsidene med `pdf-lib` (`copyPages`). Biblioteka vert lasta dynamisk. Vedlegg som ikkje let seg hente gir ei åtvaring, resten vert eksportert. Notatsidene er bilete (tekst ikkje markerbar), vedleggssidene er uendra.
+- Knappen «Eksporter PDF» ligg i `NotePreview` (ved «Rediger») og i redigeringsvindauget (`NoteInput`, botnlinja — eksporterer det som står no, også ulagra). Gjeld notat, møte og referat.
+- PDF-vedlegg: dra inn i redigeringsvindauget (fleire filer samtidig går no) eller bruk den nye knappen «Legg til PDF». Vedlegget vert lagra i Supabase-bøtta `Vedlegg` som før.
