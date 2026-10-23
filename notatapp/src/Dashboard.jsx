@@ -90,7 +90,7 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)', display: 'flex', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: 1180, padding: '34px 24px 48px' }}>
+      <div style={{ width: '100%', maxWidth: 1760, padding: '34px 24px 48px' }}>
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-.02em', color: 'var(--text)' }}>{helsing}</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 4 }}>
@@ -99,7 +99,7 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16, alignItems: 'start' }}>
           <Kort tittel={t('dash.sisteNotat')} ikon="✎" farge="#52B788" onKlikk={() => onOpneModul('notatar')}>
             {sisteNotat.length === 0 ? <Tom tekst="Ingen notat enno."/> : sisteNotat.map(n => (
               <Rad key={n.id} hovud={n.title || '(utan tittel)'} under={prosjektNamn[n.projectId] || 'Utan prosjekt'}

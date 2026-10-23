@@ -547,6 +547,8 @@ function AppInnhald({ userId, userEmail, brukar }) {
       {/* Rail 2 — undermenyen til paraply-modulane (Admin/Gjeremål), sjå
           claude/appreil-struktur.md. Vist BERRE når gjeldande modul høyrer
           til éin av desse. */}
+      {/* Module content area — felles kolonne med botn-statuslinje for alle modular */}
+      <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
       {PARENT_AV_MODUL[activeModule] && PARENT_AV_MODUL[activeModule] !== 'admin' && (
         <AppRailUndermeny
           toppNokkel={PARENT_AV_MODUL[activeModule]}
@@ -554,9 +556,6 @@ function AppInnhald({ userId, userEmail, brukar }) {
           onModuleChange={setActiveModule}
         />
       )}
-
-      {/* Module content area — felles kolonne med botn-statuslinje for alle modular */}
-      <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
       <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
       {activeModule === 'skisse' ? (
         <div style={{ flex:1, display:'flex', minWidth:0, minHeight:0, position:'relative' }}>
@@ -606,12 +605,6 @@ function AppInnhald({ userId, userEmail, brukar }) {
             <div style={{ display:'flex',alignItems:'center',gap:4,padding:'0 16px',
               borderBottom:'1px solid var(--border)',background:'var(--bg3)',
               height:50,flexShrink:0 }}>
-              {/* Søk — i den blå overskriftslinja, til høgre for overskrifta (brukar sitt krav 2. okt. 2026) */}
-              {view==='notatar' && (
-                <div style={{ marginRight:10 }}>
-                  <SokeFelt projectId={selectedProjectId} kjelder={['notes']} onVelgResultat={sokVelgNotat} plassholder="Søk i notat…"/>
-                </div>
-              )}
               {/* Direkte snarvegar for notattypar */}
               <button onClick={()=>handleNewNote('regular')}
                 style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
@@ -648,6 +641,12 @@ function AppInnhald({ userId, userEmail, brukar }) {
               <div style={{width:10}}/>
               <Tab v="fristar"  letter="F" label="Fristar"/>
               <div style={{flex:1}}/>
+              {/* Søk — heilt til høgre i linja (NL3), før tidslinje-knappen */}
+              {view==='notatar' && (
+                <div style={{ marginRight:10 }}>
+                  <SokeFelt projectId={selectedProjectId} kjelder={['notes']} onVelgResultat={sokVelgNotat} plassholder="Søk i notat…"/>
+                </div>
+              )}
               <IcoBtn onClick={()=>setTlCollapsed(v=>!v)} active={!tlCollapsed} title="Tidslinje"><span style={{fontWeight:800,fontSize:13}}>T</span></IcoBtn>
               <div style={{width:4}}/>
             </div>

@@ -202,3 +202,7 @@ Cowork-arbeidsflyten kravde. Skilnaden frå Cowork:
 - Notat-linja: tittelen «Notatapp», prosjektnamn, e-post og «Logg ut» er fjerna. **Logg ut ligg no i hamburgermenyen i TN.**
 - Tidslinje-verktøylinja er lys. Botnlinja (`StatusBar`, BN) er framleis mørk (vart gjort lys, så tilbakeført etter ønske).
 - Timar: totalrada er lys. Ny kolonne **Aktivitetsnr.** (kolonne `time_entries.activity_nr`, sjå `supabase-time-entries-activity-nr.sql`) — sama som aktivitetskode i Framdrift: nedtrekksmeny når prosjektet har aktivitetskodar i planen (kode-feltet, elles talet fremst i aktivitetsnamnet), elles fritt felt (kode eller ingenting).
+
+## NL2 og Dashboard (23. okt. 2026)
+- Dashboard: dei fire korta ligg alltid ved sidan av kvarandre (4 like kolonnar, maks 1760 px).
+- Gjeremål-paraplyen (Notatar/Oppgåver/Saker): den vertikale undermenyen er erstatta av ei vassrett navigasjonslinje (NL2, `AppRailUndermeny.jsx`) øvst i innhaldskolonnen, under TN. Aktiv modul er mørk blå (fylt `--brand`), dei andre passive. Modulen si eiga verktøylinje er NL3. I Notatar ligg «Søk i notat» no heilt til høgre i NL3.
