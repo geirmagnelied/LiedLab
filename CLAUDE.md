@@ -20,6 +20,7 @@ den relevante fila når ei oppgåve gjeld eit tema han dekkjer:
   avhengnader, malar, import av Excel/MS Project XML; tabell `framdrift_planar`)
 - `claude/kontordrift-modul.md` — Kontordrift: Ansatte (invitasjon), Kontorkalender, prosjektlanding, bokmål-omsetjar
 - `claude/brukar-modul.md` — Brukar-modulen (profil, kompetanse, prosjekterfaring) og språkval nn/bm
+- `claude/malar-modul.md` — Malar-modulen (Word/Excel-malar, følgebrev rammesøknad frå prosjektopplysningar)
 - `claude/dtm-modul.md` — **under bygging** (frå 24. sept. 2026): DTM
   (Dokument, tegningar og modellar) erstattar Resultatdokument-modulen.
   Full spesifikasjon (mapper, datamodell, status-logikk, importflytar,

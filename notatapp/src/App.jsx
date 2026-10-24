@@ -10,6 +10,7 @@ import { SprakKontekst, lagT } from './sprak'
 import AppRail, { PARENT_AV_MODUL, RAIL_MODUSAR, RAIL_BREIDD } from './AppRail'
 import AppRailUndermeny from './AppRailUndermeny'
 import MobilModulRad from './MobilModulRad'
+import MalarModule from './MalarModule'
 import { Camera, Plus } from 'lucide-react'
 import KontordriftModule from './KontordriftModule'
 import FramdriftModule from './FramdriftModule'
@@ -558,6 +559,8 @@ function AppInnhald({ userId, userEmail, brukar }) {
           <SketchPad innbygd existingDataUrl={null} onClose={() => setActiveModule('dashboard')} onSave={lagreSkisse}/>
           {skisseMelding && <div style={{ position:'absolute', left:'50%', bottom:24, transform:'translateX(-50%)', zIndex:50, background:'#1B2A3A', color:'#fff', padding:'10px 18px', borderRadius:10, fontSize:13, fontWeight:600, boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>{skisseMelding}</div>}
         </div>
+      ) : activeModule === 'malar' ? (
+        <MalarModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId} brukar={brukar} offices={offices} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'bruker' ? (
         <BrukarModule userId={userId} userEmail={userEmail} brukar={brukar}/>
       ) : activeModule === 'dashboard' ? (
@@ -722,7 +725,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
 )
 }
 
-const MODULE_LABELS = { skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
+const MODULE_LABELS = { skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())

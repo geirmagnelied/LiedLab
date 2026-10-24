@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useT } from './sprak'
-import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, GanttChartSquare, CalendarDays, ChevronsLeft, ChevronsRight, UserRound, PenTool, FolderKanban, Building2, Users, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, GanttChartSquare, CalendarDays, ChevronsLeft, ChevronsRight, UserRound, PenTool, FileText, FolderKanban, Building2, Users, Settings, LogOut } from 'lucide-react'
 
 // ── Paraply-struktur (brukar sitt eige krav 30. sept. 2026) ──────────
 // «Admin» og «Gjeremål» er reine NAVIGASJONS-paraplyar utan eigen
@@ -16,6 +16,7 @@ const MODULES = [
   { key: 'skisse',    ikon: PenTool, letter: 'Sk', label: 'Skisse', color: '#F59E0B' },
   { key: 'framdrift', ikon: GanttChartSquare, letter: 'Fd',  label: 'Framdrift', color: '#34D399' },
   { key: 'kalender', ikon: CalendarDays,  letter: 'Ka',  label: 'Kalender', color: '#2A9D8F' },
+  { key: 'malar', ikon: FileText, letter: 'Ml', label: 'Malar', color: '#38BDF8' },
 ]
 
 // Undermodulane sjølve (dei EKSISTERANDE `activeModule`-verdiane, uendra —
