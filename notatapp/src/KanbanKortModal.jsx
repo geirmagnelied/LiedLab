@@ -1,0 +1,77 @@
+import { useState } from 'react'
+import { ALLE_STATUSAR, FASEKODAR, KORT_FARGAR, aktivitetNamn } from './kanbanLogikk'
+
+// ═══════════════════════════════════════════════════════════════════
+//  KanbanKortModal — flytande vindauge for å sjå/redigere eit kort (sentrert overlegg, tittel + X, spør ved ulagra endringar).
+//  Lenkjer til sak / oppgåve / Framdrift-aktivitet er valfrie og berre referansar — dei styrer aldri noko.
+// ═══════════════════════════════════════════════════════════════════
+const FELT = { width: '100%', boxSizing: 'border-box', padding: '7px 10px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 13, fontFamily: 'var(--font)', background: 'var(--bg)', color: 'var(--text)', outline: 'none' }
+const ETT = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4, display: 'block' }
+
+export default function KanbanKortModal({ kort, saker, notes, planElement, personell, onLagre, onSlett, onLukk }) {
+  const [d, setD] = useState({ ...kort })
+  const sett = (k, v) => setD(p => ({ ...p, [k]: v }))
+  const skitten = JSON.stringify(d) !== JSON.stringify(kort)
+  const lukk = () => { if (skitten && !window.confirm('Forkaste ulagra endringar?')) return; onLukk() }
+
+  const oppgaver = []
+  for (const n of (notes || [])) for (const t of (n.tasks || [])) {
+    if (!t.done || (d.oppgave_ref && String(d.oppgave_ref.task_id) === String(t.id))) oppgaver.push({ v: `${n.id}|${t.id}`, tekst: `${n.title || 'Notat'} — ${t.text}` })
+  }
+  const aktivitetar = (planElement || []).filter(e => e.type === 'aktivitet')
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseDown={e => { if (e.target === e.currentTarget) lukk() }}>
+      <div style={{ width: 560, maxWidth: '94vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: 'var(--bg2)', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,.35)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
+          <span style={{ flex: 1, fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{kort.id ? 'Kort' : 'Nytt kort'}</span>
+          <button onClick={lukk} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--text2)', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ padding: 18, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 13 }}>
+          <label><span style={ETT}>Tittel</span><input autoFocus value={d.tittel} onChange={e => sett('tittel', e.target.value)} style={{ ...FELT, fontWeight: 600 }}/></label>
+          <label><span style={ETT}>Skildring</span><textarea value={d.skildring || ''} onChange={e => sett('skildring', e.target.value)} rows={3} style={{ ...FELT, resize: 'vertical' }}/></label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <label><span style={ETT}>Status</span>
+              <select value={d.status} onChange={e => sett('status', e.target.value)} style={FELT}>{ALLE_STATUSAR.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></label>
+            <label><span style={ETT}>Ansvarleg</span>
+              <input value={d.ansvarleg || ''} onChange={e => sett('ansvarleg', e.target.value)} list="kb-personell-modal" style={FELT}/>
+              <datalist id="kb-personell-modal">{(personell || []).map(p => <option key={p.id} value={p.namn}/>)}</datalist></label>
+            <label><span style={ETT}>Fase</span>
+              <select value={d.fase || ''} onChange={e => sett('fase', e.target.value || null)} style={FELT}>
+                <option value="">— Ingen —</option>{FASEKODAR.map(f => <option key={f.kode} value={f.kode}>{f.kode} {f.namn}</option>)}</select></label>
+            <label><span style={ETT}>Frist</span><input type="date" value={d.frist || ''} onChange={e => sett('frist', e.target.value || null)} style={FELT}/></label>
+          </div>
+          <div>
+            <span style={ETT}>Merkefarge</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button onClick={() => sett('farge', null)} title="Ingen" style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid ' + (!d.farge ? 'var(--text)' : 'var(--border)'), background: 'var(--bg)', cursor: 'pointer', fontSize: 11, color: 'var(--text3)' }}>∅</button>
+              {KORT_FARGAR.map(c => <button key={c} onClick={() => sett('farge', c)} style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid ' + (d.farge === c ? 'var(--text)' : 'transparent'), background: c, cursor: 'pointer' }}/>)}
+            </div>
+          </div>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+            <div style={{ fontSize: 11.5, color: 'var(--text3)', marginBottom: 8 }}>Lenkjer (valfritt) — berre referansar, dei endrar ingenting i Saker, Oppgåver eller Framdrift.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label><span style={ETT}>Sak</span>
+                <select value={d.sak_id || ''} onChange={e => sett('sak_id', e.target.value ? Number(e.target.value) : null)} style={FELT}>
+                  <option value="">— Ingen —</option>{(saker || []).map(s => <option key={s.id} value={s.id}>{s.number ? s.number + ' ' : ''}{s.title}</option>)}</select></label>
+              <label><span style={ETT}>Oppgåve</span>
+                <select value={d.oppgave_ref ? `${d.oppgave_ref.note_id}|${d.oppgave_ref.task_id}` : ''}
+                  onChange={e => { const v = e.target.value; if (!v) sett('oppgave_ref', null); else { const [n, t] = v.split('|'); sett('oppgave_ref', { note_id: Number(n), task_id: isNaN(Number(t)) ? t : Number(t) }) } }} style={FELT}>
+                  <option value="">— Ingen —</option>{oppgaver.map(o => <option key={o.v} value={o.v}>{o.tekst}</option>)}</select></label>
+              <label><span style={ETT}>Framdrift-aktivitet</span>
+                <select value={d.framdrift_aktivitet_ref?.element_id || ''} onChange={e => sett('framdrift_aktivitet_ref', e.target.value ? { element_id: e.target.value } : null)} style={FELT}>
+                  <option value="">— Ingen —</option>{aktivitetar.map(a => <option key={a.id} value={a.id}>{aktivitetNamn(a)}</option>)}</select></label>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px', borderTop: '1px solid var(--border)', background: 'var(--bg3)' }}>
+          {kort.id && <button onClick={() => { if (window.confirm('Slette kortet?')) onSlett(kort.id) }} style={{ padding: '7px 14px', border: '1.5px solid var(--danger, #c0392b)', borderRadius: 7, background: 'transparent', color: 'var(--danger, #c0392b)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>Slett</button>}
+          <div style={{ flex: 1 }}/>
+          <button onClick={lukk} style={{ padding: '7px 14px', border: '1.5px solid var(--border)', borderRadius: 7, background: 'var(--bg2)', color: 'var(--text2)', fontWeight: 600, fontSize: 12.5, cursor: 'pointer' }}>Avbryt</button>
+          <button disabled={!d.tittel.trim() || (!skitten && !!kort.id)} onClick={() => onLagre(d)}
+            style={{ padding: '7px 18px', border: 'none', borderRadius: 7, background: 'var(--brand)', color: '#fff', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', opacity: (!d.tittel.trim() || (!skitten && !!kort.id)) ? .5 : 1 }}>Lagre</button>
+        </div>
+      </div>
+    </div>
+  )
+}

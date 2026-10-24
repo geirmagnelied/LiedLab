@@ -464,7 +464,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'prosjekt' && <ProsjektModule userId={userId} projects={officeProjects} offices={offices} activeOfficeId={activeOfficeId} addProject={addProject} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
         {activeModule === 'kunde' && <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'kvalitet' && <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
-        {activeModule === 'oppgaver' && <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
+        {activeModule === 'oppgaver' && <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} notes={modeNotes}/>}
         {activeModule === 'farge' && <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'saker' && <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'dtm' && <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
@@ -575,7 +575,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
       ) : activeModule === 'kunde' ? (
         <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'oppgaver' ? (
-        <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>
+        <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} notes={modeNotes}/>
       ) : activeModule === 'timar' ? (
         <TimarModule userId={userId} projects={officeProjects}
           addProject={addProject} mode={mode} activeOfficeId={activeOfficeId}/>

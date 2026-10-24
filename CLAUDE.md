@@ -24,6 +24,11 @@ den relevante fila når ei oppgåve gjeld eit tema han dekkjer:
   (Dokument, tegningar og modellar) erstattar Resultatdokument-modulen.
   Full spesifikasjon (mapper, datamodell, status-logikk, importflytar,
   fase-status) — les denne FØR du gjer noko DTM-relatert
+- `claude/kanban-modul.md` — **spesifisert, IKKJE bygd enno** (24. okt. 2026):
+  kanban-tavle for Oppgåve-modulen (erstattar plasshaldaren i
+  `OppgaveModule.jsx`) — kolonner, WIP-grenser, datamodell, lenkjer til
+  Sak/Oppgåve/Framdrift-aktivitet, estetikk/animasjon. Les denne FØR du
+  byggjer noko i Oppgåve-modulen/kanban
 
 Same innhald finst òg (kan verte forelda over tid) som eigne dokument i
 Claude-prosjektet **"Digitale verktøy"** på claude.ai — `claude/`-mappa her
