@@ -5,7 +5,7 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
                                    onToggleFavorite, onRenameProject, mode,
                                    offices, activeOfficeId, onSetOffice,
                                    onAddOffice, onUpdateOffice, onDeleteOffice,
-                                   onOpenSettings }) {
+                                   onOpenSettings, onNavModul, onLogout }) {
   const [projsOpen, setProjsOpen] = useState(true)
   const [openProjs, setOpenProjs] = useState({})
   const [ctxMenu,   setCtxMenu]   = useState(null)
@@ -184,17 +184,6 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
               {modeProjects.length} prosjekt · {notes.filter(n=>!n.done).length} aktive
             </div>
           </div>
-          {onOpenSettings && (
-            <button onClick={onOpenSettings}
-              title="Innstillingar"
-              style={{ display:'flex', flexDirection:'column', gap:3, padding:'8px 9px',
-                background:'rgba(255,255,255,.12)', border:'1.5px solid rgba(255,255,255,.22)',
-                borderRadius:'var(--r)', cursor:'pointer', flexShrink:0 }}>
-              <span style={{display:'block',width:15,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
-              <span style={{display:'block',width:15,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
-              <span style={{display:'block',width:15,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
-            </button>
-          )}
         </div>
 
         {/* Office dropdown */}
@@ -343,6 +332,16 @@ export default function Sidebar({ projects, notes, onSelectProject, onSelectNote
       </div>
 
       {/* Project context menu */}
+      {/* Botn-sone: admin-snarvegar, Innstillingar og Logg ut (flytta frå toppfeltet) */}
+      <div style={{ flexShrink:0, borderTop:'1px solid rgba(255,255,255,.18)', padding:'6px 0 calc(6px + env(safe-area-inset-bottom))' }}>
+        <button onClick={() => onNavModul?.('prosjekt')} style={{ display:'block', width:'100%', textAlign:'left', padding:'11px 16px', background:'none', border:'none', cursor:'pointer', fontSize:14, fontWeight:600, color:'#fff', fontFamily:'var(--font)' }}>Prosjekt</button>
+        <button onClick={() => onNavModul?.('kunde')} style={{ display:'block', width:'100%', textAlign:'left', padding:'11px 16px', background:'none', border:'none', cursor:'pointer', fontSize:14, fontWeight:600, color:'#fff', fontFamily:'var(--font)' }}>Kundar</button>
+        <button onClick={() => onNavModul?.('kontordrift')} style={{ display:'block', width:'100%', textAlign:'left', padding:'11px 16px', background:'none', border:'none', cursor:'pointer', fontSize:14, fontWeight:600, color:'#fff', fontFamily:'var(--font)' }}>Kontordrift</button>
+        <div style={{ height:1, background:'rgba(255,255,255,.12)', margin:'4px 16px' }}/>
+        <button onClick={() => onOpenSettings?.()} style={{ display:'block', width:'100%', textAlign:'left', padding:'11px 16px', background:'none', border:'none', cursor:'pointer', fontSize:14, fontWeight:600, color:'#fff', fontFamily:'var(--font)' }}>⚙ Innstillingar</button>
+        <button onClick={() => onLogout?.()} style={{ display:'block', width:'100%', textAlign:'left', padding:'11px 16px', background:'none', border:'none', cursor:'pointer', fontSize:14, fontWeight:600, color:'#FCA5A5', fontFamily:'var(--font)' }}>Logg ut</button>
+      </div>
+
       {ctxMenu && (
         <>
           <div onClick={() => setCtxMenu(null)} style={{ position:'fixed', inset:0, zIndex:200 }}/>

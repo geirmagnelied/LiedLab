@@ -29,6 +29,14 @@ den relevante fila når ei oppgåve gjeld eit tema han dekkjer:
   `OppgaveModule.jsx`) — kolonner, WIP-grenser, datamodell, lenkjer til
   Sak/Oppgåve/Framdrift-aktivitet, estetikk/animasjon. Les denne FØR du
   byggjer noko i Oppgåve-modulen/kanban
+- `claude/mobil-grensesnitt.md` — **spesifisert, IKKJE bygd enno** (24. okt.
+  2026): forbedra mobil-grensesnitt (eigen `isMobile`-gren i `App.jsx`:
+  todelt toppfelt, horisontalt scrollbar modulrad, flytande
+  kamera/pluss-knappar i staden for botn-faner) OG ei rydding av
+  Innstillingar/Logg ut/admin-snarvegar til botnen av venstre navigasjon
+  som gjeld **både** skrivebord (`AppRail.jsx`/`TopBar.jsx`) og mobil. Les
+  denne FØR du endrar `AppRail.jsx`, `TopBar.jsx`, `Sidebar.jsx` eller
+  mobil-grenen i `App.jsx`
 
 Same innhald finst òg (kan verte forelda over tid) som eigne dokument i
 Claude-prosjektet **"Digitale verktøy"** på claude.ai — `claude/`-mappa her

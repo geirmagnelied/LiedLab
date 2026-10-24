@@ -75,14 +75,6 @@ function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFa
 export default function TopBar({ projects, activeProjectId, onSelectProject, onToggleFavorite, onOpenSettings, activeModule, onModuleChange, railBredde = 52, brukarNamn = '', brukarBilete = '', onOpenBruker, stadNamn = '',
                                   offices = [], activeOfficeId, onSetOffice, onAddOffice }) {
   const { t } = useT()
-  const [menyOpen, setMenyOpen] = useState(false)
-  const menyRef = useRef(null)
-  useEffect(() => {
-    if (!menyOpen) return
-    const lukk = e => { if (menyRef.current && !menyRef.current.contains(e.target)) setMenyOpen(false) }
-    document.addEventListener('mousedown', lukk)
-    return () => document.removeEventListener('mousedown', lukk)
-  }, [menyOpen])
   const [showNewOffice,  setShowNewOffice]  = useState(false)
   const [newOfficeName,  setNewOfficeName]  = useState('')
   const [newOfficeColor, setNewOfficeColor] = useState('#1B4332')
@@ -220,56 +212,6 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
         </button>
       )}
 
-      {/* ── Innstillingar ── */}
-      <div ref={menyRef} style={{ position: 'relative', flexShrink: 0 }}>
-      <button
-        onClick={() => setMenyOpen(v => !v)}
-        title="Meny"
-        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.1)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-        style={{
-          width: 34, height: 34, borderRadius: 8,
-          background: 'transparent',
-          border: '1.5px solid rgba(255,255,255,.16)',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          gap: 3.5, cursor: 'pointer',
-          transition: 'background .15s',
-          padding: 0, marginRight: 16, flexShrink: 0,
-        }}>
-        <span style={{ display:'block', width:15, height:1.5, background:'rgba(255,255,255,.55)', borderRadius:1 }}/>
-        <span style={{ display:'block', width:15, height:1.5, background:'rgba(255,255,255,.55)', borderRadius:1 }}/>
-        <span style={{ display:'block', width:15, height:1.5, background:'rgba(255,255,255,.55)', borderRadius:1 }}/>
-      </button>
-      {menyOpen && (
-        <div style={{ position:'absolute', top:'calc(100% + 8px)', right:16, width:210, zIndex:300, background:'var(--bg2)',
-          border:'1px solid var(--border)', borderRadius:'var(--r2)', boxShadow:'var(--shadow-lg)', padding:6 }}>
-          {[{ k:'prosjekt', l:t('nav.prosjekt'), c:'#85B7EB' }, { k:'kunde', l:t('nav.kunde'), c:'#D4537E' }, { k:'kontordrift', l:t('nav.kontordrift'), c:'#9CA3AF' }].map(m => (
-            <button key={m.k} onClick={() => { setMenyOpen(false); onModuleChange?.(m.k) }}
-              style={{ display:'flex', alignItems:'center', gap:10, width:'100%', textAlign:'left', padding:'9px 12px', border:'none', borderRadius:6,
-                background: activeModule === m.k ? 'var(--brandbg)' : 'transparent', color:'var(--text)', fontSize:13, fontWeight: activeModule === m.k ? 700 : 500,
-                cursor:'pointer', fontFamily:'var(--font)' }}
-              onMouseEnter={e => { if (activeModule !== m.k) e.currentTarget.style.background = 'var(--bg3)' }}
-              onMouseLeave={e => { if (activeModule !== m.k) e.currentTarget.style.background = 'transparent' }}>
-              <span style={{ width:8, height:8, borderRadius:'50%', background:m.c }}/>{m.l}
-            </button>
-          ))}
-          <div style={{ height:1, background:'var(--border)', margin:'6px 4px' }}/>
-          <button onClick={() => { setMenyOpen(false); onOpenSettings?.() }}
-            style={{ display:'block', width:'100%', textAlign:'left', padding:'9px 12px', border:'none', borderRadius:6, background:'transparent',
-              color:'var(--text)', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'var(--font)' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            ⚙ {t('topp.innstillingar')}
-          </button>
-          <button onClick={() => { setMenyOpen(false); import('./supabase').then(m => m.supabase.auth.signOut()) }}
-            style={{ display:'block', width:'100%', textAlign:'left', padding:'9px 12px', border:'none', borderRadius:6, background:'transparent',
-              color:'var(--text)', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'var(--font)' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            ⎋ Logg ut
-          </button>
-        </div>
-      )}
-      </div>
     </div>
   )
 }

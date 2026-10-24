@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useT } from './sprak'
-import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, GanttChartSquare, CalendarDays, ChevronsLeft, ChevronsRight, UserRound, PenTool } from 'lucide-react'
+import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, GanttChartSquare, CalendarDays, ChevronsLeft, ChevronsRight, UserRound, PenTool, FolderKanban, Building2, Users, Settings, LogOut } from 'lucide-react'
 
 // ── Paraply-struktur (brukar sitt eige krav 30. sept. 2026) ──────────
 // «Admin» og «Gjeremål» er reine NAVIGASJONS-paraplyar utan eigen
@@ -50,7 +50,7 @@ export const RAIL_BREIDD = { min: 64, full: 240 }
 const nærmaste = (b) => RAIL_MODUSAR.reduce((best, m) => (Math.abs(RAIL_BREIDD[m] - b) < Math.abs(RAIL_BREIDD[best] - b) ? m : best), 'min')
 const IKON = 24
 
-export default function AppRail({ activeModule, onModuleChange, modus = 'min', onModus, onLiveBredde, onSkisse }) {
+export default function AppRail({ activeModule, onModuleChange, modus = 'min', onModus, onLiveBredde, onSkisse, onOpenSettings, onLogout }) {
   const { t } = useT()
   const [hoveredModule, setHoveredModule] = useState(null)
   const [dragB, setDragB] = useState(null) // breidd under dragning (px)
@@ -132,10 +132,22 @@ export default function AppRail({ activeModule, onModuleChange, modus = 'min', o
 
       <div style={{ flex: 1, minHeight: 10 }}/>
 
-      {/* Brukar — heilt nederst */}
+      {/* Botn-sone: snarvegar til Prosjekt/Kundar/Kontordrift, Innstillingar, Brukar og Logg ut (flytta frå TN-menyen) */}
+      <div style={{ height: 1, background: 'var(--border)', margin: smal ? '0 10px 12px' : '0 4px 12px', alignSelf: 'stretch', flexShrink: 0 }}/>
+      {[['prosjekt', FolderKanban, 'Pr', t('nav.prosjekt', 'Prosjekt'), '#85B7EB'], ['kunde', Users, 'Ku', t('nav.kunde', 'Kundar'), '#D4537E'], ['kontordrift', Building2, 'Kd', t('nav.kontordrift', 'Kontordrift'), '#9CA3AF']].map(([k, ik, kode, namn, farge]) => (
+        <Knapp key={k} mod={{ color: farge }} ikon={ik} namn={namn} kode={kode}
+          active={activeModule === k} hovered={hoveredModule === k}
+          onClick={() => onModuleChange(k)} onEnter={() => setHoveredModule(k)} onLeave={() => setHoveredModule(null)}/>
+      ))}
+      <Knapp mod={{ color: '#9CA3AF' }} ikon={Settings} namn={t('topp.innstillingar', 'Innstillingar')} kode="In"
+        active={false} hovered={hoveredModule === 'innst'}
+        onClick={() => onOpenSettings?.()} onEnter={() => setHoveredModule('innst')} onLeave={() => setHoveredModule(null)}/>
       <Knapp mod={{ color: '#60A5D4' }} ikon={UserRound} namn={t('nav.bruker')} kode="Br"
         active={activeModule === 'bruker'} hovered={hoveredModule === 'bruker'}
         onClick={() => onModuleChange('bruker')} onEnter={() => setHoveredModule('bruker')} onLeave={() => setHoveredModule(null)}/>
+      <Knapp mod={{ color: '#B91C1C' }} ikon={LogOut} namn="Logg ut" kode="Ut"
+        active={false} hovered={hoveredModule === 'ut'}
+        onClick={() => onLogout?.()} onEnter={() => setHoveredModule('ut')} onLeave={() => setHoveredModule(null)}/>
 
       {/* Dra for å endre breidda */}
       <div onMouseDown={startDrag} title="Dra for å endre breidda (snappar til ikon / ikon+bokstav / ikon+tekst)"

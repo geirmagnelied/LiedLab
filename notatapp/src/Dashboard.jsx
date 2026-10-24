@@ -99,7 +99,7 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? 'minmax(0, 1fr)' : 'repeat(4, minmax(0, 1fr))', gap: 16, alignItems: 'start' }}>
           <Kort tittel={t('dash.sisteNotat')} ikon="✎" farge="#52B788" onKlikk={() => onOpneModul('notatar')}>
             {sisteNotat.length === 0 ? <Tom tekst="Ingen notat enno."/> : sisteNotat.map(n => (
               <Rad key={n.id} hovud={n.title || '(utan tittel)'} under={prosjektNamn[n.projectId] || 'Utan prosjekt'}

@@ -9,6 +9,8 @@ import useBrukar from './useBrukar'
 import { SprakKontekst, lagT } from './sprak'
 import AppRail, { PARENT_AV_MODUL, RAIL_MODUSAR, RAIL_BREIDD } from './AppRail'
 import AppRailUndermeny from './AppRailUndermeny'
+import MobilModulRad from './MobilModulRad'
+import { Camera, Plus } from 'lucide-react'
 import KontordriftModule from './KontordriftModule'
 import FramdriftModule from './FramdriftModule'
 import TopBar from './TopBar'
@@ -376,47 +378,26 @@ function AppInnhald({ userId, userEmail, brukar }) {
     <div style={{ display:'flex', flexDirection:'column', height:'100vh',
       overflow:'hidden', background:'var(--bg)', position:'relative' }}>
 
-      {/* Mobile topbar */}
-      <div style={{ display:'flex', alignItems:'center', padding:'0 12px',
-        background:'#0A0A0A', height:52, flexShrink:0, gap:8 }}>
-        <button onClick={() => setMobileSheet(v=>!v)}
-          style={{ background:'none', border:'none', color:'#fff', cursor:'pointer',
-            display:'flex', alignItems:'center', padding:4 }}>
-          <span style={{ width:22,height:22,borderRadius:6,background:'rgba(255,255,255,.15)',
-            display:'flex',alignItems:'center',justifyContent:'center',
-            fontSize:12,fontWeight:800 }}>M</span>
+      {/* Mobil-toppfelt, rad 1: hamburger + prosjektnamn + brukar. Rad 2: modulval (kortnamn, scrollbar). Sjå claude/mobil-grensesnitt.md */}
+      <div style={{ display:'flex', alignItems:'center', padding:'0 12px', background:'#0A0A0A', height:52, flexShrink:0, gap:10 }}>
+        <button onClick={() => setMobileSheet(v=>!v)} aria-label="Meny"
+          style={{ background:'none', border:'none', color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', padding:4 }}>
+          <span style={{ width:30, height:30, borderRadius:8, background:'rgba(255,255,255,.15)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4 }}>
+            <span style={{ display:'block', width:14, height:2, background:'#fff', borderRadius:1 }}/>
+            <span style={{ display:'block', width:14, height:2, background:'#fff', borderRadius:1 }}/>
+            <span style={{ display:'block', width:14, height:2, background:'#fff', borderRadius:1 }}/>
+          </span>
         </button>
-        <div style={{ flex:1, fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em' }}>
+        <div style={{ flex:1, minWidth:0, fontSize:16, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
           {selProj ? selProj.name : (MODULE_LABELS[activeModule] || 'LiedLab')}
         </div>
-        {/* Module switcher pills */}
-        <div style={{ display:'flex', gap:3, marginRight:4 }}>
-          {[{k:'dashboard',l:'D'},{k:'notatar',l:'N'},{k:'kalender',l:'Ka'},{k:'prosjekt',l:'P'},{k:'kunde',l:'K'},{k:'oppgaver',l:'O'},{k:'saker',l:'S'},{k:'timar',l:'T'},{k:'kvalitet',l:'KS'},{k:'dtm',l:'DTM'},{k:'bilete',l:'B'},{k:'framdrift',l:'Fd'}].map(m => (
-            <button key={m.k} onClick={() => { setActiveModule(m.k); if(m.k!=='notatar') setView('notatar') }}
-              style={{ width:24,height:24,borderRadius:6,border:'none',
-                background: activeModule===m.k ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.08)',
-                color: activeModule===m.k ? '#fff' : 'rgba(255,255,255,.45)',
-                fontSize: m.l.length > 2 ? 8.5 : 11, fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
-              {m.l}
-            </button>
-          ))}
-        </div>
-        <button onClick={() => setShowSettings(true)}
-          title="Innstillingar"
-          style={{ display:'flex', flexDirection:'column', gap:3, padding:'7px 8px',
-            background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.2)',
-            borderRadius:'var(--r)', cursor:'pointer', flexShrink:0 }}>
-          <span style={{display:'block',width:14,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
-          <span style={{display:'block',width:14,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
-          <span style={{display:'block',width:14,height:2,background:'rgba(255,255,255,.85)',borderRadius:1}}/>
-        </button>
-        <button onClick={()=>{ import('./supabase').then(m=>m.supabase.auth.signOut()) }}
-          style={{ background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.2)',
-            borderRadius:'var(--r)', padding:'5px 10px', color:'rgba(255,255,255,.8)',
-            fontSize:11, cursor:'pointer' }}>
-          Logg ut
+        <button onClick={() => { setActiveModule('bruker'); setMobileSheet(false) }} title={brukar.visNamn || 'Brukar'}
+          style={{ width:34, height:34, borderRadius:'50%', overflow:'hidden', flexShrink:0, cursor:'pointer', padding:0,
+            background: activeModule === 'bruker' ? 'rgba(255,255,255,.35)' : 'rgba(255,255,255,.18)', border:'1.5px solid rgba(255,255,255,.3)', color:'#fff', fontSize:14, fontWeight:800, fontFamily:'var(--font)' }}>
+          {brukar.bileteUrl ? <img src={brukar.bileteUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : (((brukar.visNamn || userEmail || '?').trim()[0]) || '?').toUpperCase()}
         </button>
       </div>
+      <MobilModulRad activeModule={activeModule} onVelg={m => { setActiveModule(m); setMobileSheet(false) }}/>
 
       {/* Mobile sidebar drawer */}
       {mobileSheet && (
@@ -435,7 +416,9 @@ function AppInnhald({ userId, userEmail, brukar }) {
               onRenameProject={handleRenameProject}
               offices={offices} activeOfficeId={activeOfficeId} onSetOffice={setActiveOfficeId}
               onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}
-                  onOpenSettings={() => setShowSettings(true)}
+                  onOpenSettings={() => { setShowSettings(true); setMobileSheet(false) }}
+              onNavModul={m => { setActiveModule(m); setMobileSheet(false) }}
+              onLogout={() => { import('./supabase').then(m => m.supabase.auth.signOut()) }}
               mode={mode}/>
           </div>
         </>
@@ -447,6 +430,13 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'dashboard' && <Dashboard userId={userId} userEmail={userEmail} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>}
         {activeModule === 'notatar' && (
           <>
+            <div style={{ display:'flex', gap:6, marginBottom:12 }}>
+              {[['notatar', 'Notatar'], ['fristar', 'Fristar']].map(([v, namn]) => (
+                <button key={v} onClick={() => setView(v)}
+                  style={{ padding:'8px 18px', borderRadius:20, border:'1.5px solid ' + (view === v ? 'var(--brand)' : 'var(--border)'), background: view === v ? 'var(--brand)' : 'var(--bg2)',
+                    color: view === v ? '#fff' : 'var(--text2)', fontSize:14, fontWeight: view === v ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)' }}>{namn}</button>
+              ))}
+            </div>
             {view==='notatar' && (
               <div style={{ marginBottom:12 }}>
                 <SokeFelt projectId={selectedProjectId} kjelder={['notes']} onVelgResultat={sokVelgNotat} plassholder="Søk i notat…"/>
@@ -473,15 +463,19 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'framdrift' && <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId}/>}
       </div>
 
-      {/* Mobile bottom nav */}
-      <div style={{ display:'flex', background:'#0A0A0A',
-        borderTop:'1px solid rgba(255,255,255,.1)', flexShrink:0,
-        paddingBottom:'env(safe-area-inset-bottom)' }}>
-        <MobileTab v="new"      letter="N" label="Nytt" onClick={() => { handleNewNote('regular'); setMobileSheet(false) }}/>
-        <MobileTab v="notatar"  letter="L" label="Notatar"/>
-        <MobileTab v="fristar"  letter="F" label="Fristar"/>
-      </div>
-
+      {/* Flytande knappar (berre mobil): kamera → Bilete, pluss → nytt notat */}
+      {view !== 'new' && !mobileSheet && (
+        <div style={{ position:'fixed', right:16, bottom:'calc(18px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:12, zIndex:90 }}>
+          <button onClick={() => setActiveModule('bilete')} aria-label="Nytt bilete" title="Nytt bilete"
+            style={{ width:54, height:54, borderRadius:'50%', border:'none', background:'#fff', color:'var(--brand)', boxShadow:'0 6px 18px rgba(0,0,0,.3)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Camera size={24}/>
+          </button>
+          <button onClick={() => handleNewNote('regular')} aria-label="Nytt notat" title="Nytt notat"
+            style={{ width:60, height:60, borderRadius:'50%', border:'none', background:'var(--brand)', color:'#fff', boxShadow:'0 6px 18px rgba(0,0,0,.35)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Plus size={30}/>
+          </button>
+        </div>
+      )}
 
       {view === 'new' && (
         <NoteModal
@@ -542,6 +536,8 @@ function AppInnhald({ userId, userEmail, brukar }) {
         modus={railModus}
         onModus={settRailModus}
         onLiveBredde={setRailLive}
+        onOpenSettings={() => setShowSettings(true)}
+        onLogout={() => { import('./supabase').then(m => m.supabase.auth.signOut()) }}
       />
 
       {/* Rail 2 — undermenyen til paraply-modulane (Admin/Gjeremål), sjå
