@@ -30,6 +30,7 @@ export const FELT = {
   tilbodssum:        ['Tilbodspris (kr)', 'Tiltak'],
   timeestimat:       ['Estimerte timar', 'Tiltak'],
   avsendar_firma:    ['Firma (ansvarleg søkjar)', 'Avsendar'],
+  avsendar_orgnr:    ['Organisasjonsnummer', 'Avsendar'],
   avsendar_namn:     ['Namn', 'Avsendar'],
   avsendar_tittel:   ['Tittel', 'Avsendar'],
   avsendar_epost:    ['E-post', 'Avsendar'],
@@ -59,8 +60,8 @@ export function lagFletting(prosjekt, brukar, kontor, epost) {
     kommune: s(d.propertyKommune), kommunenr: s(d.propertyKommunenr), gnr: s(d.propertyGnr), bnr: s(d.propertyBnr), festenr: s(d.propertyFestenr), seksjonsnr: s(d.propertySeksjonsnr),
     tiltakstype: typar, tiltaksbeskrivelse: s(d.tiltakDescription) || s(d.description), bygningskategori: kat, bra: s(d.bra),
     tilbodssum: s(d.offerPrice), timeestimat: s(d.estimatedHours),
-    avsendar_firma: s(kontor?.name), avsendar_namn: s(brukar?.namn), avsendar_tittel: s(brukar?.tittel), avsendar_epost: s(epost), avsendar_tlf: '',
-    avsendar_adresse: [s(brukar?.adresse), [s(brukar?.postnr), s(brukar?.poststad)].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+    avsendar_firma: s(kontor?.name), avsendar_orgnr: s(kontor?.org_nr), avsendar_namn: s(brukar?.namn), avsendar_tittel: s(brukar?.tittel), avsendar_epost: s(epost) || s(kontor?.epost), avsendar_tlf: s(brukar?.telefon) || s(kontor?.telefon),
+    avsendar_adresse: [s(kontor?.adresse), [s(kontor?.postnr), s(kontor?.poststad)].filter(Boolean).join(' ')].filter(Boolean).join(', ') || [s(brukar?.adresse), [s(brukar?.postnr), s(brukar?.poststad)].filter(Boolean).join(' ')].filter(Boolean).join(', '),
     dato: idagTekst(),
   }
 }
@@ -92,7 +93,7 @@ export function brevBlokkar(f, bm, vedlegg) {
   const bygg = f.bygningskategori || ''
   const meta = [
     [t('Tiltakshavar', 'Tiltakshaver'), [v('tiltakshavar_namn', t('tiltakshavar', 'tiltakshaver')), f.tiltakshavar_orgnr ? ` (${t('org.nr.', 'org.nr.')} ${f.tiltakshavar_orgnr})` : '']],
-    [t('Ansvarleg søkjar', 'Ansvarlig søker'), [v('avsendar_firma', t('firma', 'firma'))]],
+    [t('Ansvarleg søkjar', 'Ansvarlig søker'), [v('avsendar_firma', t('firma', 'firma')), f.avsendar_orgnr ? ` (${t('org.nr.', 'org.nr.')} ${f.avsendar_orgnr})` : '']],
     [t('Eigedom', 'Eiendom'), [eig, ' – ', gbTekst, ', ', kommuneTekst]],
     [t('Tiltak', 'Tiltak'), [tiltak, bygg ? ` – ${bygg}` : '']],
     ...(f.bra ? [[t('Areal', 'Areal'), [`${f.bra} m² BRA`]]] : []),

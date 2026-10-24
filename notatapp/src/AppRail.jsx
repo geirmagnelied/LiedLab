@@ -51,13 +51,13 @@ export const RAIL_BREIDD = { min: 64, full: 240 }
 const nærmaste = (b) => RAIL_MODUSAR.reduce((best, m) => (Math.abs(RAIL_BREIDD[m] - b) < Math.abs(RAIL_BREIDD[best] - b) ? m : best), 'min')
 const IKON = 24
 
-export default function AppRail({ activeModule, onModuleChange, modus = 'min', onModus, onLiveBredde, onSkisse, onOpenSettings, onLogout }) {
+export default function AppRail({ activeModule, onModuleChange, modus = 'min', onModus, onLiveBredde, onSkisse, onOpenSettings, onLogout, mobil = false }) {
   const { t } = useT()
   const [hoveredModule, setHoveredModule] = useState(null)
   const [dragB, setDragB] = useState(null) // breidd under dragning (px)
   const gjeldandeTopp = PARENT_AV_MODUL[activeModule] || activeModule
-  const visModus = dragB != null ? nærmaste(dragB) : modus
-  const bredde = dragB != null ? dragB : (RAIL_BREIDD[modus] || RAIL_BREIDD.min)
+  const visModus = mobil ? 'full' : (dragB != null ? nærmaste(dragB) : modus)
+  const bredde = mobil ? '100%' : (dragB != null ? dragB : (RAIL_BREIDD[modus] || RAIL_BREIDD.min))
   const neste = RAIL_MODUSAR[(RAIL_MODUSAR.indexOf(modus) + 1) % RAIL_MODUSAR.length]
   const smal = visModus === 'min'
   const MODUS_NAMN = { min: t('nav.berreIkon'), kort: t('nav.ikonBokstav'), full: t('nav.ikonTekst') }
@@ -118,12 +118,12 @@ export default function AppRail({ activeModule, onModuleChange, modus = 'min', o
       boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden',
     }}>
       {/* Breidde: bytt mellom ikon / ikon+bokstav / ikon+full tekst */}
-      <button onClick={() => onModus?.(neste)} title={`${t('nav.breidde')}: ${MODUS_NAMN[visModus]} — klikk for ${MODUS_NAMN[neste].toLowerCase()}`}
+      {!mobil && <button onClick={() => onModus?.(neste)} title={`${t('nav.breidde')}: ${MODUS_NAMN[visModus]} — klikk for ${MODUS_NAMN[neste].toLowerCase()}`}
         style={{ display: 'flex', alignItems: 'center', justifyContent: smal ? 'center' : 'flex-end', width: smal ? 40 : '100%', height: 28, marginBottom: 14, border: 'none', background: 'transparent',
           cursor: 'pointer', color: 'var(--text3)', borderRadius: 6, padding: smal ? 0 : '0 6px', flexShrink: 0 }}
         onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
         {visModus === 'full' ? <ChevronsLeft size={18}/> : <ChevronsRight size={18}/>}
-      </button>
+      </button>}
 
       {MODULES.map(mod => (
         <Knapp key={mod.key} mod={mod} ikon={mod.ikon} namn={t('nav.' + mod.key, mod.label)} kode={mod.letter}
@@ -151,8 +151,8 @@ export default function AppRail({ activeModule, onModuleChange, modus = 'min', o
         onClick={() => onLogout?.()} onEnter={() => setHoveredModule('ut')} onLeave={() => setHoveredModule(null)}/>
 
       {/* Dra for å endre breidda */}
-      <div onMouseDown={startDrag} title="Dra for å endre breidda (snappar til ikon / ikon+bokstav / ikon+tekst)"
-        style={{ position: 'absolute', top: 0, bottom: 0, right: -3, width: 8, cursor: 'col-resize', zIndex: 60 }}/>
+      {!mobil && <div onMouseDown={startDrag} title="Dra for å endre breidda (snappar til ikon / ikon+bokstav / ikon+tekst)"
+        style={{ position: 'absolute', top: 0, bottom: 0, right: -3, width: 8, cursor: 'col-resize', zIndex: 60 }}/>}
     </div>
   )
 }

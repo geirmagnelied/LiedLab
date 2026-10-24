@@ -7,7 +7,7 @@ import { favorittForst } from './projectFavoritt'
 // kunne SØKJAST i, ikkje berre scrollast gjennom. Reint klientside-filter
 // over den alt innlasta `projects`-lista (ingen database-tur nødvendig,
 // til skilnad frå SokeFelt.jsx sitt innhaldssøk).
-function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFavorite }) {
+export function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFavorite }) {
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const [sok, setSok]   = useState('')

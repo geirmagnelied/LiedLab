@@ -7,7 +7,7 @@ import { supabase } from './supabase'
 //  på rett språk før profilen er lasta.
 // ═══════════════════════════════════════════════════════════════════
 
-const TOM = { namn: '', adresse: '', postnr: '', poststad: '', fodselsaar: null, fodselsdato: null, tittel: '', sprak: 'nn', bilete_sti: '', kompetanse: [], prosjekterfaring: [] }
+const TOM = { namn: '', adresse: '', postnr: '', poststad: '', fodselsaar: null, fodselsdato: null, tittel: '', telefon: '', sprak: 'nn', bilete_sti: '', kompetanse: [], prosjekterfaring: [] }
 const lesSprak = () => { try { const v = localStorage.getItem('liedlab-sprak'); return v === 'bm' ? 'bm' : 'nn' } catch { return 'nn' } }
 
 export async function signerteUrlar(stiar) {
@@ -60,7 +60,7 @@ export default function useBrukar(userId, userEmail) {
     const p = ref.current
     const { error } = await supabase.from('brukar_profil').upsert({
       user_id: userId, namn: p.namn || '', adresse: p.adresse || '', postnr: p.postnr || '', poststad: p.poststad || '', fodselsaar: p.fodselsaar || null, fodselsdato: p.fodselsdato || null,
-      tittel: p.tittel || '', sprak: p.sprak || 'nn', bilete_sti: p.bilete_sti || '', kompetanse: p.kompetanse || [], prosjekterfaring: p.prosjekterfaring || [], updated_at: new Date().toISOString(),
+      tittel: p.tittel || '', telefon: p.telefon || '', sprak: p.sprak || 'nn', bilete_sti: p.bilete_sti || '', kompetanse: p.kompetanse || [], prosjekterfaring: p.prosjekterfaring || [], updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
     if (error) { console.warn('[Brukar] lagring feila:', error.message); setStatus('feil'); return }
     finst.current = true

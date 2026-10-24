@@ -76,6 +76,7 @@ export function useStore(userId) {
 
     setOffices((oData || []).map(o => ({
       id: o.id, name: o.name, color: o.color || '#1B4332', sortOrder: o.sort_order,
+      org_nr: o.org_nr || '', adresse: o.adresse || '', postnr: o.postnr || '', poststad: o.poststad || '', telefon: o.telefon || '', epost: o.epost || '',
     })))
     setProjects((pData || []).map(p => ({
       id: p.id, name: p.name, favorite: p.favorite,

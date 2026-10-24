@@ -9,9 +9,9 @@ import useBrukar from './useBrukar'
 import { SprakKontekst, lagT } from './sprak'
 import AppRail, { PARENT_AV_MODUL, RAIL_MODUSAR, RAIL_BREIDD } from './AppRail'
 import AppRailUndermeny from './AppRailUndermeny'
-import MobilModulRad from './MobilModulRad'
 import MalarModule from './MalarModule'
-import { Camera, Plus } from 'lucide-react'
+import { Camera, Plus, FileText as NotatIkon, Users as MoteIkon, ClipboardList, CheckSquare } from 'lucide-react'
+import { ProsjektVelger } from './TopBar'
 import KontordriftModule from './KontordriftModule'
 import FramdriftModule from './FramdriftModule'
 import TopBar from './TopBar'
@@ -59,6 +59,9 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const [pendingEditId,     setPendingEditId]     = useState(null)
   const [isMobile,          setIsMobile]          = useState(window.innerWidth < 768)
   const [mobileSheet,       setMobileSheet]       = useState(false)
+  const [fabMeny,           setFabMeny]           = useState(false)   // pluss-knappen (mobil): notattypar
+  const [bileteMelding,     setBileteMelding]     = useState('')
+  const fotoRef = useRef(null)
   const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
   const [showSettings,      setShowSettings]      = useState(false)
   const [skisseMelding, setSkisseMelding] = useState('')
@@ -379,55 +382,47 @@ function AppInnhald({ userId, userEmail, brukar }) {
     <div style={{ display:'flex', flexDirection:'column', height:'100vh',
       overflow:'hidden', background:'var(--bg)', position:'relative' }}>
 
-      {/* Mobil-toppfelt, rad 1: hamburger + prosjektnamn + brukar. Rad 2: modulval (kortnamn, scrollbar). Sjå claude/mobil-grensesnitt.md */}
-      <div style={{ display:'flex', alignItems:'center', padding:'0 12px', background:'#0A0A0A', height:52, flexShrink:0, gap:10 }}>
-        <button onClick={() => setMobileSheet(v=>!v)} aria-label="Meny"
-          style={{ background:'none', border:'none', color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', padding:4 }}>
-          <span style={{ width:30, height:30, borderRadius:8, background:'rgba(255,255,255,.15)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4 }}>
-            <span style={{ display:'block', width:14, height:2, background:'#fff', borderRadius:1 }}/>
-            <span style={{ display:'block', width:14, height:2, background:'#fff', borderRadius:1 }}/>
-            <span style={{ display:'block', width:14, height:2, background:'#fff', borderRadius:1 }}/>
-          </span>
-        </button>
-        <div style={{ flex:1, minWidth:0, fontSize:16, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-          {selProj ? selProj.name : (MODULE_LABELS[activeModule] || 'LiedLab')}
-        </div>
-        <button onClick={() => { setActiveModule('bruker'); setMobileSheet(false) }} title={brukar.visNamn || 'Brukar'}
-          style={{ width:34, height:34, borderRadius:'50%', overflow:'hidden', flexShrink:0, cursor:'pointer', padding:0,
-            background: activeModule === 'bruker' ? 'rgba(255,255,255,.35)' : 'rgba(255,255,255,.18)', border:'1.5px solid rgba(255,255,255,.3)', color:'#fff', fontSize:14, fontWeight:800, fontFamily:'var(--font)' }}>
-          {brukar.bileteUrl ? <img src={brukar.bileteUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : (((brukar.visNamn || userEmail || '?').trim()[0]) || '?').toUpperCase()}
-        </button>
-      </div>
-      <MobilModulRad activeModule={activeModule} onVelg={m => { setActiveModule(m); setMobileSheet(false) }}/>
-
-      {/* Mobile sidebar drawer */}
-      {mobileSheet && (
-        <>
-          <div onClick={() => setMobileSheet(false)}
-            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', zIndex:100 }}/>
-          <div style={{ position:'fixed', left:0, top:0, bottom:0, width:280,
-            zIndex:101, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-            <Sidebar projects={activeProjectFiltered} notes={modeNotes}
-              onSelectProject={id => { handleSelectProject(id); setMobileSheet(false) }}
-              onSelectNote={id => { handleSelectNote(id); setMobileSheet(false) }}
-              selectedProjectId={selectedProjectId}
-              onDeleteProject={deleteProject}
-              onNewNote={() => { handleNewNote('regular'); setMobileSheet(false) }}
-              onToggleFavorite={toggleFavorite}
-              onRenameProject={handleRenameProject}
-              offices={offices} activeOfficeId={activeOfficeId} onSetOffice={setActiveOfficeId}
-              onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}
-                  onOpenSettings={() => { setShowSettings(true); setMobileSheet(false) }}
-              onNavModul={m => { setActiveModule(m); setMobileSheet(false) }}
-              onLogout={() => { import('./supabase').then(m => m.supabase.auth.signOut()) }}
-              mode={mode}/>
+      {/* Mobil-toppfelt: heilt svart felt øverst (under iPhone sin notch/«busslomme»), så rada med hamburger (venstre), prosjektvelgjar og brukar.
+          Hamburgeren ekspanderer ned eksakt same navigasjon som venstremenyen på skrivebord (AppRail). Sjå claude/mobil-grensesnitt.md */}
+      {mobileSheet && <div onClick={() => setMobileSheet(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:100 }}/>}
+      <div style={{ position:'relative', zIndex:102, flexShrink:0, background:'#000' }}>
+        <div style={{ height:'max(env(safe-area-inset-top), 24px)', background:'#000' }}/>
+        <div style={{ display:'flex', alignItems:'center', padding:'0 12px 8px', height:56, gap:10, background:'#000' }}>
+          <button onClick={() => setMobileSheet(v=>!v)} aria-label="Meny" aria-expanded={mobileSheet}
+            style={{ background:'none', border:'none', color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', padding:4, flexShrink:0 }}>
+            <span style={{ width:38, height:38, borderRadius:10, background: mobileSheet ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.15)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4.5 }}>
+              <span style={{ display:'block', width:18, height:2, background:'#fff', borderRadius:1 }}/>
+              <span style={{ display:'block', width:18, height:2, background:'#fff', borderRadius:1 }}/>
+              <span style={{ display:'block', width:18, height:2, background:'#fff', borderRadius:1 }}/>
+            </span>
+          </button>
+          <div style={{ flex:1, minWidth:0, display:'flex', justifyContent:'center' }}>
+            <ProsjektVelger projects={officeProjects} activeProjectId={selectedProjectId} onSelectProject={setSelectedProjectId} onToggleFavorite={toggleFavorite}/>
           </div>
-        </>
+          <button onClick={() => { setActiveModule('bruker'); setMobileSheet(false) }} title={brukar.visNamn || 'Brukar'}
+            style={{ width:36, height:36, borderRadius:'50%', overflow:'hidden', flexShrink:0, cursor:'pointer', padding:0,
+              background: activeModule === 'bruker' ? 'rgba(255,255,255,.35)' : 'rgba(255,255,255,.18)', border:'1.5px solid rgba(255,255,255,.3)', color:'#fff', fontSize:14, fontWeight:800, fontFamily:'var(--font)' }}>
+            {brukar.bileteUrl ? <img src={brukar.bileteUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : (((brukar.visNamn || userEmail || '?').trim()[0]) || '?').toUpperCase()}
+          </button>
+        </div>
+        {mobileSheet && (
+          <div style={{ position:'absolute', top:'100%', left:0, right:0, maxHeight:'calc(100vh - 120px)', overflowY:'auto', background:'var(--bg)', borderBottom:'1px solid var(--border)', boxShadow:'0 14px 30px rgba(0,0,0,.35)' }}>
+            <AppRail mobil activeModule={activeModule} modus="full"
+              onModuleChange={m => { setActiveModule(m); setMobileSheet(false) }}
+              onOpenSettings={() => { setShowSettings(true); setMobileSheet(false) }}
+              onLogout={() => { import('./supabase').then(m => m.supabase.auth.signOut()) }}/>
+          </div>
+        )}
+      </div>
+      {PARENT_AV_MODUL[activeModule] && PARENT_AV_MODUL[activeModule] !== 'admin' && (
+        <AppRailUndermeny toppNokkel={PARENT_AV_MODUL[activeModule]} activeModule={activeModule} onModuleChange={setActiveModule}/>
       )}
 
       {/* Mobile content */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
         {activeModule === 'bruker' && <BrukarModule userId={userId} userEmail={userEmail} brukar={brukar}/>}
+        {activeModule === 'malar' && <MalarModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId} brukar={brukar} offices={offices} activeOfficeId={activeOfficeId}/>}
+        {activeModule === 'skisse' && <div style={{ height:'calc(100vh - 190px)', display:'flex', position:'relative' }}><SketchPad innbygd existingDataUrl={null} onClose={() => setActiveModule('dashboard')} onSave={lagreSkisse}/></div>}
         {activeModule === 'dashboard' && <Dashboard userId={userId} userEmail={userEmail} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>}
         {activeModule === 'notatar' && (
           <>
@@ -464,18 +459,50 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'framdrift' && <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId}/>}
       </div>
 
-      {/* Flytande knappar (berre mobil): kamera → Bilete, pluss → nytt notat */}
+      {/* Flytande knappar (berre mobil): kamera → vel/ta bilete direkte, pluss → meny med notattypar */}
+      <input ref={fotoRef} type="file" accept="image/*" multiple style={{ display:'none' }}
+        onChange={async e => {
+          const filer = Array.from(e.target.files || []); e.target.value = ''
+          if (!filer.length) return
+          if (!selectedProjectId) { setBileteMelding('Vel eit prosjekt fyrst (øvst), så vert biletet lagt i prosjektet.'); setTimeout(() => setBileteMelding(''), 4500); return }
+          setBileteMelding('Lastar opp ' + filer.length + (filer.length === 1 ? ' bilete…' : ' bilete…'))
+          const { supabase } = await import('./supabase')
+          let ok = 0
+          for (const fil of filer) {
+            const sti = `${userId}/${selectedProjectId}/${Date.now()}-${(fil.name || 'bilete.jpg').replace(/[^a-zA-Z0-9._-]/g, '_')}`
+            const { error } = await supabase.storage.from('bilete-mobil').upload(sti, fil)
+            if (error) continue
+            const { error: e2 } = await supabase.from('bilete_mobil_ko').insert({ id: Date.now() + Math.floor(Math.random() * 1000), user_id: userId, project_id: selectedProjectId, storage_sti: sti, opphav_filnamn: fil.name || 'bilete.jpg', lasta_opp_at: new Date().toISOString() })
+            if (!e2) ok++
+          }
+          setBileteMelding(ok === filer.length ? (ok === 1 ? 'Biletet er lagt i prosjektet (vert henta av skrivebordsappen).' : ok + ' bilete er lagde i prosjektet.') : 'Berre ' + ok + ' av ' + filer.length + ' bilete vart lasta opp.')
+          setTimeout(() => setBileteMelding(''), 4500)
+        }}/>
+      {bileteMelding && <div style={{ position:'fixed', left:16, right:16, bottom:'calc(96px + env(safe-area-inset-bottom))', zIndex:120, background:'#1B2A3A', color:'#fff', padding:'11px 16px', borderRadius:12, fontSize:13.5, fontWeight:600, textAlign:'center', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>{bileteMelding}</div>}
       {view !== 'new' && !mobileSheet && (
-        <div style={{ position:'fixed', right:16, bottom:'calc(18px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:12, zIndex:90 }}>
-          <button onClick={() => setActiveModule('bilete')} aria-label="Nytt bilete" title="Nytt bilete"
-            style={{ width:54, height:54, borderRadius:'50%', border:'none', background:'#fff', color:'var(--brand)', boxShadow:'0 6px 18px rgba(0,0,0,.3)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <Camera size={24}/>
-          </button>
-          <button onClick={() => handleNewNote('regular')} aria-label="Nytt notat" title="Nytt notat"
-            style={{ width:60, height:60, borderRadius:'50%', border:'none', background:'var(--brand)', color:'#fff', boxShadow:'0 6px 18px rgba(0,0,0,.35)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <Plus size={30}/>
-          </button>
-        </div>
+        <>
+          {fabMeny && <div onClick={() => setFabMeny(false)} style={{ position:'fixed', inset:0, zIndex:89 }}/>}
+          <div style={{ position:'fixed', right:16, bottom:'calc(18px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:12, zIndex:90 }}>
+            {fabMeny && (
+              <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:14, boxShadow:'0 10px 30px rgba(0,0,0,.3)', padding:6, minWidth:190 }}>
+                {[['regular', 'Notat', NotatIkon], ['meeting', 'Møte', MoteIkon], ['referat', 'Referat', ClipboardList], ['task', 'Oppgåve', CheckSquare]].map(([typ, namn, Ikon]) => (
+                  <button key={typ} onClick={() => { setFabMeny(false); handleNewNote(typ) }}
+                    style={{ display:'flex', alignItems:'center', gap:12, width:'100%', textAlign:'left', padding:'13px 14px', border:'none', borderRadius:10, background:'transparent', color:'var(--text)', fontSize:15, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+                    <Ikon size={20} color="var(--brand)"/>{namn}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button onClick={() => { setFabMeny(false); fotoRef.current?.click() }} aria-label="Nytt bilete" title="Nytt bilete"
+              style={{ width:54, height:54, borderRadius:'50%', border:'none', background:'#fff', color:'var(--brand)', boxShadow:'0 6px 18px rgba(0,0,0,.3)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Camera size={24}/>
+            </button>
+            <button onClick={() => setFabMeny(v => !v)} aria-label="Nytt notat" aria-expanded={fabMeny} title="Nytt…"
+              style={{ width:60, height:60, borderRadius:'50%', border:'none', background:'var(--brand)', color:'#fff', boxShadow:'0 6px 18px rgba(0,0,0,.35)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'transform .2s', transform: fabMeny ? 'rotate(45deg)' : 'none' }}>
+              <Plus size={30}/>
+            </button>
+          </div>
+        </>
       )}
 
       {view === 'new' && (

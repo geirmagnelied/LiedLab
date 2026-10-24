@@ -218,7 +218,7 @@ export default function BileteModule({ userId, userEmail, projects, activeProjec
               <div style={{ fontSize:11.5, color:'var(--text3)', marginBottom:10 }}>
                 Fungerer på telefonen din — vert lasta opp mellombels og henta ned av skrivebordsappen seinare.
               </div>
-              <input ref={mobilInputRef} type="file" accept="image/*" multiple capture="environment"
+              <input ref={mobilInputRef} type="file" accept="image/*" multiple
                 onChange={e => lastOppFraMobil(Array.from(e.target.files || []))}
                 style={{ display:'none' }} id="bilete-mobil-input"/>
               <label htmlFor="bilete-mobil-input" className="dt-knapp hovud"

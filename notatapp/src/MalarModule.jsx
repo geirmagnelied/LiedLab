@@ -12,7 +12,7 @@ const PROSJEKT_FELT = ['prosjektnr', 'prosjektnamn', 'tiltakshavar_namn', 'eiged
 const MALAR = [
   { id: 'foelgebrev', type: 'word', namn: 'Følgebrev – søknad om rammetillatelse', gruppe: 'Brev', farge: '#2B579A',
     skildring: 'Ferdig utkast til følgebrev til kommunen med tiltakshavar, eigedom, tiltak, standard vedleggsliste og underskrift. Rett vedlegga før du lastar ned.',
-    felt: ['prosjektnr', 'prosjektnamn', 'tiltakshavar_namn', 'tiltakshavar_orgnr', 'eigedom_adresse', 'eigedom_postnr', 'eigedom_poststad', 'kommune', 'gnr', 'bnr', 'festenr', 'seksjonsnr', 'tiltakstype', 'bygningskategori', 'bra', 'tiltaksbeskrivelse', 'avsendar_firma', 'avsendar_namn', 'avsendar_tittel', 'avsendar_epost', 'avsendar_tlf', 'avsendar_adresse', 'dato'],
+    felt: ['prosjektnr', 'prosjektnamn', 'tiltakshavar_namn', 'tiltakshavar_orgnr', 'eigedom_adresse', 'eigedom_postnr', 'eigedom_poststad', 'kommune', 'gnr', 'bnr', 'festenr', 'seksjonsnr', 'tiltakstype', 'bygningskategori', 'bra', 'tiltaksbeskrivelse', 'avsendar_firma', 'avsendar_orgnr', 'avsendar_namn', 'avsendar_tittel', 'avsendar_epost', 'avsendar_tlf', 'avsendar_adresse', 'dato'],
     bygg: async (f, o) => (await import('./malarWord')).foelgebrevRammetillatelse(f, o), vedlegg: true },
   { id: 'innkalling', type: 'word', namn: 'Møteinnkalling', gruppe: 'Møter', farge: '#2B579A', skildring: 'Innkalling med møtedata, deltakarliste og standard saksliste.', felt: PROSJEKT_FELT, bygg: async (f, o) => (await import('./malarWord')).moteinnkalling(f, o) },
   { id: 'referat', type: 'word', namn: 'Møtereferat', gruppe: 'Møter', farge: '#2B579A', skildring: 'Referatmal med til-stades-liste og tabell for sak, vedtak, ansvarleg og frist.', felt: PROSJEKT_FELT, bygg: async (f, o) => (await import('./malarWord')).motereferat(f, o) },
@@ -31,6 +31,7 @@ export default function MalarModule({ userId, userEmail, projects, activeProject
   const [filter, setFilter] = useState('alle')
   const [valgt, setValgt] = useState('foelgebrev')
   const [bm, setBm] = useState(brukar?.sprak === 'bm')
+  const smal = typeof window !== 'undefined' && window.innerWidth < 768
   const [overstyr, setOverstyr] = useState({})
   const [vedleggVal, setVedleggVal] = useState(null)       // { liste: [...], paa: Set(index) }
   const [eigenVedlegg, setEigenVedlegg] = useState('')
@@ -86,9 +87,9 @@ export default function MalarModule({ userId, userEmail, projects, activeProject
         <select value={bm ? 'bm' : 'nn'} onChange={e => setBm(e.target.value === 'bm')} style={SEL}><option value="nn">Nynorsk</option><option value="bm">Bokmål</option></select>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: smal ? 'column' : 'row', minHeight: 0, overflowY: smal ? 'auto' : 'visible' }}>
         {/* Malliste */}
-        <div style={{ width: 330, flexShrink: 0, overflowY: 'auto', padding: '18px 16px', borderRight: '1px solid var(--border)', background: 'var(--bg)' }}>
+        <div style={{ width: smal ? 'auto' : 330, flexShrink: 0, maxHeight: smal ? 260 : 'none', overflowY: 'auto', padding: '18px 16px', borderRight: smal ? 'none' : '1px solid var(--border)', borderBottom: smal ? '1px solid var(--border)' : 'none', background: 'var(--bg)' }}>
           {!activeProjectId && <div style={{ fontSize: 12.5, color: 'var(--text2)', background: 'var(--brandbg)', borderRadius: 10, padding: '10px 12px', marginBottom: 14, lineHeight: 1.5 }}>Vel eit prosjekt øvst i vindauget, så vert malane fylte ut automatisk frå prosjektopplysningane.</div>}
           {grupper.map(g => (
             <div key={g} style={{ marginBottom: 16 }}>
@@ -114,7 +115,7 @@ export default function MalarModule({ userId, userEmail, projects, activeProject
         </div>
 
         {/* Detalj */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 30px 40px', minWidth: 0 }}>
+        <div style={{ flex: smal ? 'none' : 1, overflowY: smal ? 'visible' : 'auto', padding: smal ? '18px 14px 40px' : '24px 30px 40px', minWidth: 0 }}>
           <div style={{ maxWidth: 940, margin: '0 auto' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>
               <span style={{ width: 54, height: 54, borderRadius: 14, background: mal.farge, color: '#fff', fontWeight: 800, fontSize: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{mal.type === 'word' ? 'W' : 'X'}</span>
@@ -134,7 +135,7 @@ export default function MalarModule({ userId, userEmail, projects, activeProject
             </div>
 
             {/* Flettefelt */}
-            <div style={{ display: 'grid', gridTemplateColumns: mal.vedlegg ? 'minmax(0,1fr) minmax(0,1.15fr)' : 'minmax(0,1fr)', gap: 22, alignItems: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: mal.vedlegg && !smal ? 'minmax(0,1fr) minmax(0,1.15fr)' : 'minmax(0,1fr)', gap: 22, alignItems: 'start' }}>
               <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px' }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Flettefelt</div>
                 {feltGrupper.map(g => (
@@ -224,7 +225,7 @@ function BrevForhandsvising({ f, bm, vedlegg }) {
       <div style={{ marginTop: 26 }}>
         <div style={{ fontWeight: 700 }}>{f.avsendar_namn || <Seg s={{ t: '[namn]', ph: true }}/>}</div>
         {f.avsendar_tittel && <div style={{ color: '#6B7280' }}>{f.avsendar_tittel}</div>}
-        <div style={{ color: '#6B7280' }}>{f.avsendar_firma}</div>
+        <div style={{ color: '#6B7280' }}>{f.avsendar_firma}{f.avsendar_orgnr ? ` · org.nr. ${f.avsendar_orgnr}` : ''}</div>
         <div style={{ color: '#6B7280' }}>{[f.avsendar_epost, f.avsendar_tlf].filter(Boolean).join('  ·  ')}</div>
       </div>
     </div>

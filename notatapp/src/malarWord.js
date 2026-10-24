@@ -95,7 +95,7 @@ export async function foelgebrevRammetillatelse(f, o) {
   barn.push(absatz(D, brevHelsing(bm), { after: 560 }))
   barn.push(absatz(D, [{ t: f.avsendar_namn || '[namn]', b: true, ph: !f.avsendar_namn }], { after: 0 }))
   if (f.avsendar_tittel) barn.push(absatz(D, f.avsendar_tittel, { after: 0, color: GRAA }))
-  barn.push(absatz(D, [f.avsendar_firma || ''], { after: 0, color: GRAA }))
+  barn.push(absatz(D, [(f.avsendar_firma || '') + (f.avsendar_orgnr ? ' · org.nr. ' + f.avsendar_orgnr : '')], { after: 0, color: GRAA }))
   const kont = [f.avsendar_epost, f.avsendar_tlf].filter(Boolean).join('  ·  ')
   if (kont) barn.push(absatz(D, kont, { after: 0, color: GRAA }))
   return tilBlob(D, dokument(D, f, bm, barn, bm ? 'Søknad om rammetillatelse' : 'Søknad om rammetillatelse'))

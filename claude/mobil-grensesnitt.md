@@ -103,3 +103,9 @@ Alle tre endringane er bygde. Val som vart gjorde undervegs:
 - **«Fristar» (opent punkt):** Gjort etter forslaget i spesifikasjonen — to faner «Notatar / Fristar» øvst i Notatar-innhaldet på mobil (`view`-staten som før). Ikkje avklart med Geir Magne på førehand; lett å endre.
 - Dashboard: korta er éi kolonne under 768 px (4 side om side på skrivebord).
 - Ikkje testa på ei ekte telefon eller med innlogga brukar; rad 2 vart rendra og kontrollert i ein mobil-viewport.
+
+## Revisjon 25. okt. 2026 — hamburger-navigasjon, sikker topp, pluss-meny, foto
+- **Svart topp:** mobilen får eit heilt svart felt øverst (`max(env(safe-area-inset-top), 24px)`) slik at toppfeltet ikkje vert skjult av iPhone sin notch/«busslomme»; alt under er skove nedover. `index.html` har `viewport-fit=cover`.
+- **Rada med modulpillar er fjerna** (`MobilModulRad.jsx` sletta). Toppfeltet er: hamburger (venstre) · prosjektvelgjar (`ProsjektVelger` frå TopBar, no eksportert) · brukar-avatar. Hamburgeren ekspanderer ned **same `AppRail` som på skrivebordet** (`<AppRail mobil modus="full">` — full breidd, utan breidde-knapp/drag): alle moduler, Prosjekt/Kundar/Kontordrift, Innstillingar, Brukar, Logg ut. Val lukkar menyen. Gjeremål-modulane har NL2 (`AppRailUndermeny`) under toppen, som på skrivebord. Skisse og Malar er med i mobilvisinga. Den gamle `Sidebar`-skuffa er ikkje lenger i bruk på mobil.
+- **Pluss-knappen** opnar ei meny (Notat / Møte / Referat / Oppgåve) i staden for å lage eit notat direkte.
+- **Foto-knappen** opnar no direkte fil-veljaren (`<input type=file accept="image/*">` utan `capture` → iPhone tilbyr «Ta bilete» eller «Biletbibliotek»), lastar opp til `bilete-mobil` + `bilete_mobil_ko` for valt prosjekt (same som Bilete-modulen) og viser ei melding. Krev valt prosjekt. `capture="environment"` er fjerna òg frå Bilete-modulen sitt eige opplastingsfelt.

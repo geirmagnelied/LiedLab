@@ -36,3 +36,6 @@ Word-generatoren og førehandsvisinga les) · `malarWord.js` (docx-generatorar) 
 - Brevteksten er eit *forslag* — kontoret bør lese gjennom og justere formuleringane (særleg avsnitta om regelverk og dispensasjon).
 - Ikkje opna i Word/Excel på maskina som bygde det; generatorane vart køyrde i nettlesaren og Excel-filene vart lese inn att (formlar OK). Tilgjengeleg på skrivebord, ikkje med i mobilradene.
 - Mogleg vidare: eigne malar brukaren lastar opp (.docx med flettekodar), PDF-eksport av brevet, lagring av utfylte dokument i DTM.
+
+## Firmainfo (25. okt. 2026)
+Det som tidlegare mangla er no vanlege felt: **Innstillingar → Kontor → «Firmainfo»** (adresse, postnr, poststad, organisasjonsnummer, telefon, generell e-post; kolonnar `offices.org_nr/adresse/postnr/poststad/telefon/epost`) og **Brukar → Brukarinfo → Telefon** (`brukar_profil.telefon`). Malar-modulen brukar kontoret sine felt som ansvarleg søkjar (firma + org.nr. + adresse i brev/dokument), brukarens telefon (elles kontoret sin) og e-post (brukaren sin, elles kontoret sin generelle). Ikkje lagt som prosjektfelt — ansvarleg søkjar er alltid kontoret. SQL: `supabase-kontor-firmainfo.sql`.

@@ -20,6 +20,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
   const [feedback,   setFeedback]   = useState(null)
   const [editName,   setEditName]   = useState('')
   const [editColor,  setEditColor]  = useState('')
+  const [firma, setFirma] = useState({ org_nr: '', adresse: '', postnr: '', poststad: '', telefon: '', epost: '' })   // firmainfo (ansvarleg søkjar i Malar-modulen)
   const panelRef = useRef(null)
 
   // ── Kontaktar (namn+initialar+e-post) — brukt av KS-modulen sin
@@ -57,6 +58,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
   useEffect(() => {
     if (activeOffice) {
       setEditName(activeOffice.name)
+      setFirma({ org_nr: activeOffice.org_nr || '', adresse: activeOffice.adresse || '', postnr: activeOffice.postnr || '', poststad: activeOffice.poststad || '', telefon: activeOffice.telefon || '', epost: activeOffice.epost || '' })
       setEditColor(activeOffice.color || '#1B4332')
     }
   }, [activeOfficeId])
@@ -154,7 +156,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
 
   const saveOfficeName = async () => {
     if (!editName.trim() || !activeOfficeId) return
-    await onUpdateOffice(activeOfficeId, { name: editName.trim(), color: editColor })
+    await onUpdateOffice(activeOfficeId, { name: editName.trim(), color: editColor, ...Object.fromEntries(Object.entries(firma).map(([k, v]) => [k, (v || '').trim()])) })
     setFeedback({ type: 'ok', msg: 'Kontor oppdatert' })
     setTimeout(() => setFeedback(null), 2000)
   }
@@ -233,6 +235,17 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
                         border:`3px solid ${editColor===c.value?'var(--text)':'transparent'}`,
                         cursor:'pointer', transition:'border .15s' }}/>
                   ))}
+                </div>
+              </div>
+              <div style={{ borderTop:'1px solid var(--border)', paddingTop:14 }}>
+                <label style={s.label}>Firmainfo (brukt i dokumentmalar, t.d. følgebrev)</label>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:6 }}>
+                  <div style={{ gridColumn:'1 / -1' }}><span style={{ ...s.label, fontWeight:600 }}>Adresse</span><input style={s.input} value={firma.adresse} onChange={e => setFirma(f => ({ ...f, adresse: e.target.value }))}/></div>
+                  <div><span style={{ ...s.label, fontWeight:600 }}>Postnummer</span><input style={s.input} value={firma.postnr} inputMode="numeric" onChange={e => setFirma(f => ({ ...f, postnr: e.target.value }))}/></div>
+                  <div><span style={{ ...s.label, fontWeight:600 }}>Poststad</span><input style={s.input} value={firma.poststad} onChange={e => setFirma(f => ({ ...f, poststad: e.target.value }))}/></div>
+                  <div><span style={{ ...s.label, fontWeight:600 }}>Organisasjonsnummer</span><input style={s.input} value={firma.org_nr} inputMode="numeric" onChange={e => setFirma(f => ({ ...f, org_nr: e.target.value }))} placeholder="9 siffer"/></div>
+                  <div><span style={{ ...s.label, fontWeight:600 }}>Telefon</span><input style={s.input} value={firma.telefon} inputMode="tel" onChange={e => setFirma(f => ({ ...f, telefon: e.target.value }))}/></div>
+                  <div style={{ gridColumn:'1 / -1' }}><span style={{ ...s.label, fontWeight:600 }}>Generell e-post</span><input style={s.input} type="email" value={firma.epost} onChange={e => setFirma(f => ({ ...f, epost: e.target.value }))} placeholder="post@firma.no"/></div>
                 </div>
               </div>
               <button onClick={saveOfficeName} style={{ ...s.btn(true), alignSelf:'flex-start' }}>
