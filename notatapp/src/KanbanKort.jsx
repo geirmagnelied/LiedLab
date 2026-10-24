@@ -1,4 +1,4 @@
-import { ALLE_STATUSAR, faseNamn, fmtDato, fristForfalt, initialar } from './kanbanLogikk'
+import { ALLE_STATUSAR, fmtDato, fristForfalt, initialar } from './kanbanLogikk'
 
 // ═══════════════════════════════════════════════════════════════════
 //  KanbanKort — eitt kort på tavla: tittel, ansvarleg, frist, fase, lenkje-merke og «Flytt til…» (reserve for touch).
@@ -20,7 +20,6 @@ export default function KanbanKort({ k, overskrid, dratt, nytt, sett, onApne, on
             {k.ansvarleg.split(/\s+/)[0]}
           </span>
         )}
-        {k.fase && <span title={faseNamn(k.fase)} style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'var(--bg3)', color: 'var(--text2)' }}>{k.fase} {faseNamn(k.fase)}</span>}
         {k.frist && <span style={{ fontSize: 10.5, fontWeight: forfalt ? 800 : 500, color: forfalt ? 'var(--danger, #c0392b)' : 'var(--text3)' }}>⏱ {fmtDato(k.frist)}</span>}
         <span style={{ flex: 1 }}/>
         {lenkjer.map(l => <span key={l.t} title={l.tittel} style={{ fontSize: 9.5, fontWeight: 800, width: 17, height: 17, borderRadius: 5, background: 'var(--brandbg)', color: 'var(--brand)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{l.t}</span>)}

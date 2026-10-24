@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════
-//  kanbanMalar — standardkort per fase (same tanke som framdriftMalar.js). Fyrste versjon er ein enkel startpakke;
-//  innhaldet skal avklarast med kontoret og utvidast (sjå «Opne punkt» i claude/kanban-modul.md). Rediger lista under.
+//  kanbanMalar — standard Kanban-kort per fase (Skisseprosjekt, Forprosjekt, Byggesøknad, Detaljprosjekt). Vert lagde i kolonna
+//  «Komande oppgåver» når ei tavle for fasen vert oppretta (DTM-leveransar for same fase kjem i tillegg, sjå kanbanLogikk.js).
+//  Startpakke — innhaldet skal avklarast med kontoret og utvidast. Rediger lista under.
 // ═══════════════════════════════════════════════════════════════════
 export const KANBAN_MALAR = {
-  '01': ['Avklare føresetnader og rammer (reguleringsplan, krav)', 'Skisser alternativ og volumstudiar', 'Presentere skisseprosjekt for byggherre'],
-  '02': ['Avklare prinsippløysingar med fag (RIB, RIV, RIE)', 'Utarbeide forprosjektteikningar', 'Kostnadsoverslag / mengder til kalkyle'],
-  '03': ['Samle tilbodsteikningar og beskrivingar', 'Kontrollere tilbodsgrunnlaget (egenkontroll)', 'Sende ut tilbodsgrunnlag'],
-  '04': ['Utarbeide søknadsteikningar', 'Samle dokumentasjon til rammesøknad', 'Sende søknad til kommunen'],
-  '05': ['Detaljere plan, snitt og fasadar', 'Koordinere detaljløysingar med fag', 'Frigje teikningar til bygging'],
+  skisse: ['Avklare føresetnader og rammer (reguleringsplan, krav)', 'Skisser alternativ og volumstudiar', 'Presentere skisseprosjekt for byggherre'],
+  forprosjekt: ['Avklare prinsippløysingar med fag (RIB, RIV, RIE)', 'Utarbeide forprosjektteikningar', 'Kostnadsoverslag / mengder til kalkyle'],
+  soknad: ['Utarbeide søknadsteikningar', 'Samle dokumentasjon til rammesøknad', 'Sende søknad til kommunen'],
+  detalj: ['Detaljere plan, snitt og fasadar', 'Koordinere detaljløysingar med fag', 'Frigje teikningar til bygging'],
 }

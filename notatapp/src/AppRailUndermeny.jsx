@@ -25,8 +25,8 @@ export default function AppRailUndermeny({ toppNokkel, activeModule, onModuleCha
           <button key={b.key} onClick={() => onModuleChange(b.key)}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px',
-              borderRadius: 8, border: '1.5px solid ' + (active ? 'var(--brand)' : 'transparent'),
-              background: active ? 'var(--brand)' : 'transparent',
+              borderRadius: 8, border: '1.5px solid ' + (active ? '#0A0A0A' : 'transparent'),
+              background: active ? '#0A0A0A' : 'transparent',
               color: active ? '#fff' : 'var(--text3)',
               fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer',
               fontFamily: 'var(--font)', transition: 'background .15s, color .15s',

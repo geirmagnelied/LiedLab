@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ALLE_STATUSAR, FASEKODAR, KORT_FARGAR, aktivitetNamn } from './kanbanLogikk'
+import { ALLE_STATUSAR, KORT_FARGAR, aktivitetNamn, faseNamn } from './kanbanLogikk'
 
 // ═══════════════════════════════════════════════════════════════════
 //  KanbanKortModal — flytande vindauge for å sjå/redigere eit kort (sentrert overlegg, tittel + X, spør ved ulagra endringar).
@@ -8,7 +8,7 @@ import { ALLE_STATUSAR, FASEKODAR, KORT_FARGAR, aktivitetNamn } from './kanbanLo
 const FELT = { width: '100%', boxSizing: 'border-box', padding: '7px 10px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 13, fontFamily: 'var(--font)', background: 'var(--bg)', color: 'var(--text)', outline: 'none' }
 const ETT = { fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4, display: 'block' }
 
-export default function KanbanKortModal({ kort, saker, notes, planElement, personell, onLagre, onSlett, onLukk }) {
+export default function KanbanKortModal({ kort, saker, notes, planElement, personell, tavler, onLagre, onSlett, onLukk }) {
   const [d, setD] = useState({ ...kort })
   const sett = (k, v) => setD(p => ({ ...p, [k]: v }))
   const skitten = JSON.stringify(d) !== JSON.stringify(kort)
@@ -28,7 +28,8 @@ export default function KanbanKortModal({ kort, saker, notes, planElement, perso
           <button onClick={lukk} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--text2)', lineHeight: 1 }}>×</button>
         </div>
         <div style={{ padding: 18, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 13 }}>
-          <label><span style={ETT}>Tittel</span><input autoFocus value={d.tittel} onChange={e => sett('tittel', e.target.value)} style={{ ...FELT, fontWeight: 600 }}/></label>
+          {kort.dtm_ref && <div style={{ fontSize: 12, color: 'var(--text2)', background: 'var(--brandbg)', borderRadius: 8, padding: '8px 11px', lineHeight: 1.45 }}>Leveranse frå DTM — tittel, frist og status følgjer leveranselista automatisk (kontroll/utsending). Du kan likevel flytte kortet sjølv; neste DTM-endring set det på plass igjen.</div>}
+          <label><span style={ETT}>Tittel</span><input autoFocus value={d.tittel} onChange={e => sett('tittel', e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && d.tittel.trim() && (skitten || !kort.id)) onLagre(d) }} style={{ ...FELT, fontWeight: 600 }}/></label>
           <label><span style={ETT}>Skildring</span><textarea value={d.skildring || ''} onChange={e => sett('skildring', e.target.value)} rows={3} style={{ ...FELT, resize: 'vertical' }}/></label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <label><span style={ETT}>Status</span>
@@ -36,9 +37,6 @@ export default function KanbanKortModal({ kort, saker, notes, planElement, perso
             <label><span style={ETT}>Ansvarleg</span>
               <input value={d.ansvarleg || ''} onChange={e => sett('ansvarleg', e.target.value)} list="kb-personell-modal" style={FELT}/>
               <datalist id="kb-personell-modal">{(personell || []).map(p => <option key={p.id} value={p.namn}/>)}</datalist></label>
-            <label><span style={ETT}>Fase</span>
-              <select value={d.fase || ''} onChange={e => sett('fase', e.target.value || null)} style={FELT}>
-                <option value="">— Ingen —</option>{FASEKODAR.map(f => <option key={f.kode} value={f.kode}>{f.kode} {f.namn}</option>)}</select></label>
             <label><span style={ETT}>Frist</span><input type="date" value={d.frist || ''} onChange={e => sett('frist', e.target.value || null)} style={FELT}/></label>
           </div>
           <div>
@@ -65,7 +63,13 @@ export default function KanbanKortModal({ kort, saker, notes, planElement, perso
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px', borderTop: '1px solid var(--border)', background: 'var(--bg3)' }}>
-          {kort.id && <button onClick={() => { if (window.confirm('Slette kortet?')) onSlett(kort.id) }} style={{ padding: '7px 14px', border: '1.5px solid var(--danger, #c0392b)', borderRadius: 7, background: 'transparent', color: 'var(--danger, #c0392b)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>Slett</button>}
+          {kort.id && <button onClick={() => { if (window.confirm(kort.dtm_ref ? 'Fjerne kortet frå tavla? Leveransen i DTM vert ikkje endra.' : 'Slette kortet?')) onSlett(kort.id) }} style={{ padding: '7px 14px', border: '1.5px solid var(--danger, #c0392b)', borderRadius: 7, background: 'transparent', color: 'var(--danger, #c0392b)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>{kort.dtm_ref ? 'Fjern' : 'Slett'}</button>}
+          {kort.id && (tavler || []).length > 1 && (
+            <select value={d.tavle_id || ''} onChange={e => sett('tavle_id', Number(e.target.value))} title="Flytt kortet til tavla for ei anna fase"
+              style={{ padding: '5px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', color: 'var(--text3)', fontSize: 11, fontFamily: 'var(--font)', cursor: 'pointer', opacity: .75 }}>
+              {tavler.map(t => <option key={t.id} value={t.id}>Fase: {faseNamn(t.fase)}</option>)}
+            </select>
+          )}
           <div style={{ flex: 1 }}/>
           <button onClick={lukk} style={{ padding: '7px 14px', border: '1.5px solid var(--border)', borderRadius: 7, background: 'var(--bg2)', color: 'var(--text2)', fontWeight: 600, fontSize: 12.5, cursor: 'pointer' }}>Avbryt</button>
           <button disabled={!d.tittel.trim() || (!skitten && !!kort.id)} onClick={() => onLagre(d)}
