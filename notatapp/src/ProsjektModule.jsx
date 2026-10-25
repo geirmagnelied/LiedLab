@@ -247,6 +247,11 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   const [geoResults, setGeoResults]     = useState([])
   const [geoQuery, setGeoQuery]         = useState('')
   const [orgLookup, setOrgLookup]       = useState({ field: null, loading: false })
+  const [kundeliste, setKundeliste]       = useState([])   // kundar frå Kundar-modulen (kundeveljar i prosjektskjemaet)
+  useEffect(() => {
+    if (!userId) return
+    supabase.from('clients').select('id,company_name,org_nr,details').eq('user_id', userId).order('company_name').then(({ data }) => setKundeliste(data || []))
+  }, [userId])
   const [filter, setFilter]             = useState('alle') // alle|tilbod|aktiv|arkiv
   const [sidebarWidth]                  = useState(240)
   const [side, setSide]                   = useState('kort') // 'kort' | 'personell' | 'kalender'
@@ -410,6 +415,21 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     }))
     setGeoResults([])
     setGeoQuery('')
+    setDirty(true)
+  }
+
+  // ── Kundeveljar: fyll kundefelta frå kundelista, og vel kontaktperson/sakbehandlar blant kunden sine tilsette ──
+  const velgKunde = (idStr) => {
+    const k = kundeliste.find(c => String(c.id) === String(idStr))
+    if (!k) { setForm(f => ({ ...f, clientId: null })); setDirty(true); return }
+    const d = k.details || {}
+    setForm(f => ({ ...f, clientId: k.id, clientName: k.company_name || '', clientOrgNr: k.org_nr || '', clientAddress: d.address || '', clientPostnr: d.postnr || '', clientPoststad: d.poststad || '' }))
+    setDirty(true)
+  }
+  const velgKundekontakt = (ctId) => {
+    const k = kundeliste.find(c => String(c.id) === String(form.clientId))
+    const ct = (k?.details?.contacts || []).find(c => String(c.id) === String(ctId))
+    setForm(f => ({ ...f, clientContactName: ct?.name || '', clientContactEmail: ct?.email || '', clientContactPhone: ct?.phone || ct?.mobile || '' }))
     setDirty(true)
   }
 
@@ -680,6 +700,28 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
 
               {/* ── Kunde ── */}
               <Section title="Kunde">
+                {kundeliste.length > 0 && (
+                  <Row>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <label style={{ display:'block', fontSize:11, fontWeight:600, color:'var(--text3)', marginBottom:3, letterSpacing:'.03em' }}>Vel kunde frå kundelista</label>
+                      <select value={form.clientId || ''} onChange={e => velgKunde(e.target.value)}
+                        style={{ width:'100%', padding:'8px 10px', borderRadius:'var(--r)', border:'1.5px solid var(--border)', background:'var(--bg2)', fontSize:14, fontFamily:'var(--font)', color:'var(--text)', outline:'none' }}>
+                        <option value="">— Vel kunde (eller fyll ut under) —</option>
+                        {kundeliste.map(c => <option key={c.id} value={c.id}>{c.company_name || 'Utan namn'}{c.org_nr ? ' · ' + c.org_nr : ''}</option>)}
+                      </select>
+                    </div>
+                    {form.clientId && (kundeliste.find(c => String(c.id) === String(form.clientId))?.details?.contacts || []).length > 0 && (
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <label style={{ display:'block', fontSize:11, fontWeight:600, color:'var(--text3)', marginBottom:3, letterSpacing:'.03em' }}>Kontaktperson / sakbehandlar hos kunden</label>
+                        <select value={((kundeliste.find(c => String(c.id) === String(form.clientId))?.details?.contacts || []).find(c => c.name && c.name === form.clientContactName) || {}).id || ''} onChange={e => velgKundekontakt(e.target.value)}
+                          style={{ width:'100%', padding:'8px 10px', borderRadius:'var(--r)', border:'1.5px solid var(--border)', background:'var(--bg2)', fontSize:14, fontFamily:'var(--font)', color:'var(--text)', outline:'none' }}>
+                          <option value="">— Vel kontakt —</option>
+                          {(kundeliste.find(c => String(c.id) === String(form.clientId))?.details?.contacts || []).filter(c => c.name).map(c => <option key={c.id} value={c.id}>{c.name}{c.role ? ' — ' + c.role : ''}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </Row>
+                )}
                 <Row>
                   <F {...bind} label="Org.nr." id="clientOrgNr" half/>
                   <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:1 }}>

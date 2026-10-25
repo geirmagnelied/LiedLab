@@ -18,6 +18,7 @@ export default function FramdriftForbrukModal({ userId, prosjekt, elementer, onL
   const [filnamn, setFilnamn] = useState('')
   const [feil, setFeil] = useState('')
   const [lagrar, setLagrar] = useState(false)
+  const [opprettNye, setOpprettNye] = useState(true)   // hovudregel: opprett aktivitetar som manglar i planen (brukaren vert spurd)
 
   const les = async (fil) => {
     setFeil(''); setRes(null)
@@ -35,6 +36,23 @@ export default function FramdriftForbrukModal({ userId, prosjekt, elementer, onL
   const kopl = useMemo(() => (res ? kopleForbruk(elementer, res.rader) : null), [res, elementer])
   const sum = res ? res.rader.reduce((a, r) => a + r.timar, 0) : 0
   const nrFeil = res && prosjekt?.projectNumber && res.prosjektNr && String(prosjekt.projectNumber).trim() !== String(res.prosjektNr).trim()
+  // Aktivitetar i rapporten som ikkje finst i planen (på nummeret) — kan opprettast automatisk: kode = nummeret, namn = resten av teksten
+  const nyeAkt = useMemo(() => {
+    if (!res || !kopl) return []
+    const utanKopling = new Set([...kopl.utan.keys()])
+    const per = new Map()
+    for (const r of res.rader) {
+      if (!utanKopling.has(r.aktivitet) || !r.kode) continue
+      const k = r.kode.toLowerCase()
+      const x = per.get(k) || { kode: r.kode, namn: r.aktNamn || '', fra: r.dato, til: r.dato, timar: 0 }
+      if (r.dato < x.fra) x.fra = r.dato
+      if (r.dato > x.til) x.til = r.dato
+      if (!x.namn && r.aktNamn) x.namn = r.aktNamn
+      x.timar += r.timar
+      per.set(k, x)
+    }
+    return [...per.values()].sort((a, c) => String(a.kode).localeCompare(String(c.kode), 'nb', { numeric: true }))
+  }, [res, kopl])
   const koplaTimar = kopl ? [...kopl.perAkt.values()].flat().reduce((a, r) => a + r.timar, 0) : 0
 
   const importer = async () => {
@@ -48,7 +66,7 @@ export default function FramdriftForbrukModal({ userId, prosjekt, elementer, onL
         const { error } = await supabase.from('framdrift_forbruk').insert(rader.slice(i, i + 200))
         if (error) throw error
       }
-      onFerdig?.()
+      onFerdig?.({ nyeAktivitetar: opprettNye ? nyeAkt : [] })
     } catch (e) { setFeil('Klarte ikkje importere: ' + e.message + (/relation|does not exist/.test(e.message) ? ' (er migrasjonen for framdrift_forbruk køyrd?)' : '')); setLagrar(false) }
   }
 
@@ -99,6 +117,20 @@ export default function FramdriftForbrukModal({ userId, prosjekt, elementer, onL
                   })}
                 </tbody>
               </table>
+              {nyeAkt.length > 0 && (
+                <div style={{ background: 'var(--brandbg)', border: '1.5px solid var(--brand3)', borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>{nyeAkt.length} aktivitet{nyeAkt.length === 1 ? '' : 'ar'} finst ikkje i planen</div>
+                  <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.55, marginBottom: 6 }}>
+                    Teikna før fyrste mellomrom i kolonna «Aktivitet» er aktivitetsnummeret, resten er namnet:{' '}
+                    {nyeAkt.slice(0, 5).map(a => <span key={a.kode} style={{ display: 'inline-block', margin: '0 6px 2px 0', padding: '1px 8px', borderRadius: 10, background: 'var(--bg2)', fontWeight: 600 }}><b style={{ fontFamily: 'var(--mono)' }}>{a.kode}</b> {a.namn}</span>)}
+                    {nyeAkt.length > 5 && <span>… og {nyeAkt.length - 5} til</span>}
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={opprettNye} onChange={e => setOpprettNye(e.target.checked)} style={{ width: 16, height: 16 }}/>
+                    Opprett {nyeAkt.length === 1 ? 'denne aktiviteten' : 'desse aktivitetane'} i planen (anbefalt)
+                  </label>
+                </div>
+              )}
               <div style={{ fontSize: 12, color: 'var(--text3)' }}>
                 {fmt(koplaTimar)} t av {fmt(sum)} t vert kopla til aktivitetar. Timar utan kopling vert likevel lagra, og kjem med så snart ein aktivitet får rett nummer foran namnet (eller i kolonnen «Aktivitetskode»).
               </div>

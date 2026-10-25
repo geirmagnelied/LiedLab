@@ -142,6 +142,26 @@ function standardKolonnebreidd(label, font, overskrift) {
     : tekstbreidd(label, font)
   return Math.ceil(tekstB) + PADDING + GAP_PIL + PIL + GAP_CARET + CARET + MARGIN
 }
+// Overskrifter med fleire linjer (prop bryttOverskrift): to ord → ei linje per ord; lange ord får «mjuke bindestrekar» (&shy;) så dei kan delast
+// med bindestrek når plassen er for liten (verkar utan å vere avhengig av nettlesaren si eiga orddeling).
+const MJUK = '­'
+const VOKAL = 'aeiouyæøåAEIOUYÆØÅ'
+const erBokstav = (ch) => /[a-zæøå]/i.test(ch || '')
+export function mjukBindestrek(ord) {
+  if (!ord || ord.length < 7) return ord
+  let ut = ''
+  for (let i = 0; i < ord.length; i++) {
+    ut += ord[i]
+    if (i >= 2 && i <= ord.length - 4) {
+      const a = ord[i], b2 = ord[i + 1], c = ord[i + 2], v = (ch) => VOKAL.includes(ch)
+      if (v(a) && !v(b2) && erBokstav(b2) && v(c)) ut += MJUK
+      else if (!v(a) && erBokstav(a) && !v(b2) && erBokstav(b2) && v(c) && v(ord[i - 1])) ut += MJUK
+    }
+  }
+  return ut
+}
+const lengsteOrd = (tekst) => String(tekst || '').split(/\s+/).reduce((m, o) => (o.length > m.length ? o : m), '')
+
 // Maks breidd ei innhaldstilpassa kolonne kan få automatisk (sjå
 // innhaldstilpassaBreidd-prop) — ein einskild uvanleg lang verdi skal
 // ikkje kunne blåse opp heile tabellen; brukar kan alltid dra breiare sjølv.
@@ -173,6 +193,7 @@ export default function DataTabell({
   visingsFilter, // valfri; [{ namn, kolonnar:[key,...]|null }] — «Vising»-nedtrekk i verktøylinja, null = vis alle
   radGruppe, // valfri; { forelder(rad) → forelder-id | null } — rader med forelder følgjer rett etter forelderen (uavhengig av sortering),
              // går utanom filter (følgjer forelderen) og vert ikkje summert i totalraden. Brukt til person-underrader i Framdrift.
+  bryttOverskrift = false, // valfri; høgare kolonneoverskrifter der namn med to ord vert viste over to rader og lange ord vert delte med bindestrek
   standardSynlegeKolonnar, // valfri; [key,...] — overstyrer standard skjulte-utrekninga (elles kol.standardSkjult)
                            // med «alt UNNATEKE desse er skjult» — brukt når SAME kolonnedefinisjonar (t.d.
                            // DTMTabell sin BASE_COLUMNS) skal ha ULIK standardvising avhengig av KVEN som
@@ -194,7 +215,7 @@ export default function DataTabell({
     return `400 13px ${fam || 'sans-serif'}`
   }, [])
   const standardBreidder = useMemo(() => Object.fromEntries(kolonnar.map(c => {
-    const headerBreidd = standardKolonnebreidd(c.label, font, c.overskrift)
+    const headerBreidd = standardKolonnebreidd(bryttOverskrift && !c.overskrift ? lengsteOrd(c.label) : c.label, font, c.overskrift)
     if (!innhaldstilpassaBreidd || !hentVerdi) return [c.key, headerBreidd]
     let maksInnhald = 0
     for (const rad of dataRader || []) {
@@ -879,14 +900,14 @@ export default function DataTabell({
                     style={erKlistra ? { left:pinnOffset[k], zIndex:7 } : undefined}
                     onDragOver={e => e.preventDefault()}
                     onDrop={() => slippKolonne(k)}>
-                    <div className="dt-th" draggable
+                    <div className={'dt-th' + (bryttOverskrift ? ' brytt' : '')} draggable lang="nb"
                       onDragStart={() => { dragRef.current = k }}
                       onClick={e => { if (!e.target.closest('.dt-caret')) sorter(k) }}>
                       <span className="dt-namn">
                         {kol.overskrift ? (<>
                           <span style={{ display:'block', fontSize:8, fontWeight:700, lineHeight:1.2, opacity:.8, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kol.overskrift[0]}</span>
                           <span style={{ display:'block', lineHeight:1.25, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kol.overskrift[1]}</span>
-                        </>) : kol.label}
+                        </>) : (bryttOverskrift ? ((kol.label || '').split(' ').length === 2 ? kol.label.split(' ').map((w, wi) => <span key={wi} style={{ display:'block' }}>{mjukBindestrek(w)}</span>) : (kol.label || '').split(' ').map(mjukBindestrek).join(' ')) : kol.label)}
                       </span>
                       {låst && <span className="dt-låst" title="Låst — kan ikkje redigerast">🔒</span>}
                       <span className="dt-pil">{sortert ? (prefs.sortering.dir === 'asc' ? '▲' : '▼') : '▲'}</span>
@@ -1597,6 +1618,8 @@ const CSS = `
   font-size:12px; font-weight:700; letter-spacing:0; color:var(--text); transition:background .15s }
 .dt-th:hover { background:var(--brandbg) }
 .dt-namn { overflow:hidden; text-overflow:ellipsis; min-width:0 }
+.dt-th.brytt { height:56px }
+.dt-th.brytt .dt-namn { white-space:normal; overflow:visible; text-overflow:clip; line-height:1.18 }
 .dt-låst { flex:0 0 auto; font-size:10px; opacity:.55; line-height:1 }
 .dt-pil { display:none; font-size:8px; color:var(--brand); flex:0 0 auto }
 .dt-tabell th.sortert .dt-pil { display:inline }

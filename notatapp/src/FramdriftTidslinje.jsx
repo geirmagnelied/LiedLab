@@ -152,10 +152,13 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
   }
 
   // Timar per veke (sum av alle aktivitetar) — eiga rad nedst
-  const harTimar = visTimar && timarKart && timarKart.size > 0
-  const maksTimar = harTimar ? Math.max(...[...timarKart.values()].map(v => v.total)) : 0
-  const sumTimar = harTimar ? [...timarKart.values()].reduce((s2, v) => s2 + v.total, 0) : 0
-  const persNamn = harTimar ? [...new Set([...timarKart.values()].flatMap(v => Object.keys(v.perPerson)))].sort((a, b) => a.localeCompare(b, 'nb')) : []
+  // Påløpt (frå timeføringa) per veke, summert over alle aktivitetar — vert vist saman med planlagt i «Timar per veke»-rada
+  const faktVeke = new Map(); let sumFaktisk = 0
+  if (forbrukKart) for (const a of forbrukKart.values()) for (const [v, t] of a.veke) { faktVeke.set(v, (faktVeke.get(v) || 0) + t); sumFaktisk += t }
+  const harTimar = visTimar && ((timarKart && timarKart.size > 0) || faktVeke.size > 0)
+  const maksTimar = harTimar ? Math.max(1, ...[...(timarKart?.values() || [])].map(v => v.total), ...faktVeke.values()) : 0
+  const sumTimar = harTimar && timarKart ? [...timarKart.values()].reduce((s2, v) => s2 + v.total, 0) : 0
+  const persNamn = harTimar && timarKart ? [...new Set([...timarKart.values()].flatMap(v => Object.keys(v.perPerson)))].sort((a, b) => a.localeCompare(b, 'nb')) : []
   const personerFor = (e) => personerMedForbruk(personDelar(e), forbrukKart?.get(e.id))
   const kanUtvide = (e) => e.type === 'aktivitet' && ((+e.timar > 0 && personDelar(e).length > 0) || !!forbrukKart?.has(e.id))
   const radar = [
@@ -393,7 +396,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                       style={{ border: 'none', background: 'transparent', cursor: 'pointer', width: 14, padding: 0, fontSize: 11, color: 'var(--brand)', fontWeight: 800 }}>{persTotOpen ? '▾' : '▸'}</button>
                     <span style={{ width: 9, height: 9, background: '#0F766E', borderRadius: 2, flexShrink: 0 }}/>
                     Timar per veke
-                    <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--text3)' }}>{Math.round(sumTimar * 2) / 2} t totalt</span>
+                    <span style={{ marginLeft: 'auto', fontWeight: 600, color: 'var(--text3)' }}>{Math.round(sumTimar * 2) / 2} t planlagt{sumFaktisk > 0 ? <> · <span style={{ color: '#1565C0', fontWeight: 800 }}>{Math.round(sumFaktisk * 2) / 2} t påløpt</span></> : ''}</span>
                   </div>
                 )
               }
@@ -537,22 +540,27 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
             })}
 
             {/* Timar per veke: sum per veke, raud ramme viss nokon har meir planlagt enn kapasiteten */}
-            {harTimar && [...timarKart.entries()].map(([veke, v]) => {
+            {harTimar && [...new Set([...(timarKart?.keys() || []), ...faktVeke.keys()])].sort().map((veke) => {
+              const v = timarKart?.get(veke) || { total: 0, perPerson: {} }
+              const fakt = faktVeke.get(veke) || 0
               const ob = overlast?.get(veke)
               const rad = radIndeks.get('__timar')
               const tekst = Math.round(v.total * 2) / 2
+              const faktTekst = Math.round(fakt * 2) / 2
               const avr = (n) => Math.round(n * 2) / 2
-              const linjer = [`Veke ${getISOWeek(tilDato(veke))}: ${tekst} t`,
+              const linjer = [`Veke ${getISOWeek(tilDato(veke))}: ${tekst} t planlagt${fakt ? ', ' + faktTekst + ' t påløpt' : ''}`,
                 ...Object.entries(v.perPerson).map(([n, h]) => `${n}: ${avr(h)} t`)]
               if (ob) linjer.push('', 'OVERBELASTNING:', ...ob.map(o => `${o.namn}: ${avr(o.timar)} t av ${avr(o.kapasitet)} t kapasitet`))
               return (
                 <div key={veke} title={linjer.join('\n')}
                   style={{ position: 'absolute', left: x(tilDato(veke)) + 1, width: dagB * 7 - 2, top: rad * RAD_H + 4, height: RAD_H - 8, borderRadius: 4,
-                    background: `rgba(15,118,110,${0.14 + 0.5 * (maksTimar ? v.total / maksTimar : 0)})`,
+                    background: v.total > 0 ? `rgba(15,118,110,${0.14 + 0.5 * (maksTimar ? v.total / maksTimar : 0)})` : 'var(--bg3)',
+                    border: fakt && !v.total ? '1px dashed #1565C0' : undefined,
                     outline: ob ? '2px solid #DC2626' : undefined, outlineOffset: -1,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 800, lineHeight: '12px',
                     color: ob ? '#B91C1C' : 'var(--text)', overflow: 'hidden', zIndex: 3 }}>
-                  {dagB * 7 >= 24 ? tekst : ''}
+                  {dagB * 7 >= 24 && tekst > 0 && <span>{tekst}</span>}
+                  {dagB * 7 >= 24 && fakt > 0 && <span style={{ color: '#1565C0' }}>{faktTekst}</span>}
                 </div>
               )
             })}

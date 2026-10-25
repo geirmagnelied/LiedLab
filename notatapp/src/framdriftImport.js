@@ -156,6 +156,11 @@ export function byggFraTabell(rader, kol, { harOverskrift = true } = {}) {
       id: nyId(), type, namn, start, slutt: type === 'milepael' ? start : slutt,
       forelder: null, avh: [], ansvarleg: String(celle(r, 'ansvarleg') ?? '').trim(), ferdig: 0, fasekode: '',
     }
+    // Aktivitetsnummer og -namn er ofte slått saman i same kolonne («611 ARK prosjektering»): nummer = teikna før fyrste mellomrom
+    if (type === 'aktivitet' && !(kol.kode >= 0)) {
+      const m = /^(\S*\d\S*)\s+(\S[\s\S]*)$/.exec(namn)
+      if (m) { el.kode = m[1]; el.namn = m[2].trim() }
+    }
     if (type === 'fase') fase = el.id
     else if (fase != null && kol.niva >= 0) el.forelder = fase
     ut.push(el)

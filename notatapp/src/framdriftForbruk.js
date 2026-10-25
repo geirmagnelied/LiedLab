@@ -44,6 +44,12 @@ export function isoVekeFor(iso) {
   return { aar: dt.getUTCFullYear(), veke: Math.ceil(((dt - start) / 86400000 + 1) / 7) }
 }
 
+// «611 ARK prosjektering» → { kode: '611', aktNamn: 'ARK prosjektering' }: teikna før fyrste mellomrom er aktivitetsnummeret, resten er namnet
+export function delAktivitet(aktivitet) {
+  const m = /^\s*(\S+)(?:\s+([\s\S]*))?$/.exec(String(aktivitet || ''))
+  return { kode: m ? m[1] : '', aktNamn: m && m[2] ? m[2].trim() : '' }
+}
+
 // aoa = rader frå arket (array av array). Gjev { prosjektNr, oppdrag, fra, til, rader[], feil[] }
 export function parseForbruk(aoa) {
   const feil = []
@@ -76,7 +82,7 @@ export function parseForbruk(aoa) {
     const m = /^(\d{4})(\d{2})$/.exec(per)
     rader.push({
       dato, vekeaar: m ? +m[1] : vk.aar, vekenr: m ? +m[2] : vk.veke,
-      ansatt, ansattNamn: normaliserAnsatt(ansatt), aktivitet, kode: (/^\s*(\S+)/.exec(aktivitet) || [])[1] || '',
+      ansatt, ansattNamn: normaliserAnsatt(ansatt), aktivitet, ...delAktivitet(aktivitet),
       timar, beskrivelse: String(celle(r, iBes)).trim(),
     })
   }

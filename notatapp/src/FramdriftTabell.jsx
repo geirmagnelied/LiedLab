@@ -4,10 +4,10 @@ import DataTabell from './DataTabell'
 import { formaterDato, tilDato } from './framdriftDato'
 import { antalArbeidsdagar, visingsrader, pnsKart, harBorn, etterkommarar } from './framdriftLogikk'
 import { effektivFerdig, faseFerdig } from './framdriftFerdig'
-import { personDelar, fordelTimar, snittpris } from './framdriftTimar'
+import { personDelar, fordelTimar, snittpris, prisFor } from './framdriftTimar'
 import { vekeStart } from './kontorkalender'
 import { personFarge } from './personFarge'
-import { personerMedForbruk, faktiskFor } from './framdriftForbruk'
+import { personerMedForbruk, faktiskFor, nokkelNamn } from './framdriftForbruk'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Tabellvisinga av framdriftsplanen — tynn wrapper rundt DataTabell
@@ -47,7 +47,7 @@ const BASE_KOLONNAR = [
 const fmtT = (n) => (n > 0 ? Math.round(n * 10) / 10 : '')
 const UKE = 'uke_'
 
-export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart, personell = [] }) {
+export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart, personell = [], eining = 'timar', delsummer = false }) {
   const [vekeVisn, setVekeVisn] = useState('plan') // plan | palopt | begge — kva vekekolonnane viser
   const [persTotOpen, setPersTotOpen] = useState(false)
   const [utvida, setUtvida] = useState(() => new Set()) // aktivitets-id med opne person-underrader
@@ -96,19 +96,24 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
   const kanUtvide = (e) => e.type === 'aktivitet' && ((+e.timar > 0 && personDelar(e).length > 0) || !!forbrukKart?.has(e.id))
   const rader = useMemo(() => {
     const ut = []
+    const stabel = []   // opne overordna (med synlege born) — får ei «Sum»-linje når gruppa er slutt
+    const avslutt = (nivaa) => { while (stabel.length && stabel[stabel.length - 1].nivå >= nivaa) { const p = stabel.pop(); ut.push({ id: 'ds:' + p.id, type: 'delsum', src: p, nivå: p.nivå, namn: 'Sum ' + p.namn }) } }
     for (const e of visingsrader(elementer, lukka)) {
+      if (delsummer) avslutt(e.nivå)
       ut.push(e)
       if (utvida.has(e.id) && kanUtvide(e)) {
         personerFor(e).forEach((p) => ut.push({ id: `p:${e.id}:${p.namn}`, type: 'person', __forelder: e.id, namn: p.namn, del: p.del, farge: personFarge(p.namn, fargeKart), akt: e }))
       }
+      if (delsummer && e.type !== 'milepael' && harBorn(elementer, e.id) && !lukka.has(e.id)) stabel.push(e)
     }
+    if (delsummer) avslutt(-1)
     // «Timar per person» (alle aktivitetar): gruppe nedst, med éi rad per person
     if (persTot.namn.length) {
       ut.push({ id: 'pg', type: 'persongruppe', namn: 'Timar per person (alle aktivitetar)' })
       if (persTotOpen) persTot.namn.forEach(n => ut.push({ id: 'pt:' + n, type: 'persontot', __forelder: 'pg', namn: n, farge: personFarge(n, fargeKart) }))
     }
     return ut
-  }, [elementer, utvida, lukka, persTot, persTotOpen, fargeKart, forbrukKart])
+  }, [elementer, utvida, lukka, persTot, persTotOpen, fargeKart, forbrukKart, delsummer])
 
   const pns = useMemo(() => pnsKart(elementer), [elementer])
   const erSammen = useCallback((e) => e.type === 'fase' || (e.type === 'aktivitet' && (e.summ || harBorn(elementer, e.id))), [elementer])
@@ -117,7 +122,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
   const rateFor = useCallback((e) => snittpris(e, prisar).pris || 0, [prisar])
   const palopHon = useCallback((c) => (c.palopHonorar != null && c.palopHonorar !== '' ? +c.palopHonorar : (+c.palopTimar > 0 && rateFor(c) > 0 ? Math.round(+c.palopTimar * rateFor(c)) : 0)), [rateFor])
   // ikkje-person-rader som er summar (fase/summasjonsaktivitet) vert ikkje summerte i totalraden (blad tel)
-  const radGruppe = useMemo(() => ({ forelder: r => ((r.type === 'person' || r.type === 'persontot') ? r.__forelder : null), ikkjeISum: r => ['person', 'persongruppe', 'persontot'].includes(r.type) || erSammen(r) }), [erSammen])
+  const radGruppe = useMemo(() => ({ forelder: r => ((r.type === 'person' || r.type === 'persontot') ? r.__forelder : null), ikkjeISum: r => ['person', 'persongruppe', 'persontot', 'delsum'].includes(r.type) || erSammen(r) }), [erSammen])
   const toggle = (id) => setUtvida(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const utvidbare = elementer.filter(kanUtvide)
   const alleOpne = utvidbare.length > 0 && utvidbare.every(e => utvida.has(e.id))
@@ -138,13 +143,51 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
     if (e.type === 'fase' || e.type === 'aktivitet') return bladUnder(e).reduce((a, c) => a + (forbrukKart.get(c.id)?.veke.get(v) || 0), 0)
     return 0
   }, [forbrukKart, erSammen, bladUnder])
-  const vekeCelle = (e, v) => {
-    const p = vekeTimar(e, v), f = vekeFaktisk(e, v)
-    if (vekeVisn === 'plan') return fmtT(p)
-    if (vekeVisn === 'palopt') return fmtT(f)
-    return p || f ? (fmtT(p) || '–') + ' / ' + (fmtT(f) || '–') : ''
+  // ── Honorar (kr) per veke = timar × timerate. Planlagt: snittrate for aktiviteten (eller personen sin rate); påløpt: kvar person sin rate ──
+  const personRate = useCallback((namn, akt) => {
+    const d = personDelar(akt).find(x => nokkelNamn(x.namn) === nokkelNamn(namn))
+    return (d ? prisFor(d, prisar) : (prisar.get((namn || '').toLowerCase()) || 0)) || rateFor(akt)
+  }, [prisar, rateFor])
+  const honorarPlan = useCallback((e, v) => {
+    if (e.type === 'persontot') return (persTot.kart.get(e.namn)?.get(v) || 0) * (prisar.get((e.namn || '').toLowerCase()) || 0)
+    if (e.type === 'persongruppe') return [...persTot.kart.entries()].reduce((a, [n, m]) => a + (m.get(v) || 0) * (prisar.get((n || '').toLowerCase()) || 0), 0)
+    if (e.type === 'person') return (vekeKart.get(e.akt.id)?.get(v) || 0) * e.del / 100 * personRate(e.namn, e.akt)
+    if (e.type === 'aktivitet' && !erSammen(e)) return (vekeKart.get(e.id)?.get(v) || 0) * rateFor(e)
+    if (e.type === 'fase' || e.type === 'aktivitet') return bladUnder(e).reduce((a, c) => a + (vekeKart.get(c.id)?.get(v) || 0) * rateFor(c), 0)
+    return 0
+  }, [persTot, prisar, vekeKart, erSammen, bladUnder, rateFor, personRate])
+  const honorarFaktiskLeaf = useCallback((c, v) => {
+    const a = forbrukKart?.get(c.id); if (!a) return 0
+    let sum = 0
+    for (const [namn, p] of a.personer) sum += (p.veke.get(v) || 0) * personRate(namn, c)
+    return sum
+  }, [forbrukKart, personRate])
+  const honorarFaktisk = useCallback((e, v) => {
+    if (!forbrukKart) return 0
+    if (e.type === 'person') return (faktiskFor(forbrukKart.get(e.akt.id), e.namn)?.veke.get(v) || 0) * personRate(e.namn, e.akt)
+    if (e.type === 'aktivitet' && !erSammen(e)) return honorarFaktiskLeaf(e, v)
+    if (e.type === 'fase' || e.type === 'aktivitet') return bladUnder(e).reduce((a, c) => a + honorarFaktiskLeaf(c, v), 0)
+    return 0
+  }, [forbrukKart, erSammen, bladUnder, honorarFaktiskLeaf, personRate])
+  const fmtKr = (n) => (n > 0 ? Math.round(n) : '')
+  const vekeCelle = (e0, v) => {
+    const e = e0.type === 'delsum' ? e0.src : e0
+    const honorar = eining === 'honorar'
+    const p = honorar ? honorarPlan(e, v) : vekeTimar(e, v), f = honorar ? honorarFaktisk(e, v) : vekeFaktisk(e, v)
+    const fm = honorar ? fmtKr : fmtT
+    if (vekeVisn === 'plan') return fm(p)
+    if (vekeVisn === 'palopt') return fm(f)
+    return p || f ? (fm(p) || '–') + ' / ' + (fm(f) || '–') : ''
   }
   const hentVerdi = useCallback((e, key) => {
+    if (e.type === 'delsum') {
+      if (key.startsWith(UKE)) return vekeCelle(e, key.slice(UKE.length))
+      if (key === 'namn') return e.namn
+      if (key === 'type') return 'Delsum'
+      if (key === 'pns') return pns.get(e.src.id) || ''
+      if (['timar', 'budsjett', 'timerate', 'palopTimar', 'palopHonorar', 'gjenTimar', 'gjenBudsjett'].includes(key)) return hentVerdi(e.src, key)
+      return ''
+    }
     if (key.startsWith(UKE)) return vekeCelle(e, key.slice(UKE.length))
     if (e.type === 'persongruppe') return key === 'namn' ? e.namn : ''
     if (e.type === 'persontot') {
@@ -202,11 +245,12 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
       case 'avh': return (e.avh || []).map(namnPaId).filter(Boolean).join(', ')
       default: return ''
     }
-  }, [namnPaId, dokMap, elementer, vekeTimar, vekeFaktisk, vekeVisn, forbrukKart, pns, erSammen, bladUnder, rateFor, palopHon, persTot])
+  }, [namnPaId, dokMap, elementer, vekeTimar, vekeFaktisk, vekeVisn, forbrukKart, pns, erSammen, bladUnder, rateFor, palopHon, persTot, eining, honorarPlan, honorarFaktisk])
 
   // Namnecella: ▸/▾ for å vise/skjule person-underradene; person-rader får innrykk og fargeprikk
   const lagCelle = useCallback((e, kol) => {
     if (kol.key !== 'namn') return undefined
+    if (e.type === 'delsum') return <span style={{ paddingLeft: (e.nivå || 0) * 16 + 22, fontWeight: 800, color: 'var(--brand)' }}>∑ {e.namn}</span>
     if (e.type === 'persongruppe') {
       return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
         <span role="button" title="Vis/skjul sum per person" onClick={ev => { ev.stopPropagation(); setPersTotOpen(v => !v) }} onMouseDown={ev => ev.stopPropagation()}
@@ -248,6 +292,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
   }, [utvida, lukka, elementer, erSammen, onToggleLukka, persTotOpen])
 
   const hentSorteringsverdi = useCallback((e, key) => {
+    if (e.type === 'delsum') return key === 'pns' ? (pns.get(e.src.id) || '') + '.zzz' : undefined
     if (key.startsWith(UKE)) return vekeVisn === 'palopt' ? vekeFaktisk(e, key.slice(UKE.length)) : vekeTimar(e, key.slice(UKE.length))
     if (e.type === 'person') return key === 'timar' ? (+e.akt.timar || 0) * e.del / 100 : undefined
     if (key === 'pns') return e.type === 'persongruppe' || e.type === 'persontot' ? 'zzz' : (pns.get(e.id) || '')
@@ -255,7 +300,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
     if (key === 'start') return e.start
     if (key === 'slutt') return e.slutt
     return undefined
-  }, [vekeTimar, pns, persTot])
+  }, [vekeTimar, pns, persTot, vekeVisn, vekeFaktisk])
 
   const hentRedigerVerdi = useCallback((e, key) => {
     if (key === 'start') return formaterDato(e.start)
@@ -295,10 +340,11 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
           radGruppe={radGruppe}
           radId={e => e.id}
           onSetVerdi={(id, key, verdi) => { if (typeof id === 'string') return; onEndreFelt(id, key, verdi) }}
-          onRowClick={(id, r) => { if (typeof id === 'string') { if (r.type === 'person') onVelg(r.__forelder) } else onVelg(id) }}
-          radStil={e => (e.type === 'persongruppe' ? { background: 'var(--bg3)', fontWeight: 700 } : e.type === 'persontot' ? { background: 'var(--bg3)', fontSize: 12 } : e.type === 'person' ? { background: 'var(--bg3)', fontSize: 12 } : e.id === valgt ? { background: 'var(--brandbg2)' } : erSammen(e) ? { fontWeight: 700, background: 'var(--bg3)' } : undefined)}
+          onRowClick={(id, r) => { if (typeof id === 'string') { if (r.type === 'person') onVelg(r.__forelder); else if (r.type === 'delsum') onVelg(r.src.id) } else onVelg(id) }}
+          radStil={e => (e.type === 'delsum' ? { background: 'var(--bg3)', fontWeight: 700, boxShadow: 'inset 0 1px 0 var(--border)' } : e.type === 'persongruppe' ? { background: 'var(--bg3)', fontWeight: 700 } : e.type === 'persontot' ? { background: 'var(--bg3)', fontSize: 12 } : e.type === 'person' ? { background: 'var(--bg3)', fontSize: 12 } : e.id === valgt ? { background: 'var(--brandbg2)' } : erSammen(e) ? { fontWeight: 700, background: 'var(--bg3)' } : undefined)}
           rutenettRedigering
           klistreKolonnar={['namn']}
+          bryttOverskrift
           prefsKey="liedlab-framdrift-tabell-v3"
           standardSynlegeKolonnar={standardSynlege}
           itemNamn="element"

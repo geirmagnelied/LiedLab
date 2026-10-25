@@ -12,6 +12,8 @@ import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
 import { personFargeKart } from './personFarge'
 import { eksporterExcel } from './framdriftEksport'
 import FramdriftForbrukModal from './FramdriftForbrukModal'
+import { FdMeny, MenyPunkt, MenyTittel, MenySkilje, PalopInnanMeny } from './FramdriftVerktoy'
+import { palopSlutt } from './framdriftPalop'
 import { kopleForbruk, bygForbrukKart, nokkelNamn } from './framdriftForbruk'
 import { leveransarFerdig, effektivFerdig, brukarAuto, faseFerdig } from './framdriftFerdig'
 import useKontorkalender from './useKontorkalender'
@@ -20,7 +22,7 @@ import { MALAR } from './framdriftMalar'
 import { iso, tilDato, parseDato, nesteArbeidsdag, forrigeArbeidsdag, formaterDato } from './framdriftDato'
 import {
   rullOpp, harBorn, beregnDatoar, settElement, avhengnadFeil, leggTilAvhengnad, fjernAvhengnad, slettElement,
-  flyttRekkjefolgje, visingsrader, nyttElement, byggFraMal, FASEKODAR, antalArbeidsdagar,
+  flyttRekkjefolgje, visingsrader, pnsKart, nyttElement, byggFraMal, FASEKODAR, antalArbeidsdagar,
   erSumm, erRulla, flyttNode, innrykk, utrykk, settSumm, moglegeForeldre, forfedrar, etterkommarar, nivåAv, kanFlytteTil,
 } from './framdriftLogikk'
 
@@ -104,7 +106,11 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const [forbrukOpen, setForbrukOpen] = useState(false)
   const [bemH, setBemH] = useState(() => { try { const v = +localStorage.getItem('liedlab-framdrift-bem-h'); return v >= 120 ? v : 230 } catch { return 230 } })
   const [bemOpen, setBemOpen] = useState(() => { try { return localStorage.getItem('liedlab-framdrift-bem-open') !== '0' } catch { return true } })
-  const [eksportMeny, setEksportMeny] = useState(false)
+  const lsJson = (k, std) => { try { return { ...std, ...(JSON.parse(localStorage.getItem(k)) || {}) } } catch { return std } }
+  const [palopInnan, setPalopInnanRaa] = useState(() => lsJson('liedlab-framdrift-palop-innan', { modus: 'alle', verdi: '' }))
+  const setPalopInnan = (v) => { setPalopInnanRaa(v); try { localStorage.setItem('liedlab-framdrift-palop-innan', JSON.stringify(v)) } catch { /* privat modus */ } }
+  const [fdVis, setFdVisRaa] = useState(() => lsJson('liedlab-framdrift-vis', { eining: 'timar', delsummer: false }))   // Visning: eining i veke-kolonnane og delsummer
+  const setFdVis = (patch) => setFdVisRaa(v => { const n = { ...v, ...patch }; try { localStorage.setItem('liedlab-framdrift-vis', JSON.stringify(n)) } catch { /* privat modus */ } return n })
   const [eksporterer, setEksporterer] = useState(false)
   const [koblingMelding, setKoblingMelding] = useState(null)
   const [leveransarOpen, setLeveransarOpen] = useState(false)
@@ -233,7 +239,9 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   }, [notes, activeProjectId])
 
   // Plan med EFFEKTIVE timar (frå budsjett ÷ snittpris når modus = budsjett) — brukt til visning og utrekning; redigering går mot råplanen (elementer)
-  const forbruk = useMemo(() => kopleForbruk(elementer, forbrukRader), [elementer, forbrukRader])
+  const palopSluttDato = palopSlutt(palopInnan)
+  const forbrukRaderBruk = useMemo(() => (palopSluttDato ? forbrukRader.filter(r => r.dato <= palopSluttDato) : forbrukRader), [forbrukRader, palopSluttDato])
+  const forbruk = useMemo(() => kopleForbruk(elementer, forbrukRaderBruk), [elementer, forbrukRaderBruk])
   const forbrukKart = useMemo(() => bygForbrukKart(forbruk.perAkt), [forbruk])
   const forbrukUtanTimar = useMemo(() => [...forbruk.utan.values()].reduce((a, u) => a + u.timar, 0), [forbruk])
   const elBase = useMemo(() => medEffektiveTimar(elementer, personell), [elementer, personell])
@@ -341,7 +349,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   }
 
   const eksporter = async (medTidslinje) => {
-    setEksportMeny(false); setEksporterer(true)
+    setEksporterer(true)
     try {
       await eksporterExcel({ elementer: elEff, dokMap, prisar: prisKartFra(personell), kal, fargeKart, prosjektNamn: aktivtProsjekt?.name, medTidslinje })
     } catch (e) { setKoblingMelding('Klarte ikkje eksportere til Excel: ' + e.message); setTimeout(() => setKoblingMelding(null), 6000) }
@@ -360,6 +368,14 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     if (forelder != null) setLukka(l => { const n = new Set(l); n.delete(forelder); return n })
   }
 
+  // PNS (prosjektnedbrytingsstruktur): vis til og med nivå k — alle overordna på nivå k og djupare vert lukka
+  const pnsMaks = useMemo(() => { const k = pnsKart(elementer); let m = 0; for (const [id, n] of k) if (harBorn(elementer, id)) m = Math.max(m, n.split('.').length); return m }, [elementer])
+  const visPnsNivaa = (k) => {
+    const kart = pnsKart(elementer); const n = new Set()
+    for (const e of elementer) if (e.type !== 'milepael' && harBorn(elementer, e.id) && (kart.get(e.id) || '').split('.').length >= k) n.add(e.id)
+    setLukka(n)
+  }
+
   const slett = (id) => {
     const e = elementer.find(x => x.id === id)
     if (!e) return
@@ -375,6 +391,21 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     setValgt(null)
   }
 
+  // Nye aktivitetar frå forbruksimporten (aktivitetsnummer → kode, resten → namn); datoar frå fyrste/siste timeføring
+  const opprettAktivitetar = (liste) => {
+    const eksist = new Set(elementer.filter(e => e.type === 'aktivitet').map(e => String(e.kode || '').trim().toLowerCase()).filter(Boolean))
+    const nye = []
+    for (const a of liste) {
+      if (eksist.has(String(a.kode).toLowerCase())) continue
+      const el = nyttElement('aktivitet', { start: tilDato(a.fra), namn: a.namn || a.kode })
+      el.kode = String(a.kode)
+      const slutt = iso(forrigeArbeidsdag(tilDato(a.til)))
+      el.slutt = slutt < el.start ? el.start : slutt
+      nye.push(el)
+    }
+    if (nye.length) oppdater(rullOpp([...elementer, ...nye]))
+  }
+
   const importer = (nye, { erstatt }) => {
     oppdater(erstatt ? nye : rullOpp([...elementer, ...nye]))
     setImportOpen(false); setValgt(null)
@@ -388,9 +419,59 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
       <style>{CSS}</style>
       <datalist id="fd-personell">{personell.map(p => <option key={p.id} value={p.namn}/>)}</datalist>
 
-      {/* Topbar — modulnamn fyrst */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', height: 50, flexShrink: 0,
-        background:'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
+      {/* Verktøylinje (NL3): Påløpt innan · visning · Ny · Import · Eksport · Visning · PNS */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', minHeight: 50, flexShrink: 0, flexWrap: 'wrap', background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
+        {aktivtProsjekt && (<>
+          <PalopInnanMeny verdi={palopInnan} onEndre={setPalopInnan}/>
+          <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
+          <div className="fd-seg">
+            <button className={visning === 'tidslinje' ? 'pa' : ''} onClick={() => setVisning('tidslinje')}>Tidslinje</button>
+            <button className={visning === 'tabell' ? 'pa' : ''} onClick={() => setVisning('tabell')}>Tabell</button>
+          </div>
+          {visning === 'tidslinje' && (
+            <div className="fd-seg">
+              {ZOOM.map(([k, t]) => <button key={k} className={zoom === k ? 'pa' : ''} onClick={() => setZoom(k)}>{t}</button>)}
+            </div>
+          )}
+          <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
+          <FdMeny etikett="＋ Ny" hovud breidd={230}>{lukk => (<>
+            <MenyPunkt tittel="Ny aktivitet" onClick={() => { lukk(); leggTil('aktivitet') }}/>
+            <MenyPunkt tittel="Ny fase" onClick={() => { lukk(); leggTil('fase') }}/>
+            <MenyPunkt tittel="Ny milepæl" onClick={() => { lukk(); leggTil('milepael') }}/>
+            <MenySkilje/>
+            <MenyPunkt tittel="Frå mal…" under="Start frå ein ferdig fasemal" onClick={() => { lukk(); setMalOpen(true) }}/>
+          </>)}</FdMeny>
+          <FdMeny etikett="Import" breidd={300}>{lukk => (<>
+            <MenyPunkt tittel="Importer plan…" under="MS Project (XML/ISY), Excel eller CSV" onClick={() => { lukk(); setImportOpen(true) }}/>
+            <MenyPunkt tittel="Importer forbruk…" under="Påløpte timar frå timeføringsrapport (Excel)" onClick={() => { lukk(); setForbrukOpen(true) }}/>
+          </>)}</FdMeny>
+          <FdMeny etikett={eksporterer ? 'Eksporterer…' : 'Eksport'} disabled={!elementer.length || eksporterer} breidd={290}>{lukk => (<>
+            <MenyPunkt tittel="Excel — berre tabell" under="Alle kolonnar + timar per veke (tal), personar som underrader" onClick={() => { lukk(); eksporter(false) }}/>
+            <MenyPunkt tittel="Excel — tabell med tidslinje" under="Same tabell, men vekekolonnane teiknar stolpane i fargar" onClick={() => { lukk(); eksporter(true) }}/>
+            <div style={{ fontSize: 11, color: 'var(--text3)', padding: '4px 10px 2px' }}>Eit ekstra ark gir timar per person per veke.</div>
+          </>)}</FdMeny>
+          <FdMeny etikett="Visning" breidd={290}>{() => (<>
+            <MenyTittel>Veke-kolonnar viser</MenyTittel>
+            <MenyPunkt tittel="Timar" merkt={fdVis.eining === 'timar'} under="Planlagde og påløpte timar" onClick={() => setFdVis({ eining: 'timar' })}/>
+            <MenyPunkt tittel="Påløpt honorar" merkt={fdVis.eining === 'honorar'} under="Timar × timerate (kr)" onClick={() => setFdVis({ eining: 'honorar' })}/>
+            <MenySkilje/>
+            <MenyPunkt tittel="Vis delsummer" merkt={fdVis.delsummer} under="Ei summelinje etter kvart delnivå i tabellen" onClick={() => setFdVis({ delsummer: !fdVis.delsummer })}/>
+            {visning === 'tidslinje' && (<>
+              <MenySkilje/>
+              <MenyTittel>Tidslinje</MenyTittel>
+              <MenyPunkt tittel={'Timar per veke' + (talOverlast > 0 ? ' (' + talOverlast + ' overbelasta)' : '')} merkt={visTimar} onClick={() => setVisTimar(v => !v)}/>
+              <MenyPunkt tittel={'Fristar og møte (' + hendingar.length + ')'} merkt={visHendingar} onClick={() => setVisHendingar(v => !v)}/>
+            </>)}
+          </>)}</FdMeny>
+          <FdMeny etikett="PNS" breidd={270} disabled={!elementer.length} tittel="Prosjektnedbrytingsstruktur — vel kor mange nivå som skal vere opne">{lukk => (<>
+            <MenyTittel>Vis til og med nivå</MenyTittel>
+            {Array.from({ length: pnsMaks }, (_, i) => i + 1).map(k => (
+              <MenyPunkt key={k} tittel={'Nivå ' + k} under={'PNS ' + Array.from({ length: k }, (_, j) => j + 1).join('.')} onClick={() => { lukk(); visPnsNivaa(k) }}/>
+            ))}
+            <MenyPunkt tittel="Alle nivå" under="Fold ut alt" onClick={() => { lukk(); setLukka(new Set()) }}/>
+          </>)}</FdMeny>
+          <button className="fd-knapp" onClick={angre} disabled={!angreAntal} title="Angre siste endring (Ctrl+Z)">↶ Angre</button>
+        </>)}
         <div style={{ flex: 1 }}/>
         <span style={{ fontSize: 11.5, fontWeight: 600, color: lagringStatus === 'feil' ? '#FCA5A5' : 'var(--text2)' }}>{lagStatusTekst}</span>
       </div>
@@ -405,59 +486,6 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
         </div>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '14px 20px', minHeight: 0 }}>
-
-          {/* Verktøylinje */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12, flexShrink: 0 }}>
-            <div className="fd-seg">
-              <button className={visning === 'tidslinje' ? 'pa' : ''} onClick={() => setVisning('tidslinje')}>Tidslinje</button>
-              <button className={visning === 'tabell' ? 'pa' : ''} onClick={() => setVisning('tabell')}>Tabell</button>
-            </div>
-            {visning === 'tidslinje' && (
-              <div className="fd-seg">
-                {ZOOM.map(([k, t]) => <button key={k} className={zoom === k ? 'pa' : ''} onClick={() => setZoom(k)}>{t}</button>)}
-              </div>
-            )}
-            <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
-            <button className="fd-knapp hovud" onClick={() => leggTil('fase')}>+ Ny fase</button>
-            <button className="fd-knapp" onClick={() => leggTil('aktivitet')}>+ Ny aktivitet</button>
-            <button className="fd-knapp" onClick={() => leggTil('milepael')}>+ Milepæl</button>
-            <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
-            <button className="fd-knapp" onClick={() => setMalOpen(true)}>Malar…</button>
-            <button className="fd-knapp" onClick={() => setImportOpen(true)}>Importer…</button>
-            <button className="fd-knapp" onClick={() => setForbrukOpen(true)} title="Importer påløpte timar frå timeføringsrapport (Excel)">⇩ Forbruk…</button>
-            <button className="fd-knapp" onClick={angre} disabled={!angreAntal} title="Angre siste endring (Ctrl+Z)">↶ Angre</button>
-            <span style={{ position: 'relative' }}>
-              <button className="fd-knapp" onClick={() => setEksportMeny(v => !v)} disabled={!elementer.length || eksporterer} title="Eksporter planen til Excel">{eksporterer ? 'Eksporterer…' : '⇩ Excel ▾'}</button>
-              {eksportMeny && (
-                <>
-                  <div onClick={() => setEksportMeny(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }}/>
-                  <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 100, width: 250, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)', padding: 6 }}>
-                    {[[false, 'Berre tabell', 'Alle kolonnar + timar per veke (tal), personar som underrader'], [true, 'Tabell med tidslinje', 'Same tabell, men vekekolonnane teiknar stolpane i fargar']].map(([med, t, u]) => (
-                      <button key={t} onClick={() => eksporter(med)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', border: 'none', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font)' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{t}</div>
-                        <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}>{u}</div>
-                      </button>
-                    ))}
-                    <div style={{ fontSize: 11, color: 'var(--text3)', padding: '4px 10px 2px' }}>Eit ekstra ark gir timar per person per veke.</div>
-                  </div>
-                </>
-              )}
-            </span>
-            <div style={{ flex: 1 }}/>
-            {visning === 'tidslinje' && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text2)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={visTimar} onChange={e => setVisTimar(e.target.checked)}/>
-                Vis timar per veke{talOverlast > 0 && <b style={{ color: 'var(--danger)' }}> ({talOverlast} overbelasta)</b>}
-              </label>
-            )}
-            {visning === 'tidslinje' && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text2)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={visHendingar} onChange={e => setVisHendingar(e.target.checked)}/>
-                Vis fristar og møte ({hendingar.length})
-              </label>
-            )}
-          </div>
 
           {koblingMelding && <div style={{ marginBottom: 8, padding: '6px 12px', background: 'var(--dangerbg, #fdecea)', color: 'var(--danger)', borderRadius: 6, fontSize: 12.5, flexShrink: 0 }}>{koblingMelding}</div>}
           {lastar ? (
@@ -596,7 +624,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                   onKoble={koble} onFjernAvh={fjernAvh} onFlyttHierarki={flyttHierarki}
                   lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
               ) : (
-                <FramdriftTabell personell={personell} forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
+                <FramdriftTabell eining={fdVis.eining} delsummer={fdVis.delsummer} personell={personell} forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
               )}
               </div>
               <FramdriftBemanning el={selEff && selEff.type === 'aktivitet' ? selEff : null} summ={!!(sel && erSumm(elementer, sel))} personell={personell} prisar={prisKartFra(personell)}
@@ -619,7 +647,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
           onModus={m => settFelt(sel.id, 'ferdigModus', m)} onFerdig={n => settFelt(sel.id, 'ferdig', n)}/>
       )}
       {malOpen && <MalVindauge harPlan={elementer.length > 0} onLukk={() => setMalOpen(false)} onBruk={brukMal}/>}
-      {forbrukOpen && aktivtProsjekt && <FramdriftForbrukModal userId={userId} prosjekt={aktivtProsjekt} elementer={elementer} onLukk={() => setForbrukOpen(false)} onFerdig={() => { setForbrukOpen(false); lastForbruk() }}/>}
+      {forbrukOpen && aktivtProsjekt && <FramdriftForbrukModal userId={userId} prosjekt={aktivtProsjekt} elementer={elementer} onLukk={() => setForbrukOpen(false)} onFerdig={(r) => { setForbrukOpen(false); if (r?.nyeAktivitetar?.length) opprettAktivitetar(r.nyeAktivitetar); lastForbruk() }}/>}
       {importOpen && <FramdriftImportModal harPlan={elementer.length > 0} onLukk={() => setImportOpen(false)} onImporter={importer}/>}
     </div>
   )
