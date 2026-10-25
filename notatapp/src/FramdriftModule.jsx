@@ -427,6 +427,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
           <div className="fd-seg">
             <button className={visning === 'tidslinje' ? 'pa' : ''} onClick={() => setVisning('tidslinje')}>Tidslinje</button>
             <button className={visning === 'tabell' ? 'pa' : ''} onClick={() => setVisning('tabell')}>Tabell</button>
+            <button className={visning === 'maaned' ? 'pa' : ''} onClick={() => setVisning('maaned')} title="Tabell med månadskolonnar (veker over månadsskifte vert fordelte etter arbeidstimar)">Månad</button>
           </div>
           {visning === 'tidslinje' && (
             <div className="fd-seg">
@@ -449,19 +450,6 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <MenyPunkt tittel="Excel — berre tabell" under="Alle kolonnar + timar per veke (tal), personar som underrader" onClick={() => { lukk(); eksporter(false) }}/>
             <MenyPunkt tittel="Excel — tabell med tidslinje" under="Same tabell, men vekekolonnane teiknar stolpane i fargar" onClick={() => { lukk(); eksporter(true) }}/>
             <div style={{ fontSize: 11, color: 'var(--text3)', padding: '4px 10px 2px' }}>Eit ekstra ark gir timar per person per veke.</div>
-          </>)}</FdMeny>
-          <FdMeny etikett="Visning" breidd={290}>{() => (<>
-            <MenyTittel>Veke-kolonnar viser</MenyTittel>
-            <MenyPunkt tittel="Timar" merkt={fdVis.eining === 'timar'} under="Planlagde og påløpte timar" onClick={() => setFdVis({ eining: 'timar' })}/>
-            <MenyPunkt tittel="Påløpt honorar" merkt={fdVis.eining === 'honorar'} under="Timar × timerate (kr)" onClick={() => setFdVis({ eining: 'honorar' })}/>
-            <MenySkilje/>
-            <MenyPunkt tittel="Vis delsummer" merkt={fdVis.delsummer} under="Ei summelinje etter kvart delnivå i tabellen" onClick={() => setFdVis({ delsummer: !fdVis.delsummer })}/>
-            {visning === 'tidslinje' && (<>
-              <MenySkilje/>
-              <MenyTittel>Tidslinje</MenyTittel>
-              <MenyPunkt tittel={'Timar per veke' + (talOverlast > 0 ? ' (' + talOverlast + ' overbelasta)' : '')} merkt={visTimar} onClick={() => setVisTimar(v => !v)}/>
-              <MenyPunkt tittel={'Fristar og møte (' + hendingar.length + ')'} merkt={visHendingar} onClick={() => setVisHendingar(v => !v)}/>
-            </>)}
           </>)}</FdMeny>
           <FdMeny etikett="PNS" breidd={270} disabled={!elementer.length} tittel="Prosjektnedbrytingsstruktur — vel kor mange nivå som skal vere opne">{lukk => (<>
             <MenyTittel>Vis til og med nivå</MenyTittel>
@@ -618,13 +606,19 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
               <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
               {visning === 'tidslinje' ? (
-                <FramdriftTidslinje personell={personell} onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
+                <FramdriftTidslinje delsummer={fdVis.delsummer} personell={personell}
+                  verktoy={<FdMeny etikett="Visning tidslinje" breidd={290}>{() => (<>
+                    <MenyTittel>Vis i tidslinja</MenyTittel>
+                    <MenyPunkt tittel={'Timar per veke' + (talOverlast > 0 ? ' (' + talOverlast + ' overbelasta)' : '')} under="Rad nedst med planlagt og påløpt per veke" merkt={visTimar} onClick={() => setVisTimar(v => !v)}/>
+                    <MenyPunkt tittel={'Fristar og møte (' + hendingar.length + ')'} under="Rad øvst med fristar og møte frå notata" merkt={visHendingar} onClick={() => setVisHendingar(v => !v)}/>
+                    <MenyPunkt tittel="Vis delsummer" under="Ei summelinje etter kvart delnivå i tabellen til venstre" merkt={fdVis.delsummer} onClick={() => setFdVis({ delsummer: !fdVis.delsummer })}/>
+                  </>)}</FdMeny>} onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
                   onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
                   timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
                   onKoble={koble} onFjernAvh={fjernAvh} onFlyttHierarki={flyttHierarki}
                   lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
               ) : (
-                <FramdriftTabell eining={fdVis.eining} delsummer={fdVis.delsummer} personell={personell} forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
+                <FramdriftTabell key={visning} periode={visning === 'maaned' ? 'manad' : 'veke'} onVis={setFdVis} eining={fdVis.eining} delsummer={fdVis.delsummer} personell={personell} forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
               )}
               </div>
               <FramdriftBemanning el={selEff && selEff.type === 'aktivitet' ? selEff : null} summ={!!(sel && erSumm(elementer, sel))} personell={personell} prisar={prisKartFra(personell)}

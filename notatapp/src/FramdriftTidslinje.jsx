@@ -8,7 +8,8 @@ import { effektivFerdig, faseFerdig } from './framdriftFerdig'
 import { fordelTimar, personDelar } from './framdriftTimar'
 import { personFarge } from './personFarge'
 import { personerMedForbruk, faktiskFor } from './framdriftForbruk'
-import { KOLONNE_DEF, bygVerdiar, REDIGERBARE, BTYPAR } from './framdriftVerdiar'
+import { KOLONNE_DEF, bygVerdiar, REDIGERBARE, BTYPAR, kpiFarge } from './framdriftVerdiar'
+import { mjukBindestrek } from './DataTabell'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Tidslinja (Gantt) i Framdrift-modulen — sjå claude/framdrift-modul.md.
@@ -29,13 +30,13 @@ const FRIST_FARGE = '#B45309'
 const MOTE_FARGE = '#1565C0'
 const VALG_FARGE = '#1E3A8A'
 
-export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
+export default function FramdriftTidslinje({ delsummer = false, verktoy, rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
                                               zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki, fargeKart, prisar, forbrukKart, onEndreFelt, personell }) {
   const dagB = DAGB[zoom] || DAGB.veke
   // Ekstrakolonnar i tabellen til venstre for tidslinja (høgreklikk på overskrifta). Val vert hugsa på denne maskina.
-  const STANDARD_KOL = ['kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'timar', 'budsjett', 'timerate']
-  const [valgteKol, setValgteKol] = useState(() => { try { const v = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v2')); return Array.isArray(v) ? v : STANDARD_KOL } catch { return STANDARD_KOL } })
-  const lagreKol = (n) => { setValgteKol(n); try { localStorage.setItem('liedlab-framdrift-tl-kol-v2', JSON.stringify(n)) } catch { /* privat modus */ } }
+  const STANDARD_KOL = ['kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'kpi', 'timar', 'budsjett', 'timerate']
+  const [valgteKol, setValgteKol] = useState(() => { try { const v = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v3')); return Array.isArray(v) ? v : STANDARD_KOL } catch { return STANDARD_KOL } })
+  const lagreKol = (n) => { setValgteKol(n); try { localStorage.setItem('liedlab-framdrift-tl-kol-v3', JSON.stringify(n)) } catch { /* privat modus */ } }
   const [kolMeny, setKolMeny] = useState(null) // { x, y }
   const [persTotOpen, setPersTotOpen] = useState(false)
   const kolDefs = valgteKol.map(k => KOLONNE_DEF.find(d => d.key === k)).filter(Boolean)
@@ -161,11 +162,22 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
   const persNamn = harTimar && timarKart ? [...new Set([...timarKart.values()].flatMap(v => Object.keys(v.perPerson)))].sort((a, b) => a.localeCompare(b, 'nb')) : []
   const personerFor = (e) => personerMedForbruk(personDelar(e), forbrukKart?.get(e.id))
   const kanUtvide = (e) => e.type === 'aktivitet' && ((+e.timar > 0 && personDelar(e).length > 0) || !!forbrukKart?.has(e.id))
+  // rader + person-underrader + (valfritt) ei «Sum»-linje etter kvart delnivå
+  const raderMedDelsum = (() => {
+    const ut = [], stabel = []
+    const avslutt = (n) => { while (stabel.length && stabel[stabel.length - 1].nivå >= n) { const p = stabel.pop(); ut.push({ id: 'ds:' + p.id, type: 'delsum', src: p, nivå: p.nivå }) } }
+    for (const e of rader) {
+      if (delsummer) avslutt(e.nivå || 0)
+      ut.push(e)
+      if (utvida?.has(e.id) && kanUtvide(e)) personerFor(e).forEach((p) => ut.push({ id: 'p:' + e.id + ':' + p.namn, type: 'person', akt: e, namn: p.namn, del: p.del, farge: personFarge(p.namn, fargeKart) }))
+      if (delsummer && e.type !== 'milepael' && harBorn(elementer, e.id) && !lukka.has(e.id)) stabel.push(e)
+    }
+    if (delsummer) avslutt(-1)
+    return ut
+  })()
   const radar = [
     ...(visHendingar ? [{ id: '__hendingar', type: 'hendingar' }] : []),
-    ...rader.flatMap(e => (utvida?.has(e.id) && kanUtvide(e)
-      ? [e, ...personerFor(e).map((p) => ({ id: 'p:' + e.id + ':' + p.namn, type: 'person', akt: e, namn: p.namn, del: p.del, farge: personFarge(p.namn, fargeKart) }))]
-      : [e])),
+    ...raderMedDelsum,
     ...(harTimar ? [{ id: '__timar', type: 'timar' }] : []),
     ...(harTimar && persTotOpen ? persNamn.map(n => ({ id: 'pt:' + n, type: 'persontot', namn: n })) : []),
   ]
@@ -323,9 +335,11 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
 
   const todayX = x(idag)
   const idagSynleg = todayX >= 0 && todayX <= breiddTotal
-  const topH = visDagar ? 62 : 46
+  const topH = visDagar ? 62 : 52
 
   return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+    {verktoy && <div style={{ height: 34, flexShrink: 0, display: 'flex', alignItems: 'center', paddingLeft: VENSTRE + 8, paddingBottom: 4 }}>{verktoy}</div>}
     <div ref={scrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0, background: 'var(--bg2)',
       border: '1.5px solid var(--border)', borderRadius: 'var(--r2)', position: 'relative' }}>
       <div style={{ width: VENSTRE + breiddTotal, position: 'relative' }}>
@@ -345,7 +359,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
             </div>
             {kolDefs.map(d => (
               <div key={d.key} style={{ width: kb(d), flexShrink: 0, padding: '0 6px 8px', textAlign: d.hogre ? 'right' : 'left', whiteSpace: 'nowrap', position: 'relative' }} title={d.label}>
-                <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.label}</span>{handtak(d.key, kb(d))}
+                <span lang="nb" style={{ display: 'block', whiteSpace: 'normal', lineHeight: 1.18, wordBreak: 'normal' }}>{d.label.split(' ').length === 2 ? d.label.split(' ').map((w, wi) => <span key={wi} style={{ display: 'block' }}>{mjukBindestrek(w)}</span>) : d.label.split(' ').map(mjukBindestrek).join(' ')}</span>{handtak(d.key, kb(d))}
               </div>
             ))}
           </div>
@@ -430,6 +444,18 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                   </div>
                 )
               }
+              if (r.type === 'delsum') {
+                return (
+                  <div key={r.id} onClick={() => onVelg(r.src.id)} style={{ height: RAD_H, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', borderTop: '1px solid var(--border)', background: 'var(--bg3)', cursor: 'pointer' }}>
+                    <div style={{ width: NAMN_B, flexShrink: 0, paddingLeft: 36 + (r.nivå || 0) * 20, paddingRight: 8, fontSize: 12.5, fontWeight: 800, color: 'var(--brand)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>∑ Sum {r.src.namn}</div>
+                    {kolDefs.map(d => {
+                      const v = ['budsjett', 'timerate', 'timar', 'palopTimar', 'palopHonorar', 'gjenTimar', 'gjenBudsjett', 'kpi', 'ferdig'].includes(d.key) ? verdiar.verdi(r.src, d.key) : ''
+                      return <div key={d.key} style={{ width: kb(d), flexShrink: 0, padding: '0 6px', textAlign: d.hogre ? 'right' : 'left', fontSize: 12, fontWeight: 800, color: d.key === 'kpi' ? kpiFarge(v) : 'var(--text)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {v === '' ? '' : d.key === 'kpi' ? (typeof v === 'number' ? v.toFixed(2).replace('.', ',') : v) : (typeof v === 'number' && d.key !== 'ferdig' ? v.toLocaleString('nb-NO') : v)}</div>
+                    })}
+                  </div>
+                )
+              }
               const erFase = r.type === 'fase' || (r.type === 'aktivitet' && (r.summ || harBorn(elementer, r.id))) // fase / summasjonsaktivitet
               const sel = valgt === r.id
               return (
@@ -500,7 +526,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
                           <input autoFocus defaultValue={String(v)} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
                             onBlur={e => lagre(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.currentTarget.value = String(v); gaa() } }}
                             style={{ width: '100%', fontSize: 12, padding: '1px 4px', border: '1.5px solid var(--brand2)', borderRadius: 4, fontFamily: 'var(--font)', background: 'var(--bg2)', color: 'var(--text)', textAlign: d.hogre ? 'right' : 'left' }}/>
-                        )) : (v === '' ? '' : (typeof v === 'number' && d.hogre && d.key !== 'ferdig' && d.key !== 'varig' ? v.toLocaleString('nb-NO') : v))}
+                        )) : (v === '' ? '' : d.key === 'kpi' ? <span style={{ fontWeight: 800, color: kpiFarge(v) }}>{typeof v === 'number' ? v.toFixed(2).replace('.', ',') : v}</span> : (typeof v === 'number' && d.hogre && d.key !== 'ferdig' && d.key !== 'varig' ? v.toLocaleString('nb-NO') : v))}
                       </div>
                     )
                   })}
@@ -760,6 +786,7 @@ export default function FramdriftTidslinje({ rader, elementer, valgt, onVelg, on
           </div>
         )}
       </div>
+    </div>
     </div>
   )
 }

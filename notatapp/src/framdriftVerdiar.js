@@ -19,6 +19,7 @@ export const KOLONNE_DEF = [
   { key: 'ansvarleg',    label: 'Ansvarleg',    w: 130 },
   { key: 'bemanning',    label: 'Bemanning',    w: 170 },
   { key: 'ferdig',       label: 'Ferdig %',     w: 70, hogre: true },
+  { key: 'kpi',          label: 'KPI',          w: 56, hogre: true },
   { key: 'levnr',        label: 'Levering.',    w: 66, hogre: true },
   { key: 'btype',        label: 'Budsjettype',  w: 100 },
   { key: 'budsjett',     label: 'Budsjett kr',  w: 90, hogre: true },
@@ -37,6 +38,18 @@ const TYPE_NAMN = { fase: 'Fase', aktivitet: 'Aktivitet', milepael: 'Milepæl' }
 // Kolonnar som kan redigerast direkte i tabellen (dobbeltklikk). Summasjonar/fasar: berre namn, kode og ansvarleg.
 export const REDIGERBARE = new Set(['namn', 'kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'btype', 'budsjett', 'timerate', 'timar', 'palopTimar', 'palopHonorar'])
 export const BTYPAR = ['', 'Fastpris', 'Budsjettpris', 'Ufakturerbart']
+
+// KPI = (prosent av budsjett/fastprishonorar som er brukt) ÷ (prosent estimert framdrift). Under 0,9 = grøn, 0,9–1 = gul/oransje, over 1 = raud
+// (pådraget ligg føre framdrifta). Utan budsjett vert prosent av planlagde timar brukt. '' = ikkje nok data, '∞' = pådrag utan framdrift.
+export function beregnKpi({ budsjett, bruktKr, timar, bruktTimar, ferdig }) {
+  let brukt = null
+  if (budsjett > 0) brukt = (bruktKr / budsjett) * 100
+  else if (timar > 0) brukt = (bruktTimar / timar) * 100
+  if (brukt == null || !(brukt > 0)) return ''
+  if (!(ferdig > 0)) return '∞'
+  return Math.round((brukt / ferdig) * 100) / 100
+}
+export const kpiFarge = (v) => (v === '∞' ? '#B91C1C' : typeof v !== 'number' ? undefined : v > 1 ? '#B91C1C' : v >= 0.9 ? '#B45309' : '#166534')
 
 export function bygVerdiar({ elementer, dokMap, prisar }) {
   const pns = pnsKart(elementer)
@@ -60,6 +73,15 @@ export function bygVerdiar({ elementer, dokMap, prisar }) {
       case 'ansvarleg': return e.ansvarleg || ''
       case 'bemanning': { const p = personDelar(e); return p.length ? p.map(x => x.namn + (p.length > 1 ? ' ' + Math.round(x.del * 10) / 10 + '%' : '')).join(', ') : '' }
       case 'ferdig': return e.type === 'aktivitet' ? effektivFerdig(e, dokMap) : e.type === 'fase' ? faseFerdig(elementer, e, dokMap) : ''
+      case 'kpi': {
+        if (e.type === 'milepael') return ''
+        const sam = erSammen(e)
+        return beregnKpi({
+          budsjett: !sam ? (+e.budsjett || 0) : sumBlad(e, c => +c.budsjett || 0), bruktKr: !sam ? palopHon(e) : sumBlad(e, palopHon),
+          timar: !sam ? (+e.timar || 0) : sumBlad(e, c => +c.timar || 0), bruktTimar: !sam ? (+e.palopTimar || 0) : sumBlad(e, c => +c.palopTimar || 0),
+          ferdig: +verdi(e, 'ferdig') || 0,
+        })
+      }
       case 'levnr': return e.type === 'aktivitet' && !erSammen(e) ? ((e.leveransar || []).length || '') : ''
       case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjettType || '') : ''
       case 'budsjett': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjett || '') : e.type !== 'milepael' ? (sumBlad(e, c => +c.budsjett || 0) || '') : ''

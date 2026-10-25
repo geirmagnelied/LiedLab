@@ -8,6 +8,9 @@ import { personDelar, fordelTimar, snittpris, prisFor } from './framdriftTimar'
 import { vekeStart } from './kontorkalender'
 import { personFarge } from './personFarge'
 import { personerMedForbruk, faktiskFor, nokkelNamn } from './framdriftForbruk'
+import { beregnKpi, kpiFarge } from './framdriftVerdiar'
+import { manadDelar, manadNamn } from './framdriftManad'
+import { FdMeny, MenyPunkt, MenyTittel, MenySkilje } from './FramdriftVerktoy'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Tabellvisinga av framdriftsplanen — tynn wrapper rundt DataTabell
@@ -31,6 +34,7 @@ const BASE_KOLONNAR = [
   { key: 'ansvarleg', label: 'Ansvarleg',   art: 'val',   redigerbar: true, w: 150 },
   { key: 'bemanning', label: 'Bemanning',   art: 'tekst', beregna: true, w: 190, utanFilter: true },
   { key: 'ferdig',    label: 'Ferdig %',    art: 'tal',   redigerbar: true, ikkjeSummer: true, w: 90 },
+  { key: 'kpi',       label: 'KPI',         art: 'tal',   beregna: true, ikkjeSummer: true, mono: true, w: 70 },
   { key: 'levnr',     label: 'Leveransar',  art: 'tal',   beregna: true, ikkjeSummer: true, w: 90 },
   { key: 'btype',     label: 'Budsjettype', art: 'val',   redigerbar: true, val: ['', 'Fastpris', 'Budsjettpris', 'Ufakturerbart'], w: 130 },
   { key: 'budsjett',  label: 'Budsjett kr', art: 'tal',   redigerbar: true, w: 110 },
@@ -46,8 +50,9 @@ const BASE_KOLONNAR = [
 
 const fmtT = (n) => (n > 0 ? Math.round(n * 10) / 10 : '')
 const UKE = 'uke_'
+const MAN = 'man_'
 
-export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart, personell = [], eining = 'timar', delsummer = false }) {
+export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart, personell = [], eining = 'timar', delsummer = false, periode = 'veke', onVis }) {
   const [vekeVisn, setVekeVisn] = useState('plan') // plan | palopt | begge — kva vekekolonnane viser
   const [persTotOpen, setPersTotOpen] = useState(false)
   const [utvida, setUtvida] = useState(() => new Set()) // aktivitets-id med opne person-underrader
@@ -70,13 +75,26 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
     return ut
   }, [vekeKart, forbrukKart])
 
+  // Månadsvising: kvar veke vert fordelt på månadene den ligg i, etter arbeidstimar i kontorkalenderen (sjå framdriftManad.js)
+  const manadAndel = useMemo(() => new Map(veker.map(v => [v, manadDelar(v, kal)])), [veker, kal])
+  const maanader = useMemo(() => [...new Set([...manadAndel.values()].flatMap(d => d.map(x => x[0])))].sort(), [manadAndel])
+  const periodeSum = (key, fn) => {
+    if (key.startsWith(UKE)) return fn(key.slice(UKE.length))
+    const m = key.slice(MAN.length)
+    let s = 0
+    for (const [v, dl] of manadAndel) { const f = dl.find(x => x[0] === m); if (f) s += fn(v) * f[1] }
+    return s
+  }
+
   // «Ansvarleg» vert vald frå personellet i prosjektet (ikkje fri tekst)
   const personNamn = useMemo(() => [...new Set((personell || []).map(p => p.namn).filter(Boolean))], [personell])
   const kolonnar = useMemo(() => [
     ...BASE_KOLONNAR.map(k => (k.key === 'ansvarleg' ? { ...k, val: ['', ...personNamn, ...new Set(elementer.map(e => e.ansvarleg).filter(a => a && !personNamn.includes(a)))] } : k)),
-    ...veker.map(v => ({ key: UKE + v, label: 'Veke ' + getISOWeek(tilDato(v)), overskrift: ['Veke ' + getISOWeek(tilDato(v)), format(tilDato(v), 'dd.MM')],
-      art: 'tal', beregna: true, w: 62, mono: true })),
-  ], [veker, personNamn, elementer])
+    ...(periode === 'manad'
+      ? maanader.map(m => ({ key: MAN + m, label: manadNamn(m).kort + ' ' + manadNamn(m).aar, overskrift: [manadNamn(m).aar, manadNamn(m).kort], art: 'tal', beregna: true, w: 72, mono: true }))
+      : veker.map(v => ({ key: UKE + v, label: 'Veke ' + getISOWeek(tilDato(v)), overskrift: ['Veke ' + getISOWeek(tilDato(v)), format(tilDato(v), 'dd.MM')],
+        art: 'tal', beregna: true, w: 62, mono: true }))),
+  ], [veker, maanader, periode, personNamn, elementer])
 
   // Sum per person per veke over alle blad-aktivitetar: Map(namn → Map(veke → timar))
   const persTot = useMemo(() => {
@@ -170,10 +188,10 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
     return 0
   }, [forbrukKart, erSammen, bladUnder, honorarFaktiskLeaf, personRate])
   const fmtKr = (n) => (n > 0 ? Math.round(n) : '')
-  const vekeCelle = (e0, v) => {
+  const vekeCelle = (e0, key) => {
     const e = e0.type === 'delsum' ? e0.src : e0
     const honorar = eining === 'honorar'
-    const p = honorar ? honorarPlan(e, v) : vekeTimar(e, v), f = honorar ? honorarFaktisk(e, v) : vekeFaktisk(e, v)
+    const p = periodeSum(key, v => (honorar ? honorarPlan(e, v) : vekeTimar(e, v))), f = periodeSum(key, v => (honorar ? honorarFaktisk(e, v) : vekeFaktisk(e, v)))
     const fm = honorar ? fmtKr : fmtT
     if (vekeVisn === 'plan') return fm(p)
     if (vekeVisn === 'palopt') return fm(f)
@@ -181,14 +199,14 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
   }
   const hentVerdi = useCallback((e, key) => {
     if (e.type === 'delsum') {
-      if (key.startsWith(UKE)) return vekeCelle(e, key.slice(UKE.length))
+      if (key.startsWith(UKE) || key.startsWith(MAN)) return vekeCelle(e, key)
       if (key === 'namn') return e.namn
       if (key === 'type') return 'Delsum'
       if (key === 'pns') return pns.get(e.src.id) || ''
-      if (['timar', 'budsjett', 'timerate', 'palopTimar', 'palopHonorar', 'gjenTimar', 'gjenBudsjett'].includes(key)) return hentVerdi(e.src, key)
+      if (['timar', 'budsjett', 'timerate', 'palopTimar', 'palopHonorar', 'gjenTimar', 'gjenBudsjett', 'kpi'].includes(key)) return hentVerdi(e.src, key)
       return ''
     }
-    if (key.startsWith(UKE)) return vekeCelle(e, key.slice(UKE.length))
+    if (key.startsWith(UKE) || key.startsWith(MAN)) return vekeCelle(e, key)
     if (e.type === 'persongruppe') return key === 'namn' ? e.namn : ''
     if (e.type === 'persontot') {
       if (key === 'namn') return e.namn
@@ -217,6 +235,15 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
       case 'ansvarleg': return e.ansvarleg || ''
       case 'bemanning': { const p = personDelar(e); return p.length ? p.map(x => x.namn + (p.length > 1 ? ' ' + Math.round(x.del * 10) / 10 + '%' : '')).join(', ') : '' }
       case 'ferdig': return e.type === 'aktivitet' ? effektivFerdig(e, dokMap) : e.type === 'fase' ? faseFerdig(elementer, e, dokMap) : ''
+      case 'kpi': {
+        if (e.type === 'milepael') return ''
+        const sam = erSammen(e)
+        return beregnKpi({
+          budsjett: !sam ? (+e.budsjett || 0) : bladUnder(e).reduce((a, c) => a + (+c.budsjett || 0), 0), bruktKr: !sam ? palopHon(e) : bladUnder(e).reduce((a, c) => a + palopHon(c), 0),
+          timar: !sam ? (+e.timar || 0) : bladUnder(e).reduce((a, c) => a + (+c.timar || 0), 0), bruktTimar: !sam ? (+e.palopTimar || 0) : bladUnder(e).reduce((a, c) => a + (+c.palopTimar || 0), 0),
+          ferdig: +(e.type === 'aktivitet' ? effektivFerdig(e, dokMap) : faseFerdig(elementer, e, dokMap)) || 0,
+        })
+      }
       case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjettType || '') : ''
       case 'budsjett': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjett || '') : e.type !== 'milepael' ? (bladUnder(e).reduce((a, c) => a + (+c.budsjett || 0), 0) || '') : ''
       case 'timerate': {
@@ -249,6 +276,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
 
   // Namnecella: ▸/▾ for å vise/skjule person-underradene; person-rader får innrykk og fargeprikk
   const lagCelle = useCallback((e, kol) => {
+    if (kol.key === 'kpi') { const v = hentVerdi(e, 'kpi'); return v === '' || v == null ? '' : <span style={{ fontWeight: 800, color: kpiFarge(v) }}>{typeof v === 'number' ? v.toFixed(2).replace('.', ',') : v}</span> }
     if (kol.key !== 'namn') return undefined
     if (e.type === 'delsum') return <span style={{ paddingLeft: (e.nivå || 0) * 16 + 22, fontWeight: 800, color: 'var(--brand)' }}>∑ {e.namn}</span>
     if (e.type === 'persongruppe') {
@@ -289,18 +317,18 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
         <span style={{ fontSize: 10.5, color: 'var(--text3)' }}>({personDelar(e).length})</span>
       </span>
     )
-  }, [utvida, lukka, elementer, erSammen, onToggleLukka, persTotOpen])
+  }, [utvida, lukka, elementer, erSammen, onToggleLukka, persTotOpen, hentVerdi])
 
   const hentSorteringsverdi = useCallback((e, key) => {
     if (e.type === 'delsum') return key === 'pns' ? (pns.get(e.src.id) || '') + '.zzz' : undefined
-    if (key.startsWith(UKE)) return vekeVisn === 'palopt' ? vekeFaktisk(e, key.slice(UKE.length)) : vekeTimar(e, key.slice(UKE.length))
+    if (key.startsWith(UKE) || key.startsWith(MAN)) return vekeVisn === 'palopt' ? periodeSum(key, v => vekeFaktisk(e, v)) : periodeSum(key, v => vekeTimar(e, v))
     if (e.type === 'person') return key === 'timar' ? (+e.akt.timar || 0) * e.del / 100 : undefined
     if (key === 'pns') return e.type === 'persongruppe' || e.type === 'persontot' ? 'zzz' : (pns.get(e.id) || '')
     if (e.type === 'persontot') return key === 'timar' ? [...(persTot.kart.get(e.namn)?.values() || [])].reduce((a, b) => a + b, 0) : (key.startsWith(UKE) ? vekeTimar(e, key.slice(UKE.length)) : undefined)
     if (key === 'start') return e.start
     if (key === 'slutt') return e.slutt
     return undefined
-  }, [vekeTimar, pns, persTot, vekeVisn, vekeFaktisk])
+  }, [vekeTimar, pns, persTot, vekeVisn, vekeFaktisk, manadAndel])
 
   const hentRedigerVerdi = useCallback((e, key) => {
     if (key === 'start') return formaterDato(e.start)
@@ -321,6 +349,15 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
         <div className="fd-seg" title="Kva vekekolonnane viser">
           {[['plan', 'Planlagt'], ['palopt', 'Påløpt'], ['begge', 'Plan / påløpt']].map(([k, t]) => <button key={k} className={vekeVisn === k ? 'pa' : ''} onClick={() => setVekeVisn(k)}>{t}</button>)}
         </div>
+        {onVis && (
+          <FdMeny etikett="Visning" breidd={290}>{() => (<>
+            <MenyTittel>{periode === 'manad' ? 'Månadskolonnar' : 'Vekekolonnar'} viser</MenyTittel>
+            <MenyPunkt tittel="Timar" merkt={eining === 'timar'} under="Planlagde og påløpte timar" onClick={() => onVis({ eining: 'timar' })}/>
+            <MenyPunkt tittel="Påløpt honorar" merkt={eining === 'honorar'} under="Timar × timerate (kr)" onClick={() => onVis({ eining: 'honorar' })}/>
+            <MenySkilje/>
+            <MenyPunkt tittel="Vis delsummer" merkt={delsummer} under="Ei summelinje etter kvart delnivå" onClick={() => onVis({ delsummer: !delsummer })}/>
+          </>)}</FdMeny>
+        )}
         <div style={{ flex: 1 }}/>
         {utvidbare.length > 0 && (
           <button className="fd-knapp" style={{ padding: '3px 10px', fontSize: 11.5 }}
@@ -345,7 +382,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
           rutenettRedigering
           klistreKolonnar={['namn']}
           bryttOverskrift
-          prefsKey="liedlab-framdrift-tabell-v3"
+          prefsKey={periode === 'manad' ? 'liedlab-framdrift-manad-v1' : 'liedlab-framdrift-tabell-v4'}
           standardSynlegeKolonnar={standardSynlege}
           itemNamn="element"
           defaultSortering={{ key: 'pns', dir: 'asc' }}
