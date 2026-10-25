@@ -259,7 +259,7 @@ export default function BrukarModule({ userId, userEmail, brukar }) {
         <div style={{ display: 'flex', gap: 4 }}>
           {SIDER.map(([k, namn]) => (
             <button key={k} onClick={() => byt(k)} style={{ border: 'none', borderRadius: 7, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)',
-              background: side === k ? '#fff' : 'rgba(255,255,255,.5)', color: side === k ? 'var(--brand)' : 'var(--text2)' }}>{namn}</button>
+              background: side === k ? '#0A0A0A' : 'rgba(255,255,255,.5)', color: side === k ? '#fff' : 'var(--text2)' }}>{namn}</button>
           ))}
         </div>
         <div style={{ flex: 1 }}/>
@@ -267,7 +267,11 @@ export default function BrukarModule({ userId, userEmail, brukar }) {
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '22px 26px 40px' }}>
         {lastar ? <div style={{ color: 'var(--text3)' }}>…</div>
-          : side === 'info' ? <BrukarInfo profil={profil} oppdater={oppdater} bileteUrl={bileteUrl} userId={userId} userEmail={userEmail} t={t}/>
+          : side === 'info' ? <><BrukarInfo profil={profil} oppdater={oppdater} bileteUrl={bileteUrl} userId={userId} userEmail={userEmail} t={t}/>
+              <div style={{ marginTop: 28, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
+                <button onClick={() => { import('./supabase').then(m => m.supabase.auth.signOut()) }}
+                  style={{ padding: '9px 20px', borderRadius: 9, border: '1.5px solid var(--danger, #c0392b)', background: 'transparent', color: 'var(--danger, #c0392b)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>Logg ut</button>
+              </div></>
           : side === 'kompetanse' ? <Kompetanse profil={profil} oppdater={oppdater} t={t}/>
           : <Prosjekterfaring profil={profil} oppdater={oppdater} userId={userId} t={t}/>}
       </div>

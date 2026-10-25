@@ -417,8 +417,8 @@ export default function Timeline({ notes, projects, height, onResize, onSelectNo
           {[['month-week','Månad/Veke'],['week-day','Veke/Dag'],['day','7 Dagar']].map(([m,lbl])=>(
             <button key={m} onClick={()=>setMode(m)}
               style={{padding:'2px 10px',borderRadius:6,border:'none',
-                background:mode===m?'#fff':'transparent',
-                color:mode===m?'var(--brand)':'var(--text2)',
+                background:mode===m?'#0A0A0A':'transparent',
+                color:mode===m?'#fff':'var(--text2)',
                 fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
               {lbl}
             </button>

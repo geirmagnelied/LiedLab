@@ -17,6 +17,7 @@ const MODULES = [
   { key: 'framdrift', ikon: GanttChartSquare, letter: 'Fd',  label: 'Framdrift', color: '#34D399' },
   { key: 'kalender', ikon: CalendarDays,  letter: 'Ka',  label: 'Kalender', color: '#2A9D8F' },
   { key: 'malar', ikon: FileText, letter: 'Ml', label: 'Malar', color: '#38BDF8' },
+  { key: 'admin', ikon: Building2, letter: 'Kd', label: 'Kontordrift', color: '#9CA3AF', born: ['prosjekt', 'kunde', 'ansatte', 'kontorkalender'] },
 ]
 
 // Undermodulane sjølve (dei EKSISTERANDE `activeModule`-verdiane, uendra —
@@ -25,9 +26,10 @@ const MODULES = [
 // same kjelde.
 export const UNDERMODULAR = {
   admin: [
-    { key:'prosjekt',    letter:'P',  label:'Prosjekt',    color:'#85B7EB' },
-    { key:'kunde',       letter:'K',  label:'Kundar',      color:'#D4537E' },
-    { key:'kontordrift', letter:'Kd', label:'Kontordrift', color:'#9CA3AF' },
+    { key:'prosjekt',        letter:'P',  label:'Prosjekt',        color:'#85B7EB' },
+    { key:'kunde',           letter:'K',  label:'Kundar',          color:'#D4537E' },
+    { key:'ansatte',         letter:'A',  label:'Ansatte',         color:'#9CA3AF' },
+    { key:'kontorkalender',  letter:'Ka', label:'Kontorkalender',  color:'#2A9D8F' },
   ],
   gjeremaal: [
     { key:'notatar',  letter:'N', label:'Notatar',  color:'#52B788' },
@@ -39,9 +41,10 @@ export const UNDERMODULAR = {
 // Undermodul-nøkkel → paraply-nøkkel (omvendt oppslag av UNDERMODULAR),
 // brukt til å avgjere KVA TOPP-NIVÅ-IKON som skal syne som aktivt når
 // t.d. `activeModule === 'prosjekt'`.
-export const PARENT_AV_MODUL = Object.fromEntries(
-  Object.entries(UNDERMODULAR).flatMap(([toppNokkel, born]) => born.map(b => [b.key, toppNokkel]))
-)
+export const PARENT_AV_MODUL = {
+  ...Object.fromEntries(Object.entries(UNDERMODULAR).flatMap(([toppNokkel, born]) => born.map(b => [b.key, toppNokkel]))),
+  kontordrift: 'admin',   // eldre nøkkel = Ansatte
+}
 
 // ── Tre førehandsdefinerte breidder (som verktøylinja i Blender): 'min' = berre (stort) ikon, 'kort' = ikon + bokstavkode,
 //    'full' = ikon + full tekst. Knappen øvst bytter, og ein kan dra i høgre kant — breidda snappar til næraste av dei tre.
@@ -133,22 +136,11 @@ export default function AppRail({ activeModule, onModuleChange, modus = 'min', o
 
       <div style={{ flex: 1, minHeight: 10 }}/>
 
-      {/* Botn-sone: snarvegar til Prosjekt/Kundar/Kontordrift, Innstillingar, Brukar og Logg ut (flytta frå TN-menyen) */}
+      {/* Botn-sone: berre Innstillingar (Brukar vert opna frå namnet i TN, Logg ut ligg i Brukar-modulen) */}
       <div style={{ height: 1, background: 'var(--border)', margin: smal ? '0 10px 12px' : '0 4px 12px', alignSelf: 'stretch', flexShrink: 0 }}/>
-      {[['prosjekt', FolderKanban, 'Pr', t('nav.prosjekt', 'Prosjekt'), '#85B7EB'], ['kunde', Users, 'Ku', t('nav.kunde', 'Kundar'), '#D4537E'], ['kontordrift', Building2, 'Kd', t('nav.kontordrift', 'Kontordrift'), '#9CA3AF']].map(([k, ik, kode, namn, farge]) => (
-        <Knapp key={k} mod={{ color: farge }} ikon={ik} namn={namn} kode={kode}
-          active={activeModule === k} hovered={hoveredModule === k}
-          onClick={() => onModuleChange(k)} onEnter={() => setHoveredModule(k)} onLeave={() => setHoveredModule(null)}/>
-      ))}
       <Knapp mod={{ color: '#9CA3AF' }} ikon={Settings} namn={t('topp.innstillingar', 'Innstillingar')} kode="In"
         active={false} hovered={hoveredModule === 'innst'}
         onClick={() => onOpenSettings?.()} onEnter={() => setHoveredModule('innst')} onLeave={() => setHoveredModule(null)}/>
-      <Knapp mod={{ color: '#60A5D4' }} ikon={UserRound} namn={t('nav.bruker')} kode="Br"
-        active={activeModule === 'bruker'} hovered={hoveredModule === 'bruker'}
-        onClick={() => onModuleChange('bruker')} onEnter={() => setHoveredModule('bruker')} onLeave={() => setHoveredModule(null)}/>
-      <Knapp mod={{ color: '#B91C1C' }} ikon={LogOut} namn="Logg ut" kode="Ut"
-        active={false} hovered={hoveredModule === 'ut'}
-        onClick={() => onLogout?.()} onEnter={() => setHoveredModule('ut')} onLeave={() => setHoveredModule(null)}/>
 
       {/* Dra for å endre breidda */}
       {!mobil && <div onMouseDown={startDrag} title="Dra for å endre breidda (snappar til ikon / ikon+bokstav / ikon+tekst)"

@@ -325,10 +325,10 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const IcoBtn = ({ onClick, active, title, children }) => (
     <button onClick={onClick} title={title} aria-label={title}
       style={{ width:30,height:30,border:'1.5px solid',
-        borderColor:active?'var(--brand)':'var(--border)',
-        background:active?'#fff':'rgba(255,255,255,.5)',
+        borderColor:active?'#0A0A0A':'var(--border)',
+        background:active?'#0A0A0A':'rgba(255,255,255,.5)',
         borderRadius:'var(--r)',display:'flex',alignItems:'center',justifyContent:'center',
-        cursor:'pointer',color:active?'var(--brand)':'var(--text2)',flexShrink:0,transition:'all .15s' }}>
+        cursor:'pointer',color:active?'#fff':'var(--text2)',flexShrink:0,transition:'all .15s' }}>
       {children}
     </button>
   )
@@ -339,13 +339,13 @@ function AppInnhald({ userId, userEmail, brukar }) {
       <button onClick={onClick||(() => { setView(v); if (v!=='new') setEditNote(null) })}
         style={{ display:'flex',alignItems:'center',gap:7,padding:'7px 14px',
           border:'1.5px solid',
-          borderColor:active?'var(--brand)':'transparent',
-          background:active?'#fff':'transparent',
-          borderRadius:'var(--r)',color:active?'var(--brand)':'var(--text2)',
+          borderColor:active?'#0A0A0A':'transparent',
+          background:active?'#0A0A0A':'transparent',
+          borderRadius:'var(--r)',color:active?'#fff':'var(--text2)',
           fontSize:14,cursor:'pointer',fontWeight:active?700:500,transition:'all .15s' }}>
         {letter && <span style={{ width:20,height:20,borderRadius:5,
-          background: active?'var(--brand)':'rgba(27,42,58,.1)',
-          color: active?'#fff':'var(--text2)',
+          background: active?'#fff':'rgba(27,42,58,.1)',
+          color: active?'#0A0A0A':'var(--text2)',
           display:'flex',alignItems:'center',justifyContent:'center',
           fontSize:11,fontWeight:800,flexShrink:0 }}>{letter}</span>}
         {label}
@@ -414,7 +414,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
           </div>
         )}
       </div>
-      {PARENT_AV_MODUL[activeModule] && PARENT_AV_MODUL[activeModule] !== 'admin' && (
+      {PARENT_AV_MODUL[activeModule] && (
         <AppRailUndermeny toppNokkel={PARENT_AV_MODUL[activeModule]} activeModule={activeModule} onModuleChange={setActiveModule}/>
       )}
 
@@ -455,7 +455,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'saker' && <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'dtm' && <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
         {activeModule === 'bilete' && <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
-        {activeModule === 'kontordrift' && <KontordriftModule userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>}
+        {['kontordrift', 'ansatte', 'kontorkalender'].includes(activeModule) && <KontordriftModule side={activeModule === 'kontorkalender' ? 'kalender' : 'ansatte'} userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>}
         {activeModule === 'framdrift' && <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId}/>}
       </div>
 
@@ -573,7 +573,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
           til éin av desse. */}
       {/* Module content area — felles kolonne med botn-statuslinje for alle modular */}
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>
-      {PARENT_AV_MODUL[activeModule] && PARENT_AV_MODUL[activeModule] !== 'admin' && (
+      {PARENT_AV_MODUL[activeModule] && (
         <AppRailUndermeny
           toppNokkel={PARENT_AV_MODUL[activeModule]}
           activeModule={activeModule}
@@ -615,8 +615,8 @@ function AppInnhald({ userId, userEmail, brukar }) {
         <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>
       ) : activeModule === 'bilete' ? (
         <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>
-      ) : activeModule === 'kontordrift' ? (
-        <KontordriftModule userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>
+      ) : ['kontordrift', 'ansatte', 'kontorkalender'].includes(activeModule) ? (
+        <KontordriftModule side={activeModule === 'kontorkalender' ? 'kalender' : 'ansatte'} userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>
       ) : activeModule === 'framdrift' ? (
         <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId}/>
       ) : (
@@ -752,7 +752,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
 )
 }
 
-const MODULE_LABELS = { skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', framdrift:'Framdrift' }
+const MODULE_LABELS = { skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Oppg\u00E5ver', saker:'Saker', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Framdrift' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())

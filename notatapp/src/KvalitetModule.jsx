@@ -55,9 +55,9 @@ function Fane({ vk, lb, view, setView }) {
   return (
     <button onClick={() => setView(vk)} style={{
       padding:'6px 13px', borderRadius:'var(--r)',
-      border: a ? '1.5px solid var(--brand)' : '1.5px solid transparent',
-      background: a ? '#fff' : 'transparent',
-      color: a ? 'var(--brand)' : 'var(--text2)',
+      border: a ? '1.5px solid #0A0A0A' : '1.5px solid transparent',
+      background: a ? '#0A0A0A' : 'transparent',
+      color: a ? '#fff' : 'var(--text2)',
       fontSize:13, fontWeight: a ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)' }}>{lb}</button>
   )
 }

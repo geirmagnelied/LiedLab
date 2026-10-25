@@ -613,13 +613,12 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
           )}
         </div>
 
-        {/* Fanerad: Prosjektkort · Personell · Kontorkalender */}
-        <div style={{ display:'flex', gap:2, padding:'0 20px', borderBottom:'1px solid var(--border)', background:'var(--bg2)', flexShrink:0 }}>
-          {[['kort','Prosjektkort'],['personell','Personell']].map(([k, t]) => (
+        {/* Fanerad (NL3): Prosjektinfo · Personell — aktiv fane svart med kvit tekst (konsekvent i alle modular) */}
+        <div style={{ display:'flex', gap:6, padding:'8px 20px', borderBottom:'1px solid var(--border)', background:'var(--bg2)', flexShrink:0 }}>
+          {[['kort','Prosjektinfo'],['personell','Personell']].map(([k, t]) => (
             <button key={k} onClick={() => setSide(k)}
-              style={{ padding:'11px 16px', border:'none', background:'transparent', cursor:'pointer', fontFamily:'var(--font)',
-                fontSize:13, fontWeight: side === k ? 800 : 600, color: side === k ? 'var(--brand)' : 'var(--text3)',
-                borderBottom: side === k ? '2.5px solid var(--brand)' : '2.5px solid transparent', marginBottom:-1 }}>
+              style={{ padding:'6px 16px', border:'1.5px solid ' + (side === k ? '#0A0A0A' : 'transparent'), borderRadius:8, cursor:'pointer', fontFamily:'var(--font)',
+                fontSize:13, fontWeight: side === k ? 700 : 500, background: side === k ? '#0A0A0A' : 'transparent', color: side === k ? '#fff' : 'var(--text2)' }}>
               {t}
             </button>
           ))}
