@@ -95,14 +95,14 @@ export default function AppRail({ activeModule, onModuleChange, modus = 'min', o
       <button onClick={onClick} onMouseEnter={onEnter} onMouseLeave={onLeave} title={namn}
         style={{
           width: smal ? 46 : '100%', height: 46, borderRadius: 11, padding: smal ? 0 : '0 12px',
-          border: '1.5px solid transparent', background: active ? 'var(--brandbg)' : hovered ? 'var(--bg3)' : 'transparent',
+          border: '1.5px solid transparent', background: active ? '#0A0A0A' : hovered ? 'var(--bg3)' : 'transparent',
           display: 'flex', alignItems: 'center', justifyContent: smal ? 'center' : 'flex-start', gap: 14,
           cursor: 'pointer', transition: 'background .15s ease', position: 'relative', fontFamily: 'var(--font)',
         }}>
         {active && <div style={{ position: 'absolute', left: smal ? -11 : -8, top: '50%', transform: 'translateY(-50%)', width: 4, height: 22, borderRadius: 2, background: mod.color }}/>}
-        <Ikon size={IKON} strokeWidth={active ? 2 : 1.7} color={active ? mod.color : 'var(--text2)'} style={{ flexShrink: 0 }}/>
-        {visModus === 'kort' && <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '.02em', color: active ? 'var(--text)' : 'var(--text2)', whiteSpace: 'nowrap' }}>{kode}</span>}
-        {visModus === 'full' && <span style={{ fontSize: 13.5, fontWeight: active ? 800 : 600, color: active ? 'var(--text)' : 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{namn}</span>}
+        <Ikon size={IKON} strokeWidth={active ? 2 : 1.7} color={active ? '#FFFFFF' : 'var(--text2)'} style={{ flexShrink: 0 }}/>
+        {visModus === 'kort' && <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '.02em', color: active ? '#fff' : 'var(--text2)', whiteSpace: 'nowrap' }}>{kode}</span>}
+        {visModus === 'full' && <span style={{ fontSize: 13.5, fontWeight: active ? 800 : 600, color: active ? '#fff' : 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{namn}</span>}
       </button>
       {hovered && visModus !== 'full' && dragB == null && (
         <div style={{ position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: 10, padding: '5px 10px', background: '#1B2A3A',

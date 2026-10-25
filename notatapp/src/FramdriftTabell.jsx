@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { addDays, getISOWeek, format } from 'date-fns'
 import DataTabell from './DataTabell'
 import { formaterDato, tilDato } from './framdriftDato'
@@ -52,9 +52,10 @@ const fmtT = (n) => (n > 0 ? Math.round(n * 10) / 10 : '')
 const UKE = 'uke_'
 const MAN = 'man_'
 
-export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart, personell = [], eining = 'timar', delsummer = false, periode = 'veke', onVis }) {
+export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart, personell = [], eining = 'timar', delsummer = false, periode = 'veke', onVis, valde, onValde }) {
   const [vekeVisn, setVekeVisn] = useState('plan') // plan | palopt | begge — kva vekekolonnane viser
   const [persTotOpen, setPersTotOpen] = useState(false)
+  const modRef = useRef(false)   // sist museklikk hadde shift/ctrl (fleirval)
   const [utvida, setUtvida] = useState(() => new Set()) // aktivitets-id med opne person-underrader
   const namnPaId = useCallback((id) => elementer.find(e => e.id === id)?.namn || '', [elementer])
 
@@ -340,7 +341,8 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
   const standardSynlege = useMemo(() => kolonnar.map(k => k.key).filter(k => !['type', 'fase', 'varig', 'avh', 'fordeling'].includes(k)), [kolonnar])
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 300,
+    <div className="dt-pil" onMouseDownCapture={e => { modRef.current = e.shiftKey || e.ctrlKey || e.metaKey }}
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 300,
       border: '1.5px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', background: 'var(--bg3)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <span style={{ fontSize: 12, color: 'var(--text3)' }}>
@@ -377,7 +379,8 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
           radGruppe={radGruppe}
           radId={e => e.id}
           onSetVerdi={(id, key, verdi) => { if (typeof id === 'string') return; onEndreFelt(id, key, verdi) }}
-          onRowClick={(id, r) => { if (typeof id === 'string') { if (r.type === 'person') onVelg(r.__forelder); else if (r.type === 'delsum') onVelg(r.src.id) } else onVelg(id) }}
+          onRowClick={(id, r) => { if (typeof id === 'string') { if (r.type === 'person') onVelg(r.__forelder, { fleirval: modRef.current }); else if (r.type === 'delsum') onVelg(r.src.id, { fleirval: modRef.current }) } else onVelg(id, { fleirval: modRef.current }) }}
+          merking={onValde ? { valde, onEndre: s => onValde(new Set([...s].filter(i => typeof i !== 'string'))) } : undefined}
           radStil={e => (e.type === 'delsum' ? { background: 'var(--bg3)', fontWeight: 700, boxShadow: 'inset 0 1px 0 var(--border)' } : e.type === 'persongruppe' ? { background: 'var(--bg3)', fontWeight: 700 } : e.type === 'persontot' ? { background: 'var(--bg3)', fontSize: 12 } : e.type === 'person' ? { background: 'var(--bg3)', fontSize: 12 } : e.id === valgt ? { background: 'var(--brandbg2)' } : erSammen(e) ? { fontWeight: 700, background: 'var(--bg3)' } : undefined)}
           rutenettRedigering
           klistreKolonnar={['namn']}

@@ -53,7 +53,7 @@ const CSS = `
 .fd-etikett { font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--text3); font-weight:700 }
 `
 
-const ZOOM = [['dag', 'Dag'], ['veke', 'Veke'], ['manad', 'Månad'], ['kvartal', 'Kvartal']]
+const ZOOM = [['dag', 'Dag'], ['veke', 'Veke'], ['manadsum', 'Månad'], ['manad', 'Månad+'], ['kvartal', 'Kvartal']]
 const TYPE_NAMN = { fase: 'Fase', aktivitet: 'Aktivitet', milepael: 'Milepæl' }
 
 const FARGEVAL = ['#2D6A4F', '#1565C0', '#B5296B', '#C2570C', '#0E7490', '#6D28D9', '#8A6D00', '#B91C1C', '#475569', '#0F766E', '#D97706', '#7C3AED']
@@ -93,6 +93,10 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const [valgt, setValgt] = useState(null)
   const [visning, setVisning] = useState('tidslinje')
   const [zoom, setZoom] = useState('veke')
+  const [skala, setSkalaRaa] = useState(() => { try { const v = +localStorage.getItem('liedlab-framdrift-skala'); return v >= 0.3 && v <= 4 ? v : 1 } catch { return 1 } })
+  const setSkala = (f) => setSkalaRaa(s => { const n = Math.max(0.3, Math.min(4, Math.round(f(s) * 100) / 100)); try { localStorage.setItem('liedlab-framdrift-skala', String(n)) } catch { /* privat modus */ } return n })
+  const [valde, setValde] = useState(() => new Set())     // fleirval av rader (shift/ctrl-klikk) — massehandlingar
+  const sisteValdRef = useRef(null)
   const [visHendingar, setVisHendingar] = useState(true)
   const [lukka, setLukka] = useState(() => new Set())
   const [malOpen, setMalOpen] = useState(false)
@@ -274,6 +278,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const endreFraTidslinje = (id, modus, d) => {
     const e = elementer.find(x => x.id === id)
     if (!e) return
+    if (modus === 'flytt' && valde.size > 1 && valde.has(id)) { flyttValde(d); return }
     const n = beregnDatoar(e, modus, d)
     oppdater(settElement(elementer, id, n.start, n.slutt, { beholdVarigheit: modus === 'flytt' }))
   }
@@ -376,6 +381,51 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     setLukka(n)
   }
 
+  // ── Fleirval: klikk = ei rad, ctrl/cmd = legg til/fjern, shift = område (i viste rekkjefølgje). Massehandlingar i linja «N valde». ──
+  const velgRad = (id, ev) => {
+    if (id == null) { setValde(new Set()); setValgt(null); return }
+    const rekkje = rader.map(r => r.id)
+    const mod = ev && (ev.fleirval === true || ev.shiftKey || ev.ctrlKey || ev.metaKey)
+    if (ev && ev.shiftKey && sisteValdRef.current != null) {
+      const a = rekkje.indexOf(sisteValdRef.current), c = rekkje.indexOf(id)
+      if (a >= 0 && c >= 0) { const [x, y] = a < c ? [a, c] : [c, a]; setValde(s => new Set([...s, ...rekkje.slice(x, y + 1)])); setValgt(id); return }
+    }
+    if (ev && (ev.ctrlKey || ev.metaKey)) { setValde(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n }); sisteValdRef.current = id; setValgt(id); return }
+    if (mod) { setValgt(id); sisteValdRef.current = id; return }   // DataTabell har alt oppdatert utvalet
+    setValde(s => (s.size > 1 && s.has(id) ? s : new Set([id])))    // klikk/dra i eit utval held på utvalet
+    sisteValdRef.current = id; setValgt(id)
+  }
+  const valdeIds = useMemo(() => rader.map(r => r.id).filter(id => valde.has(id)), [rader, valde])
+  const flyttValde = (dagar) => {
+    let ny = elementer
+    for (const id of valdeIds) {
+      const e = ny.find(x => x.id === id)
+      if (!e || erRulla(ny, e)) continue
+      const n = beregnDatoar(e, 'flytt', dagar)
+      ny = settElement(ny, id, n.start, n.slutt, { beholdVarigheit: true })
+    }
+    oppdater(ny)
+  }
+  const innrykkValde = (ut) => { let ny = elementer; for (const id of (ut ? [...valdeIds].reverse() : valdeIds)) ny = (ut ? utrykk : innrykk)(ny, id); if (ny !== elementer) oppdater(ny) }
+  const flyttValdeTil = (malId) => {
+    let ny = elementer
+    for (const id of valdeIds) {
+      if (id === malId || etterkommarar(ny, id).some(c => c.id === malId)) continue
+      if (kanFlytteTil(ny, id, malId, 'inni')) ny = flyttNode(ny, id, malId, 'inni')
+    }
+    if (ny !== elementer) { oppdater(ny); opneForelder(malId) }
+  }
+  const slettValde = () => {
+    if (!window.confirm('Slette dei ' + valdeIds.length + ' valde radene (med underaktivitetar)?')) return
+    let ny = elementer
+    for (const id of valdeIds) if (ny.some(x => x.id === id)) ny = slettElement(ny, id)
+    oppdater(ny); setValde(new Set()); setValgt(null)
+  }
+  useEffect(() => {
+    const esc = (e) => { if (e.key === 'Escape' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) setValde(new Set()) }
+    window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc)
+  }, [])
+
   const slett = (id) => {
     const e = elementer.find(x => x.id === id)
     if (!e) return
@@ -429,11 +479,6 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <button className={visning === 'tabell' ? 'pa' : ''} onClick={() => setVisning('tabell')}>Tabell</button>
             <button className={visning === 'maaned' ? 'pa' : ''} onClick={() => setVisning('maaned')} title="Tabell med månadskolonnar (veker over månadsskifte vert fordelte etter arbeidstimar)">Månad</button>
           </div>
-          {visning === 'tidslinje' && (
-            <div className="fd-seg">
-              {ZOOM.map(([k, t]) => <button key={k} className={zoom === k ? 'pa' : ''} onClick={() => setZoom(k)}>{t}</button>)}
-            </div>
-          )}
           <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
           <FdMeny etikett="＋ Ny" hovud breidd={230}>{lukk => (<>
             <MenyPunkt tittel="Ny aktivitet" onClick={() => { lukk(); leggTil('aktivitet') }}/>
@@ -461,6 +506,19 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
           <button className="fd-knapp" onClick={angre} disabled={!angreAntal} title="Angre siste endring (Ctrl+Z)">↶ Angre</button>
         </>)}
         <div style={{ flex: 1 }}/>
+        {aktivtProsjekt && visning === 'tidslinje' && (<>
+          <FdMeny etikett="Visning tidslinje" breidd={290} hogre>{() => (<>
+            <MenyTittel>Vis i tidslinja</MenyTittel>
+            <MenyPunkt tittel={'Timar per veke' + (talOverlast > 0 ? ' (' + talOverlast + ' overbelasta)' : '')} under="Rad nedst med planlagt og påløpt per veke" merkt={visTimar} onClick={() => setVisTimar(v => !v)}/>
+            <MenyPunkt tittel={'Fristar og møte (' + hendingar.length + ')'} under="Rad øvst med fristar og møte frå notata" merkt={visHendingar} onClick={() => setVisHendingar(v => !v)}/>
+            <MenyPunkt tittel="Vis delsummer" under="Ei summelinje etter kvart delnivå i tabellen til venstre" merkt={fdVis.delsummer} onClick={() => setFdVis({ delsummer: !fdVis.delsummer })}/>
+          </>)}</FdMeny>
+          <button className="fd-knapp" onClick={() => setSkala(s => s / 1.25)} title="Mindre plass til tidslinja (smalare)" style={{ padding: '6px 11px', fontSize: 15, lineHeight: 1 }}>−</button>
+          <button className="fd-knapp" onClick={() => setSkala(s => s * 1.25)} title="Meir plass til tidslinja (breiare)" style={{ padding: '6px 10px', fontSize: 15, lineHeight: 1 }}>＋</button>
+          <div className="fd-seg" title="Tidsoppløysing">
+            {ZOOM.map(([k, t]) => <button key={k} className={zoom === k ? 'pa' : ''} onClick={() => setZoom(k)}>{t}</button>)}
+          </div>
+        </>)}
         <span style={{ fontSize: 11.5, fontWeight: 600, color: lagringStatus === 'feil' ? '#FCA5A5' : 'var(--text2)' }}>{lagStatusTekst}</span>
       </div>
 
@@ -476,6 +534,24 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '14px 20px', minHeight: 0 }}>
 
           {koblingMelding && <div style={{ marginBottom: 8, padding: '6px 12px', background: 'var(--dangerbg, #fdecea)', color: 'var(--danger)', borderRadius: 6, fontSize: 12.5, flexShrink: 0 }}>{koblingMelding}</div>}
+          {valdeIds.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8, padding: '6px 12px', background: '#0A0A0A', color: '#fff', borderRadius: 8, flexShrink: 0 }}>
+              <b style={{ fontSize: 12.5 }}>{valdeIds.length} valde</b>
+              <span style={{ width: 1, height: 18, background: 'rgba(255,255,255,.25)' }}/>
+              {[['‹ 1 veke', -7], ['‹ 1 dag', -1], ['1 dag ›', 1], ['1 veke ›', 7]].map(([t, d]) => <button key={t} className="fd-knapp" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => flyttValde(d)} title="Flytt datoane til dei valde aktivitetane (arbeidsdagar)">{t}</button>)}
+              <span style={{ width: 1, height: 18, background: 'rgba(255,255,255,.25)' }}/>
+              <button className="fd-knapp" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => innrykkValde(false)} title="Flytt eitt nivå inn (blir underaktivitet av rada over)">→ Innrykk</button>
+              <button className="fd-knapp" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => innrykkValde(true)} title="Flytt eitt nivå ut">← Utrykk</button>
+              <select value="" onChange={e => { if (e.target.value) flyttValdeTil(e.target.value) }} style={{ padding: '3px 6px', fontSize: 12, borderRadius: 6, border: '1.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)', fontFamily: 'var(--font)', fontWeight: 700 }} title="Flytt dei valde under ei fase eller summasjon">
+                <option value="">Flytt til…</option>
+                {elementer.filter(e => e.type === 'fase' || (e.type === 'aktivitet' && harBorn(elementer, e.id))).map(e => <option key={e.id} value={e.id}>{(pnsKart(elementer).get(e.id) || '') + ' ' + e.namn}</option>)}
+              </select>
+              <button className="fd-knapp fare" style={{ padding: '3px 10px', fontSize: 12 }} onClick={slettValde}>Slett</button>
+              <div style={{ flex: 1 }}/>
+              <span style={{ fontSize: 11, opacity: .7 }}>Dra ein valt stolpe for å flytte alle · Esc = avmerk</span>
+              <button className="fd-knapp" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setValde(new Set())}>Avmerk</button>
+            </div>
+          )}
           {lastar ? (
             <div style={{ color: 'var(--text3)', fontSize: 13 }}>Lastar plan…</div>
           ) : (
@@ -606,19 +682,13 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
               <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
               {visning === 'tidslinje' ? (
-                <FramdriftTidslinje delsummer={fdVis.delsummer} personell={personell}
-                  verktoy={<FdMeny etikett="Visning tidslinje" breidd={290}>{() => (<>
-                    <MenyTittel>Vis i tidslinja</MenyTittel>
-                    <MenyPunkt tittel={'Timar per veke' + (talOverlast > 0 ? ' (' + talOverlast + ' overbelasta)' : '')} under="Rad nedst med planlagt og påløpt per veke" merkt={visTimar} onClick={() => setVisTimar(v => !v)}/>
-                    <MenyPunkt tittel={'Fristar og møte (' + hendingar.length + ')'} under="Rad øvst med fristar og møte frå notata" merkt={visHendingar} onClick={() => setVisHendingar(v => !v)}/>
-                    <MenyPunkt tittel="Vis delsummer" under="Ei summelinje etter kvart delnivå i tabellen til venstre" merkt={fdVis.delsummer} onClick={() => setFdVis({ delsummer: !fdVis.delsummer })}/>
-                  </>)}</FdMeny>} onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={setValgt}
+                <FramdriftTidslinje delsummer={fdVis.delsummer} skala={skala} valde={valde} personell={personell} onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={velgRad}
                   onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
                   timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
                   onKoble={koble} onFjernAvh={fjernAvh} onFlyttHierarki={flyttHierarki}
                   lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
               ) : (
-                <FramdriftTabell key={visning} periode={visning === 'maaned' ? 'manad' : 'veke'} onVis={setFdVis} eining={fdVis.eining} delsummer={fdVis.delsummer} personell={personell} forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={setValgt} onEndreFelt={endreFraTabell}/>
+                <FramdriftTabell key={visning} valde={valde} onValde={setValde} periode={visning === 'maaned' ? 'manad' : 'veke'} onVis={setFdVis} eining={fdVis.eining} delsummer={fdVis.delsummer} personell={personell} forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={velgRad} onEndreFelt={endreFraTabell}/>
               )}
               </div>
               <FramdriftBemanning el={selEff && selEff.type === 'aktivitet' ? selEff : null} summ={!!(sel && erSumm(elementer, sel))} personell={personell} prisar={prisKartFra(personell)}

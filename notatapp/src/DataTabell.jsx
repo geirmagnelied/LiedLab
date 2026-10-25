@@ -946,7 +946,7 @@ export default function DataTabell({
                   dragRadRef.current = null; setDropMal(null)
                   utforFlytt(dragId, id, e.clientY > b.top + b.height / 2)
                 }) : undefined}
-                onClick={e => { if (!rutenettRedigering) handterMerkKlikk(id, e); onRowClick?.(id, r) }}
+                onClick={e => { if (!rutenettRedigering || e.shiftKey || e.ctrlKey || e.metaKey) handterMerkKlikk(id, e); onRowClick?.(id, r) }}
                 onDoubleClick={() => onOpenRad?.(id, r)}
                 title={onOpenRad ? 'Dobbeltklikk for å opne' : undefined}
                 style={{ ...(radStil ? radStil(r) : undefined), ...(merkt ? { background:'var(--brandbg2)', boxShadow:'inset 0 0 0 2.5px var(--brand2)' } : undefined),
@@ -1609,6 +1609,9 @@ const CSS = `
 .dt-chip button { border:0; background:transparent; color:inherit; font-size:14px; line-height:1; padding:0 3px; opacity:.6 }
 .dt-chip button:hover { opacity:1 }
 
+.dt-pil, .dt-pil * { cursor:default !important }
+.dt-pil .dt-grip { cursor:col-resize !important }
+.dt-pil input, .dt-pil textarea { cursor:text !important }
 .dt-tabell th { position:sticky; top:0; z-index:5; background:var(--bg3); padding:0; text-align:left;
   border-bottom:2px solid var(--border); border-right:1px solid var(--border); white-space:nowrap }
 .dt-tabell th::after { content:''; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:var(--brand);
