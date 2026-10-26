@@ -12,7 +12,7 @@ export const KILDE_TYPE = 'application/x-kanban-kilde'
 const CSS = `
 .kb-kolonne{display:flex;flex-direction:column;min-width:0;flex:1 1 0;background:var(--bg2);border:1px solid var(--border);border-radius:12px;transition:background .2s,box-shadow .2s,border-color .2s}
 .kb-kolonne.kb-mal{background:var(--brandbg);border-color:var(--brand);box-shadow:0 0 0 2px var(--brandbg)}
-.kb-kort{background:var(--bg);border:1px solid var(--border);border-left:4px solid transparent;border-radius:9px;padding:10px 11px;cursor:default;
+.kb-kort{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:10px 11px;cursor:default;
   transition:box-shadow .18s,transform .18s,border-color .4s,background .4s;box-shadow:0 1px 2px rgba(0,0,0,.05)}
 .kb-kort:hover{box-shadow:0 6px 16px rgba(0,0,0,.12);transform:translateY(-2px) scale(1.012)}
 .kb-kort.kb-dratt{opacity:.45;transform:scale(.97);box-shadow:none}

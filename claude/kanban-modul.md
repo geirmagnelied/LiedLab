@@ -193,3 +193,17 @@ Endringar etter første tilbakemelding frå Geir Magne:
 - **DTM-leveransar** (`kanbanLogikk.js`: `planDtmSync`, `dtmStatus`): ein leveranse = DTM-dokument (`dtm_dokumenter`) med `fase`-felt som svarar til tavla (gjenkjent på nøkkelord) og minst éin `planlagt_<type>`-dato eller `sendt_<type>`-hake. Kortet vert oppretta automatisk i **Komande oppgåver** (tittel = nr + tittel, frist = tidlegaste planlagte utsending som ikkje er sendt, ansvarleg = utarbeida av, skildring = leveransetypar) når tavla vert oppretta og ved kvar opning/fokus av modulen. Status følgjer DTM: egenkontroll pågår → Under arbeid; fagkontroll klar/pågåande/ferdig → Til godkjenning internt; alle leveransar sendt utan fagkontroll → Til godkjenning eksternt; **fagkontroll ferdig + sendt ut → Ferdigstilt (arkiv)**. Statusen vert berre justert når DTM-tilstanden *endrar seg* (`dtm_ref.sist_status`), så eit kort ein flyttar sjølv ligg der til DTM endrar seg igjen. «Fjern» på eit DTM-kort skjuler det (`dtm_ref.skjult`) utan å røre DTM. Eingongs, ei-vegs: Kanban skriv aldri tilbake til DTM.
 - DB: `kanban_tavler`, `kanban_kort.tavle_id`, `kanban_kort.dtm_ref` (sjå `supabase-kanban.sql`). Gamle kort utan `tavle_id` (frå førstegongsversjonen) vert ikkje viste.
 - Opne punkt: om «Byggesøknad» skal fange fleire DTM-fase-skrivemåtar enn «søknad/soknad/rammesøk»; om sendt-utan-fagkontroll skal vere Eksternt eller noko anna. Ikkje testa mot ekte DTM-data (ingen leveransar var planlagde i databasen då).
+
+## Gjeremål-vindauget, Kanban-omdøyping og kortvindauge (26. okt. 2026)
+
+- **Namn og rekkjefølgje** (NL2 under «Gjeremål»): **Gjeremål** (`saker`) → **Kanban** (`oppgaver`, tidlegare «Oppgåver») → **Notatar** (sist).
+- **Gjeremål** = `SakerModule.jsx` + `SakerTabell.jsx`: éi tabell med saker (`S-<nr>`) og oppgåver = Kanban-kort (`O-<nr>`, ny kolonne `kanban_kort.nummer`,
+  per prosjekt, `supabase-kanban-nummer.sql`). Kolonnar: Prosjektnr, Nr, Type, Tittel, Status, Ansvarleg, Frist, Sak (S-nr for oppgåver lenkja til sak), Oppretta;
+  sak-spesifikke (Fag, Sakstype, Prioritet, Tegning, Koplingar, Kommentarar) er skjult som standard. «Filter ▾»: vis Saker/Oppgåver, skjul lukka/ferdige, fag.
+  Klikk på rad opnar sak (CaseDetailModal) eller kort (KanbanKortModal). «+ Ny oppgåve» lagar eit kort i fyrste opne tavle (status Komande).
+  Nye kort får O-nummer = høgste i prosjektet + 1 (`medKortNummer`/`nesteKortNummer` i `kanbanLogikk.js`, òg i DTM-sync og standardkort).
+- **Ny sak** (`NySakModal.jsx`): flyttbart/skalerbart (`FlyttbartModal.jsx` + `useFlyttbartVindauge`), mørk blå toppline med X (åtvarar «saka er ikkje lagra»),
+  same inndatadesign som kortvindauget, «Opprett sak» nede til venstre og «Lukk» rett til høgre. Oppgåver (tittel/ansvarleg/frist) kan leggjast inn i saka
+  → kort med `sak_id`. Sakvindauget har òg «Oppgåver i saka» (liste + legg til).
+- **Kanban**: ingen «Flytt til…»-knapp på kort; merkefargen er ein innrykka stripe (kortkanten er synleg); kortvindauget er flyttbart/skalerbart med blå toppline;
+  Ansvarleg er ei nedtrekksmeny lik Status (`PersonVelger.jsx`); kvar person får ein fast, unik farge frå namnet (`personFarge` i `kanbanLogikk.js`) på kort, i tabellen og i menyen.

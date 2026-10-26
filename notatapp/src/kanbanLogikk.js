@@ -139,6 +139,18 @@ export function fmtDato(d) {
   if (!d) return ''
   try { return new Date(d).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' }) } catch { return '' }
 }
+// Fast, unik farge per person (frå namnet) — brukt på alt som er knytt til personen (ansvarleg på kort, i tabellar, i menyar).
+export function personFarge(namn) {
+  const n = String(namn || '').trim().toLowerCase(); if (!n) return null
+  let h = 5381; for (const c of n) h = ((h * 33) ^ c.charCodeAt(0)) >>> 0
+  const tone = (h % 360)
+  return { fg: `hsl(${tone} 62% 38%)`, bg: `hsl(${tone} 70% 45% / .16)` }
+}
+// Neste løpenummer (O-nummer) for oppgåver/kort i eit prosjekt: høgste eksisterande + 1
+export const nesteKortNummer = (kort) => Math.max(0, ...kort.map(k => Number(k.nummer) || 0)) + 1
+// Set løpenummer på ei liste nye kort (etter dei eksisterande)
+export const medKortNummer = (nye, eksisterande) => { const base = nesteKortNummer(eksisterande); return nye.map((k, i) => ({ ...k, nummer: base + i })) }
+
 export const initialar = (namn) => (String(namn || '').trim().split(/\s+/).map(x => x[0]).join('').slice(0, 2) || '?').toUpperCase()
 
 // Lenkje-oppslag (referanse, aldri styrande)

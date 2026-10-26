@@ -5,7 +5,7 @@ import KanbanTavle from './KanbanTavle'
 import KanbanKortModal from './KanbanKortModal'
 import KanbanKilder from './KanbanKilder'
 import { KANBAN_MALAR } from './kanbanMalar'
-import { TAVLE_FASAR, DTM_KOLONNER, kortIKolonne, planFlytting, planDtmSync, filtrer, faseNamn, fmtDato } from './kanbanLogikk'
+import { medKortNummer, TAVLE_FASAR, DTM_KOLONNER, kortIKolonne, planFlytting, planDtmSync, filtrer, faseNamn, fmtDato } from './kanbanLogikk'
 
 // ═══════════════════════════════════════════════════════════════════
 //  OppgaveModule = Kanban per prosjekt (Gjeremål → Oppgåver). Sjå claude/kanban-modul.md.
@@ -68,7 +68,7 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
         const plan = planDtmSync(t, alle, dok, userId)
         endringar.push(...plan.endre)
         if (plan.opprett.length) {
-          const { data } = await supabase.from('kanban_kort').insert(plan.opprett).select()
+          const { data } = await supabase.from('kanban_kort').insert(medKortNummer(plan.opprett, alle)).select()
           if (data) { alle = [...alle, ...data]; setKort(prev => [...prev, ...data]); merkNy(data.map(d => d.id)) }
         }
       }
@@ -130,7 +130,7 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
     const std = (KANBAN_MALAR[faseKey] || []).map((tittel, i) => ({ ...tomtKort(userId, activeProjectId, data, 'komande'), tittel, sortering: i }))
     let alle = kortRef.current
     if (std.length) {
-      const { data: kd } = await supabase.from('kanban_kort').insert(std).select()
+      const { data: kd } = await supabase.from('kanban_kort').insert(medKortNummer(std, alle)).select()
       if (kd) { alle = [...alle, ...kd]; setKort(alle); merkNy(kd.map(k => k.id)) }
     }
     synkDtm(nyeTavler, alle)
@@ -156,7 +156,7 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
   }, [lagreEndring])
 
   const opprettMange = async (liste) => {
-    const { data, error } = await supabase.from('kanban_kort').insert(liste).select()
+    const { data, error } = await supabase.from('kanban_kort').insert(medKortNummer(liste, kortRef.current)).select()
     if (error) { setFeil('Klarte ikkje opprette: ' + error.message); return [] }
     setKort(prev => [...prev, ...(data || [])]); merkNy((data || []).map(d => d.id))
     return data || []
