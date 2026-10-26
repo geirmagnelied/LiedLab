@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { palopSlutt, palopTekst } from './framdriftPalop'
+import DatePicker from './DatePicker'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Verktøylinja i Framdrift (NL3): nedtrekksmenyar «Påløpt innan», «Ny», «Import», «Eksport», «Visning» og «PNS».
@@ -53,8 +54,8 @@ export function PalopInnanMeny({ verdi, onEndre }) {
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, fontSize: 13, fontWeight: val.modus === k ? 800 : 600, color: 'var(--text)', cursor: 'pointer' }}>
                 <input type="radio" name="palop-modus" checked={val.modus === k} onChange={() => onEndre({ modus: k, verdi: k === val.modus ? val.verdi : '' })}/>{namn}
               </label>
-              {type && <input type={type} value={val.modus === k ? val.verdi : ''} onFocus={() => { if (val.modus !== k) onEndre({ modus: k, verdi: '' }) }} onChange={e => onEndre({ modus: k, verdi: e.target.value })}
-                style={{ padding: '4px 6px', border: '1.5px solid ' + (val.modus === k ? 'var(--brand)' : 'var(--border)'), borderRadius: 6, fontSize: 12.5, fontFamily: 'var(--font)', background: 'var(--bg)', color: 'var(--text)' }}/>}
+              {type && <DatePicker modus={k === 'manad' ? 'manad' : k === 'veke' ? 'veke' : 'dato'} value={val.modus === k ? val.verdi : ''} vedTom={false} onChange={v => onEndre({ modus: k, verdi: v })} wrapStyle={{ width: 150 }}
+                style={{ padding: '4px 28px 4px 6px', border: '1.5px solid ' + (val.modus === k ? 'var(--brand)' : 'var(--border)'), borderRadius: 6, fontSize: 12.5, fontFamily: 'var(--font)', background: 'var(--bg)', color: 'var(--text)' }}/>}
             </div>
           ))}
           {slutt && <div style={{ fontSize: 11.5, color: 'var(--brand)', fontWeight: 700, padding: '6px 4px 0' }}>Viser påløpt til og med {slutt.split('-').reverse().join('.')}</div>}

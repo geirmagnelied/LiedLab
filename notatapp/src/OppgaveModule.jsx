@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import DatePicker from './DatePicker'
 import { supabase } from './supabase'
 import KanbanTavle from './KanbanTavle'
 import KanbanKortModal from './KanbanKortModal'
@@ -280,7 +281,7 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
       ) : (
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, fontSize: 12, color: 'var(--text3)' }}>
-            Ferdigstilt frå <input type="date" value={arkFra} onChange={e => setArkFra(e.target.value)} style={SEL}/> til <input type="date" value={arkTil} onChange={e => setArkTil(e.target.value)} style={SEL}/>
+            Ferdigstilt frå <DatePicker value={arkFra} onChange={setArkFra} style={{ ...SEL, width: '100%' }} wrapStyle={{ display: 'inline-block', width: 150 }}/> til <DatePicker value={arkTil} onChange={setArkTil} style={{ ...SEL, width: '100%' }} wrapStyle={{ display: 'inline-block', width: 150 }}/>
             <span>{arkivListe.length} kort</span>
           </div>
           {arkivListe.length === 0 ? <div style={{ color: 'var(--text3)', fontSize: 13, padding: 20 }}>Ingen ferdigstilte kort{ferdigAntal ? ' i dette utvalet' : ' enno'}.</div> : (

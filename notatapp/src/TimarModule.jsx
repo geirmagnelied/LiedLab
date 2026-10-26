@@ -1,9 +1,11 @@
 import TimeTracker from './TimeTracker'
+import TimeVeke from './TimeVeke'
 import ForecastView from './ForecastView'
 import { useState } from 'react'
 
 export default function TimarModule({ userId, projects, addProject, mode, activeOfficeId }) {
   const [subView, setSubView] = useState('registrer')
+  const [dagFraVeke, setDagFraVeke] = useState(null)   // dag valt i vekeoversikta → opnar Timeregistrering på den dagen
 
   const Tab = ({ v, letter, label }) => {
     const active = subView === v
@@ -44,6 +46,7 @@ export default function TimarModule({ userId, projects, addProject, mode, active
         borderBottom: '1px solid var(--border)',
       }}>
         <Tab v="registrer" letter="T" label="Timeregistrering"/>
+        <Tab v="veke" letter="V" label="Veke"/>
         <Tab v="prognose"  letter="P" label="Prognose"/>
       </div>
 
@@ -51,12 +54,14 @@ export default function TimarModule({ userId, projects, addProject, mode, active
       <div style={{ flex: 1, overflowY: 'auto', padding: '22px 26px' }}>
         {subView === 'registrer' && (
           <TimeTracker
+            key={dagFraVeke || 'i-dag'} initDato={dagFraVeke}
             userId={userId}
             projects={projects}
             addProject={(n, t) => addProject(n, t, activeOfficeId)}
             mode={mode}
           />
         )}
+        {subView === 'veke' && <TimeVeke userId={userId} projects={projects} onGaaTilDag={d => { setDagFraVeke(d); setSubView('registrer') }}/>}
         {subView === 'prognose' && (
           <ForecastView
             userId={userId}

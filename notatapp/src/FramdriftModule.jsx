@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import DatePicker from './DatePicker'
 import { addDays, parseISO } from 'date-fns'
 import { supabase } from './supabase'
 import FramdriftTidslinje from './FramdriftTidslinje'
@@ -753,7 +754,7 @@ function MalVindauge({ harPlan, onLukk, onBruk }) {
           </div>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 190 }}>
             <span className="fd-etikett">Startdato</span>
-            <input className="fd-input" type="date" value={start} onChange={e => e.target.value && setStart(e.target.value)}/>
+            <DatePicker className="fd-input" value={start} vedTom={false} onChange={v => v && setStart(v)}/>
           </label>
           {harPlan && (
             <div style={{ display: 'flex', gap: 18, fontSize: 12.5, color: 'var(--text2)' }}>

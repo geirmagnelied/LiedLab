@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import DatePicker from './DatePicker'
 import { format } from 'date-fns'
 import { nb } from 'date-fns/locale'
 import useKontorkalender from './useKontorkalender'
@@ -82,11 +83,11 @@ export default function KontorkalenderSide({ userId }) {
             <div style={{ ...etikett, marginBottom: 6 }}>Eigne fridagar og ferie</div>
             {(kal.ekstraFri || []).map((f, i) => (
               <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-                <input type="date" value={f.fra || ''} style={{ ...inp, width: 138 }}
-                  onChange={e => endre({ ekstraFri: kal.ekstraFri.map((x, j) => (j === i ? { ...x, fra: e.target.value, til: x.til && x.til >= e.target.value ? x.til : e.target.value } : x)) })}/>
+                <DatePicker value={f.fra || ''} style={inp} wrapStyle={{ width: 150 }} vedTom={false}
+                  onChange={v => v && endre({ ekstraFri: kal.ekstraFri.map((x, j) => (j === i ? { ...x, fra: v, til: x.til && x.til >= v ? x.til : v } : x)) })}/>
                 <span style={{ color: 'var(--text3)' }}>–</span>
-                <input type="date" value={f.til || ''} min={f.fra || undefined} style={{ ...inp, width: 138 }}
-                  onChange={e => endre({ ekstraFri: kal.ekstraFri.map((x, j) => (j === i ? { ...x, til: e.target.value } : x)) })}/>
+                <DatePicker value={f.til || ''} min={f.fra || undefined} style={inp} wrapStyle={{ width: 150 }} vedTom={false}
+                  onChange={v => v && endre({ ekstraFri: kal.ekstraFri.map((x, j) => (j === i ? { ...x, til: v } : x)) })}/>
                 <input value={f.namn || ''} placeholder="Namn, t.d. Sommarferie" style={{ ...inp, flex: 1, minWidth: 120 }}
                   onChange={e => endre({ ekstraFri: kal.ekstraFri.map((x, j) => (j === i ? { ...x, namn: e.target.value } : x)) })}/>
                 <button style={{ ...knapp, padding: '4px 9px' }} title="Fjern" onClick={() => endre({ ekstraFri: kal.ekstraFri.filter((_, j) => j !== i) })}>×</button>

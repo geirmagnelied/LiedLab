@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import DatePicker from './DatePicker'
 import { supabase } from './supabase'
 import NummereringVal from './NummereringVal'
 import PersonellSide from './PersonellSide'
@@ -100,7 +101,9 @@ function F({ form, set, label, id, type='text', half, third, quarter, ...props }
     <div style={{ flex: quarter ? '0 0 25%' : third ? '0 0 33.33%' : half ? '0 0 50%' : 1, minWidth: 0 }}>
       <label style={{ display:'block', fontSize:11, fontWeight:600, color:'var(--text3)',
         marginBottom:3, letterSpacing:'.03em' }}>{label}</label>
-      {type === 'textarea' ? (
+      {type === 'date' ? (
+        <DatePicker value={form?.[id] || ''} onChange={v => set(id, v)}/>
+      ) : type === 'textarea' ? (
         <textarea value={form?.[id] || ''} onChange={e => set(id, e.target.value)}
           rows={3} {...props}
           style={{ width:'100%', padding:'8px 10px', borderRadius:'var(--r)',

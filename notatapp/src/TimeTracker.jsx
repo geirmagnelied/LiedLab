@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import DatePicker from './DatePicker'
 import { supabase } from './supabase'
 import { favorittForst, prosjektValTekst } from './projectFavoritt'
 
@@ -61,8 +62,8 @@ function fmtDate(d) {
   return `${dayName(d)} ${d.getDate()}. ${months[d.getMonth()]}`
 }
 
-export default function TimeTracker({ userId, projects, addProject, mode }) {
-  const [date,       setDate]       = useState(new Date())
+export default function TimeTracker({ userId, projects, addProject, mode, initDato }) {
+  const [date,       setDate]       = useState(() => (initDato ? new Date(initDato + 'T12:00:00') : new Date()))
   const [entries,    setEntries]    = useState([])
   const [loading,    setLoading]    = useState(true)
   const [saveStatus, setSaveStatus] = useState('idle')
@@ -407,8 +408,8 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
             fontSize: 12, fontWeight: 600 }}>
           I dag
         </button>
-        <input type="date" value={ymd(date)} onChange={e => setDate(new Date(e.target.value))}
-          style={{ padding: '6px 10px', background: 'var(--bg3)', border: '1px solid var(--border)',
+        <DatePicker value={ymd(date)} onChange={v => v && setDate(new Date(v + 'T12:00:00'))} vedTom={false} wrapStyle={{ width: 150 }}
+          style={{ padding: '6px 30px 6px 10px', background: 'var(--bg3)', border: '1px solid var(--border)',
             borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'var(--font)' }}/>
         <div style={{ position: 'relative' }}>
           <button onClick={() => { setFlyttDato(ymd(addDays(date, 1))); setFlyttApen(v => !v) }}
@@ -436,8 +437,8 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
               </div>
               <div style={{ fontSize: 10.5, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text3)', fontWeight: 700 }}>Eller vel dag</div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input type="date" value={flyttDato} onChange={e => setFlyttDato(e.target.value)}
-                  style={{ flex: 1, padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 12.5, fontFamily: 'var(--font)', background: 'var(--bg2)', color: 'var(--text)' }}/>
+                <DatePicker value={flyttDato} onChange={setFlyttDato} vedTom={false} wrapStyle={{ flex: 1 }}
+                  style={{ padding: '6px 30px 6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 12.5, fontFamily: 'var(--font)', background: 'var(--bg2)', color: 'var(--text)' }}/>
                 <button onClick={() => flyttAlleTil(flyttDato)} disabled={!flyttDato || flyttDato === ymd(date)}
                   style={{ padding: '6px 12px', border: 'none', borderRadius: 'var(--r)', background: 'var(--brand)', color: '#fff', fontWeight: 700, fontSize: 12.5,
                     cursor: 'pointer', opacity: !flyttDato || flyttDato === ymd(date) ? .5 : 1 }}>
@@ -476,11 +477,6 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
           ))}
         </div>
       )}
-
-      <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 14px',
-        marginBottom: 14, fontSize: 12, color: 'var(--text2)' }}>
-        Tidsbruk-formatet er fleksibelt: <b>09.30-10</b> · <b>2,5</b> · <b>2,5t</b> · <b>1:30</b> · <b>2t30min</b>
-      </div>
 
       <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--border)',
         borderRadius: 'var(--r2)', background: 'var(--bg2)' }}>
@@ -580,7 +576,7 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
                   disabled={isSubmitted}
                   onChange={e => updateRow(row.id, { rawInput: e.target.value })}
                   placeholder="t.d. 9.30-10"
-                  title={overlapp.kart.has(row.id) ? 'Overlappar med rad ' + overlapp.kart.get(row.id).map(o => o.nr + ' (' + o.r.startTime + '–' + o.r.endTime + ')').join(', ') : undefined}
+                  title={(overlapp.kart.has(row.id) ? '⚠ Overlappar med rad ' + overlapp.kart.get(row.id).map(o => o.nr + ' (' + o.r.startTime + '–' + o.r.endTime + ')').join(', ') + '\n\n' : '') + 'Fleksibelt format:\n09.30-10  ·  2,5  ·  2,5t  ·  1:30  ·  2t30min'}
                   style={{ ...cellInput, fontFamily: 'var(--mono)', ...(overlapp.kart.has(row.id) ? { background: 'rgba(220,38,38,.12)', boxShadow: 'inset 0 0 0 2px var(--danger)', color: 'var(--danger)', fontWeight: 700 } : { color: isSubmitted ? 'var(--text3)' : 'var(--text)' }) }}/>
               </div>
 
@@ -665,13 +661,10 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
 
         <div style={{ background: 'var(--bg3)', color: 'var(--text)', borderTop: '2px solid var(--border)',
           display: 'grid', gridTemplateColumns: malKol, minWidth: 'min-content' }}>
-          <div style={{ padding: '12px 14px', fontWeight: 700,
+          <div style={{ gridColumn: '1 / 5', padding: '12px 14px', fontWeight: 700, whiteSpace: 'nowrap',
             textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 13 }}>
             Totalt {fmtDate(date)}
           </div>
-          <div></div>
-          <div></div>
-          <div></div>
           <div style={{ padding: '12px 12px', textAlign: 'right',
             fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700 }}>
             {grandTotal.toFixed(2)}t

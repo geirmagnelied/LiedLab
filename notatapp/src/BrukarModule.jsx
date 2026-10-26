@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import DatePicker from './DatePicker'
 import { useT } from './sprak'
 import { signerteUrlar, lastOppBilete, slettBilete } from './useBrukar'
 
@@ -65,7 +66,7 @@ function BrukarInfo({ profil, oppdater, bileteUrl, userId, userEmail, t }) {
           <Felt etikett={t('bruker.poststad')} stil={{ flex: 1 }}><input className="bk-input" value={profil.poststad || ''} onChange={e => oppdater({ poststad: e.target.value })}/></Felt>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <Felt etikett={t('bruker.fodselsdato')} stil={{ width: 190 }}><input className="bk-input" type="date" value={profil.fodselsdato || ''} onChange={e => oppdater({ fodselsdato: e.target.value || null })}/></Felt>
+          <Felt etikett={t('bruker.fodselsdato')} stil={{ width: 190 }}><DatePicker className="bk-input" value={profil.fodselsdato || ''} onChange={v => oppdater({ fodselsdato: v || null })}/></Felt>
           <Felt etikett={t('bruker.epost')} stil={{ flex: 1 }}><input className="bk-input" value={userEmail || ''} disabled style={{ background: 'var(--bg3)' }}/></Felt>
         </div>
         <Felt etikett="Telefon"><input className="bk-input" value={profil.telefon || ''} onChange={e => oppdater({ telefon: e.target.value })} inputMode="tel" placeholder="T.d. 900 00 000"/></Felt>

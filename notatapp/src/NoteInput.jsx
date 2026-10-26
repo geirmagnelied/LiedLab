@@ -2,6 +2,7 @@ import { favorittForst, prosjektValTekst } from './projectFavoritt'
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { nextFriday, fmt } from './dateUtils'
 import SketchPad from './SketchPad'
+import DatePicker, { DatoTid } from './DatePicker'
 import { eksporterNotatPdf } from './notatPdf'
 import CaseTable from './CaseTable'
 
@@ -76,13 +77,11 @@ function TaskRow({ task, onUpdate, onDelete }) {
       <input ref={textRef} value={editText} onChange={e => setEditText(e.target.value)}
         onKeyDown={e => { if (e.key==='Enter') commit(); if (e.key==='Escape') setEditing(false) }}
         style={{ ...fi, flex:1, minWidth:140, padding:'4px 8px', background:'var(--bg2)', fontSize:13 }}/>
-      <input type="date" value={editStart} onChange={e => setEditStart(e.target.value)}
-        title="Startdato" style={{ ...fi, width:130, padding:'4px 8px', background:'var(--bg2)', fontSize:12 }}/>
+      <DatePicker value={editStart} onChange={setEditStart} tittel="Startdato" wrapStyle={{ width:132 }} style={{ ...fi, padding:'4px 28px 4px 8px', background:'var(--bg2)', fontSize:12 }}/>
       <input type="number" value={editHours} onChange={e => setEditHours(e.target.value)}
         min="0.5" max="999" step="0.5" title="Timeverk"
         style={{ ...fi, width:64, padding:'4px 8px', background:'var(--bg2)', fontSize:13, textAlign:'center' }}/>
-      <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
-        title="Frist" style={{ ...fi, width:130, padding:'4px 8px', background:'var(--bg2)', fontSize:12 }}/>
+      <DatePicker value={editDate} onChange={setEditDate} tittel="Frist" wrapStyle={{ width:132 }} style={{ ...fi, padding:'4px 28px 4px 8px', background:'var(--bg2)', fontSize:12 }}/>
       <button onClick={commit}
         style={{ padding:'4px 10px', background:'var(--brand)', border:'none',
           borderRadius:'var(--r)', color:'#fff', cursor:'pointer',
@@ -565,7 +564,20 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
      meetingTime, meetingDuration, meetingLocation, attendees])
 
   // Editor / title onInput handlers
-  const handleEditorInput  = () => triggerAutoSave()
+  // Skriv «- » (eller «* », «• ») først på ei linje → punktliste; «1. » → nummerert liste. Neste linje held fram i lista (Enter), tom linje avsluttar.
+  const handleEditorInput  = () => {
+    const ed = editorRef.current
+    const sel = window.getSelection()
+    if (ed && sel && sel.isCollapsed && sel.anchorNode && sel.anchorNode.nodeType === 3 && !sel.anchorNode.parentElement?.closest('li')) {
+      const n = sel.anchorNode, t = n.nodeValue || ''
+      if (!n.previousSibling && sel.anchorOffset === t.length) {
+        if (/^[-*•–]\s$/.test(t)) { n.nodeValue = ''; document.execCommand('insertUnorderedList') }
+        else if (/^\d{1,2}[.)]\s$/.test(t)) { n.nodeValue = ''; document.execCommand('insertOrderedList') }
+      }
+    }
+    if (ed && (ed.innerHTML === '<br>' || ed.innerHTML === '<div><br></div>')) ed.innerHTML = ''   // tomt felt → plasshaldaren «Beskriving» vert vist
+    triggerAutoSave()
+  }
   const handleTitleInput   = () => triggerAutoSave()
 
   // Cleanup on unmount
@@ -777,13 +789,11 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
               style={{ ...fi, fontSize:15, fontWeight:600, padding:'10px 13px',
                 background:'var(--bg2)', border:'2px solid var(--brand3)' }}
               onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); commitNewTask() } }}/>
-            <input type="date" value={newTaskStart} onChange={e => setNewTaskStart(e.target.value)}
-              title="Startdato" style={fi}/>
+            <DatePicker value={newTaskStart} onChange={setNewTaskStart} tittel="Startdato" style={fi}/>
             <input type="number" value={newTaskHours} onChange={e => setNewTaskHours(e.target.value)}
               placeholder="0.5" min="0.5" max="999" step="0.5"
               title="Timar" style={{ ...fi, textAlign:'center' }}/>
-            <input type="date" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)}
-              title="Frist" style={fi}/>
+            <DatePicker value={newTaskDate} onChange={setNewTaskDate} tittel="Frist" style={fi}/>
           </div>
           <div style={{ fontSize:11, color:'var(--text3)', marginTop:6 }}>
             Trykk Enter for å legge til oppgåva og starte på neste · Utan frist → fredag denne veka · Utan timar → 0.5t
@@ -903,9 +913,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
           <>
             <div>
               <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Tidspunkt</label>
-              <input type="datetime-local" value={meetingTime} onChange={e=>setMeetingTime(e.target.value)}
-                step={300}
-                style={{ ...fi, background:'var(--bg2)', padding:'8px 8px', fontSize:12 }}/>
+              <DatoTid value={meetingTime} onChange={setMeetingTime} style={{ ...fi, background:'var(--bg2)', padding:'8px 8px', fontSize:12 }}/>
             </div>
             <div>
               <label style={{ fontSize:10, color:'var(--text3)', display:'block', marginBottom:2, textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700 }}>Varigheit</label>
@@ -971,8 +979,6 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
         </>
       )}
 
-      <Divider label={isReferat ? "Notat / kommentarar" : (isMeeting ? "Agenda / referat" : "Beskriving")}/>
-
       <div style={{ border:'2px solid var(--border)', borderRadius:'var(--r2)',
         overflow:'hidden', boxShadow:'var(--shadow-sm)' }}>
         <div style={{ display:'flex', gap:2, padding:'5px 8px', borderBottom:'1px solid var(--border)',
@@ -1008,13 +1014,13 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
           <TBtn onClick={()=>exec('removeFormat')} title="Fjern format.">✕</TBtn>
         </div>
         <div ref={editorRef} contentEditable suppressContentEditableWarning
-          style={{ minHeight:140, padding:'13px 15px', outline:'none',
+          style={{ minHeight:'max(280px, 34vh)', padding:'13px 15px', outline:'none',
             fontSize:14, lineHeight:1.8, color:'var(--text)', background:'var(--bg2)' }}
           onInput={handleEditorInput}
           onContextMenu={handleEditorContextMenu}
           onMouseMove={handleEditorMouseMove} onMouseDown={handleEditorMouseDown}
           onKeyDown={e => { if (e.key==='Tab' && handleTabITabell(e)) return; if (e.key==='Enter' && (e.ctrlKey||e.metaKey)) handleSave() }}
-          data-placeholder="Skriv notat, eller dra inn e-post / PDF…"/>
+          data-placeholder={isReferat ? 'Notat / kommentarar' : isMeeting ? 'Agenda / referat' : 'Beskriving'}/>
       </div>
 
       {/* ── Tabell-kontekstmeny (høgreklikk i ein tabellcelle) ── */}
@@ -1076,8 +1082,6 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
       )}
 
       {/* ── Arbeidsoppgåver ── */}
-      <Divider label="Arbeidsoppgåver"/>
-
       <div>
         {tasks.map(task => (
           <TaskRow key={task.id} task={task} onUpdate={updateTask} onDelete={deleteTask}/>
@@ -1112,17 +1116,13 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
             rows={newTaskText.includes('\n') ? Math.min(5, newTaskText.split('\n').length + 1) : 1}
             style={{ ...fi, flex:1, resize:'none', lineHeight:1.5,
               background:'var(--bg2)', border:'1.5px solid var(--border)', minHeight:36 }}/>
-          <input type="date" value={newTaskStart} onChange={e => setNewTaskStart(e.target.value)}
-            title="Startdato"
-            style={{ ...fi, width:130, background:'var(--bg2)' }}/>
+          <DatePicker value={newTaskStart} onChange={setNewTaskStart} tittel="Startdato" wrapStyle={{ width:140 }} style={{ ...fi, background:'var(--bg2)' }}/>
           <input type="number" value={newTaskHours} onChange={e => setNewTaskHours(e.target.value)}
             placeholder="0.5"
             min="0.5" max="999" step="0.5"
             title="Timeverk (standard: 0.5)"
             style={{ ...fi, width:56, background:'var(--bg2)', textAlign:'center' }}/>
-          <input type="date" value={newTaskDate} onChange={e => setNewTaskDate(e.target.value)}
-            title={`Frist (standard: fredag = ${nextFriday()})`}
-            style={{ ...fi, width:130, background:'var(--bg2)' }}/>
+          <DatePicker value={newTaskDate} onChange={setNewTaskDate} tittel={`Frist (standard: fredag = ${nextFriday()})`} wrapStyle={{ width:140 }} style={{ ...fi, background:'var(--bg2)' }}/>
         </div>
         <div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>
           Utan frist → fredag denne veka · Utan timar → 0.5t · Alt+Enter for ny linje

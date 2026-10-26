@@ -158,3 +158,6 @@ button { cursor: pointer; }
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.5; transform: scale(1.2); }
 }
+
+/* Plasshaldar i skrivefelt (contenteditable) — t.d. «Beskriving» i notat */
+[data-placeholder]:empty::before { content: attr(data-placeholder); color: var(--text3); pointer-events: none }

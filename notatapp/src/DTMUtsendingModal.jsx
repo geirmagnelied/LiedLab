@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import DatePicker from './DatePicker'
 import { finnGjeldandeKategori, KATEGORI_LABEL, UTSENDING_KANALAR, utsendingsnrTekst,
   LEVERANSE_FASAR_BASIS, LEVERANSE_FASAR_EKSTRA } from './dtmKonstantar'
 
@@ -154,8 +155,8 @@ export default function DTMUtsendingModal({ utsending, dokumenter, oppdragsSti, 
                 onChange={e => onOppdater('mottakar', e.target.value)} placeholder="Namn/firma/e-post"/>
             </Felt>
             <Felt namn="Dato">
-              <input type="date" className="dt-input" value={utsending.dato || ''} disabled={sendt}
-                onChange={e => onOppdater('dato', e.target.value)}/>
+              <DatePicker className="dt-input" value={utsending.dato || ''} disabled={sendt}
+                onChange={v => onOppdater('dato', v)}/>
             </Felt>
             <Felt namn="Emnefelt (e-post)">
               <input className="dt-input" value={utsending.emne || ''} disabled={sendt}

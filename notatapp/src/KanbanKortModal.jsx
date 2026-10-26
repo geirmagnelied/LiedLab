@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import DatePicker from './DatePicker'
 import { ALLE_STATUSAR, KORT_FARGAR, aktivitetNamn, faseNamn } from './kanbanLogikk'
 
 // ═══════════════════════════════════════════════════════════════════
@@ -37,7 +38,7 @@ export default function KanbanKortModal({ kort, saker, notes, planElement, perso
             <label><span style={ETT}>Ansvarleg</span>
               <input value={d.ansvarleg || ''} onChange={e => sett('ansvarleg', e.target.value)} list="kb-personell-modal" style={FELT}/>
               <datalist id="kb-personell-modal">{(personell || []).map(p => <option key={p.id} value={p.namn}/>)}</datalist></label>
-            <label><span style={ETT}>Frist</span><input type="date" value={d.frist || ''} onChange={e => sett('frist', e.target.value || null)} style={FELT}/></label>
+            <label><span style={ETT}>Frist</span><DatePicker value={d.frist || ''} onChange={v => sett('frist', v || null)} style={FELT}/></label>
           </div>
           <div>
             <span style={ETT}>Merkefarge</span>

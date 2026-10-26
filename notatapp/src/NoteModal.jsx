@@ -14,7 +14,7 @@ import NoteInput from './NoteInput'
 //  i staden for å lukke stille.
 // ═══════════════════════════════════════════════════════════════════
 
-const SIZE_KEY = 'liedlab-notemodal-size'
+const SIZE_KEY = 'liedlab-notemodal-size-v2'
 const MIN_W = 420, MIN_H = 360
 
 export default function NoteModal(props) {
@@ -34,19 +34,30 @@ export default function NoteModal(props) {
       if (lagra && lagra.w > 0 && lagra.h > 0) return lagra
     } catch { /* privat modus */ }
     return {
-      w: Math.min(1040, Math.round(window.innerWidth * 0.94)),
-      h: Math.min(820, Math.round(window.innerHeight * 0.92)),
+      w: Math.min(1180, Math.round(window.innerWidth * 0.94)),
+      h: Math.min(900, Math.round(window.innerHeight * 0.93)),
     }
   })
 
-  const startResize = (e) => {
+  // Flytting: dra i toppfeltet. Storleik: dra i høgre kant, botnkant eller hjørnet (motsett kant står stille).
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+  const startFlytt = (e) => {
+    if (e.target.closest('button')) return
+    e.preventDefault()
+    const x0 = e.clientX, y0 = e.clientY, p0 = pos
+    const mv = (ev) => setPos({ x: p0.x + ev.clientX - x0, y: p0.y + ev.clientY - y0 })
+    const opp = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); document.body.style.cursor = '' }
+    document.body.style.cursor = 'move'
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
+  }
+  const startResize = (e, rx = 1, ry = 1) => {
     e.preventDefault()
     const startX = e.clientX, startY = e.clientY
-    const startW = size.w, startH = size.h
+    const startW = size.w, startH = size.h, p0 = pos
     const flytt = (ev) => {
-      const w = Math.max(MIN_W, Math.min(Math.round(window.innerWidth * 0.97), Math.round(startW + (ev.clientX - startX))))
-      const h = Math.max(MIN_H, Math.min(Math.round(window.innerHeight * 0.97), Math.round(startH + (ev.clientY - startY))))
-      setSize({ w, h })
+      const w = rx ? Math.max(MIN_W, Math.min(Math.round(window.innerWidth * 0.99), Math.round(startW + (ev.clientX - startX)))) : startW
+      const h = ry ? Math.max(MIN_H, Math.min(Math.round(window.innerHeight * 0.99), Math.round(startH + (ev.clientY - startY)))) : startH
+      setSize({ w, h }); setPos({ x: p0.x + (w - startW) / 2, y: p0.y + (h - startH) / 2 })
     }
     const slepp = () => {
       window.removeEventListener('mousemove', flytt)
@@ -54,7 +65,7 @@ export default function NoteModal(props) {
       document.body.style.cursor = ''
       setSize(s => { try { localStorage.setItem(SIZE_KEY, JSON.stringify(s)) } catch { /* privat modus */ } ; return s })
     }
-    document.body.style.cursor = 'nwse-resize'
+    document.body.style.cursor = rx && ry ? 'nwse-resize' : rx ? 'ew-resize' : 'ns-resize'
     window.addEventListener('mousemove', flytt)
     window.addEventListener('mouseup', slepp)
   }
@@ -90,11 +101,11 @@ export default function NoteModal(props) {
         width:size.w, height:size.h,
         minWidth:MIN_W, minHeight:MIN_H, maxWidth:'97vw', maxHeight:'97vh',
         overflow:'hidden', display:'flex', flexDirection:'column',
-        boxShadow:'0 24px 70px rgba(0,0,0,.35)', position:'relative' }}>
+        boxShadow:'0 24px 70px rgba(0,0,0,.35)', position:'relative', transform:`translate(${pos.x}px, ${pos.y}px)` }}>
 
         {/* Head */}
-        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'14px 20px',
-          borderBottom:'1px solid rgba(255,255,255,.12)', flexShrink:0, background:'var(--brand)' }}>
+        <div onMouseDown={startFlytt} title="Dra for å flytte vindauget" style={{ display:'flex', alignItems:'center', gap:10, padding:'14px 20px',
+          borderBottom:'1px solid rgba(255,255,255,.12)', flexShrink:0, background:'var(--brand)', cursor:'move', userSelect:'none' }}>
           <span style={{ fontSize:15, fontWeight:800, color:'#fff' }}>{tittel}</span>
           <div style={{ flex:1 }}/>
           <button onClick={requestClose} title="Lukk"
@@ -106,6 +117,10 @@ export default function NoteModal(props) {
         <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
           <NoteInput ref={innerRef} {...props} onDirtyChange={setDirty}/>
         </div>
+
+        {/* Dragbare kantar — endrar storleiken */}
+        <div onMouseDown={e => startResize(e, 1, 0)} title="Dra for å gjere vindauget breiare" style={{ position:'absolute', top:50, right:0, bottom:20, width:8, cursor:'ew-resize', zIndex:19 }}/>
+        <div onMouseDown={e => startResize(e, 0, 1)} title="Dra for å gjere vindauget høgare" style={{ position:'absolute', left:0, right:20, bottom:0, height:8, cursor:'ns-resize', zIndex:19 }}/>
 
         {/* Dragbart hjørne — endrar storleiken på heile vindauget */}
         <div onMouseDown={startResize} title="Dra for å endre storleiken på vindauget"
