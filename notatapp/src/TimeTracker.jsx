@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from './supabase'
 import { favorittForst, prosjektValTekst } from './projectFavoritt'
 
@@ -339,6 +339,39 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
 
   const modeProjects = favorittForst(projects)
 
+  // ── Overlappande tidspunkt: to oppføringar same dag kan ikkje ha overlappande klokkeslett (09.30-10 mot 09.45-11). Rører/endar-mot-start er OK. ──
+  const overlapp = useMemo(() => {
+    const tilMin = (hm) => { const [h, m] = String(hm).split(':').map(Number); return h * 60 + (m || 0) }
+    const liste = entries.map((r, i) => ({ r, nr: i + 1 })).filter(x => x.r.startTime && x.r.endTime).map(x => { const s = tilMin(x.r.startTime); let e = tilMin(x.r.endTime); if (e <= s) e += 1440; return { ...x, s, e } })
+    const kart = new Map(), par = []
+    for (let i = 0; i < liste.length; i++) for (let j = i + 1; j < liste.length; j++) {
+      const a = liste[i], c = liste[j]
+      if (a.s < c.e && c.s < a.e) {
+        par.push([a, c])
+        for (const [x, y] of [[a, c], [c, a]]) { if (!kart.has(x.r.id)) kart.set(x.r.id, []); kart.get(x.r.id).push(y) }
+      }
+    }
+    return { kart, par }
+  }, [entries])
+
+  // ── Kolonnebreidder (dra i kanten på kolonneoverskrifta; dobbeltklikk = standard). 0 = fleksibel (1fr) ──
+  const KOL_STD = [220, 150, 120, 0, 80, 90, 40]
+  const [kolB, setKolB] = useState(() => { try { const v = JSON.parse(localStorage.getItem('liedlab-timar-kolb')); return Array.isArray(v) && v.length === 7 ? v : KOL_STD } catch { return KOL_STD } })
+  const malKol = kolB.map(w => (w > 0 ? w + 'px' : 'minmax(160px, 1fr)')).join(' ')
+  const startKolResize = (i, ev) => {
+    ev.preventDefault(); ev.stopPropagation()
+    const x0 = ev.clientX, b0 = ev.currentTarget.parentElement.getBoundingClientRect().width
+    let siste = b0
+    const mv = (e2) => { siste = Math.max(48, Math.round(b0 + e2.clientX - x0)); setKolB(p => p.map((w, j) => (j === i ? siste : w))) }
+    const opp = () => {
+      window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); document.body.style.cursor = ''
+      setKolB(p => { try { localStorage.setItem('liedlab-timar-kolb', JSON.stringify(p)) } catch { /* privat modus */ } return p })
+    }
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
+  }
+  const nullstillKol = (i) => setKolB(p => { const n = p.map((w, j) => (j === i ? KOL_STD[i] : w)); try { localStorage.setItem('liedlab-timar-kolb', JSON.stringify(n)) } catch { /* privat modus */ } return n })
+
   const cellInput = {
     width: '100%', border: 'none', background: 'transparent',
     fontFamily: 'var(--font)', fontSize: 13, padding: '8px 10px',
@@ -433,29 +466,37 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
         </div>
       </div>
 
+      {overlapp.par.length > 0 && (
+        <div role="alert" style={{ background: 'rgba(220,38,38,.09)', border: '1.5px solid var(--danger)', borderRadius: 'var(--r)', padding: '10px 14px', marginBottom: 12, fontSize: 13, color: 'var(--danger)', fontWeight: 600, lineHeight: 1.55 }}>
+          ⚠ Overlappande tidspunkt — to oppføringar same dag kan ikkje ha overlappande klokkeslett:
+          {overlapp.par.map(([x, y], i) => (
+            <div key={i} style={{ fontWeight: 500, color: 'var(--text)' }}>
+              Rad {x.nr} ({x.r.startTime}–{x.r.endTime}) overlappar med rad {y.nr} ({y.r.startTime}–{y.r.endTime})
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 14px',
         marginBottom: 14, fontSize: 12, color: 'var(--text2)' }}>
         Tidsbruk-formatet er fleksibelt: <b>09.30-10</b> · <b>2,5</b> · <b>2,5t</b> · <b>1:30</b> · <b>2t30min</b>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--border)',
+      <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--border)',
         borderRadius: 'var(--r2)', background: 'var(--bg2)' }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '220px 150px 120px 1fr 80px 90px 40px',
+        <div style={{ display: 'grid', gridTemplateColumns: malKol, minWidth: 'min-content',
           background: 'var(--bg3)', borderBottom: '2px solid var(--border)',
           position: 'sticky', top: 0, zIndex: 5 }}>
-          <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
-            textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Prosjekt</div>
-          <div title="Aktivitetsnummer = aktivitetskode i Framdrift. Vel frå lista når prosjektet har kodar, elles skriv du kode (eller lèt vere)." style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
-            textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Aktivitetsnr.</div>
-          <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
-            textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Tidsbruk</div>
-          <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
-            textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)' }}>Beskriving</div>
-          <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
-            textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)', textAlign:'right' }}>Timar</div>
-          <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)',
-            textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)', textAlign:'center' }}>Sendt inn</div>
+          {[['Prosjekt', 'Prosjekt', 'left'], ['Aktivitetsnr.', 'Aktivitetsnummer = aktivitetskode i Framdrift. Vel frå lista når prosjektet har kodar, elles skriv du kode (eller lèt vere).', 'left'], ['Tidsbruk', 'Tidsbruk', 'left'],
+            ['Beskriving', 'Beskriving', 'left'], ['Timar', 'Timar', 'right'], ['Sendt inn', 'Sendt inn', 'center']].map(([namn, tittel, just], i) => (
+            <div key={namn} title={tittel} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', position: 'relative',
+              textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)', textAlign: just }}>
+              {namn}
+              <div onMouseDown={e => startKolResize(i, e)} onDoubleClick={() => nullstillKol(i)} title="Dra for å endre kolonnebreidda (dobbeltklikk = standard)"
+                style={{ position: 'absolute', right: -3, top: 0, bottom: 0, width: 7, cursor: 'col-resize', zIndex: 6 }}/>
+            </div>
+          ))}
           <div></div>
         </div>
 
@@ -466,7 +507,7 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
 
           return (
             <div key={row.clientId}
-              style={{ display: 'grid', gridTemplateColumns: '220px 150px 120px 1fr 80px 90px 40px',
+              style={{ display: 'grid', gridTemplateColumns: malKol, minWidth: 'min-content',
                 borderBottom: '1px solid var(--border)',
                 background: isSubmitted ? 'var(--bg3)' : 'var(--bg2)',
                 opacity: isEmpty ? 0.7 : (isSubmitted ? 0.65 : 1),
@@ -539,8 +580,8 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
                   disabled={isSubmitted}
                   onChange={e => updateRow(row.id, { rawInput: e.target.value })}
                   placeholder="t.d. 9.30-10"
-                  style={{ ...cellInput, fontFamily: 'var(--mono)',
-                    color: isSubmitted ? 'var(--text3)' : 'var(--text)' }}/>
+                  title={overlapp.kart.has(row.id) ? 'Overlappar med rad ' + overlapp.kart.get(row.id).map(o => o.nr + ' (' + o.r.startTime + '–' + o.r.endTime + ')').join(', ') : undefined}
+                  style={{ ...cellInput, fontFamily: 'var(--mono)', ...(overlapp.kart.has(row.id) ? { background: 'rgba(220,38,38,.12)', boxShadow: 'inset 0 0 0 2px var(--danger)', color: 'var(--danger)', fontWeight: 700 } : { color: isSubmitted ? 'var(--text3)' : 'var(--text)' }) }}/>
               </div>
 
               <div style={{ borderRight: '1px solid var(--border)' }}>
@@ -602,7 +643,7 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
               const proj = key === '__nopr__' ? null : projectMap[parseInt(key)]
               return (
                 <div key={key} style={{ display: 'grid',
-                  gridTemplateColumns: '220px 150px 120px 1fr 80px 90px 40px',
+                  gridTemplateColumns: malKol, minWidth: 'min-content',
                   borderTop: '1px solid var(--border)' }}>
                   <div style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
                     {proj ? `📁 ${proj.name}` : '— Utan prosjekt —'}
@@ -623,7 +664,7 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
         )}
 
         <div style={{ background: 'var(--bg3)', color: 'var(--text)', borderTop: '2px solid var(--border)',
-          display: 'grid', gridTemplateColumns: '220px 150px 120px 1fr 80px 90px 40px' }}>
+          display: 'grid', gridTemplateColumns: malKol, minWidth: 'min-content' }}>
           <div style={{ padding: '12px 14px', fontWeight: 700,
             textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 13 }}>
             Totalt {fmtDate(date)}

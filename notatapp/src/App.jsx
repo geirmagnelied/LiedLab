@@ -342,7 +342,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
           borderColor:active?'#0A0A0A':'transparent',
           background:active?'#0A0A0A':'transparent',
           borderRadius:'var(--r)',color:active?'#fff':'var(--text2)',
-          fontSize:14,cursor:'pointer',fontWeight:active?700:500,transition:'all .15s' }}>
+          fontSize:13,cursor:'pointer',fontWeight:active?700:500,transition:'all .15s' }}>
         {letter && <span style={{ width:20,height:20,borderRadius:5,
           background: active?'#fff':'rgba(27,42,58,.1)',
           color: active?'#0A0A0A':'var(--text2)',
@@ -637,7 +637,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
                   border:'1.5px solid var(--border)',
                   borderRadius:'var(--r)',
                   background:'#fff', color:'var(--brand)',
-                  fontSize:14, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  fontSize:13, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                 + Notat
               </button>
               <button onClick={()=>handleNewNote('meeting')}

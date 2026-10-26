@@ -363,7 +363,7 @@ export default function KalenderModule({ projects, notes, activeProjectId, onEdi
               style={{ padding:'5px 12px', borderRadius:6, border:'none',
                 background: visning === v.key ? '#0A0A0A' : 'transparent',
                 color: visning === v.key ? '#fff' : 'var(--text2)',
-                fontSize:12.5, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                fontSize:13, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
               {v.label}
             </button>
           ))}

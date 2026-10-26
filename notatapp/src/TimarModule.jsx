@@ -17,7 +17,7 @@ export default function TimarModule({ userId, projects, addProject, mode, active
           background: active ? '#0A0A0A' : 'transparent',
           borderRadius: 'var(--r)',
           color: active ? '#fff' : 'var(--text2)',
-          fontSize: 14, cursor: 'pointer',
+          fontSize: 13, cursor: 'pointer',
           fontWeight: active ? 700 : 500,
           transition: 'all .15s',
           fontFamily: 'var(--font)',

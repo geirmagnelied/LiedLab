@@ -43,7 +43,7 @@ const CSS = `
 .fd-knapp.hovud:hover:not(:disabled) { background:var(--brand); color:#fff; opacity:.9 }
 .fd-knapp.fare:hover:not(:disabled) { border-color:var(--danger); color:var(--danger); background:transparent }
 .fd-seg { display:inline-flex; background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:2px; gap:2px }
-.fd-seg button { border:0; background:transparent; padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:700;
+.fd-seg button { border:0; background:transparent; padding:5px 12px; border-radius:6px; font-size:13px; font-weight:700;
   color:var(--text3); font-family:var(--font); cursor:pointer }
 .fd-seg button:hover { color:var(--text) }
 .fd-seg button.pa { background:var(--bg2); color:var(--brand); box-shadow:var(--shadow-sm) }

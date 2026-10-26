@@ -206,3 +206,8 @@ Cowork-arbeidsflyten kravde. Skilnaden frå Cowork:
 ## NL2 og Dashboard (23. okt. 2026)
 - Dashboard: dei fire korta ligg alltid ved sidan av kvarandre (4 like kolonnar, maks 1760 px).
 - Gjeremål-paraplyen (Notatar/Oppgåver/Saker): den vertikale undermenyen er erstatta av ei vassrett navigasjonslinje (NL2, `AppRailUndermeny.jsx`) øvst i innhaldskolonnen, under TN. Aktiv modul er mørk blå (fylt `--brand`), dei andre passive. Modulen si eiga verktøylinje er NL3. I Notatar ligg «Søk i notat» no heilt til høgre i NL3.
+
+## Timar: overlapp og kolonnebreidd, lik tekststorleik (26. okt. 2026)
+- Fanetekst i navigasjonslinjene er no 13 px overalt (referanse: Kontordrift/NL2): Timar (Timeregistrering/Prognose), Notatar-linja (Fristar, + Notat), Kalender-visningane og Framdrift sine segmentknappar vart justerte.
+- **Overlappkontroll i timeføring** (`TimeTracker.jsx`): oppføringar same dag med klokkeslett i «Tidsbruk» (t.d. 09.30-10) som overlappar (start < andre sin slutt og motsett; å ende når neste startar er OK) gir ei raud åtvaringsboks øvst med rad-nummer og tidspunkt, og dei aktuelle felta vert markerte raude (tooltip viser kva dei overlappar med). Åtvaring, ikkje sperre. Gjeld berre oppføringar med klokkeslett (ikkje «2,5t»).
+- **Kolonnebreidd:** dra i kanten på kolonneoverskrifta (dobbeltklikk = standard); breiddene vert hugsa lokalt (`liedlab-timar-kolb`), tabellen scrollar sidevegs viss han vert breiare enn vindauget.
