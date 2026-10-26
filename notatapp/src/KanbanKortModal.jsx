@@ -22,7 +22,7 @@ export default function KanbanKortModal({ kort, saker, notes, planElement, perso
   const kanLagre = d.tittel.trim() && (skitten || !kort.id)
 
   return (
-    <FlyttbartModal tittel={kort.id ? `Kort${kort.nummer ? ' · O-' + kort.nummer : ''}` : 'Nytt kort'} onLukk={lukk} lagringsNokkel="liedlab-kanbankort-vindauge" breidd={600} hogd={700} minW={440} minH={380}
+    <FlyttbartModal tittel={kort.id ? 'Kort' : 'Nytt kort'} onLukk={lukk} lagringsNokkel="liedlab-kanbankort-vindauge" breidd={600} hogd={700} minW={440} minH={380}
       bunn={<>
         {kort.id && <button onClick={() => { if (window.confirm(kort.dtm_ref ? 'Fjerne kortet frå tavla? Leveransen i DTM vert ikkje endra.' : 'Slette kortet?')) onSlett(kort.id) }} style={{ padding: '7px 14px', border: '1.5px solid var(--danger, #c0392b)', borderRadius: 7, background: 'transparent', color: 'var(--danger, #c0392b)', fontWeight: 600, fontSize: 12.5, cursor: 'pointer' }}>{kort.dtm_ref ? 'Fjern frå tavla' : 'Slett'}</button>}
         {kort.id && (tavler || []).length > 1 && (
@@ -59,7 +59,7 @@ export default function KanbanKortModal({ kort, saker, notes, planElement, perso
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <label><span style={ETT}>Sak</span>
               <select value={d.sak_id || ''} onChange={e => sett('sak_id', e.target.value ? Number(e.target.value) : null)} style={FELT}>
-                <option value="">— Ingen —</option>{(saker || []).map(s => <option key={s.id} value={s.id}>{s.number ? 'S-' + String(s.number).replace(/^.*?(\d+)\s*$/, '$1') + ' ' : ''}{s.title}</option>)}</select></label>
+                <option value="">— Ingen —</option>{(saker || []).map(s => <option key={s.id} value={s.id}>{s.number ? String(s.number).replace(/^.*?(\d+)\s*$/, '$1') + ' ' : ''}{s.title}</option>)}</select></label>
             <label><span style={ETT}>Oppgåve i notat</span>
               <select value={d.oppgave_ref ? `${d.oppgave_ref.note_id}|${d.oppgave_ref.task_id}` : ''}
                 onChange={e => { const v = e.target.value; if (!v) sett('oppgave_ref', null); else { const [n, t] = v.split('|'); sett('oppgave_ref', { note_id: Number(n), task_id: isNaN(Number(t)) ? t : Number(t) }) } }} style={FELT}>

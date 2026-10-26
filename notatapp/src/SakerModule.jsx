@@ -2,15 +2,16 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabase'
 import DatePicker from './DatePicker'
 import SakerTabell from './SakerTabell'
-import SokeFelt from './SokeFelt'
 import NySakModal from './NySakModal'
-import KanbanKortModal from './KanbanKortModal'
-import PersonVelger from './PersonVelger'
+import OppgaveVindauge from './OppgaveVindauge'
+import OppgaveInnfoering from './OppgaveInnfoering'
+import Timeline from './Timeline'
+import usePersonar from './usePersonar'
 import { FELT } from './FlyttbartModal'
-import { ALLE_STATUSAR, statusNamn, personFarge, fmtDato as fmtKortDato } from './kanbanLogikk'
+import { personFarge, fmtDato as fmtKortDato } from './kanbanLogikk'
 import {
-  FAG, TYPE,
-  STATUS_LABELS, STATUS_ORDER, STATUS_COLORS,
+  FAG,
+  STATUS_LABELS, STATUS_ORDER, STATUS_COLORS, normaliserStatus, fristIPeriode,
   PRIO_LABELS, caseNoText,
 } from './sakerKonstantar'
 
@@ -20,42 +21,48 @@ function fmtTime(iso) {
   return d.toLocaleDateString('no-NO', { day:'2-digit', month:'short' }) + ' ' + d.toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit', hour12:false })
 }
 function fmtDate(iso) {
-  if (!iso) return '\u2014'
+  if (!iso) return '—'
   return new Date(iso).toLocaleDateString('no-NO', { day:'2-digit', month:'short', year:'numeric' })
-}
-function fmtDateShort(iso) {
-  if (!iso) return '\u2014'
-  return new Date(iso).toLocaleDateString('no-NO', { day:'2-digit', month:'2-digit', year:'2-digit' })
 }
 function initials(name) { return (name || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
 
-export default function SakerModule({ userId, userEmail, activeProjectId, projects, notes, activeOfficeId }) {
+// ═══════════════════════════════════════════════════════════════════
+//  Saksbehandling — saker (cases) og oppgåver (notat-oppgåver, notes.tasks) i éi tabell.
+//  Oppgåver er IKKJE Kanban-kort: dei vert laga med same inndata som «Ny oppgåve» i Notatar (OppgaveInnfoering) og kan høyre til ei sak
+//  (cases.linked_tasks). Kanban-kort er eigne kort som brukaren sjølv lagar i Kanban-modulen.
+//  Saksstatus: Registrert (raud) → Påbegynt (gul) → Lukka (grøn).
+// ═══════════════════════════════════════════════════════════════════
+const oppgRadId = (noteId, taskId) => 'O' + noteId + '_' + taskId
+
+export default function SakerModule({ userId, userEmail, activeProjectId, projects, notes, activeOfficeId, onAddNote, onUpdateTask, onDeleteTask }) {
   const activeProject = (projects || []).find(p => p.id === activeProjectId)
   // Berre notat frå det aktive prosjektet skal kunne koplast til ei sak
   const projectNotes = (notes || []).filter(n => n.projectId === activeProjectId)
-  // Personell-forslag henta frå deltakarlister i prosjektets møtereferat (inga eiga personelliste finst enno)
+  // Personell-forslag: prosjektets personell, brukaren sjølv og deltakarlister i prosjektets møtereferat
   const personnelList = Array.from(new Set(projectNotes.flatMap(n => n.attendees || []).filter(Boolean))).sort()
+  const { personar: personarHook, meg } = usePersonar(userId, activeProjectId)
+  const personarListe = Array.from(new Set([...personarHook, ...personnelList].filter(Boolean)))
 
   const [cases, setCases]           = useState([])
   const [comments, setComments]     = useState({}) // caseId -> [comment,...]
   const [eigneKolonnar, setEigneKolonnar] = useState([]) // eigendefinerte kolonnar for prosjektet
   const [loading, setLoading]       = useState(true)
-  const [statusFilter, setStatusFilter] = useState('alle')
   const [fagFilter, setFagFilter]   = useState('alle')
   const [search, setSearch]         = useState('')
   const [openCaseId, setOpenCaseId] = useState(null)
   const [showNewModal, setShowNewModal] = useState(false)
-  // Oppgåver (Kanban-kort) i same liste som sakene — Gjeremål = saker (S-nr) + oppgåver (O-nr)
-  const [kort, setKort]             = useState([])
-  const [tavler, setTavler]         = useState([])
-  const [personell, setPersonell]   = useState([])
-  const [planElement, setPlanElement] = useState([])
-  const [kortModal, setKortModal]   = useState(null)
+  const [oppgModal, setOppgModal]   = useState(null) // { modus: 'ny' } | { modus: 'edit', noteId, task }
   const [visSaker, setVisSaker]     = useState(true)
   const [visOppgaver, setVisOppgaver] = useState(true)
   const [skjulFerdige, setSkjulFerdige] = useState(false)
+  const [fristFilter, setFristFilter] = useState('alle') // 'alle' | 'veke' | 'manad'
   const [filterOpen, setFilterOpen] = useState(false)
+  const [tidslinje, setTidslinje]   = useState(() => { try { return localStorage.getItem('liedlab-gjeremaal-tidslinje') === '1' } catch { return false } })
+  const [tlHogd, setTlHogd]         = useState(() => { try { return Number(localStorage.getItem('liedlab-gjeremaal-tidslinje-h')) || 230 } catch { return 230 } })
   const currentUser = userEmail || 'Ukjend brukar'
+
+  const settTidslinje = (v) => { setTidslinje(v); try { localStorage.setItem('liedlab-gjeremaal-tidslinje', v ? '1' : '0') } catch { /* privat modus */ } }
+  const settTlHogd = (h) => { setTlHogd(h); try { localStorage.setItem('liedlab-gjeremaal-tidslinje-h', String(h)) } catch { /* privat modus */ } }
 
   // ── Last saker + kommentarar for aktivt prosjekt ──────────────
   const loadCases = useCallback(async () => {
@@ -68,7 +75,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     const list = caseData || []
     setCases(list.map(c => ({
       id: c.id, number: c.number, title: c.title, description: c.description || '',
-      fag: c.fag, type: c.type, status: c.status, prioritet: c.prioritet,
+      fag: c.fag, type: c.type, status: normaliserStatus(c.status), prioritet: c.prioritet,
       ansvarlig: c.ansvarlig || '', involverte: c.involverte || [], frist: c.frist || '', tegning: c.tegning || '',
       linkedNotes: c.linked_notes || [], linkedTasks: c.linked_tasks || [],
       attachments: c.attachments || [],
@@ -104,63 +111,6 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
 
   useEffect(() => { loadCases() }, [loadCases])
 
-  // ── Oppgåver (kanban_kort), tavler og personell for aktivt prosjekt ──
-  const lastKort = useCallback(async () => {
-    if (!userId || !activeProjectId) { setKort([]); setTavler([]); setPersonell([]); setPlanElement([]); return }
-    const [k, t, p, f] = await Promise.all([
-      supabase.from('kanban_kort').select('*').eq('user_id', userId).eq('project_id', activeProjectId).order('id'),
-      supabase.from('kanban_tavler').select('*').eq('user_id', userId).eq('project_id', activeProjectId).order('id'),
-      supabase.from('prosjekt_personell').select('id,namn').eq('user_id', userId).eq('project_id', activeProjectId).order('sortering').order('id'),
-      supabase.from('framdrift_planar').select('elementer').eq('user_id', userId).eq('project_id', activeProjectId).maybeSingle(),
-    ])
-    setKort((k.data || []).filter(x => !(x.dtm_ref && x.dtm_ref.skjult)))
-    setTavler(t.data || []); setPersonell(p.data || [])
-    setPlanElement(Array.isArray(f.data?.elementer) ? f.data.elementer : [])
-  }, [userId, activeProjectId])
-  useEffect(() => { lastKort() }, [lastKort])
-  const personarListe = Array.from(new Set([...personell.map(p => p.namn), ...personnelList].filter(Boolean)))
-
-  const nesteOppgaveNr = async () => {
-    const { data } = await supabase.from('kanban_kort').select('nummer').eq('project_id', activeProjectId).order('nummer', { ascending: false }).limit(1)
-    return (data?.[0]?.nummer || 0) + 1
-  }
-  // oppgåver oppretta frå ei sak: vert kort i fyrste opne Kanban-tavle (Komande oppgåver), lenkja til saka
-  const opprettOppgaver = async (sakId, liste) => {
-    const tavle = tavler.find(t => !t.avslutta) || null
-    const base = await nesteOppgaveNr()
-    const rader = liste.map((o, i) => ({ user_id: userId, project_id: activeProjectId, tavle_id: tavle?.id || null, tittel: o.tittel.trim(), skildring: '', status: 'komande',
-      ansvarleg: o.ansvarleg || '', fase: tavle?.fase || null, frist: o.frist || null, sak_id: sakId, nummer: base + i, sortering: i }))
-    const { error } = await supabase.from('kanban_kort').insert(rader)
-    if (error) alert('Oppgåvene vart ikkje oppretta: ' + error.message)
-    await lastKort()
-  }
-  const nyttKort = () => {
-    const tavle = tavler.find(t => !t.avslutta) || null
-    setKortModal({ user_id: userId, project_id: activeProjectId, tavle_id: tavle?.id || null, tittel: '', skildring: '', status: 'komande', ansvarleg: '', fase: tavle?.fase || null, frist: null, farge: null, sak_id: null, oppgave_ref: null, framdrift_aktivitet_ref: null, sortering: 0 })
-  }
-  const lagreKort = async (d) => {
-    if (d.id) {
-      const { id, user_id, created_at, ...resten } = d
-      const patch = { ...resten }
-      const gammal = kort.find(k => k.id === id)
-      if (gammal && gammal.status !== d.status) patch.ferdig_dato = d.status === 'ferdig' ? new Date().toISOString() : null
-      if (gammal && gammal.tavle_id !== d.tavle_id) patch.fase = tavler.find(t => t.id === d.tavle_id)?.fase || null
-      const { error } = await supabase.from('kanban_kort').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
-      if (error) { alert('Lagring feila: ' + error.message); return }
-    } else {
-      const { id, ...ny } = d
-      const { error } = await supabase.from('kanban_kort').insert({ ...ny, nummer: await nesteOppgaveNr(), ferdig_dato: d.status === 'ferdig' ? new Date().toISOString() : null })
-      if (error) { alert('Klarte ikkje opprette oppgåva: ' + error.message); return }
-    }
-    setKortModal(null); await lastKort()
-  }
-  const slettKort = async (id) => {
-    const k = kort.find(x => x.id === id); setKortModal(null)
-    if (k?.dtm_ref) await supabase.from('kanban_kort').update({ dtm_ref: { ...k.dtm_ref, skjult: true } }).eq('id', id).eq('user_id', userId)
-    else await supabase.from('kanban_kort').delete().eq('id', id).eq('user_id', userId)
-    await lastKort()
-  }
-
   // ── Saksnummer per prosjekt ───────────────────────────────────
   // Saksnummeret er berre eit lopande tal. Prosjektet går fram av
   // prosjektnummer-kolonna, så nummeret treng ikkje prefiks.
@@ -169,14 +119,35 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     return String((nums.length ? Math.max(...nums) : 0) + 1)
   }
 
+  // ── Oppgåver: vanlege notat-oppgåver (lagt i eit «oppgåve»-notat, som i Ny oppgåve), valfritt lenkja til ei sak ──
+  const opprettOppgaver = async (liste, sakId = null) => {
+    if (!liste?.length || !onAddNote) return
+    const tasks = liste.map((t, i) => ({ ...t, id: Date.now() + i }))
+    const tittel = tasks.length === 1 ? `Oppgåve: ${tasks[0].text.substring(0, 50)}` : `${tasks.length} arbeidsoppgåver`
+    const res = await onAddNote({ title: tittel, text: '', html: '', tasks, tag: 'oppgåve', projectId: activeProjectId, sketchDataUrl: null, attachments: [], isMeeting: false })
+    if (sakId && res?.id) {
+      const eksisterande = cases.find(x => x.id === sakId)?.linkedTasks || []
+      const nye = [...eksisterande, ...tasks.map(t => ({ noteId: res.id, taskId: t.id }))]
+      const { error } = await supabase.from('cases').update({ linked_tasks: nye }).eq('id', sakId).eq('user_id', userId)
+      if (error) { alert('Oppgåvene vart lagra, men kopling til saka feila: ' + error.message); return }
+      await supabase.from('case_comments').insert({
+        id: Date.now() + 500, case_id: sakId, user_id: userId, author: currentUser, system: true,
+        text: `${currentUser} la til ${tasks.length === 1 ? 'oppgåva' : tasks.length + ' oppgåver'}: ${tasks.map(t => '«' + t.text.substring(0, 40) + '»').join(', ')}`,
+        created_at: new Date().toISOString(),
+      })
+      await loadCases()
+    }
+  }
+
   // ── Opprett sak ────────────────────────────────────────────────
+  // Saka vert registrert (status «Registrert») og vindauget lukkar seg — ingen ny dialog.
   const createCase = async (fields, stagedFiles) => {
-    if (!fields.title.trim()) { alert('Tittel er p\u00E5krevd'); return false }
+    if (!fields.title.trim()) { alert('Tittel er påkrevd'); return false }
     const id = Date.now()
     const row = {
       id, user_id: userId, project_id: activeProjectId,
       number: nextCaseNumber(), title: fields.title.trim(), description: fields.description.trim(),
-      fag: fields.fag, type: fields.type, status: 'ny', prioritet: fields.prioritet,
+      fag: fields.fag, type: '', status: 'ny', prioritet: fields.prioritet,
       ansvarlig: fields.ansvarlig.trim(), involverte: fields.involverte || [],
       frist: fields.frist || null, tegning: '',
       linked_notes: [], linked_tasks: [], attachments: [],
@@ -207,10 +178,9 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
       }
     }
 
-    if ((fields.oppgaver || []).length) await opprettOppgaver(id, fields.oppgaver)
+    if ((fields.oppgaver || []).length) await opprettOppgaver(fields.oppgaver, id)
     setShowNewModal(false)
     await loadCases()
-    setOpenCaseId(id)
     return true
   }
 
@@ -226,7 +196,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     const commentId = Date.now()
     await supabase.from('case_comments').insert({
       id: commentId, case_id: caseId, user_id: userId, author: currentUser, system: true,
-      text: `${currentUser} endra status fr\u00E5 "${oldLabel}" til "${STATUS_LABELS[newStatus]}"`,
+      text: `${currentUser} endra status frå "${oldLabel}" til "${STATUS_LABELS[newStatus]}"`,
       created_at: new Date().toISOString(),
     })
     await loadCases()
@@ -361,127 +331,135 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     }
   }
 
-  // ── Samla liste: saker (S-nr) og oppgåver (O-nr) ──────────────
+
+  // ── Samla liste: saker og oppgåver ────────────────────────────
   const prosjektNr = activeProject?.projectNumber || ''
-  const sakNrAvId = Object.fromEntries(cases.map(c => [c.id, caseNoText(c.number)]))
+  const sakNrAvOppgave = {}
+  cases.forEach(c => (c.linkedTasks || []).forEach(l => { sakNrAvOppgave[l.noteId + '|' + l.taskId] = caseNoText(c.number) }))
+  const oppgaveRader = projectNotes.flatMap(n => (n.tasks || []).map(t => ({
+    rad: 'oppgave', radId: oppgRadId(n.id, t.id), id: t.id, noteId: n.id, number: t.nr ?? '', title: t.text || '',
+    status: t.done ? 'lukka' : 'ny', statusLabel: STATUS_LABELS[t.done ? 'lukka' : 'ny'], statusFarge: STATUS_COLORS[t.done ? 'lukka' : 'ny'],
+    ansvarlig: t.ansvarleg || '', frist: t.date || '', opprettet: t.id > 1e12 ? new Date(t.id).toISOString() : (n.createdAt || ''),
+    prosjektNr, sakNr: sakNrAvOppgave[n.id + '|' + t.id] || '', ferdig: !!t.done, ekstra: {}, linkedNotes: [], linkedTasks: [],
+  })))
   const alleRader = [
     ...cases.map(c => ({ ...c, rad: 'sak', radId: 'S' + c.id, prosjektNr, statusLabel: STATUS_LABELS[c.status] || c.status, statusFarge: STATUS_COLORS[c.status], ferdig: c.status === 'lukka',
       number: caseNoText(c.number) })),
-    ...kort.map(k => ({ rad: 'oppgave', radId: 'O' + k.id, id: k.id, number: k.nummer, title: k.tittel, status: k.status, statusLabel: statusNamn(k.status),
-      statusFarge: (ALLE_STATUSAR.find(s => s.key === k.status) || {}).farge, ansvarlig: k.ansvarleg || '', frist: k.frist || '', opprettet: k.created_at,
-      prosjektNr, sakNr: k.sak_id ? sakNrAvId[k.sak_id] : '', ferdig: k.status === 'ferdig', ekstra: {}, linkedNotes: [], linkedTasks: [] })),
+    ...oppgaveRader,
   ]
+  const soek = search.trim().toLowerCase()
   const rader = alleRader.filter(r => {
     if (r.rad === 'sak' ? !visSaker : !visOppgaver) return false
     if (skjulFerdige && r.ferdig) return false
     if (fagFilter !== 'alle' && (r.rad !== 'sak' || r.fag !== fagFilter)) return false
-    if (search && !((r.title || '') + ' ' + (r.rad === 'sak' ? 'S-' : 'O-') + r.number).toLowerCase().includes(search.toLowerCase())) return false
+    if (fristFilter !== 'alle' && !fristIPeriode(r.frist, fristFilter)) return false
+    if (soek && ![r.title, r.number, r.description, r.ansvarlig, r.fag, r.statusLabel, r.rad === 'sak' ? 'sak' : 'oppgåve'].join(' ').toLowerCase().includes(soek)) return false
     return true
   })
-  const aktiveFilter = (visSaker ? 0 : 1) + (visOppgaver ? 0 : 1) + (skjulFerdige ? 1 : 0) + (fagFilter !== 'alle' ? 1 : 0)
+  const aktiveFilter = (visSaker ? 0 : 1) + (visOppgaver ? 0 : 1) + (skjulFerdige ? 1 : 0) + (fagFilter !== 'alle' ? 1 : 0) + (fristFilter !== 'alle' ? 1 : 0)
   const openCase = cases.find(c => c.id === openCaseId)
+  const nullstillFilter = () => { setVisSaker(true); setVisOppgaver(true); setSkjulFerdige(false); setFagFilter('alle'); setFristFilter('alle') }
+
+  const opneRad = (id) => {
+    const s = String(id)
+    if (s[0] === 'S') { setOpenCaseId(Number(s.slice(1))); return }
+    const m = s.match(/^O(\d+)_(\d+)$/); if (!m) return
+    const note = (notes || []).find(n => String(n.id) === m[1]); const task = (note?.tasks || []).find(t => String(t.id) === m[2])
+    if (note && task) setOppgModal({ modus: 'edit', noteId: note.id, task })
+  }
+
+  // Tidslinja (same komponent som i Notatar) får ei «notat»-rad per sak/oppgåve med frist
+  const tidslinjeNotat = rader.filter(r => r.frist).map(r => ({
+    id: r.radId, title: r.title, text: r.title, html: '', done: false, projectId: activeProjectId,
+    tasks: [{ id: r.radId, text: (r.rad === 'sak' ? 'Sak ' : '') + r.title, date: String(r.frist).slice(0, 10), done: false }],
+  }))
 
   // ── Ingen prosjekt valt ────────────────────────────────────────
   if (!activeProjectId) {
     return (
       <div style={{ display:'flex', flex:1, flexDirection:'column', overflow:'hidden' }}>
-        <ModuleTopbar/>
         <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:14 }}>
           <div style={{ width:72, height:72, borderRadius:18, background:'var(--brandbg2)',
             display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, fontWeight:900, color:'var(--brand)' }}>S</div>
           <p style={{ fontSize:14, color:'var(--text3)', textAlign:'center', maxWidth:380, lineHeight:1.7 }}>
-            {'Gjeremål (saker og oppgåver) er organisert per prosjekt. Vel eit prosjekt i nedtrekksmenyen \u00F8vst for \u00E5 sj\u00E5 og opprette saker og oppgåver.'}
+            {'Saksbehandling (saker og oppgåver) er organisert per prosjekt. Vel eit prosjekt i nedtrekksmenyen øvst for å sjå og opprette saker og oppgåver.'}
           </p>
         </div>
       </div>
     )
   }
 
-  function ModuleTopbar() {
-    return (
-      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'0 16px',
-        height:50, flexShrink:0, background:'var(--bg3)', borderBottom:'1px solid var(--border)' }}>
-        {activeProject && (
-          <span style={{ fontSize:12, color:'var(--text2)', fontFamily:'var(--mono)' }}>
-            {activeProject.projectNumber}{' \u00B7 '}{activeProject.name}
-          </span>
-        )}
-        {/* Søk — i den blå overskriftslinja, til høgre for overskrifta (brukar sitt krav 2. okt. 2026) */}
-        {activeProjectId && (
-          <div style={{ marginLeft:8 }}>
-            <SokeFelt projectId={activeProjectId} kjelder={['cases']}
-              onVelgResultat={r => setOpenCaseId(r.kjelde_id)} plassholder="Søk i saker…"/>
-          </div>
-        )}
-      </div>
-    )
-  }
+  const KNAPP_PRIM = { padding:'7px 14px', borderRadius:'var(--r)', border:'none', background:'var(--brand)', color:'#fff', fontWeight:700, fontSize:12.5, cursor:'pointer', fontFamily:'var(--font)' }
+  const KNAPP_SEK = { padding:'7px 14px', borderRadius:'var(--r)', border:'1.5px solid var(--brand2)', background:'var(--brandbg)', color:'var(--brand)', fontWeight:700, fontSize:12.5, cursor:'pointer', fontFamily:'var(--font)' }
+  const ETIKETT = { fontSize:10.5, fontWeight:800, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.07em' }
+
+  // Verktøylinja i tabellen: ny sak/oppgåve, søk (i både saker og oppgåver, etter filteret), filter — og Visning/kolonnar står til høgre for dei
+  const verktoyForan = (<>
+    <button onClick={()=>setShowNewModal(true)} style={KNAPP_PRIM}>+ Ny sak</button>
+    <button onClick={()=>setOppgModal({ modus: 'ny' })} style={KNAPP_SEK}>{'+ Ny oppgåve'}</button>
+    <div style={{ width:1, height:22, background:'var(--border)' }}/>
+    <input placeholder={'Søk i saker og oppgåver…'} value={search} onChange={e=>setSearch(e.target.value)}
+      style={{ padding:'7px 12px', borderRadius:'var(--r)', border:'1.5px solid var(--border)', background:'var(--bg)', color:'var(--text)',
+        fontSize:12.5, fontFamily:'var(--font)', outline:'none', width:230 }}/>
+    <div style={{ position:'relative' }}>
+      <button type="button" className="dt-knapp" onClick={()=>setFilterOpen(v=>!v)}
+        style={aktiveFilter ? { borderColor:'var(--brand2)', background:'var(--brandbg)', color:'var(--brand)' } : undefined}>
+        Filter{aktiveFilter ? ' ('+aktiveFilter+')' : ''} ▾
+      </button>
+      {filterOpen && (<>
+        <div onClick={()=>setFilterOpen(false)} style={{ position:'fixed', inset:0, zIndex:90 }}/>
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:100, width:270, padding:'10px 12px', background:'var(--bg2)',
+          border:'1px solid var(--border)', borderRadius:'var(--r2)', boxShadow:'var(--shadow-lg)', display:'flex', flexDirection:'column', gap:8 }}>
+          <div style={ETIKETT}>Vis</div>
+          <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+            <input type="checkbox" checked={visSaker} onChange={e=>setVisSaker(e.target.checked)}/>Saker <span style={{ color:'var(--text3)' }}>({cases.length})</span></label>
+          <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+            <input type="checkbox" checked={visOppgaver} onChange={e=>setVisOppgaver(e.target.checked)}/>{'Oppgåver'} <span style={{ color:'var(--text3)' }}>({oppgaveRader.length})</span></label>
+          <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+            <input type="checkbox" checked={skjulFerdige} onChange={e=>setSkjulFerdige(e.target.checked)}/>Skjul lukka</label>
+          <div style={{ ...ETIKETT, marginTop:4 }}>Frist</div>
+          {[['alle', 'Alle fristar'], ['veke', 'Frist denne veka'], ['manad', 'Frist denne månaden']].map(([v, t]) => (
+            <label key={v} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+              <input type="radio" name="gjeremaal-frist" checked={fristFilter === v} onChange={()=>setFristFilter(v)}/>{t}</label>
+          ))}
+          <div style={{ ...ETIKETT, marginTop:4 }}>Fag (berre saker)</div>
+          <select value={fagFilter} onChange={e=>setFagFilter(e.target.value)} style={FELT}>
+            <option value="alle">Alle fag</option>{FAG.map(f => <option key={f} value={f}>{f}</option>)}</select>
+          {aktiveFilter > 0 && <button onClick={nullstillFilter}
+            style={{ alignSelf:'flex-start', background:'none', border:'none', color:'var(--brand)', fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'var(--font)', padding:0 }}>Nullstill filter</button>}
+        </div>
+      </>)}
+    </div>
+  </>)
+  const verktoyEtter = (
+    <button type="button" className="dt-knapp" onClick={()=>settTidslinje(!tidslinje)} title="Vis frist-tidslinja (same som i Notatar) for saker og oppgåver"
+      style={tidslinje ? { borderColor:'var(--brand2)', background:'var(--brandbg)', color:'var(--brand)' } : undefined}>Tidslinje</button>
+  )
 
   return (
     <div style={{ display:'flex', flex:1, flexDirection:'column', overflow:'hidden' }}>
-      {/* Kalla som funksjon (ikkje <ModuleTopbar/>) slik at SokeFelt i han ikkje vert remonta
-          (og mistar innskrive tekst) kvar gong SakerModule re-rendrar */}
-      {ModuleTopbar()}
-
-      {/* Verktøylinje */}
-      <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 16px',
-        background:'var(--bg2)', borderBottom:'1px solid var(--border)', flexWrap:'wrap' }}>
-        <button onClick={()=>setShowNewModal(true)}
-          style={{ padding:'7px 14px', borderRadius:'var(--r)', border:'none',
-            background:'var(--brand)', color:'#fff', fontWeight:700, fontSize:12.5, cursor:'pointer', fontFamily:'var(--font)' }}>
-          + Ny sak
-        </button>
-        <button onClick={nyttKort}
-          style={{ padding:'7px 14px', borderRadius:'var(--r)', border:'1.5px solid var(--brand2)',
-            background:'var(--brandbg)', color:'var(--brand)', fontWeight:700, fontSize:12.5, cursor:'pointer', fontFamily:'var(--font)' }}>
-          + Ny oppgåve
-        </button>
-        <div style={{ width:1, height:22, background:'var(--border)' }}/>
-        <input placeholder={'S\u00F8k i gjeremål...'} value={search} onChange={e=>setSearch(e.target.value)}
-          style={{ padding:'7px 12px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
-            fontSize:12.5, fontFamily:'var(--font)', outline:'none', width:220 }}/>
-        <div style={{ position:'relative' }}>
-          <button onClick={()=>setFilterOpen(v=>!v)}
-            style={{ padding:'7px 14px', borderRadius:'var(--r)', border:'1.5px solid '+(aktiveFilter ? 'var(--brand2)' : 'var(--border)'),
-              background: aktiveFilter ? 'var(--brandbg)' : 'var(--bg2)', color: aktiveFilter ? 'var(--brand)' : 'var(--text2)',
-              fontWeight:700, fontSize:12.5, cursor:'pointer', fontFamily:'var(--font)' }}>
-            Filter{aktiveFilter ? ' ('+aktiveFilter+')' : ''} ▾
-          </button>
-          {filterOpen && (<>
-            <div onClick={()=>setFilterOpen(false)} style={{ position:'fixed', inset:0, zIndex:90 }}/>
-            <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:100, width:260, padding:'10px 12px', background:'var(--bg2)',
-              border:'1px solid var(--border)', borderRadius:'var(--r2)', boxShadow:'var(--shadow-lg)', display:'flex', flexDirection:'column', gap:8 }}>
-              <div style={{ fontSize:10.5, fontWeight:800, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.07em' }}>Vis</div>
-              <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
-                <input type="checkbox" checked={visSaker} onChange={e=>setVisSaker(e.target.checked)}/>Saker (S) <span style={{ color:'var(--text3)' }}>({cases.length})</span></label>
-              <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
-                <input type="checkbox" checked={visOppgaver} onChange={e=>setVisOppgaver(e.target.checked)}/>Oppgåver (O) <span style={{ color:'var(--text3)' }}>({kort.length})</span></label>
-              <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
-                <input type="checkbox" checked={skjulFerdige} onChange={e=>setSkjulFerdige(e.target.checked)}/>Skjul lukka / ferdigstilte</label>
-              <div style={{ fontSize:10.5, fontWeight:800, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.07em', marginTop:4 }}>Fag (berre saker)</div>
-              <select value={fagFilter} onChange={e=>setFagFilter(e.target.value)} style={FELT}>
-                <option value="alle">Alle fag</option>{FAG.map(f => <option key={f} value={f}>{f}</option>)}</select>
-              {aktiveFilter > 0 && <button onClick={()=>{ setVisSaker(true); setVisOppgaver(true); setSkjulFerdige(false); setFagFilter('alle') }}
-                style={{ alignSelf:'flex-start', background:'none', border:'none', color:'var(--brand)', fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'var(--font)', padding:0 }}>Nullstill filter</button>}
-            </div>
-          </>)}
-        </div>
-        <span style={{ fontSize:12, color:'var(--text3)' }}>{rader.length} av {alleRader.length}</span>
-      </div>
-
       {/* Matrise */}
       {loading ? (
-        <div style={{ padding:20, color:'var(--text3)', fontSize:13 }}>{'Lastar\u2026'}</div>
+        <div style={{ padding:20, color:'var(--text3)', fontSize:13 }}>{'Lastar…'}</div>
       ) : (
         <SakerTabell
           rader={rader}
           comments={comments}
           eigne={eigneKolonnar}
-          onOpenRad={id => { const n = Number(String(id).slice(1)); if (String(id)[0] === 'S') setOpenCaseId(n); else setKortModal(kort.find(k => k.id === n) || null) }}
+          onOpenRad={opneRad}
           onSetExtra={setExtraValue}
           onNyKolonne={addColumn}
           onSlettKolonne={deleteColumn}
+          verktoyForan={verktoyForan}
+          verktoyEtter={verktoyEtter}
         />
+      )}
+
+      {tidslinje && (
+        <div style={{ height:tlHogd, minHeight:90, maxHeight:600, flexShrink:0 }}>
+          <Timeline notes={tidslinjeNotat} projects={activeProject ? [activeProject] : []} height={tlHogd} onResize={settTlHogd}
+            onSelectNote={opneRad} onEditNote={opneRad}/>
+        </div>
       )}
 
       {openCase && (
@@ -499,22 +477,30 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
           onRemoveTaskLink={removeTaskLink}
           onUploadAttachment={uploadAttachment}
           onRemoveAttachment={removeAttachment}
-          oppgaver={kort.filter(k => k.sak_id === openCase.id)}
           personar={personarListe}
-          onAddOppgave={(o) => opprettOppgaver(openCase.id, [o])}
-          onOpenOppgave={setKortModal}
+          meg={meg}
+          onAddOppgave={(t) => opprettOppgaver([t], openCase.id)}
+          onOpenOppgave={opneRad}
+          onToggleOppgave={(noteId, taskId, done) => onUpdateTask?.(noteId, taskId, { done })}
         />
       )}
 
-      {kortModal && (
-        <KanbanKortModal key={kortModal.id || 'ny'} kort={kortModal} saker={cases} notes={projectNotes} planElement={planElement} personell={personell} tavler={tavler}
-          onLagre={lagreKort} onSlett={slettKort} onLukk={() => setKortModal(null)}/>
+      {oppgModal && (
+        <OppgaveVindauge key={oppgModal.task?.id || 'ny'} modus={oppgModal.modus} oppgave={oppgModal.task}
+          saker={cases.filter(c => c.status !== 'lukka').map(c => ({ id: c.id, title: c.title, nr: 'Sak ' + caseNoText(c.number) }))}
+          sakNr={oppgModal.task ? (sakNrAvOppgave[oppgModal.noteId + '|' + oppgModal.task.id] ? 'Sak ' + sakNrAvOppgave[oppgModal.noteId + '|' + oppgModal.task.id] : '') : ''}
+          personar={personarListe} meg={meg}
+          onLagreNye={async (liste, sakId) => { await opprettOppgaver(liste, sakId); setOppgModal(null) }}
+          onLagreEndring={async (changes) => { await onUpdateTask?.(oppgModal.noteId, oppgModal.task.id, changes); setOppgModal(null) }}
+          onSlett={async () => { await onDeleteTask?.(oppgModal.noteId, oppgModal.task.id); setOppgModal(null) }}
+          onLukk={() => setOppgModal(null)}/>
       )}
 
       {showNewModal && (
         <NySakModal
           nextNumber={nextCaseNumber()}
           personnel={personarListe}
+          meg={meg}
           onClose={()=>setShowNewModal(false)}
           onCreate={createCase}
         />
@@ -538,14 +524,22 @@ function FilterChip({ active, onClick, children }) {
 // ── Detaljmodal ──────────────────────────────────────────────────
 function CaseDetailModal({ c, comments, notes, currentUser, onClose, onSetStatus, onAddComment,
                             onAddNoteLink, onRemoveNoteLink, onAddTaskLink, onRemoveTaskLink,
-                            onUploadAttachment, onRemoveAttachment, oppgaver = [], personar = [], onAddOppgave, onOpenOppgave }) {
-  const [nyOppg, setNyOppg] = useState({ tittel: '', ansvarleg: '', frist: '' })
+                            onUploadAttachment, onRemoveAttachment, personar = [], meg = '', onAddOppgave, onOpenOppgave, onToggleOppgave }) {
+  const [nyStatus, setNyStatus] = useState(null) // status valt av brukaren i svarfeltet (null = ikkje rørt)
   const [commentText, setCommentText] = useState('')
   const [linkNoteSel, setLinkNoteSel] = useState('')
   const [linkTaskSel, setLinkTaskSel] = useState('')
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef(null)
+
+  // Oppgåver som høyrer til saka (lenkja via linked_tasks)
+  const oppgaver = (c.linkedTasks || []).map(l => {
+    const note = notes.find(n => String(n.id) === String(l.noteId)); const task = (note?.tasks || []).find(t => String(t.id) === String(l.taskId))
+    return task ? { ...task, noteId: note.id } : null
+  }).filter(Boolean)
+  // Svarar nokon på ei registrert sak, vert «Påbegynt» foreslått (kan stillast tilbake til Registrert)
+  const foreslaattStatus = nyStatus ?? ((c.status === 'ny' && commentText.trim()) ? 'arbeid' : c.status)
 
   const linkableNotes = notes.filter(n => !c.linkedNotes.includes(n.id))
   const selNoteForTask = notes.find(n => n.id === Number(linkNoteSel) || n.id === linkNoteSel)
@@ -587,7 +581,7 @@ function CaseDetailModal({ c, comments, notes, currentUser, onClose, onSetStatus
           <span style={{ fontFamily:'var(--mono)', fontWeight:800, fontSize:15, color:'var(--brand)' }}>
             {c.prosjektNr ? c.prosjektNr + ' \u00B7 ' : ''}{'Sak '}{caseNoText(c.number)}
           </span>
-          <span style={{ color:'var(--text3)', fontSize:12 }}>{c.fag}{' \u00B7 '}{c.type}</span>
+          <span style={{ color:'var(--text3)', fontSize:12 }}>{[c.fag, c.type].filter(Boolean).join(' \u00B7 ')}</span>
           <button onClick={onClose} style={{ marginLeft:'auto', background:'none', border:'none', fontSize:20,
             cursor:'pointer', color:'var(--text3)', lineHeight:1, padding:4 }}>{'\u00D7'}</button>
         </div>
@@ -622,34 +616,29 @@ function CaseDetailModal({ c, comments, notes, currentUser, onClose, onSetStatus
             </div>
           </div>
 
-          {/* Oppgåver i saka */}
+          {/* Oppgåver i saka — same inndata som Ny oppgåve */}
           <div style={{ marginBottom:18 }}>
-            <SectionLabel>{'Oppg\u00E5ver i saka'} ({oppgaver.length})</SectionLabel>
+            <SectionLabel>{'Oppgåver i saka'} ({oppgaver.length})</SectionLabel>
             <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:8 }}>
-              {oppgaver.map(k => {
-                const pf = personFarge(k.ansvarleg)
+              {oppgaver.map(t => {
+                const pf = personFarge(t.ansvarleg)
                 return (
-                  <div key={k.id} onClick={() => onOpenOppgave?.(k)} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:'var(--bg3)', borderRadius:'var(--r)', cursor:'pointer', fontSize:12.5 }}>
-                    <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'#2F8A80' }}>O-{k.nummer}</span>
-                    <span style={{ flex:1, fontWeight:600, color:'var(--text)' }}>{k.tittel}</span>
-                    {k.ansvarleg && <span style={{ fontWeight:600, color: pf ? pf.fg : 'var(--text2)' }}>{k.ansvarleg}</span>}
-                    {k.frist && <span style={{ color:'var(--text3)' }}>{'\u23F1 '}{fmtKortDato(k.frist)}</span>}
-                    <span style={{ fontSize:10.5, fontWeight:700, textTransform:'uppercase', color:(ALLE_STATUSAR.find(s=>s.key===k.status)||{}).farge }}>{statusNamn(k.status)}</span>
+                  <div key={t.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:'var(--bg3)', borderRadius:'var(--r)', fontSize:12.5 }}>
+                    <input type="checkbox" checked={!!t.done} onChange={e => onToggleOppgave?.(t.noteId, t.id, e.target.checked)} title="Ferdig"/>
+                    {t.nr != null && <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--text3)' }}>{t.nr}</span>}
+                    <span onClick={() => onOpenOppgave?.('O' + t.noteId + '_' + t.id)} style={{ flex:1, fontWeight:600, color:'var(--text)', cursor:'pointer', textDecoration: t.done ? 'line-through' : 'none', opacity: t.done ? .6 : 1 }}>{t.text}</span>
+                    {t.ansvarleg && <span style={{ fontWeight:600, color: pf ? pf.fg : 'var(--text2)' }}>{t.ansvarleg}</span>}
+                    {t.date && <span style={{ color:'var(--text3)' }}>{'⏱ '}{fmtKortDato(t.date)}</span>}
                   </div>
                 )
               })}
-              <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                <input value={nyOppg.tittel} onChange={e=>setNyOppg(o=>({ ...o, tittel:e.target.value }))} placeholder={'Ny oppg\u00E5ve i saka\u2026'} style={{ ...FELT, flex:'2 1 180px', width:'auto' }}/>
-                <div style={{ flex:'1 1 140px' }}><PersonVelger value={nyOppg.ansvarleg} onChange={v=>setNyOppg(o=>({ ...o, ansvarleg:v }))} personar={personar}/></div>
-                <div style={{ flex:'1 1 130px' }}><DatePicker value={nyOppg.frist} onChange={v=>setNyOppg(o=>({ ...o, frist:v }))} placeholder="Frist" style={FELT}/></div>
-                <button disabled={!nyOppg.tittel.trim()} onClick={async()=>{ await onAddOppgave?.(nyOppg); setNyOppg({ tittel:'', ansvarleg:'', frist:'' }) }}
-                  style={{ padding:'7px 14px', borderRadius:7, border:'1.5px solid var(--brand2)', background:'var(--brandbg)', color:'var(--brand)', fontWeight:700, fontSize:12.5,
-                    cursor:'pointer', fontFamily:'var(--font)', opacity: nyOppg.tittel.trim() ? 1 : .5 }}>Legg til</button>
+              <div style={{ padding:'10px 12px', background:'var(--bg3)', borderRadius:'var(--r)' }}>
+                <OppgaveInnfoering personar={personar} standardAnsvarleg={meg} knapp hjelp={false} onLeggTil={t => onAddOppgave?.(t)}/>
               </div>
             </div>
           </div>
 
-          {/* Vedlegg */}
+
           <div style={{ marginBottom:18 }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
               <SectionLabel>Vedlegg{uploading ? ' \u2014 lastar opp\u2026' : ''}</SectionLabel>
@@ -822,11 +811,22 @@ function CaseDetailModal({ c, comments, notes, currentUser, onClose, onSetStatus
                 placeholder="Skriv ein kommentar..."
                 style={{ flex:1, padding:'8px 12px', borderRadius:'var(--r)', border:'1.5px solid var(--border)',
                   fontFamily:'var(--font)', fontSize:12.5, resize:'vertical', minHeight:40, outline:'none' }}/>
-              <button onClick={()=>{ onAddComment(c.id, commentText); setCommentText('') }}
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              <select value={foreslaattStatus} onChange={e => setNyStatus(e.target.value)} title="Status for saka etter svaret"
+                style={{ padding:'7px 8px', borderRadius:'var(--r)', border:'1.5px solid ' + STATUS_COLORS[foreslaattStatus], background:'var(--bg)', color:STATUS_COLORS[foreslaattStatus], fontWeight:700, fontSize:12, fontFamily:'var(--font)', outline:'none' }}>
+                {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+              </select>
+              <button onClick={async ()=>{
+                  if (!commentText.trim() && foreslaattStatus === c.status) return
+                  if (commentText.trim()) await onAddComment(c.id, commentText)
+                  if (foreslaattStatus !== c.status) await onSetStatus(c.id, foreslaattStatus)
+                  setCommentText(''); setNyStatus(null)
+                }}
                 style={{ padding:'8px 16px', borderRadius:'var(--r)', border:'none', background:'var(--brand)',
                   color:'#fff', fontWeight:700, fontSize:12.5, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
                 Send
               </button>
+              </div>
             </div>
           </div>
         </div>

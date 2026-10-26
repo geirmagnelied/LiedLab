@@ -5,6 +5,9 @@ import SketchPad from './SketchPad'
 import DatePicker, { DatoTid } from './DatePicker'
 import { eksporterNotatPdf } from './notatPdf'
 import CaseTable from './CaseTable'
+import OppgaveInnfoering from './OppgaveInnfoering'
+import PersonVelger from './PersonVelger'
+import usePersonar from './usePersonar'
 
 // ── Tabell i redigeringsvindauget ────────────────────────────────────
 // Rein HTML-tabell med inline-stilar (ikkje CSS-klassar) — notat.html vert
@@ -32,18 +35,19 @@ const fi = {
 }
 
 function fmtHours(h) {
-  if (h === undefined || h === null || h === '') return '0.5t'
+  if (h === undefined || h === null || h === '') return '–'
   const n = parseFloat(h)
-  if (isNaN(n)) return '0.5t'
+  if (isNaN(n)) return '–'
   return n % 1 === 0 ? `${n}t` : `${n}t`
 }
 
-function TaskRow({ task, onUpdate, onDelete }) {
+function TaskRow({ task, onUpdate, onDelete, personar = [] }) {
+  const [editAnsv,   setEditAnsv]   = useState(task.ansvarleg || '')
   const [editing,    setEditing]    = useState(false)
   const [editText,   setEditText]   = useState(task.text)
   const [editStart,  setEditStart]  = useState(task.startDate || '')
   const [editDate,   setEditDate]   = useState(task.date || '')
-  const [editHours,  setEditHours]  = useState(task.hours !== undefined ? String(task.hours) : '0.5')
+  const [editHours,  setEditHours]  = useState(task.hours !== undefined ? String(task.hours) : '')
   const textRef = useRef(null)
 
   // Hald redigeringsfelta i synk viss oppgåva vert oppdatert utanfrå
@@ -53,22 +57,23 @@ function TaskRow({ task, onUpdate, onDelete }) {
       setEditText(task.text)
       setEditStart(task.startDate || '')
       setEditDate(task.date || '')
-      setEditHours(task.hours !== undefined ? String(task.hours) : '0.5')
+      setEditHours(task.hours !== undefined ? String(task.hours) : '')
+      setEditAnsv(task.ansvarleg || '')
     }
-  }, [task.text, task.startDate, task.date, task.hours, editing])
+  }, [task.text, task.startDate, task.date, task.hours, task.ansvarleg, editing])
 
   useEffect(() => { if (editing && textRef.current) textRef.current.focus() }, [editing])
 
   const commit = () => {
     const t     = editText.trim() || task.text
     const d     = editDate  || nextFriday()
-    const hours = editHours !== '' ? parseFloat(editHours) : 0.5
-    onUpdate(task.id, { text: t, startDate: editStart || null, date: d, hours })
+    const hours = editHours !== '' ? parseFloat(editHours) : undefined
+    onUpdate(task.id, { text: t, startDate: editStart || null, date: d, hours, ansvarleg: editAnsv })
     setEditing(false)
   }
 
   const di = task.date ? fmt(task.date) : null
-  const hours = task.hours !== undefined ? task.hours : 0.5
+  const hours = task.hours
 
   if (editing) return (
     <div style={{ display:'flex', gap:6, padding:'6px 8px', background:'var(--bg4)',
@@ -82,6 +87,7 @@ function TaskRow({ task, onUpdate, onDelete }) {
         min="0.5" max="999" step="0.5" title="Timeverk"
         style={{ ...fi, width:64, padding:'4px 8px', background:'var(--bg2)', fontSize:13, textAlign:'center' }}/>
       <DatePicker value={editDate} onChange={setEditDate} tittel="Frist" wrapStyle={{ width:132 }} style={{ ...fi, padding:'4px 28px 4px 8px', background:'var(--bg2)', fontSize:12 }}/>
+      <div style={{ width:150 }}><PersonVelger value={editAnsv} onChange={setEditAnsv} personar={personar} stil={{ padding:'4px 8px', fontSize:12 }}/></div>
       <button onClick={commit}
         style={{ padding:'4px 10px', background:'var(--brand)', border:'none',
           borderRadius:'var(--r)', color:'#fff', cursor:'pointer',
@@ -113,6 +119,10 @@ function TaskRow({ task, onUpdate, onDelete }) {
         textDecoration: task.done ? 'line-through' : 'none', opacity: task.done ? .55 : 1,
         whiteSpace:'pre-wrap', lineHeight:1.4, paddingRight:8 }}>
         {task.text}
+      </span>
+      {/* Ansvarleg */}
+      <span style={{ width:96, fontSize:11, fontWeight:600, color:'var(--text2)', flexShrink:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={task.ansvarleg || ''}>
+        {task.ansvarleg || <span style={{ opacity:.35, fontWeight:400 }}>–</span>}
       </span>
       {/* Startdato */}
       <span style={{ width:88, fontSize:11, color:'var(--text3)', flexShrink:0,
@@ -183,9 +193,8 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
   const [newProjName, setNewProjName] = useState('')
   const [tasks,       setTasks]       = useState(isEdit ? (editNote.tasks||[]) : [])
   const [newTaskText,  setNewTaskText]  = useState('')
-  const [newTaskStart, setNewTaskStart] = useState('')
-  const [newTaskDate,  setNewTaskDate]  = useState('')
-  const [newTaskHours, setNewTaskHours] = useState('')
+  const oppgInnRef = useRef(null) // felles oppgåve-inndata (OppgaveInnfoering); newTaskText speglar teksten som ikkje er lagt til enno
+  const { personar, meg } = usePersonar(userId, projectVal && projectVal !== '__new__' ? parseInt(projectVal) : null)
 
   // Meeting-specific state
   const [meetingTime,      setMeetingTime]      = useState(() => {
@@ -400,13 +409,8 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
 
   // ── Task auto-save ───────────────────────────────────────────────────
   const commitNewTask = () => {
-    const text = newTaskText.trim()
-    if (!text) return
-    const date  = newTaskDate  || nextFriday()
-    const hours = newTaskHours !== '' ? parseFloat(newTaskHours) : 0.5
-    setTasks(ts => [...ts, { id: Date.now(), text, done:false,
-      startDate: newTaskStart || null, date, hours }])
-    setNewTaskText(''); setNewTaskStart(''); setNewTaskDate(''); setNewTaskHours('')
+    const t = oppgInnRef.current?.hentVentande()
+    if (t) setTasks(ts => [...ts, t])
   }
 
   const updateTask = (id, changes) => setTasks(ts => ts.map(t => t.id===id ? {...t,...changes} : t))
@@ -458,7 +462,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
       onAdd(payload)
       titleRef.current.value = ''; editorRef.current.innerHTML = ''
       setTag(null); setProjectVal(defaultProjectId?String(defaultProjectId):'')
-      setNewProjName(''); setTasks([]); setNewTaskText(''); setNewTaskDate('')
+      setNewProjName(''); setTasks([]); setNewTaskText('')
     }
   }
 
@@ -682,16 +686,12 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
   // useImperativeHandle under) — brukt av NoteModal når brukar vel
   // «Lagre og lukk» i stadfestingsdialogen ved X-lukking.
   const handleSaveTasksOnly = () => {
-    // Commit any text still sitting in the input field
-    if (newTaskText.trim()) commitNewTask()
+    // Hent ei oppgåve som er skriven men ikkje lagt til enno
+    const ventande = oppgInnRef.current?.hentVentande()
     setTimeout(() => {
       let pid = null
       if (projectVal && projectVal !== '__new__') pid = parseInt(projectVal)
-      const finalTasks = newTaskText.trim()
-        ? [...tasks, { id: Date.now(), text: newTaskText.trim(), done:false,
-            startDate: newTaskStart || null, date: newTaskDate || nextFriday(),
-            hours: newTaskHours !== '' ? parseFloat(newTaskHours) : 0.5 }]
-        : tasks
+      const finalTasks = ventande ? [...tasks, ventande] : tasks
       if (finalTasks.length === 0) return
       const titleSummary = finalTasks.length === 1
         ? `Oppgåve: ${finalTasks[0].text.substring(0, 50)}`
@@ -760,9 +760,10 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
                 padding:'9px 12px', background:'var(--bg2)', border:'1px solid var(--border)',
                 borderRadius:'var(--r)' }}>
                 <span style={{ flex:1, fontSize:14, color:'var(--text)', fontWeight:500 }}>{t.text}</span>
+                {t.ansvarleg && <span style={{ fontSize:12, fontWeight:600, color:'var(--text2)' }}>{t.ansvarleg}</span>}
                 {t.startDate && <span style={{ fontSize:12, color:'var(--text3)' }}>Start: {t.startDate}</span>}
-                <span style={{ fontSize:12, fontWeight:700, color:'var(--brand)',
-                  background:'var(--brandbg)', borderRadius:5, padding:'2px 8px' }}>{t.hours}t</span>
+                {t.hours != null && <span style={{ fontSize:12, fontWeight:700, color:'var(--brand)',
+                  background:'var(--brandbg)', borderRadius:5, padding:'2px 8px' }}>{t.hours}t</span>}
                 {t.date && <span style={{ fontSize:12, color:'var(--text3)' }}>Frist: {t.date}</span>}
                 <button onClick={() => deleteTask(t.id)}
                   style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer',
@@ -776,28 +777,13 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
           </div>
         )}
 
-        {/* New task input row */}
+        {/* Ny oppgåve — same inndata som alle andre flater */}
         <div>
           <label style={{ fontSize:11, color:'var(--text3)', display:'block', marginBottom:4,
             textTransform:'uppercase', letterSpacing:'.05em', fontWeight:700 }}>
             {tasks.length > 0 ? 'Legg til ei oppgåve til' : 'Oppgåve'}
           </label>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 80px 1fr', gap:10 }}>
-            <input type="text" placeholder="Kva skal gjerast? (Enter for å legge til)"
-              value={newTaskText} onChange={e => setNewTaskText(e.target.value)}
-              autoFocus
-              style={{ ...fi, fontSize:15, fontWeight:600, padding:'10px 13px',
-                background:'var(--bg2)', border:'2px solid var(--brand3)' }}
-              onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); commitNewTask() } }}/>
-            <DatePicker value={newTaskStart} onChange={setNewTaskStart} tittel="Startdato" style={fi}/>
-            <input type="number" value={newTaskHours} onChange={e => setNewTaskHours(e.target.value)}
-              placeholder="0.5" min="0.5" max="999" step="0.5"
-              title="Timar" style={{ ...fi, textAlign:'center' }}/>
-            <DatePicker value={newTaskDate} onChange={setNewTaskDate} tittel="Frist" style={fi}/>
-          </div>
-          <div style={{ fontSize:11, color:'var(--text3)', marginTop:6 }}>
-            Trykk Enter for å legge til oppgåva og starte på neste · Utan frist → fredag denne veka · Utan timar → 0.5t
-          </div>
+          <OppgaveInnfoering ref={oppgInnRef} autoFocus personar={personar} standardAnsvarleg={meg} onTekst={setNewTaskText} onLeggTil={t => setTasks(ts => [...ts, t])}/>
         </div>
 
         {/* Save all — primærknapp til venstre */}
@@ -1084,49 +1070,10 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
       {/* ── Arbeidsoppgåver ── */}
       <div>
         {tasks.map(task => (
-          <TaskRow key={task.id} task={task} onUpdate={updateTask} onDelete={deleteTask}/>
+          <TaskRow key={task.id} task={task} onUpdate={updateTask} onDelete={deleteTask} personar={personar}/>
         ))}
 
-        {/* Column headers */}
-        <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:3, padding:'0 2px' }}>
-          <div style={{ flex:1, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' }}>Oppgåve</div>
-          <div style={{ width:130, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' }}>Startdato</div>
-          <div style={{ width:56, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', textAlign:'center' }}>Timar</div>
-          <div style={{ width:130, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' }}>Frist</div>
-        </div>
-        <div style={{ display:'flex', gap:6, alignItems:'flex-start' }}>
-          <textarea
-            value={newTaskText}
-            onChange={e => setNewTaskText(e.target.value)}
-            onKeyDown={e => {
-              if (e.key==='Enter' && e.altKey) {
-                e.preventDefault()
-                const ta = e.currentTarget
-                const s = ta.selectionStart, end = ta.selectionEnd
-                const val = ta.value
-                const newVal = val.substring(0,s) + '\n' + val.substring(end)
-                setNewTaskText(newVal)
-                setTimeout(() => { ta.selectionStart = ta.selectionEnd = s+1 }, 0)
-              } else if (e.key==='Enter' && !e.altKey) {
-                e.preventDefault()
-                commitNewTask()
-              }
-            }}
-            placeholder="Ny arbeidsoppgåve… (Enter = lagre, Alt+Enter = ny linje)"
-            rows={newTaskText.includes('\n') ? Math.min(5, newTaskText.split('\n').length + 1) : 1}
-            style={{ ...fi, flex:1, resize:'none', lineHeight:1.5,
-              background:'var(--bg2)', border:'1.5px solid var(--border)', minHeight:36 }}/>
-          <DatePicker value={newTaskStart} onChange={setNewTaskStart} tittel="Startdato" wrapStyle={{ width:140 }} style={{ ...fi, background:'var(--bg2)' }}/>
-          <input type="number" value={newTaskHours} onChange={e => setNewTaskHours(e.target.value)}
-            placeholder="0.5"
-            min="0.5" max="999" step="0.5"
-            title="Timeverk (standard: 0.5)"
-            style={{ ...fi, width:56, background:'var(--bg2)', textAlign:'center' }}/>
-          <DatePicker value={newTaskDate} onChange={setNewTaskDate} tittel={`Frist (standard: fredag = ${nextFriday()})`} wrapStyle={{ width:140 }} style={{ ...fi, background:'var(--bg2)' }}/>
-        </div>
-        <div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>
-          Utan frist → fredag denne veka · Utan timar → 0.5t · Alt+Enter for ny linje
-        </div>
+        <OppgaveInnfoering ref={oppgInnRef} personar={personar} standardAnsvarleg={meg} onTekst={setNewTaskText} onLeggTil={t => setTasks(ts => [...ts, t])} plassholder="Ny arbeidsoppgåve… (Enter = legg til, Alt+Enter = ny linje)"/>
       </div>
 
       {/* Tags + Save */}

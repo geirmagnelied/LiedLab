@@ -464,7 +464,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'kvalitet' && <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
         {activeModule === 'oppgaver' && <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} notes={modeNotes}/>}
         {activeModule === 'farge' && <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
-        {activeModule === 'saker' && <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>}
+        {activeModule === 'saker' && <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId} onAddNote={addNote} onUpdateTask={updateTask} onDeleteTask={deleteTask}/>}
         {activeModule === 'dtm' && <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
         {activeModule === 'bilete' && <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
         {['kontordrift', 'ansatte', 'kontorkalender'].includes(activeModule) && <KontordriftModule side={activeModule === 'kontorkalender' ? 'kalender' : 'ansatte'} userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>}
@@ -622,7 +622,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
       ) : activeModule === 'farge' ? (
         <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'saker' ? (
-        <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId}/>
+        <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId} onAddNote={addNote} onUpdateTask={updateTask} onDeleteTask={deleteTask}/>
       ) : activeModule === 'dtm' ? (
         <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>
       ) : activeModule === 'bilete' ? (
@@ -764,7 +764,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
 )
 }
 
-const MODULE_LABELS = { skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Kanban', saker:'Gjeremål', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Framdrift' }
+const MODULE_LABELS = { skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Kanban', saker:'Saksbehandling', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Framdrift' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())

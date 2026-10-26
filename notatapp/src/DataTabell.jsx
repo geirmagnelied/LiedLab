@@ -194,6 +194,8 @@ export default function DataTabell({
   radGruppe, // valfri; { forelder(rad) → forelder-id | null } — rader med forelder følgjer rett etter forelderen (uavhengig av sortering),
              // går utanom filter (følgjer forelderen) og vert ikkje summert i totalraden. Brukt til person-underrader i Framdrift.
   bryttOverskrift = false, // valfri; høgare kolonneoverskrifter der namn med to ord vert viste over to rader og lange ord vert delte med bindestrek
+  verktoyForan, verktoyEtter, // valfri; ReactNode først / sist i verktøylinja (t.d. «+ Ny», søk, filter). Saman med visningsMeny gjev det ei samla verktøylinje
+  visningsMeny = false,       // valfri; Fargekode/Tettleik/Totalrad ligg i ein «Visning ▾»-meny, og «+ Kolonnar»/«Nullstill» står saman med dei andre knappane til venstre
   standardSynlegeKolonnar, // valfri; [key,...] — overstyrer standard skjulte-utrekninga (elles kol.standardSkjult)
                            // med «alt UNNATEKE desse er skjult» — brukt når SAME kolonnedefinisjonar (t.d.
                            // DTMTabell sin BASE_COLUMNS) skal ha ULIK standardvising avhengig av KVEN som
@@ -783,6 +785,7 @@ export default function DataTabell({
     return kol && ((kol.art === 'tal' && !kol.ikkjeSummer) || kol.totalTeljing)
   }), [synlege, kolMap])
   const cellePad = prefs.tettleik === 'tett' ? '0 8px' : '0 11px'
+  const [visningOpen, setVisningOpen] = useState(false)
 
   // «Vising»-nedtrekksmenyen i verktøylinja — eit fast kolonneutval i
   // staden for å skjule/vise kolonnar éin og éin via «+ Kolonnar».
@@ -811,6 +814,27 @@ export default function DataTabell({
       {/* ── Tabellverktøy ── */}
       <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap',
         padding:'7px 16px', background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
+        {verktoyForan}
+        {visningsMeny && (<>
+          <div style={{ position:'relative' }}>
+            <button type="button" className="dt-knapp" onClick={() => setVisningOpen(v => !v)}>Visning ▾</button>
+            {visningOpen && (<>
+              <div onClick={() => setVisningOpen(false)} style={{ position:'fixed', inset:0, zIndex:90 }}/>
+              <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:100, width:250, padding:'12px 14px', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:'var(--r2)', boxShadow:'var(--shadow-lg)', display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}><span className="dt-etikett">Fargekode</span>
+                  <Segment val={prefs.farge} sett={v => setPrefs({ farge:v })} val1={[false, 'Av']} val2={[true, 'På']}/></div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}><span className="dt-etikett">Tettleik</span>
+                  <div className="dt-seg">{[['tett','Tett'],['normal','Normal'],['luftig','Luftig']].map(([v, t]) => (
+                    <button key={v} type="button" onClick={()=>setPrefs({ tettleik:v })} className={prefs.tettleik === v ? 'på' : ''}>{t}</button>))}</div></div>
+                {harTotalrad && <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}><span className="dt-etikett">Totalrad</span>
+                  <Segment val={prefs.totalrad} sett={v => setPrefs({ totalrad:v })} val1={[false, 'Av']} val2={[true, 'På']}/></div>}
+              </div>
+            </>)}
+          </div>
+          <button type="button" className="dt-knapp" onClick={e => opneMeny('kolonnar', null, e)}>+ Kolonnar</button>
+          <button type="button" className="dt-knapp" onClick={nullstill} title="Tilbake til standard kolonnar, breidder og sortering">Nullstill</button>
+          {verktoyEtter}
+        </>)}
         {visingsFilter?.length > 0 && (
           <button type="button" className="dt-knapp" onClick={e => { setVisLagreSkjema(false); opneMeny('visingsfilter', null, e) }}>
             Vising ▾
@@ -828,7 +852,7 @@ export default function DataTabell({
             ↶ Angre
           </button>
         )}
-        <span className="dt-etikett">Fargekode</span>
+        {!visningsMeny && <><span className="dt-etikett">Fargekode</span>
         <Segment val={prefs.farge} sett={v => setPrefs({ farge:v })}
           val1={[false, 'Av']} val2={[true, 'På']}/>
         <span className="dt-etikett" style={{ marginLeft:6 }}>Tettleik</span>
@@ -841,7 +865,7 @@ export default function DataTabell({
         {harTotalrad && (<>
           <span className="dt-etikett" style={{ marginLeft:6 }}>Totalrad</span>
           <Segment val={prefs.totalrad} sett={v => setPrefs({ totalrad:v })} val1={[false, 'Av']} val2={[true, 'På']}/>
-        </>)}
+        </>)}</>}
 
         {aktiveFilter.map(([k, v]) => (
           <span key={k} className="dt-chip">
@@ -854,10 +878,11 @@ export default function DataTabell({
         <span style={{ fontSize:11.5, color:'var(--text3)' }}>
           {rader.length}{rader.length !== (dataRader || []).length ? ` av ${(dataRader || []).length}` : ''} {itemNamn}
         </span>
+        {!visningsMeny && <>
         <button type="button" className="dt-knapp" onClick={e => opneMeny('kolonnar', null, e)}>+ Kolonnar</button>
         <button type="button" className="dt-knapp" onClick={nullstill} title="Tilbake til standard kolonnar, breidder og sortering">
           Nullstill
-        </button>
+        </button></>}
       </div>
 
       {/* ── Tabell ── */}
@@ -1420,12 +1445,12 @@ function RedigerCelle({ kol, startverdi, synlege, kolMap, modusRedigerbareKeys =
   )
 }
 
-export function Pille({ tekst, farge }) {
+export function Pille({ tekst, farge, bakgrunn, tekstfarge }) {
   return (
     <span style={{ display:'inline-block', padding:'2px 9px', borderRadius:20, fontSize:10.5, fontWeight:700,
       letterSpacing:'.02em', textTransform:'uppercase', whiteSpace:'nowrap',
-      background: farge ? farge + '1a' : 'var(--bg3)',
-      color: farge || 'var(--text3)' }}>
+      background: bakgrunn || (farge ? farge + '1a' : 'var(--bg3)'),
+      color: tekstfarge || farge || 'var(--text3)' }}>
       {tekst}
     </span>
   )

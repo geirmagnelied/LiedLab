@@ -257,3 +257,20 @@ uendra (formatet er identisk med dei faste `visingsFilter`-oppføringane).
 Designet vart testa som frittståande html-side før implementeringa, publisert
 som artifact «Saksregister». Same oppførsel som i appen, men prototypen har
 ingen database.
+
+## Saksbehandling (27. okt. 2026) — omdøypt frå «Gjeremål», oppgåver frå notat, tre statusar
+
+- **Namn:** modulen (`saker`) heiter **Saksbehandling** i venstremenyen (AppRail, `MODULE_LABELS`, `sprak.js`). Underfane i Kanban/Notatar er uendra.
+- **Oppgåver er IKKJE Kanban-kort.** Oppgåver i tabellen er notat-oppgåver (`notes.tasks`, same som «Ny oppgåve» under Notatar; `nr` vert tildelt i `useStore.tildelTaskNr`).
+  Frå Saksbehandling vert dei oppretta som eit «oppgåve»-notat via `onAddNote` (frå `useStore`) og lenkja til saka i `cases.linked_tasks`. Kanban-kort (`kanban_kort`) vert berre laga av brukaren sjølv i Kanban-modulen.
+  (Den første Gjeremål-versjonen la oppgåver inn som kanban-kort — rulla tilbake. `kanban_kort.nummer` finst framleis i databasen, men vert ikkje lenger vist.)
+- **Felles oppgåve-inndata** `OppgaveInnfoering.jsx` (+ `lagOppgave`, `OppgaveRad`) på ALLE flater: Ny oppgåve (NoteInput task-only), notat med oppgåver, Ny sak, sak-vindauget, «+ Ny oppgåve» i Saksbehandling.
+  Felt: Kva skal gjerast? · Frist · Ansvarleg · Estimat (timar) · Startar seinast. Berre fyrste er påkravd; Enter utan resten gjev frist = fredag denne veka (`nextFriday`, retta til lokal dato) og ansvarleg = den som skreiv (`usePersonar().meg` frå `brukar_profil.namn`). Estimat og start står blanke (`hours` utelaten i staden for 0.5).
+  Oppgåveobjekt: `{ id, text, done, date, ansvarleg, hours?, startDate?, nr }`.
+- **`OppgaveVindauge.jsx`**: flyttbart vindauge (ny: fleire oppgåver + valfri sak; edit: alle felt + ferdig/slett).
+- **Tabellen:** ingen blå modul-topplinje lenger. Éi verktøylinje (`DataTabell` props `verktoyForan`/`verktoyEtter`/`visningsMeny`): + Ny sak, + Ny oppgåve, søk (saker og oppgåver, etter aktivt filter), Filter ▾, **Visning ▾** (Fargekode, Tettleik, Totalrad), + Kolonnar, Nullstill, Tidslinje.
+  Filter har «Frist denne veka / denne månaden» (`fristIPeriode` i `sakerKonstantar.js`). **Tidslinje** viser `Timeline.jsx` (same som Notatar) med fristane til sakene og oppgåvene under tabellen.
+- **Nummer utan prefiks** (ingen S-/O-). Type-kolonna: «Sak» = mørk grøn pille, «Oppgåve» = lys grøn (ved Fargekode På). Prefs-nøkkel `liedlab-gjeremaal-tabell-v2`, Status er fyrste kolonne.
+- **Statusar for saker:** berre `ny` = **Registrert** (raud), `arbeid` = **Påbegynt** (gul), `lukka` = **Lukka** (grøn). Eldre `kontroll` vert vist som Påbegynt (`normaliserStatus`). Oppgåver: opne = Registrert, ferdige = Lukka.
+  Ny sak lukkar vindauget og sett Registrert (ingen sak-dialog etterpå). I sak-vindauget vert **Påbegynt** foreslått i status-menyen ved sida av «Send» når nokon skriv svar på ei Registrert sak (kan stillast tilbake).
+- **Ny sak:** «Type» fjerna (lagrast tom), vedlegg ligg i ei ekspanderbar kolonne til høgre.

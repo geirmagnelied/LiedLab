@@ -13,7 +13,7 @@ export default function KanbanKort({ k, overskrid, dratt, nytt, sett, onApne, on
       className={'kb-kort' + (dratt ? ' kb-dratt' : '') + (nytt ? ' kb-inn' : '') + (sett ? ' kb-sett' : '') + (overskrid ? ' kb-over' : '')}
       style={{ position: 'relative' }}>
       {k.farge && <span style={{ position: 'absolute', left: 0, top: 9, bottom: 9, width: 4, borderRadius: '0 3px 3px 0', background: k.farge }}/>}
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.35, wordBreak: 'break-word' }}>{k.nummer ? <span style={{ fontFamily: 'var(--mono)', fontSize: 10.5, fontWeight: 700, color: 'var(--text3)', marginRight: 6 }}>O-{k.nummer}</span> : null}{k.tittel}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.35, wordBreak: 'break-word' }}>{k.tittel}</div>
       {k.skildring && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 3, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{k.skildring}</div>}
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
         {k.ansvarleg && (

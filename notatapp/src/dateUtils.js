@@ -5,7 +5,8 @@ export function nextFriday() {
   const day = d.getDay() // 0=Sun, 5=Fri
   const daysUntilFriday = day <= 5 ? 5 - day : 6  // if Sun(0) → 5 days
   d.setDate(d.getDate() + daysUntilFriday)
-  return d.toISOString().split('T')[0]
+  // lokal dato — toISOString() ville gitt dagen før i norsk tid
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
 }
 
 export function fmt(d) {
