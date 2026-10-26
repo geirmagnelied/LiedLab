@@ -217,3 +217,14 @@ Cowork-arbeidsflyten kravde. Skilnaden frå Cowork:
 - **Nytt notat (`NoteModal`/`NoteInput`):** vindauget kan flyttast (dra i toppfeltet) og endrast i storleik frå høgre kant, botnkant og hjørnet; større standardstorleik (nøkkel `…-size-v2`) og høgare skrivefelt (`max(280px, 34vh)`). Skiljelinjene «Beskriving» og «Arbeidsoppgåver» er fjerna — «Beskriving» (møte: «Agenda / referat», referat: «Notat / kommentarar») er plasshaldar i skrivefeltet, som tittelen (CSS `[data-placeholder]:empty::before` i `index.css`).
 - **Automatisk punktliste:** skriv «- », «* » eller «• » fyrst på ei linje → punktliste; «1. » → nummerert liste. Enter held fram, tom linje avsluttar.
 - **Timar:** ny fane **Veke** (`TimeVeke.jsx`): éi rad per prosjekt/aktivitetsnr., ei kolonne per dag (man–søn), sum per rad/dag og totalt; beskriving er skjult; trykk på ein dag opnar han i Timeregistrering. «Totalt <dag dato>» står på éi linje. Forklaringsboksen om tidsbruk-formatet er fjerna — formatet står som tooltip (hald musa i ro) over tidsbruk-feltet.
+
+## Toppfelt som tittellinje og raskare oppstart (26. okt. 2026)
+
+- **Ingen Windows-meny/tittellinje** i skrivebordsappen: `electron/main.js` har `Menu.setApplicationMenu(null)`,
+  `titleBarStyle:'hidden'` og `titleBarOverlay` (svart, 54 px). `TopBar.jsx` er tittellinja (`WebkitAppRegion:'drag'`,
+  interaktive element `no-drag`) og har `paddingRight` etter `env(titlebar-area-*)` så Windows sine vindaugsknappar får plass.
+  Snøgtastar attende: F12/Ctrl+Skift+I (utviklarverktøy), F5/Ctrl+R (last på nytt). **Krev ny start av Electron/ny .exe** (main.js).
+- **Oppstart**: vindauget vert vist med ein gong (mørk bakgrunn) i staden for å vente på fyrste teikning; `exifr`/`piexifjs`/`xlsx`
+  vert `require`-a fyrste gong dei trengst; modulane i `App.jsx` er `React.lazy` (hovudchunk 1,45 MB → 0,82 MB) og vert
+  forhandslasta i ledig tid etter oppstart; Google Fonts blokkerer ikkje lenger fyrste teikning; `index.html` har ein mørk «lastar…»-skjerm.
+- Datamengda frå Supabase ved oppstart er liten (~0,7 MB) — ikkje flaskehalsen.

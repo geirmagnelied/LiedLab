@@ -28,7 +28,7 @@ export function ProsjektVelger({ projects, activeProjectId, onSelectProject, onT
     : sortert
 
   return (
-    <div ref={boksRef} style={{ position:'relative' }}>
+    <div ref={boksRef} style={{ position:'relative', WebkitAppRegion:'no-drag' }}>
       <button type="button" onClick={() => setOpen(v => !v)}
         style={{ padding:'6px 10px', borderRadius:6, border:'1.5px solid rgba(255,255,255,.22)',
           background: active ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.06)',
@@ -94,6 +94,9 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
       borderBottom: '1px solid #FFFFFF', // tynn kvit strek mellom toppfeltet og venstre navigasjonsfane
       userSelect: 'none',
       zIndex: 60,
+      // Electron: toppfeltet er tittellinja (dra for å flytte vindauget); plass til Windows sine vindaugsknappar til høgre.
+      WebkitAppRegion: 'drag',
+      paddingRight: 'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw))',
     }}>
 
       {/* ── Logo-felt: same width as AppRail (52px), so it sits right above the module letters ── */}
@@ -135,7 +138,7 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
 
       {/* ── Kontor-veljar ── */}
       {onSetOffice && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative', WebkitAppRegion: 'no-drag' }}>
           <select
             value={activeOfficeId || ''}
             onChange={e => {
@@ -202,7 +205,7 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
       {/* ── Innlogga brukar (opnar Brukar-modulen) ── */}
       {onOpenBruker && (
         <button onClick={onOpenBruker} title={t('topp.minSide')}
-          style={{ display: 'flex', alignItems: 'center', gap: 9, height: 36, padding: '0 12px 0 5px', marginRight: 12, borderRadius: 18, cursor: 'pointer', flexShrink: 0,
+          style={{ WebkitAppRegion: 'no-drag', display: 'flex', alignItems: 'center', gap: 9, height: 36, padding: '0 12px 0 5px', marginRight: 12, borderRadius: 18, cursor: 'pointer', flexShrink: 0,
             background: activeModule === 'bruker' ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.08)', border: '1.5px solid rgba(255,255,255,.18)', color: '#fff', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 600 }}
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.18)')} onMouseLeave={e => (e.currentTarget.style.background = activeModule === 'bruker' ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.08)')}>
           <span style={{ width: 26, height: 26, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>

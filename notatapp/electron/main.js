@@ -16,14 +16,16 @@
 // kodeendringar i appen elles treng ikkje det — dei kjem automatisk.
 // ─────────────────────────────────────────────────────────────────────
 
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, Menu } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { execFile } = require('child_process')
-const exifr = require('exifr')
-const piexif = require('piexifjs')
-const XLSX = require('xlsx')
+// Tunge bibliotek vert lasta fyrste gong dei trengst (ikkje ved oppstart) — raskare oppstart.
+const lat = (modul) => { let m; return () => (m || (m = require(modul))) }
+const hentExifr = lat('exifr'), hentPiexif = lat('piexifjs'), hentXlsx = lat('xlsx')
+const proxy = (hent) => new Proxy({}, { get: (_, k) => hent()[k] })
+const exifr = proxy(hentExifr), piexif = proxy(hentPiexif), XLSX = proxy(hentXlsx)
 
 // ── Dev-only: automatisk restart av Electron ved endring i fil-brua ──
 // electron/main.js og electron/preload.js vert berre lasta éin gong, ved
@@ -108,7 +110,10 @@ function createWindow() {
     height: 900,
     icon: path.join(__dirname, '..', 'icon.png'),
     backgroundColor: '#0A0A0A',
-    show: false, // vis fyrst når sida er klar, maksimert (ein fast 1440×900-ramme vart for stor på mindre/skalerte skjermar)
+    show: false, // vert vist med ein gong under (maksimert, mørk bakgrunn) — ikkje vent på at nettsida er ferdig lasta
+    // Ingen Windows-tittellinje/meny (Fil/Rediger/Vis…): toppfeltet i appen (TopBar) er tittellinja, med Windows sine eigne vindaugsknappar til høgre.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#0A0A0A', symbolColor: '#ffffff', height: 54 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -120,12 +125,20 @@ function createWindow() {
   // Prøv lokal dev-server fyrst (viss «npm run dev» køyrer i ein annan
   // terminal, t.d. under utvikling/testing), så den tilsikta live-adressa,
   // så Vercel sin eigen adresse som siste sikkerheitsnett.
-  win.once('ready-to-show', () => { win.maximize(); win.show() })
-  setTimeout(() => { if (!win.isVisible()) { win.maximize(); win.show() } }, 6000) // sikkerheitsnett
+  // Vis vindauget med ein gong (mørk bakgrunn) så appen kjennest raskare — nettsida teiknar seg inn over.
+  win.maximize(); win.show()
+  // Utan menylinja forsvinn snøgtastane — legg dei tilbake: F12 / Ctrl+Skift+I (utviklarverktøy), Ctrl+R / F5 (last på nytt).
+  win.webContents.on('before-input-event', (e, inn) => {
+    if (inn.type !== 'keyDown') return
+    const k = inn.key.toLowerCase()
+    if (k === 'f12' || (inn.control && inn.shift && k === 'i')) { win.webContents.toggleDevTools(); e.preventDefault() }
+    else if (k === 'f5' || (inn.control && !inn.shift && k === 'r')) { win.webContents.reload(); e.preventDefault() }
+  })
   loadWithFallback(win, [DEV_URL, PROD_URL, PROD_URL_BACKUP])
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null)
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

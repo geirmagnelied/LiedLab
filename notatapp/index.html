@@ -9,10 +9,12 @@
     <title>Kontor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- skrifter vert lasta utan å blokkere fyrste teikning (media-trikset) -->
+    <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap">
+    <style>html,body{background:#0A0A0A;margin:0}#lastar{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.6);font:600 14px system-ui,sans-serif;letter-spacing:.04em}</style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="lastar">LiedLab — lastar…</div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

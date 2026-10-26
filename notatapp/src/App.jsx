@@ -1,40 +1,52 @@
 import Dashboard from './Dashboard'
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } from 'react'
 import { useStore } from './useStore'
-import BrukarModule from './BrukarModule'
-import SketchPad from './SketchPad'
 import { settEksportBrukar } from './notatPdf'
 import { startBokmalOmsetjar } from './bokmalOmsetjar'
 import useBrukar from './useBrukar'
 import { SprakKontekst, lagT } from './sprak'
 import AppRail, { PARENT_AV_MODUL, RAIL_MODUSAR, RAIL_BREIDD } from './AppRail'
 import AppRailUndermeny from './AppRailUndermeny'
-import MalarModule from './MalarModule'
 import { Camera, Plus, FileText as NotatIkon, Users as MoteIkon, ClipboardList, CheckSquare } from 'lucide-react'
 import { ProsjektVelger } from './TopBar'
-import KontordriftModule from './KontordriftModule'
-import FramdriftModule from './FramdriftModule'
 import TopBar from './TopBar'
 import Sidebar from './Sidebar'
 import NoteModal from './NoteModal'
 import NoteTabell from './NoteTabell'
 import NotePreview from './NotePreview'
 import SokeFelt from './SokeFelt'
-import BileteModule from './BileteModule'
 import DeadlineView from './DeadlineView'
 import TimeTracker from './TimeTracker'
 import ForecastView from './ForecastView'
 import SettingsPanel from './SettingsPanel'
-import KalenderModule from './KalenderModule'
 import Timeline from './Timeline'
-import TimarModule from './TimarModule'
-import KvalitetModule from './KvalitetModule'
-import ProsjektModule from './ProsjektModule'
-import KundeModule from './KundeModule'
-import OppgaveModule from './OppgaveModule'
-import FargeModule from './FargeModule'
-import SakerModule from './SakerModule'
-import DTMModule from './DTMModule'
+
+// Modulane vert lasta fyrst når dei trengst (code-splitting) — gjev mykje raskare oppstart. Etter at appen er teikna,
+// vert dei resterande laste i bakgrunnen (ledig tid) så modulbyte likevel er umiddelbare.
+const LAST_MODULAR = []
+const lat = (last) => {
+  const L = lazy(last); LAST_MODULAR.push(last)
+  return (props) => <Suspense fallback={<div style={{ padding: 24, color: 'var(--text3)', fontSize: 13 }}>Lastar…</div>}><L {...props}/></Suspense>
+}
+const BrukarModule = lat(() => import('./BrukarModule'))
+const SketchPad = lat(() => import('./SketchPad'))
+const MalarModule = lat(() => import('./MalarModule'))
+const KontordriftModule = lat(() => import('./KontordriftModule'))
+const FramdriftModule = lat(() => import('./FramdriftModule'))
+const BileteModule = lat(() => import('./BileteModule'))
+const KalenderModule = lat(() => import('./KalenderModule'))
+const TimarModule = lat(() => import('./TimarModule'))
+const KvalitetModule = lat(() => import('./KvalitetModule'))
+const ProsjektModule = lat(() => import('./ProsjektModule'))
+const KundeModule = lat(() => import('./KundeModule'))
+const OppgaveModule = lat(() => import('./OppgaveModule'))
+const FargeModule = lat(() => import('./FargeModule'))
+const SakerModule = lat(() => import('./SakerModule'))
+const DTMModule = lat(() => import('./DTMModule'))
+if (typeof window !== 'undefined') {
+  const forhandslast = () => LAST_MODULAR.forEach((l, i) => setTimeout(() => { l().catch(() => {}) }, i * 150))
+  window.addEventListener('load', () => (window.requestIdleCallback ? window.requestIdleCallback(forhandslast, { timeout: 4000 }) : setTimeout(forhandslast, 2500)))
+}
 
 const INITIAL_TL_H  = 200
 
