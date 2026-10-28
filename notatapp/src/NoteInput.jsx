@@ -230,6 +230,14 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
     setTag(isEdit ? editNote.tag : null)
     setProjectVal(isEdit ? String(editNote.projectId||'') : (defaultProjectId ? String(defaultProjectId) : ''))
     setSketchDataUrl(isEdit ? (editNote?.sketchDataUrl || null) : null)
+    // Vedlegg og møtefelt må lastast inn att — elles vert dei overskrivne med tomt ved neste autolagring
+    setAttachments(isEdit ? (editNote.attachments || []) : [])
+    if (isEdit && editNote.isMeeting) {
+      if (editNote.meetingTime) setMeetingTime(String(editNote.meetingTime).slice(0, 16))
+      if (editNote.meetingDuration != null) setMeetingDuration(String(editNote.meetingDuration))
+      setMeetingLocation(editNote.meetingLocation || '')
+      setAttendees(editNote.attendees || [])
+    }
     if (!isEdit && titleRef.current) setTimeout(() => titleRef.current?.focus(), 50)
   }, [editNote?.id, defaultProjectId])
 
