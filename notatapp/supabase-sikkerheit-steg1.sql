@@ -11,3 +11,9 @@ REVOKE EXECUTE ON FUNCTION public.is_office_member(bigint), public.is_office_adm
 REVOKE EXECUTE ON FUNCTION public.sok_index_notes(), public.sok_index_cases(), public.sok_index_dtm_dokumenter() FROM PUBLIC, anon, authenticated; -- trigger-funksjonar, treng ikkje EXECUTE
 -- ROLLBACK:
 -- ALTER FUNCTION ... RESET search_path; GRANT EXECUTE ON FUNCTION ... TO PUBLIC;
+
+-- STEG 2 (28. okt. 2026): Vedlegg-bøtta privat, les berre eigne filer (mellomløysing til prosjekt-tilgang)
+-- UPDATE storage.buckets SET public = false WHERE id = 'Vedlegg';
+-- DROP POLICY auth_read ON storage.objects;
+-- CREATE POLICY vedlegg_les_eigne ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'Vedlegg' AND owner_id = auth.uid()::text);
+-- ROLLBACK: UPDATE storage.buckets SET public = true WHERE id = 'Vedlegg'; DROP POLICY vedlegg_les_eigne ON storage.objects; CREATE POLICY auth_read ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'Vedlegg');
