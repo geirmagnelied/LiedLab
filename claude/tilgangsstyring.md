@@ -235,3 +235,9 @@ funksjonalitet legges oppå — ikkje som ein del av ein større leveranse.
   administratorsetet (må minst éin administrator alltid finnast)? Bør
   handteres ved bygging (t.d. hindre at siste administrator fjernar seg
   sjølv/nedgraderer seg).
+
+## STATUS 28. okt. 2026 — spesifikasjonen over er delvis utdatert (les dette fyrst)
+
+- `office_members` og `is_office_member/admin` fanst ALLEREDE (kolonnar `role` admin/member, `status` active/pending, `invited_email`, `invite_token`) frå Kontordrift — dei skal **utvidast**, ikkje opprettast på nytt. `offices` har òg firma-kolonnar og vert behalden som «kontor» (ingen omdøyping til `prosjekt_kategori`). «Privat» = `offices.er_privat`, ingen andre medlemmar.
+- Gjort (sjå `notatapp/supabase-sikkerheit-steg1.sql`; backup i skjemaet `backup_20261028`): steg 1 funksjonsherding, steg 2 Vedlegg-bøtta privat (signerte lenkjer i `vedlegg.js`, les berre eigne filer), steg 3 kontor-medlemskap herda (sjå SQL-kommentaren).
+- Gjenstår: `project_members` + `kan_se_prosjekt()`, RLS-bytte tabell for tabell, klient-filtrering (`.eq('user_id', …)`), bøtte-policyar for prosjekt-medlemskap, XSS-vern/sikkerheitsheaderar, invitasjonsflyt (aksept av `?invite=`-token er ikkje implementert i klienten), Supabase-dashbord: skru av fri registrering og slå på lekte-passord-sjekk.
