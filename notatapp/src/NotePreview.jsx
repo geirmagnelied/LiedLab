@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { opneVedlegg } from './vedlegg'
 import { fmtDateShort } from './sakerKonstantar'
 import { eksporterNotatPdf } from './notatPdf'
 
@@ -142,7 +143,7 @@ export default function NotePreview({ note, projects, onEdit, onUpdateTask }) {
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               {note.attachments.map((att, i) => (
-                <a key={i} href={att.url} target="_blank" rel="noreferrer"
+                <a key={i} href={att.url} target="_blank" rel="noreferrer" onClick={e => opneVedlegg(e, att)}
                   style={{ fontSize:12.5, color:'var(--brand)', textDecoration:'none' }}>
                   {att.name}
                 </a>

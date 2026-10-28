@@ -7,6 +7,7 @@ import OppgaveVindauge from './OppgaveVindauge'
 import OppgaveInnfoering from './OppgaveInnfoering'
 import Timeline from './Timeline'
 import usePersonar from './usePersonar'
+import { opneVedlegg } from './vedlegg'
 import { FELT } from './FlyttbartModal'
 import { personFarge, fmtDato as fmtKortDato } from './kanbanLogikk'
 import {
@@ -673,7 +674,7 @@ function CaseDetailModal({ c, comments, notes, currentUser, onClose, onSetStatus
                         background:'var(--brandbg)', color:'var(--brand)', flexShrink:0 }}>
                         {att.type?.includes('image') ? 'BILETE' : att.type?.includes('pdf') ? 'PDF' : 'FIL'}
                       </span>
-                      <a href={att.url} target="_blank" rel="noreferrer"
+                      <a href={att.url} target="_blank" rel="noreferrer" onClick={e => opneVedlegg(e, att)}
                         style={{ flex:1, fontSize:12.5, color:'var(--brand)', fontWeight:500, textDecoration:'none',
                           overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                         {att.name}

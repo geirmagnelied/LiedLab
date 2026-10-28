@@ -8,6 +8,7 @@ import CaseTable from './CaseTable'
 import OppgaveInnfoering from './OppgaveInnfoering'
 import PersonVelger from './PersonVelger'
 import usePersonar from './usePersonar'
+import { opneVedlegg } from './vedlegg'
 
 // ── Tabell i redigeringsvindauget ────────────────────────────────────
 // Rein HTML-tabell med inline-stilar (ikkje CSS-klassar) — notat.html vert
@@ -1106,7 +1107,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
               border:'1px solid var(--border)', marginBottom:5 }}>
               <span style={{ fontSize:11, fontWeight:700, padding:'2px 7px', borderRadius:5,
                 background:'var(--brandbg)', color:'var(--brand)', flexShrink:0 }}>{att.type?.includes('pdf') ? 'PDF' : 'E-post'}</span>
-              <a href={att.url} target="_blank" rel="noreferrer"
+              <a href={att.url} target="_blank" rel="noreferrer" onClick={e => opneVedlegg(e, att)}
                 style={{ flex:1, fontSize:13, color:'var(--brand)', fontWeight:500,
                   textDecoration:'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {att.name}

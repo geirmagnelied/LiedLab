@@ -39,6 +39,20 @@ den relevante fila når ei oppgåve gjeld eit tema han dekkjer:
   som gjeld **både** skrivebord (`AppRail.jsx`/`TopBar.jsx`) og mobil. Les
   denne FØR du endrar `AppRail.jsx`, `TopBar.jsx`, `Sidebar.jsx` eller
   mobil-grenen i `App.jsx`
+- `claude/varslingssystem.md` — **spesifisert, IKKJE bygd enno** (26. okt.
+  2026): internt varslingssystem (ingen e-post) som varslar ansvarleg når
+  dei blir tildelt ei ny oppgåve/sak/frist — ny `varsler`-tabell,
+  bjølle-ikon med sanntidsliste, OG ein forutsetning: «ansvarleg»-felta må
+  koplast til ekte kontoar (`ansvarleg_user_id`) i staden for fritekst.
+  Les denne FØR du endrar «ansvarleg»-felt i kanban/saker/notat-oppgåver
+- `claude/tilgangsstyring.md` — **spesifisert, IKKJE bygd enno** (27. okt.
+  2026), **STØRSTE enkelte endring spesifisert i dette repoet**: individuelle
+  kontoar, kontor-administratorar, og separat prosjekt-tilgang (ein
+  administrator har IKKJE automatisk tilgang til alle prosjekt). Endrar RLS
+  på 12+ tabellar + lagringsbøttene, og krev at `offices`-tabellen
+  omdøypast (namnekollisjon, sjå fila). Må byggjast FØR
+  `claude/varslingssystem.md` sitt «ansvarleg_user_id»-steg gjev mening.
+  Les denne FØR du rører autentisering, RLS eller `office_id`/`offices`
 
 Same innhald finst òg (kan verte forelda over tid) som eigne dokument i
 Claude-prosjektet **"Digitale verktøy"** på claude.ai — `claude/`-mappa her

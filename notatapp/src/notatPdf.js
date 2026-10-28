@@ -1,3 +1,4 @@
+import { vedleggUrl } from './vedlegg'
 // ═══════════════════════════════════════════════════════════════════
 //  notatPdf — eksport av notat / møtenotat / referat til PDF som VEKTOR (ekte tekst, linjer og flater — ikkje bilete).
 //  1) Notatet vert lagt ut i ein skjult A4-breidd-boks av nettlesaren sjølv (så tabellar, lister, fargar m.m. får same
@@ -259,7 +260,7 @@ export async function eksporterNotatPdf(note, prosjektNamn = '') {
   for (const a of (note.attachments || [])) {
     if (!(a.type?.includes('pdf') || /\.pdf$/i.test(a.name || ''))) continue
     try {
-      const svar = await fetch(a.url)
+      const svar = await fetch(await vedleggUrl(a))
       if (!svar.ok) throw new Error('HTTP ' + svar.status)
       const kjelde = await PDFDocument.load(await svar.arrayBuffer(), { ignoreEncryption: true })
       const kopiar = await doc.copyPages(kjelde, kjelde.getPageIndices())

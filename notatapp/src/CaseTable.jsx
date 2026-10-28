@@ -1,3 +1,4 @@
+import { opneVedlegg } from './vedlegg'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import DatePicker from './DatePicker'
@@ -179,7 +180,7 @@ function CaseModal({ caseData, onSave, onDelete, onClose, userId }) {
                   background:'var(--brandbg)', color:'var(--brand)', flexShrink:0 }}>
                   {a.type?.includes('pdf') ? 'PDF' : 'Fil'}
                 </span>
-                <a href={a.url} target="_blank" rel="noreferrer"
+                <a href={a.url} target="_blank" rel="noreferrer" onClick={e => opneVedlegg(e, a)}
                   style={{ flex:1, fontSize:13, color:'var(--brand)', fontWeight:500,
                     textDecoration:'none', overflow:'hidden', textOverflow:'ellipsis',
                     whiteSpace:'nowrap' }}>
