@@ -27,3 +27,11 @@ REVOKE EXECUTE ON FUNCTION public.sok_index_notes(), public.sok_index_cases(), p
 --  * office_members.office_id fekk FK med ON DELETE CASCADE (ingen foreldrelause medlemsrader)
 --  * konto geir.magne.lied@norconsult.com sletta (0 prosjekt, 1 testnotat)
 -- ROLLBACK: gjenopprett policyar/funksjonar frå backup_20261028._policies og backup_20261028._funksjonar.
+
+-- ═══ STEG 4 (29. okt. 2026): project_members + kan_se_prosjekt() — ingen eksisterande policy er endra ═══
+-- Migrasjon `sikkerheit_steg4_project_members`: tabell project_members (PK project_id+user_id, RLS på),
+-- funksjonane kan_se_prosjekt(pid), prosjekt_kontor(pid), kan_handtere_prosjekt(pid) (medlem ELLER kontoradmin; gjev berre
+-- rett til medlemslista, ikkje innhaldet) og kan_leggast_til(pid, uid) (må vere aktiv medlem av prosjektets kontor).
+-- Policyar: select (eiga rad eller kan_handtere), insert (kan_handtere + kan_leggast_til + lagt_til_av = auth.uid()), delete (eiga rad eller kan_handtere).
+-- Trigger trg_prosjekt_ny_medlem: den som lagar eit prosjekt vert automatisk medlem. Utrulling: eigar av kvart eksisterande prosjekt (28 rader).
+-- Rollback: drop trigger trg_prosjekt_ny_medlem on projects; drop table project_members; drop function kan_leggast_til, kan_handtere_prosjekt, prosjekt_kontor, kan_se_prosjekt;
