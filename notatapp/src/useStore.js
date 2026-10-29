@@ -69,7 +69,7 @@ export function useStore(userId) {
     const [{ data: oData }, { data: pData }, { data: nData }, { data: colData }] = await Promise.all([
       supabase.from('offices').select('*').eq('user_id', userId).order('sort_order').order('name'),
       supabase.from('projects').select('*').eq('user_id', userId).order('favorite', { ascending: false }).order('name'),
-      supabase.from('notes').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+      supabase.from('notes').select('*').order('created_at', { ascending: false }),
       supabase.from('note_columns').select('*').eq('user_id', userId).order('sortering', { ascending: true }),
     ])
     setNoteColumns((colData || []).map(k => ({ key: k.key, label: k.label, art: k.art || 'tekst' })))
@@ -201,11 +201,11 @@ export function useStore(userId) {
     // Optimistic local update — avoids re-fetching the whole notes list (and the
     // resulting re-render storm) on every autosave tick while the user is typing.
     setNotes(ns => ns.map(n => n.id === id ? { ...n, ...changes, updatedAt: row.updated_at } : n))
-    await supabase.from('notes').update(row).eq('id', id).eq('user_id', userId)
+    await supabase.from('notes').update(row).eq('id', id)
   }
 
   const deleteNote = async (id) => {
-    await supabase.from('notes').delete().eq('id', id).eq('user_id', userId)
+    await supabase.from('notes').delete().eq('id', id)
     setNotes(n => n.filter(x => x.id !== id))
   }
 
@@ -217,7 +217,7 @@ export function useStore(userId) {
     // Optimistic update — no screen reload
     setNotes(ns => ns.map(n => n.id === id ? { ...n, done: newDone, updatedAt: now } : n))
     await supabase.from('notes').update({ done: newDone, updated_at: now })
-      .eq('id', id).eq('user_id', userId)
+      .eq('id', id)
   }
 
   // Optimistic task update — no full reload
@@ -228,7 +228,7 @@ export function useStore(userId) {
     const now = new Date().toISOString()
     setNotes(ns => ns.map(n => n.id === noteId ? { ...n, tasks: newTasks, updatedAt: now } : n))
     await supabase.from('notes').update({ tasks: newTasks, updated_at: now })
-      .eq('id', noteId).eq('user_id', userId)
+      .eq('id', noteId)
   }
 
   // ── Tasks ─────────────────────────────────────────────────────────────
@@ -253,7 +253,7 @@ export function useStore(userId) {
     const now = new Date().toISOString()
     setNotes(ns => ns.map(n => n.id === noteId ? { ...n, tasks: newTasks, updatedAt: now } : n))
     await supabase.from('notes').update({ tasks: newTasks, updated_at: now })
-      .eq('id', noteId).eq('user_id', userId)
+      .eq('id', noteId)
   }
 
   // ── Projects ──────────────────────────────────────────────────────────

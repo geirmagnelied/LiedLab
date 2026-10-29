@@ -35,3 +35,10 @@ REVOKE EXECUTE ON FUNCTION public.sok_index_notes(), public.sok_index_cases(), p
 -- Policyar: select (eiga rad eller kan_handtere), insert (kan_handtere + kan_leggast_til + lagt_til_av = auth.uid()), delete (eiga rad eller kan_handtere).
 -- Trigger trg_prosjekt_ny_medlem: den som lagar eit prosjekt vert automatisk medlem. Utrulling: eigar av kvart eksisterande prosjekt (28 rader).
 -- Rollback: drop trigger trg_prosjekt_ny_medlem on projects; drop table project_members; drop function kan_leggast_til, kan_handtere_prosjekt, prosjekt_kontor, kan_se_prosjekt;
+
+-- ═══ STEG 5a (29. okt. 2026): notes → prosjektmedlemskap ═══
+-- Migrasjon `sikkerheit_steg5_notes`: notes_select/insert/update/delete (til authenticated). Notat utan prosjekt = berre eigar;
+-- notat i prosjekt = alle prosjektmedlemmar (les/endre/slette), insert krev user_id = auth.uid() og medlemskap. Trigger trg_notes_behald_eigar hindrar endra user_id.
+-- Klient: useStore.js hentar/oppdaterer notat utan .eq('user_id') — RLS styrer.
+-- Rollback: drop policy notes_select/insert/update/delete on notes; drop trigger trg_notes_behald_eigar on notes;
+--   create policy notes_select on notes for select using (auth.uid() = user_id); (tilsvarande insert with check, update, delete)
