@@ -89,7 +89,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     }
     setLoading(true)
     const [{ data: pData }, { data: dData }, { data: colData }, { data: uData }, { data: udData }] = await Promise.all([
-      supabase.from('projects').select('details, project_number').eq('id', activeProjectId).eq('user_id', userId).single(),
+      supabase.from('projects').select('details, project_number').eq('id', activeProjectId).single(),
       supabase.from('dtm_dokumenter').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('nr'),
       supabase.from('dtm_columns').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('sortering'),
       supabase.from('dtm_utsendingar').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('created_at', { ascending:false }),

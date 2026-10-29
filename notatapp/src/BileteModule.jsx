@@ -52,7 +52,7 @@ export default function BileteModule({ userId, userEmail, projects, activeProjec
 
   const lastDetails = useCallback(async () => {
     if (!userId || !activeProjectId) { setDetails(null); return }
-    const { data } = await supabase.from('projects').select('details').eq('id', activeProjectId).eq('user_id', userId).single()
+    const { data } = await supabase.from('projects').select('details').eq('id', activeProjectId).single()
     setDetails(data?.details || {})
   }, [userId, activeProjectId])
   useEffect(() => { lastDetails() }, [lastDetails])

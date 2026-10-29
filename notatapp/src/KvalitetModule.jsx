@@ -164,7 +164,7 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
     if (!userId || !activeProjectId) { setDetails(null); setDetaljLastar(false); return }
     setDetaljLastar(true)
     const { data } = await supabase.from('projects').select('details')
-      .eq('id', activeProjectId).eq('user_id', userId).single()
+      .eq('id', activeProjectId).single()
     setDetails(data?.details || {})
     setDetaljLastar(false)
   }, [userId, activeProjectId])

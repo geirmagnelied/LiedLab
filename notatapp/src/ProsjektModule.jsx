@@ -263,7 +263,6 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   const loadProsjekt = useCallback(async () => {
     if (!userId) return
     const { data } = await supabase.from('projects').select('*')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false })
     setProsjektList((data || []).map(p => ({
       id: p.id,
@@ -381,7 +380,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
       project_status: status,
       details,
       updated_at: new Date().toISOString(),
-    }).eq('id', selected).eq('user_id', userId).select()
+    }).eq('id', selected).select()
     if (error) {
       alert('Klarte ikkje lagre prosjektet: ' + error.message)
       return
@@ -469,7 +468,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     const { error, data } = await supabase.from('projects').update({
       project_status: nyStatus,
       updated_at: new Date().toISOString(),
-    }).eq('id', selected).eq('user_id', userId).select()
+    }).eq('id', selected).select()
     if (error) {
       alert('Klarte ikkje lagre statusendring: ' + error.message)
       set('status', prevStatus)
@@ -507,7 +506,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     const nyeDetails = { ...restDetails, oppdragsSti: sti, oppdragsStiLast: true }
     const { error, data } = await supabase.from('projects').update({
       details: nyeDetails, updated_at: new Date().toISOString(),
-    }).eq('id', selected).eq('user_id', userId).select()
+    }).eq('id', selected).select()
     if (error || !data?.length) {
       alert('Klarte ikkje lagre stien: ' + (error?.message || 'prosjektet vart ikkje funne'))
       return
@@ -522,7 +521,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     const nyeDetails = { ...restDetails, oppdragsStiLast: false }
     const { error, data } = await supabase.from('projects').update({
       details: nyeDetails, updated_at: new Date().toISOString(),
-    }).eq('id', selected).eq('user_id', userId).select()
+    }).eq('id', selected).select()
     if (error || !data?.length) {
       alert('Klarte ikkje låse opp: ' + (error?.message || 'prosjektet vart ikkje funne'))
       return
@@ -538,7 +537,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     if (!window.confirm(`Vil du verkeleg slette prosjektet «${p.name}»?\n\nProsjektet vert lagt i papirkorga og sletta endeleg om 30 dagar.`)) return
     const { error } = await supabase.from('projects')
       .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id).eq('user_id', userId)
+      .eq('id', id)
     if (error) { alert('Klarte ikkje slette prosjektet: ' + error.message); return }
     if (selected === id) { setSelected(null); setForm(null) }
     await loadProsjekt()
@@ -548,7 +547,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   const gjenopprettProsjekt = async (id) => {
     const { error } = await supabase.from('projects')
       .update({ deleted_at: null })
-      .eq('id', id).eq('user_id', userId)
+      .eq('id', id)
     if (error) { alert('Klarte ikkje gjenopprette prosjektet: ' + error.message); return }
     await loadProsjekt()
   }

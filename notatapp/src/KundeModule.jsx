@@ -129,7 +129,7 @@ export default function KundeModule({ userId, activeOfficeId }) {
   }, [userId])
   const loadProsjekter = useCallback(async () => {
     if (!userId) return
-    const { data } = await supabase.from('projects').select('id,name,project_number,project_status,details,deleted_at').eq('user_id', userId).is('deleted_at', null).order('created_at', { ascending: false })
+    const { data } = await supabase.from('projects').select('id,name,project_number,project_status,details,deleted_at').is('deleted_at', null).order('created_at', { ascending: false })
     setProsjekter((data || []).map(p => ({ id: p.id, name: p.name, nr: p.project_number || '', status: p.project_status || 'tilbod', details: p.details || {} })))
   }, [userId])
   useEffect(() => { loadClients(); loadProsjekter() }, [loadClients, loadProsjekter])
@@ -216,7 +216,7 @@ export default function KundeModule({ userId, activeOfficeId }) {
   const oppdaterProsjektDetails = async (p, patch) => {
     const details = { ...p.details, ...patch }
     setProsjekter(list => list.map(x => x.id === p.id ? { ...x, details } : x))
-    const { error } = await supabase.from('projects').update({ details, updated_at: new Date().toISOString() }).eq('id', p.id).eq('user_id', userId)
+    const { error } = await supabase.from('projects').update({ details, updated_at: new Date().toISOString() }).eq('id', p.id)
     if (error) { alert('Klarte ikkje lagre: ' + error.message); loadProsjekter() }
   }
   const settSakbehandlar = (p, ctId) => {

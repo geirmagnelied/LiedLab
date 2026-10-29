@@ -42,3 +42,10 @@ REVOKE EXECUTE ON FUNCTION public.sok_index_notes(), public.sok_index_cases(), p
 -- Klient: useStore.js hentar/oppdaterer notat utan .eq('user_id') — RLS styrer.
 -- Rollback: drop policy notes_select/insert/update/delete on notes; drop trigger trg_notes_behald_eigar on notes;
 --   create policy notes_select on notes for select using (auth.uid() = user_id); (tilsvarande insert with check, update, delete)
+
+-- ═══ STEG 5b (29. okt. 2026): projects → prosjektmedlemskap ═══
+-- Migrasjon `sikkerheit_steg5_projects`: select/update = kan_se_prosjekt(id); insert = user_id = auth.uid() og (office_id null eller is_office_member);
+-- update with check: nytt office_id må vere eit kontor brukaren er medlem av; delete (varig) = skapar som framleis er medlem.
+-- Trigger trg_projects_behald_eigar hindrar endra user_id. Klient: .eq('user_id') fjerna frå lesing/oppdatering av projects i useStore, ProsjektModule, KundeModule, DTM/Bilete/Kvalitet/Malar/Resultatdokument, teikningsnummer.js.
+-- Rollback: drop policy projects_select/insert/update/delete on projects; drop trigger trg_projects_behald_eigar on projects;
+--   create policy projects_select on projects for select using (auth.uid() = user_id); (tilsvarande insert with check, update, delete)

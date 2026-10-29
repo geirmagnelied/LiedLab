@@ -42,7 +42,7 @@ export default function MalarModule({ userId, userEmail, projects, activeProject
     setProsjekt(null); setOverstyr({})
     if (!userId || !activeProjectId) return undefined
     let avbrote = false
-    supabase.from('projects').select('id,name,project_number,details').eq('id', activeProjectId).eq('user_id', userId).maybeSingle()
+    supabase.from('projects').select('id,name,project_number,details').eq('id', activeProjectId).maybeSingle()
       .then(({ data }) => { if (!avbrote && data) setProsjekt({ id: data.id, name: data.name, projectNumber: data.project_number || '', details: data.details || {} }) })
     return () => { avbrote = true }
   }, [userId, activeProjectId])

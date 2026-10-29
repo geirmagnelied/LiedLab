@@ -68,7 +68,7 @@ export function useStore(userId) {
 
     const [{ data: oData }, { data: pData }, { data: nData }, { data: colData }] = await Promise.all([
       supabase.from('offices').select('*').eq('user_id', userId).order('sort_order').order('name'),
-      supabase.from('projects').select('*').eq('user_id', userId).order('favorite', { ascending: false }).order('name'),
+      supabase.from('projects').select('*').order('favorite', { ascending: false }).order('name'),
       supabase.from('notes').select('*').order('created_at', { ascending: false }),
       supabase.from('note_columns').select('*').eq('user_id', userId).order('sortering', { ascending: true }),
     ])
@@ -274,7 +274,7 @@ export function useStore(userId) {
   }
 
   const updateProject = async (id, changes) => {
-    await supabase.from('projects').update(changes).eq('id', id).eq('user_id', userId)
+    await supabase.from('projects').update(changes).eq('id', id)
     setProjects(ps => ps.map(p => p.id === id ? { ...p, ...changes } : p))
   }
 
@@ -310,7 +310,7 @@ export function useStore(userId) {
   const toggleFavorite = async (id) => {
     const proj = projects.find(p => p.id === id)
     if (!proj) return
-    await supabase.from('projects').update({ favorite: !proj.favorite }).eq('id', id).eq('user_id', userId)
+    await supabase.from('projects').update({ favorite: !proj.favorite }).eq('id', id)
     setProjects(ps => ps.map(p => p.id === id ? { ...p, favorite: !p.favorite } : p)
       .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || a.name.localeCompare(b.name)))
   }

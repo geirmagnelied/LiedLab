@@ -92,11 +92,11 @@ export function dømeDelar(cfg) {
 // andre felt i prosjektkortet vert overskrivne med ei gammal kopi).
 export async function lagreNummerering(supabase, prosjektId, userId, nummerering) {
   const { data, error: lesFeil } = await supabase.from('projects').select('details')
-    .eq('id', prosjektId).eq('user_id', userId).single()
+    .eq('id', prosjektId).single()
   if (lesFeil) throw new Error(lesFeil.message)
   const { error } = await supabase.from('projects')
     .update({ details: { ...(data?.details || {}), nummerering }, updated_at: new Date().toISOString() })
-    .eq('id', prosjektId).eq('user_id', userId)
+    .eq('id', prosjektId)
   if (error) throw new Error(error.message)
 }
 
