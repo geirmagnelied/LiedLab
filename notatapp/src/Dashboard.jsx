@@ -46,7 +46,7 @@ const Rad = ({ hovud, under, hogre, onKlikk }) => (
   </div>
 )
 
-export default function Dashboard({ userId, userEmail, projects, notes, onOpneModul, onVelgProsjekt }) {
+export default function Dashboard({ userId, userEmail, projects, notes, onOpneModul, onVelgProsjekt, activeOfficeId }) {
   const { t, sprak } = useT()
   const prosjektNamn = useMemo(() => Object.fromEntries((projects || []).map(p => [p.id, p.name])), [projects])
   const prosjektIds = useMemo(() => new Set((projects || []).map(p => p.id)), [projects])
@@ -57,8 +57,9 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
   useEffect(() => {
     let avbrutt = false
     const fra = ymd(mnd); const til = ymd(new Date(mnd.getFullYear(), mnd.getMonth(), mnd.getDate() + 6))
-    supabase.from('time_entries').select('date,hours').eq('user_id', userId).gte('date', fra).lte('date', til)
-      .then(({ data }) => {
+    let tq = supabase.from('time_entries').select('date,hours').eq('user_id', userId).gte('date', fra).lte('date', til)
+    if (activeOfficeId) tq = tq.eq('office_id', activeOfficeId)
+    tq.then(({ data }) => {
         if (avbrutt) return
         const m = {}; for (const r of data || []) m[r.date] = (m[r.date] || 0) + (Number(r.hours) || 0)
         setTimar(m)
@@ -67,7 +68,7 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
       .order('updated_at', { ascending: false }).limit(40)
       .then(({ data }) => { if (!avbrutt) setDtm(data || []) })
     return () => { avbrutt = true }
-  }, [userId, mnd])
+  }, [userId, mnd, activeOfficeId])
 
   const sisteNotat = useMemo(() =>
     [...(notes || [])].sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)).slice(0, 8), [notes])

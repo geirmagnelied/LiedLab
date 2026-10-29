@@ -54,19 +54,20 @@ export default function TimarModule({ userId, projects, addProject, mode, active
       <div style={{ flex: 1, overflowY: 'auto', padding: '22px 26px' }}>
         {subView === 'registrer' && (
           <TimeTracker
-            key={dagFraVeke || 'i-dag'} initDato={dagFraVeke}
-            userId={userId}
+            initDato={dagFraVeke}
+            userId={userId} activeOfficeId={activeOfficeId} key={(dagFraVeke || 'i-dag') + '|' + activeOfficeId}
             projects={projects}
             addProject={(n, t) => addProject(n, t, activeOfficeId)}
             mode={mode}
           />
         )}
-        {subView === 'veke' && <TimeVeke userId={userId} projects={projects} onGaaTilDag={d => { setDagFraVeke(d); setSubView('registrer') }}/>}
+        {subView === 'veke' && <TimeVeke userId={userId} projects={projects} activeOfficeId={activeOfficeId} onGaaTilDag={d => { setDagFraVeke(d); setSubView('registrer') }}/>}
         {subView === 'prognose' && (
           <ForecastView
             userId={userId}
             projects={projects}
             mode={mode}
+            activeOfficeId={activeOfficeId}
           />
         )}
       </div>

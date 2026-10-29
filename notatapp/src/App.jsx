@@ -435,7 +435,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'bruker' && <BrukarModule userId={userId} userEmail={userEmail} brukar={brukar}/>}
         {activeModule === 'malar' && <MalarModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId} brukar={brukar} offices={offices} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'skisse' && <div style={{ height:'calc(100vh - 190px)', display:'flex', position:'relative' }}><SketchPad innbygd existingDataUrl={null} onClose={() => setActiveModule('dashboard')} onSave={lagreSkisse}/></div>}
-        {activeModule === 'dashboard' && <Dashboard userId={userId} userEmail={userEmail} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>}
+        {activeModule === 'dashboard' && <Dashboard userId={userId} userEmail={userEmail} activeOfficeId={activeOfficeId} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>}
         {activeModule === 'notatar' && (
           <>
             <div style={{ display:'flex', gap:6, marginBottom:12 }}>
@@ -457,7 +457,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
             {view==='fristar'  && <DeadlineView notes={visibleNotes} projects={projects} {...listProps}/>}
           </>
         )}
-        {activeModule === 'timar' && <TimeTracker userId={userId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
+        {activeModule === 'timar' && <TimeTracker userId={userId} activeOfficeId={activeOfficeId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
         {activeModule === 'kalender' && <KalenderModule projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} onEdit={handleEdit}/>}
         {activeModule === 'prosjekt' && <ProsjektModule userId={userId} projects={officeProjects} offices={offices} activeOfficeId={activeOfficeId} addProject={addProject} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
         {activeModule === 'kunde' && <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>}
@@ -603,7 +603,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
       ) : activeModule === 'bruker' ? (
         <BrukarModule userId={userId} userEmail={userEmail} brukar={brukar}/>
       ) : activeModule === 'dashboard' ? (
-        <Dashboard userId={userId} userEmail={userEmail} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>
+        <Dashboard userId={userId} userEmail={userEmail} activeOfficeId={activeOfficeId} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>
       ) : activeModule === 'prosjekt' ? (
         <ProsjektModule userId={userId} projects={officeProjects} offices={offices}
           activeOfficeId={activeOfficeId} addProject={addProject}

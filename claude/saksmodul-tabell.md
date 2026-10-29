@@ -274,3 +274,11 @@ ingen database.
 - **Statusar for saker:** berre `ny` = **Registrert** (raud), `arbeid` = **Påbegynt** (gul), `lukka` = **Lukka** (grøn). Eldre `kontroll` vert vist som Påbegynt (`normaliserStatus`). Oppgåver: opne = Registrert, ferdige = Lukka.
   Ny sak lukkar vindauget og sett Registrert (ingen sak-dialog etterpå). I sak-vindauget vert **Påbegynt** foreslått i status-menyen ved sida av «Send» når nokon skriv svar på ei Registrert sak (kan stillast tilbake).
 - **Ny sak:** «Type» fjerna (lagrast tom), vedlegg ligg i ei ekspanderbar kolonne til høgre.
+
+---
+
+## Timelista (29. okt. 2026)
+
+- `time_entries.office_id` (SQL: `notatapp/supabase-time-entries-office.sql`). Timeregistrering, Veke, Prognose (faktiske timar) og Dashboard filtrerer på aktivt kontor; kontor vert sett ved første lagring.
+- «↕ Sorter etter tid» i Timeregistrering ordnar dagen etter starttid (oppføringar utan klokkeslett etter), lagrar `sort_order`, og overlappkontrollen (raud ramme + varsel) vert vist.
+- Oppsummeringa viser delsummar per aktivitetsnr. under kvart prosjekt.

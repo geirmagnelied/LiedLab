@@ -62,7 +62,7 @@ function fmtDate(d) {
   return `${dayName(d)} ${d.getDate()}. ${months[d.getMonth()]}`
 }
 
-export default function TimeTracker({ userId, projects, addProject, mode, initDato }) {
+export default function TimeTracker({ userId, projects, addProject, mode, initDato, activeOfficeId }) {
   const [date,       setDate]       = useState(() => (initDato ? new Date(initDato + 'T12:00:00') : new Date()))
   const [entries,    setEntries]    = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -103,11 +103,12 @@ export default function TimeTracker({ userId, projects, addProject, mode, initDa
     if (!userId) return
     let cancelled = false
     setLoading(true)
-    supabase.from('time_entries')
+    let q = supabase.from('time_entries')
       .select('*')
       .eq('user_id', userId)
       .eq('date', ymd(date))
-      .order('sort_order', { ascending: true })
+    if (activeOfficeId) q = q.eq('office_id', activeOfficeId) // timelista er spesifikk for kvart kontor
+    q.order('sort_order', { ascending: true })
       .order('created_at', { ascending: true })
       .then(({ data, error }) => {
         if (cancelled) return
@@ -137,7 +138,7 @@ export default function TimeTracker({ userId, projects, addProject, mode, initDa
         setLoading(false)
       })
     return () => { cancelled = true }
-  }, [date, userId])
+  }, [date, userId, activeOfficeId])
 
   // Aktivitetsnummer = aktivitetskode frå Framdrift-planen til prosjektet. Prosjekt med kodar i planen får nedtrekksmeny,
   // andre prosjekt eit fritt felt (kode eller ingenting). Kode = feltet «Aktivitetskode», elles talet fremst i aktivitetsnamnet («611 ARK …»).
@@ -240,6 +241,8 @@ export default function TimeTracker({ userId, projects, addProject, mode, initDa
       id:          row.isPersisted ? row.id : Math.floor(Date.now() + Math.random() * 1000),
       user_id:     userId,
       project_id:  pid,
+      office_id:   row.isPersisted ? undefined : (activeOfficeId || null), // kontor vert sett ved første lagring og endra ikkje seinare
+      sort_order:  Math.max(0, entriesRef.current.findIndex(r => r.id === rowId)),
       date:        ymd(date),
       activity_nr: row.activityNr?.trim() || null,
       raw_input:   row.rawInput,
@@ -309,6 +312,30 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
     setDate(new Date(y, m - 1, d, 12))
   }
 
+  // Ordnar dagens oppføringar etter starttid (09.00 før 10.30). Oppføringar utan klokkeslett (berre timetal) ligg etter, i same rekkjefølgje som før.
+  const tilMin = (hm) => { const [h, m] = String(hm).split(':').map(Number); return h * 60 + (m || 0) }
+  const harInnhald = (r) => r.rawInput || r.description || r.projectId || r.newProjName?.trim() || r.activityNr
+  // Sant når oppføringane med klokkeslett alt står i rekkjefølgje (då er sorteringsknappen unødvendig)
+  const erKronologisk = (() => {
+    const med = entries.filter(r => harInnhald(r) && r.startTime)
+    return med.every((r, k) => k === 0 || tilMin(med[k - 1].startTime) <= tilMin(r.startTime))
+  })()
+  const sorterKronologisk = async () => {
+    const innhald = entries.filter(harInnhald)
+    const tomme = entries.filter(r => !harInnhald(r))
+    const medTid = innhald.filter(r => r.startTime).sort((a, b) => tilMin(a.startTime) - tilMin(b.startTime) || tilMin(a.endTime) - tilMin(b.endTime))
+    const utanTid = innhald.filter(r => !r.startTime)
+    const ny = [...medTid, ...utanTid, ...tomme]
+    entriesRef.current = ny
+    setEntries(ny)
+    const lagra = ny.map((r, i) => ({ r, i })).filter(x => x.r.isPersisted)
+    setSaveStatus('saving')
+    const res = await Promise.all(lagra.map(({ r, i }) => supabase.from('time_entries').update({ sort_order: i, updated_at: new Date().toISOString() }).eq('id', r.id).eq('user_id', userId)))
+    const feil = res.find(x => x.error)
+    if (feil) { setSaveStatus('idle'); setErrorMsg('Klarte ikkje lagre rekkjefølgja: ' + feil.error.message); return }
+    setErrorMsg(null); setSaveStatus('saved'); setTimeout(() => setSaveStatus('idle'), 1500)
+  }
+
   const deleteRow = async (rowId) => {
     const row = entries.find(r => r.id === rowId)
     if (!row) return
@@ -329,14 +356,20 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
   const realEntries = entries.filter(e => e.isPersisted || e.rawInput || e.description)
 
   const totalsByProject = {}
+  const totalsByAkt = {} // prosjektnøkkel -> { aktivitetsnr ('' = utan) -> timar }
   let grandTotal = 0
   for (const e of realEntries) {
     if (e.hours > 0) {
       const key = e.projectId || '__nopr__'
+      const akt = (e.activityNr || '').trim()
       totalsByProject[key] = (totalsByProject[key] || 0) + e.hours
+      totalsByAkt[key] = totalsByAkt[key] || {}
+      totalsByAkt[key][akt] = (totalsByAkt[key][akt] || 0) + e.hours
       grandTotal += e.hours
     }
   }
+  const aktNamn = (pid, kode) => (planKoder[pid] || []).find(x => x.kode === kode)?.namn || ''
+  const antallGrupper = Object.values(totalsByAkt).reduce((a, m) => a + Object.keys(m).length, 0)
 
   const modeProjects = favorittForst(projects)
 
@@ -455,6 +488,12 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
             ↶ Angre flytting ({sisteFlytting.ids.length})
           </button>
         )}
+        <button onClick={sorterKronologisk} disabled={erKronologisk && overlapp.par.length === 0}
+          title="Ordnar oppføringane for dagen etter starttid og kontrollerer at tidspunkta ikkje overlappar"
+          style={{ padding: '6px 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--r)', color: 'var(--text2)',
+            fontSize: 12, fontWeight: 600, cursor: erKronologisk && overlapp.par.length === 0 ? 'default' : 'pointer', opacity: erKronologisk && overlapp.par.length === 0 ? .55 : 1 }}>
+          ↕ Sorter etter tid
+        </button>
         <div style={{ flex: 1 }}/>
         <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 6 }}>
           {saveStatus === 'saving' && <><span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:'var(--warn)',animation:'pulse 1s infinite'}}/>Lagrar…</>}
@@ -629,30 +668,47 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
           )
         })}
 
-        {Object.keys(totalsByProject).length > 1 && (
+        {antallGrupper > 1 && (
           <div style={{ borderTop: '2px solid var(--brand3)', background: 'var(--bg3)' }}>
             <div style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700,
               color: 'var(--brand)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-              Oppsummering per prosjekt
+              Oppsummering per prosjekt og aktivitet
             </div>
             {Object.entries(totalsByProject).sort((a,b) => b[1]-a[1]).map(([key, total]) => {
               const proj = key === '__nopr__' ? null : projectMap[parseInt(key)]
+              const aktar = Object.entries(totalsByAkt[key] || {}).sort((x, y) => x[0] === '' ? 1 : y[0] === '' ? -1 : x[0].localeCompare(y[0], 'nb', { numeric: true }))
+              const visAktar = aktar.length > 1 || (aktar.length === 1 && aktar[0][0] !== '')
               return (
-                <div key={key} style={{ display: 'grid',
-                  gridTemplateColumns: malKol, minWidth: 'min-content',
-                  borderTop: '1px solid var(--border)' }}>
-                  <div style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
-                    {proj ? `📁 ${proj.name}` : '— Utan prosjekt —'}
+                <div key={key} style={{ borderTop: '1px solid var(--border)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: malKol, minWidth: 'min-content' }}>
+                    <div style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
+                      {proj ? `📁 ${proj.name}` : '— Utan prosjekt —'}
+                    </div>
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                    <div style={{ padding: '8px 12px', textAlign: 'right',
+                      fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--brand)' }}>
+                      {total.toFixed(2)}t
+                    </div>
+                    <div></div>
+                    <div></div>
                   </div>
-                  <div></div>
-                  <div></div>
-                  <div></div>
-                  <div style={{ padding: '8px 12px', textAlign: 'right',
-                    fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--brand)' }}>
-                    {total.toFixed(2)}t
-                  </div>
-                  <div></div>
-                  <div></div>
+                  {visAktar && aktar.map(([kode, t]) => (
+                    <div key={kode} style={{ display: 'grid', gridTemplateColumns: malKol, minWidth: 'min-content' }}>
+                      <div style={{ padding: '4px 12px 4px 34px', fontSize: 12.5, color: 'var(--text2)' }}>
+                        {kode ? <><span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{kode}</span>{aktNamn(parseInt(key), kode) ? ' ' + aktNamn(parseInt(key), kode) : ''}</> : <span style={{ color: 'var(--text3)' }}>Utan aktivitetsnr.</span>}
+                      </div>
+                      <div></div>
+                      <div></div>
+                      <div></div>
+                      <div style={{ padding: '4px 12px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12.5, color: 'var(--text2)' }}>
+                        {t.toFixed(2)}t
+                      </div>
+                      <div></div>
+                      <div></div>
+                    </div>
+                  ))}
                 </div>
               )
             })}

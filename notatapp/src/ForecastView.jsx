@@ -47,7 +47,7 @@ function buildPeriods(anchor, type, count) {
   return periods
 }
 
-export default function ForecastView({ userId, projects, mode }) {
+export default function ForecastView({ userId, projects, mode, activeOfficeId }) {
   const [periodType, setPeriodType] = useState('month')   // 'week' | 'month'
   const [anchor,     setAnchor]     = useState(() => new Date())
   const [forecast,   setForecast]  = useState({})  // key: `${projectId}:${periodKey}` -> hours
@@ -77,9 +77,7 @@ export default function ForecastView({ userId, projects, mode }) {
       supabase.from('forecast_entries').select('*')
         .eq('user_id', userId).eq('period_type', periodType)
         .gte('period_start', ymd(rangeStart)).lte('period_start', ymd(periods[periods.length-1].start)),
-      supabase.from('time_entries').select('project_id, date, hours')
-        .eq('user_id', userId)
-        .gte('date', ymd(rangeStart)).lte('date', ymd(rangeEnd)),
+      (() => { const q = supabase.from('time_entries').select('project_id, date, hours').eq('user_id', userId).gte('date', ymd(rangeStart)).lte('date', ymd(rangeEnd)); return activeOfficeId ? q.eq('office_id', activeOfficeId) : q })(),
     ]).then(([fcRes, teRes]) => {
       if (cancelled) return
       if (fcRes.error) {
@@ -106,7 +104,7 @@ export default function ForecastView({ userId, projects, mode }) {
     })
 
     return () => { cancelled = true }
-  }, [userId, periodType, anchor])
+  }, [userId, periodType, anchor, activeOfficeId])
 
   // ── Save a single forecast cell (debounced) ────────────────────────────
   const updateForecast = (projectId, periodKey, value) => {

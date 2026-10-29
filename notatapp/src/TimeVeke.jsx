@@ -12,7 +12,7 @@ const z = (n) => String(n).padStart(2, '0')
 const ymdLokal = (d) => `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
 const fmtT = (n) => (n > 0 ? (Math.round(n * 100) / 100).toLocaleString('nb-NO') : '')
 
-export default function TimeVeke({ userId, projects, onGaaTilDag }) {
+export default function TimeVeke({ userId, projects, onGaaTilDag, activeOfficeId }) {
   const [mandag, setMandag] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [rader, setRader] = useState([])
   const [lastar, setLastar] = useState(true)
@@ -23,10 +23,11 @@ export default function TimeVeke({ userId, projects, onGaaTilDag }) {
     if (!userId) return undefined
     let avbrote = false
     setLastar(true)
-    supabase.from('time_entries').select('date, project_id, activity_nr, hours, submitted').eq('user_id', userId).gte('date', fra).lte('date', til)
-      .then(({ data }) => { if (!avbrote) { setRader(data || []); setLastar(false) } })
+    let q = supabase.from('time_entries').select('date, project_id, activity_nr, hours, submitted').eq('user_id', userId).gte('date', fra).lte('date', til)
+    if (activeOfficeId) q = q.eq('office_id', activeOfficeId)
+    q.then(({ data }) => { if (!avbrote) { setRader(data || []); setLastar(false) } })
     return () => { avbrote = true }
-  }, [userId, fra, til])
+  }, [userId, fra, til, activeOfficeId])
 
   const prosjektKart = useMemo(() => Object.fromEntries((projects || []).map(p => [p.id, p])), [projects])
   const grupper = useMemo(() => {
