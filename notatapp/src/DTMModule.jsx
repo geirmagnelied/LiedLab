@@ -90,10 +90,10 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     setLoading(true)
     const [{ data: pData }, { data: dData }, { data: colData }, { data: uData }, { data: udData }] = await Promise.all([
       supabase.from('projects').select('details, project_number').eq('id', activeProjectId).single(),
-      supabase.from('dtm_dokumenter').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('nr'),
-      supabase.from('dtm_columns').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('sortering'),
-      supabase.from('dtm_utsendingar').select('*').eq('project_id', activeProjectId).eq('user_id', userId).order('created_at', { ascending:false }),
-      supabase.from('dtm_utsending_dokument').select('*').eq('user_id', userId),
+      supabase.from('dtm_dokumenter').select('*').eq('project_id', activeProjectId).order('nr'),
+      supabase.from('dtm_columns').select('*').eq('project_id', activeProjectId).order('sortering'),
+      supabase.from('dtm_utsendingar').select('*').eq('project_id', activeProjectId).order('created_at', { ascending:false }),
+      supabase.from('dtm_utsending_dokument').select('*'),
     ])
     setDetails(pData?.details || {})
     setProsjektnrFriskt(pData?.project_number || '')
@@ -223,7 +223,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     return key
   }
   const slettKolonne = async (key) => {
-    const { error } = await supabase.from('dtm_columns').delete().eq('key', key).eq('user_id', userId).eq('project_id', activeProjectId)
+    const { error } = await supabase.from('dtm_columns').delete().eq('key', key).eq('project_id', activeProjectId)
     if (error) { alert('Klarte ikkje slette kolonnen: ' + error.message); return }
     setEigneKolonnar(prev => prev.filter(k => k.key !== key))
   }
@@ -240,7 +240,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     // redigering (brukar sitt eige krav 30. sept. 2026 — same feil retta i
     // dei tre andre skrivefunksjonane under).
     setDokumenter(ds => ds.map(x => x.id === id ? { ...x, ekstra: neste, updated_at: no } : x))
-    await supabase.from('dtm_dokumenter').update({ ekstra: neste, updated_at: no }).eq('id', id).eq('user_id', userId)
+    await supabase.from('dtm_dokumenter').update({ ekstra: neste, updated_at: no }).eq('id', id)
   }
 
   // ── Rediger éi celle direkte i registeret (t.d. Delprosjekt) ────────
@@ -280,7 +280,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     const endring = { [gammalSett]: null, [nyttSett]: d[gammalSett] }
     const no = new Date().toISOString()
     setDokumenter(ds => ds.map(x => x.id === id ? { ...x, ...endring, updated_at: no } : x))
-    const { error } = await supabase.from('dtm_dokumenter').update({ ...endring, updated_at: no }).eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('dtm_dokumenter').update({ ...endring, updated_at: no }).eq('id', id)
     if (error) {
       alert('Klarte ikkje endre kategori: ' + error.message)
       setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [gammalSett]: d[gammalSett], [nyttSett]: d[nyttSett] ?? null } : x))
@@ -298,7 +298,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       const nyttSett = { ...gammalSettVerdi, [NØSTA_FELT[felt]]: verdi }
       const no = new Date().toISOString()
       setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [sett]: nyttSett, updated_at: no } : x))
-      const { error } = await supabase.from('dtm_dokumenter').update({ [sett]: nyttSett, updated_at: no }).eq('id', id).eq('user_id', userId)
+      const { error } = await supabase.from('dtm_dokumenter').update({ [sett]: nyttSett, updated_at: no }).eq('id', id)
       if (error) {
         varsleCelle('Klarte ikkje lagre endringa: ' + error.message)
         setDokumenter(ds => ds.map(x => x.id === id ? { ...x, [sett]: gammalSettVerdi } : x))
@@ -314,7 +314,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     const lagra = NUMERISKE_FELT.has(felt) && verdi === '' ? null : verdi
     const no = new Date().toISOString()
     setDokumenter(ds => ds.map(d => d.id === id ? { ...d, [felt]: lagra, updated_at: no } : d))
-    const { error } = await supabase.from('dtm_dokumenter').update({ [felt]: lagra, updated_at: no }).eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('dtm_dokumenter').update({ [felt]: lagra, updated_at: no }).eq('id', id)
     if (error) {
       const melding = felt === 'nr' && /duplicate key|unique constraint/i.test(error.message)
         ? `Dokumentnummeret «${verdi}» er alt i bruk av eit anna dokument i dette prosjektet.`
@@ -418,7 +418,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
 
   const oppdaterUtsendingFelt = async (id, felt, verdi) => {
     setUtsendingar(us => us.map(u => u.id === id ? { ...u, [felt]: verdi } : u))
-    await supabase.from('dtm_utsendingar').update({ [felt]: verdi, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+    await supabase.from('dtm_utsendingar').update({ [felt]: verdi, updated_at: new Date().toISOString() }).eq('id', id)
   }
 
   const leggTilDokumentIUtsending = async (utsendingId, dokInfo) => {
@@ -430,7 +430,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   }
 
   const fjernDokumentFraUtsending = async (utsendingDokumentId) => {
-    await supabase.from('dtm_utsending_dokument').delete().eq('id', utsendingDokumentId).eq('user_id', userId)
+    await supabase.from('dtm_utsending_dokument').delete().eq('id', utsendingDokumentId)
     setUtsendingar(us => us.map(u => ({ ...u, dokument: u.dokument.filter(d => d.id !== utsendingDokumentId) })))
   }
 
@@ -457,7 +457,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
   const bekreftUtsendingSendt = async (utsendingId) => {
     const felt = { status: 'sendt', bekrefta_av: namnFraEpost(userEmail), bekrefta_tid: new Date().toISOString() }
     setUtsendingar(us => us.map(u => u.id === utsendingId ? { ...u, ...felt } : u))
-    await supabase.from('dtm_utsendingar').update({ ...felt, updated_at: new Date().toISOString() }).eq('id', utsendingId).eq('user_id', userId)
+    await supabase.from('dtm_utsendingar').update({ ...felt, updated_at: new Date().toISOString() }).eq('id', utsendingId)
   }
 
   // Kvittering (t.d. sendt e-post dregen ut som .msg) — sterkare dokumentasjon
@@ -473,7 +473,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       bekrefta_tid: u?.bekrefta_tid || new Date().toISOString(),
     }
     setUtsendingar(us => us.map(x => x.id === utsendingId ? { ...x, ...felt } : x))
-    await supabase.from('dtm_utsendingar').update({ ...felt, updated_at: new Date().toISOString() }).eq('id', utsendingId).eq('user_id', userId)
+    await supabase.from('dtm_utsendingar').update({ ...felt, updated_at: new Date().toISOString() }).eq('id', utsendingId)
   }
 
   const apneKvitteringForUtsending = async (utsendingId) => {
@@ -485,7 +485,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
 
   const slettUtsendingKladd = async (utsendingId) => {
     if (!window.confirm('Slette denne kladden?')) return
-    await supabase.from('dtm_utsendingar').delete().eq('id', utsendingId).eq('user_id', userId)
+    await supabase.from('dtm_utsendingar').delete().eq('id', utsendingId)
     setUtsendingar(us => us.filter(u => u.id !== utsendingId))
     if (utsendingModalId === utsendingId) setUtsendingModalId(null)
   }
@@ -606,7 +606,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
           lagra_av: namnFraEpost(userEmail) || gammalRad.lagra_av, updated_at: no,
           [kategori]: kategoriVerdi,
         }
-        const { error } = await supabase.from('dtm_dokumenter').update(endring).eq('id', gammalRad.id).eq('user_id', userId)
+        const { error } = await supabase.from('dtm_dokumenter').update(endring).eq('id', gammalRad.id)
         if (error) { resultat.push({ status:'feil', nr:r.nr, filnamn:f.filnamn, melding: error.message }); continue }
 
         if (gammalKategoriVerdi) {
@@ -678,14 +678,14 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     setDokumenter(ds => ds.map(d => (kart.has(d.id) ? { ...d, rekkefolge: kart.get(d.id) } : d)))
     for (let i = 0; i < nye.length; i += 20) {
       const svar = await Promise.all(nye.slice(i, i + 20).map(x =>
-        supabase.from('dtm_dokumenter').update({ rekkefolge: x.verdi }).eq('id', x.id).eq('user_id', userId)))
+        supabase.from('dtm_dokumenter').update({ rekkefolge: x.verdi }).eq('id', x.id)))
       const feil = svar.find(s => s.error)?.error
       if (feil) { alert('Klarte ikkje lagre rekkjefølgja: ' + feil.message + ' (er migrasjonen for kolonna «rekkefolge» køyrd?)'); return }
     }
   }
   const flyttRad = async (id, verdi) => {
     setDokumenter(ds => ds.map(d => (d.id === id ? { ...d, rekkefolge: verdi } : d)))
-    const { error } = await supabase.from('dtm_dokumenter').update({ rekkefolge: verdi }).eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('dtm_dokumenter').update({ rekkefolge: verdi }).eq('id', id)
     if (error) alert('Klarte ikkje lagre rekkjefølgja: ' + error.message)
   }
 
@@ -702,7 +702,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
       (medFil ? medFil + ' av dei har ei registrert fil: filene på disken vert IKKJE sletta, men versjonshistorikk og kontrollsvar for dokumenta forsvinn.\n\n' : '') +
       'Dette kan ikkje angrast.'
     if (!window.confirm(melding)) return
-    const { error } = await supabase.from('dtm_dokumenter').delete().in('id', ider).eq('user_id', userId)
+    const { error } = await supabase.from('dtm_dokumenter').delete().in('id', ider)
     if (error) { alert('Klarte ikkje slette: ' + error.message); return }
     setDokumenter(ds => ds.filter(d => !ider.includes(d.id)))
     setValde(new Set())
@@ -718,7 +718,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
     const no = new Date().toISOString()
     const set = async (liste, fra) => {
       const svar = await Promise.all(liste.map(p => supabase.from('dtm_dokumenter')
-        .update({ nr: fra(p), updated_at: no }).eq('id', p.id).eq('user_id', userId)))
+        .update({ nr: fra(p), updated_at: no }).eq('id', p.id)))
       const feil = svar.find(s => s.error)?.error
       if (feil) throw new Error(feil.message)
     }

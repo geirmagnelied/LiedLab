@@ -64,7 +64,7 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
         const m = {}; for (const r of data || []) m[r.date] = (m[r.date] || 0) + (Number(r.hours) || 0)
         setTimar(m)
       })
-    supabase.from('dtm_dokumenter').select('id,nr,tittel,project_id,updated_at').eq('user_id', userId)
+    supabase.from('dtm_dokumenter').select('id,nr,tittel,project_id,updated_at')
       .order('updated_at', { ascending: false }).limit(40)
       .then(({ data }) => { if (!avbrutt) setDtm(data || []) })
     return () => { avbrutt = true }

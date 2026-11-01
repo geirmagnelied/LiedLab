@@ -55,3 +55,9 @@ REVOKE EXECUTE ON FUNCTION public.sok_index_notes(), public.sok_index_cases(), p
 -- insert krev user_id = auth.uid(); kommentarar kan berre endrast/slettast av forfattaren. Trigger trg_behald_eigar på cases og case_columns.
 -- note_columns er medvite uendra (personleg kolonneval, eigar-basert).
 -- Rollback: drop policy cases_*/case_comments_*/case_columns_*; recreate med (auth.uid() = user_id); drop trigger trg_behald_eigar; drop function kan_se_sak.
+
+-- ═══ STEG 5d (1. nov. 2026): KS, DTM, Bilete, Riss → prosjektmedlemskap ═══
+-- Migrasjon `sikkerheit_steg5_ks_dtm_bilete`: ks_teikningar, dtm_dokumenter, dtm_columns, dtm_utsendingar, dtm_bilete, bilete_mobil_ko, riss_drawings
+-- (prosjektmedlem; rader utan project_id = berre eigar), og barnetabellane ks_kontroll_svar/dtm_versjonar (via kan_se_dtm_dok) og dtm_utsending_dokument
+-- (via kan_se_utsending). trg_behald_eigar på alle. Klient: DTM/Kvalitet/Bilete/Oppgåve/Dashboard utan .eq('user_id').
+-- Rollback: drop alle policyar på tabellane og lag att «auth.uid() = user_id»; drop trigger trg_behald_eigar; drop function kan_se_dtm_dok, kan_se_utsending.

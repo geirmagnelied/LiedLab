@@ -61,7 +61,7 @@ export default function BileteModule({ userId, userEmail, projects, activeProjec
     if (!userId || !activeProjectId) { setBilete([]); setLastar(false); return }
     setLastar(true)
     const { data } = await supabase.from('dtm_bilete').select('*')
-      .eq('user_id', userId).eq('project_id', activeProjectId).order('nr', { ascending: false })
+      .eq('project_id', activeProjectId).order('nr', { ascending: false })
     setBilete(data || [])
     setLastar(false)
   }, [userId, activeProjectId])
@@ -70,7 +70,7 @@ export default function BileteModule({ userId, userEmail, projects, activeProjec
   const lastMobilKo = useCallback(async () => {
     if (!userId || !activeProjectId) { setMobilKo([]); return }
     const { data } = await supabase.from('bilete_mobil_ko').select('*')
-      .eq('user_id', userId).eq('project_id', activeProjectId).order('lasta_opp_at')
+      .eq('project_id', activeProjectId).order('lasta_opp_at')
     setMobilKo(data || [])
   }, [userId, activeProjectId])
   useEffect(() => { lastMobilKo() }, [lastMobilKo])
@@ -80,7 +80,7 @@ export default function BileteModule({ userId, userEmail, projects, activeProjec
   const settVerdi = async (id, felt, verdi) => {
     const no = new Date().toISOString()
     setBilete(bs => bs.map(b => b.id === id ? { ...b, [felt]: verdi, updated_at: no } : b))
-    await supabase.from('dtm_bilete').update({ [felt]: verdi, updated_at: no }).eq('id', id).eq('user_id', userId)
+    await supabase.from('dtm_bilete').update({ [felt]: verdi, updated_at: no }).eq('id', id)
   }
 
   const opneFil = (rad) => {

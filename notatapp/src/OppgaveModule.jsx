@@ -60,7 +60,7 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
     if (!aktive.length) return
     syncer.current = true
     try {
-      const { data: dok, error } = await supabase.from('dtm_dokumenter').select(DTM_KOLONNER.join(',')).eq('user_id', userId).eq('project_id', activeProjectId)
+      const { data: dok, error } = await supabase.from('dtm_dokumenter').select(DTM_KOLONNER.join(',')).eq('project_id', activeProjectId)
       if (error || !dok) return
       let alle = kortListe || kortRef.current
       const endringar = []

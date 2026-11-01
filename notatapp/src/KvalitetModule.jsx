@@ -175,7 +175,7 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
     if (!userId || !activeProjectId) { setTeikningar([]); setTeikningarLastar(false); return }
     setTeikningarLastar(true)
     const { data } = await supabase.from('ks_teikningar').select('*')
-      .eq('user_id', userId).eq('project_id', activeProjectId).order('nr')
+      .eq('project_id', activeProjectId).order('nr')
     setTeikningar(data || [])
     setTeikningarLastar(false)
   }, [userId, activeProjectId])
@@ -186,7 +186,7 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
     if (!userId || !activeProjectId) { setKontrollDokumenter([]); setKontrollLastar(false); return }
     setKontrollLastar(true)
     const { data } = await supabase.from('dtm_dokumenter').select('*')
-      .eq('user_id', userId).eq('project_id', activeProjectId).order('nr')
+      .eq('project_id', activeProjectId).order('nr')
     setKontrollDokumenter((data || []).filter(d => d.kontrolldokument))
     setKontrollLastar(false)
   }, [userId, activeProjectId])
@@ -206,12 +206,12 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
       const nyttSett = { ...gammalSettVerdi, [NØSTA_FELT[felt]]: verdi }
       const no = new Date().toISOString()
       setKontrollDokumenter(ds => ds.map(x => x.id === id ? { ...x, kontrolldokument: nyttSett, updated_at: no } : x))
-      await supabase.from('dtm_dokumenter').update({ kontrolldokument: nyttSett, updated_at: no }).eq('id', id).eq('user_id', userId)
+      await supabase.from('dtm_dokumenter').update({ kontrolldokument: nyttSett, updated_at: no }).eq('id', id)
       return
     }
     const no = new Date().toISOString()
     setKontrollDokumenter(ds => ds.map(d => d.id === id ? { ...d, [felt]: verdi, updated_at: no } : d))
-    const { error } = await supabase.from('dtm_dokumenter').update({ [felt]: verdi, updated_at: no }).eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('dtm_dokumenter').update({ [felt]: verdi, updated_at: no }).eq('id', id)
     if (error) alert('Klarte ikkje lagre endringa: ' + error.message)
   }
   const kontrollToggleFavorite = (id) => { const d = kontrollDokumenter.find(x => x.id === id); if (d) kontrollSettVerdi(id, 'favorite', !d.favorite) }
@@ -238,7 +238,7 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
     if (dokument.kontrollstatus !== cfg.pågåande) {
       const no = new Date().toISOString()
       setKontrollDokumenter(ds => ds.map(d => d.id === dokument.id ? { ...d, kontrollstatus: cfg.pågåande, updated_at: no } : d))
-      await supabase.from('dtm_dokumenter').update({ kontrollstatus: cfg.pågåande, updated_at: no }).eq('id', dokument.id).eq('user_id', userId)
+      await supabase.from('dtm_dokumenter').update({ kontrollstatus: cfg.pågåande, updated_at: no }).eq('id', dokument.id)
     }
     kontrollOpneFil(dokument)
     if (harBru) await window.resultatdokumentAPI.ksApneSjekklisteVindauge(dokument.id, type)
