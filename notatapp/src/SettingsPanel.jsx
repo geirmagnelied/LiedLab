@@ -120,6 +120,14 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
     setSending(false)
   }
 
+  const sendPaaNytt = async (m) => {
+    setFeedback(null)
+    const { data, error } = await supabase.functions.invoke('inviter-medlem', {
+      body: { officeId: activeOfficeId, epost: m.invited_email, redirectTo: window.location.origin + window.location.pathname },
+    })
+    setFeedback(error ? { type: 'err', msg: 'Klarte ikkje sende på nytt: ' + (data?.feil || error.message) } : { type: 'ok', msg: data?.melding || 'Invitasjon sendt på nytt.' })
+  }
+
   const removeMember = async (memberId) => {
     if (!window.confirm('Fjerne dette medlemmet frå kontoret?')) return
     await supabase.from('office_members').delete().eq('id', memberId)
@@ -323,6 +331,12 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
                       </div>
                       {isAdmin && (
                         <>
+                          {m.status === 'pending' && (
+                            <button onClick={() => sendPaaNytt(m)} title="Send invitasjonen på e-post på nytt"
+                              style={{ background:'none', border:'1px solid var(--border)', borderRadius:6, color:'var(--text2)', cursor:'pointer', fontSize:11, fontWeight:600, padding:'3px 8px' }}>
+                              Send på nytt
+                            </button>
+                          )}
                           <select value={m.role}
                             onChange={e => m.id && changeRole(m.id, e.target.value)}
                             style={{ fontSize:12, padding:'4px 6px', borderRadius:5,
