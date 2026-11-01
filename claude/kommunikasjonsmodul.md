@@ -1,4 +1,4 @@
-# Kommunikasjonsmodul — prosjektchat og eksterne samtalar — spesifikasjon (1. nov. 2026) — IKKJE BYGD ENNO
+# Kommunikasjonsmodul — prosjektchat og eksterne samtalar — spesifikasjon (1. nov. 2026) — DEL 1 (PROSJEKTCHAT) BYGD 2. NOV. 2026, DEL 2 IKKJE BYGD
 
 Spesifisert i samtale med Geir Magne 1. nov. 2026, før implementering i
 Claude Code. To klart forskjellige behov, med to forskjellige
@@ -157,3 +157,5 @@ sjå noko i det heile, er allereie fulle kontormedlemmar.
 - Skal `prosjekt_meldingar` sitt `tema`-felt få eit konkret UI (filtrering,
   fane-val) når fagvise chattar faktisk blir bygd, eller held det med éin
   flat liste filtrert på klikk?
+
+**STATUS 2. nov. 2026 — del 1 (prosjektchat v1) bygd.** Tabell `prosjekt_meldingar` (`supabase-prosjekt-meldingar.sql`), RLS via `kan_se_prosjekt()` (select/insert; insert krev `user_id = auth.uid()`, ingen update/delete), Realtime på tabellen, ny fane «Chat» i Prosjekt (`ProsjektChat.jsx`). Meldingar vert vist som rein tekst, maks 4000 teikn, ein kronologisk straum, namn frå `office_members.invited_email`. `svar_til`/`tema`/`system` finst i tabellen men er ubrukte i UI. IKKJE gjort: søkeindeks (`sok_index`), vedlegg, @nemning/varsel, uleste-markering. Del 2 (samtalar) er ikkje bygd.
