@@ -67,3 +67,10 @@ REVOKE EXECUTE ON FUNCTION public.sok_index_notes(), public.sok_index_cases(), p
 -- (prosjektmedlem; utan project_id = eigar), sok_index_select (prosjektmedlem), sok() utan user_id-filter (RLS styrer).
 -- Unike indeksar flytta frå per brukar til per prosjekt: framdrift_planar(project_id), kanban_tavler(project_id, fase). Klient: upsert onConflict 'project_id'.
 -- Rollback: drop policyane og lag att «auth.uid() = user_id»; gjenopprett unike (user_id, project_id[, fase]); sok() med «s.user_id = auth.uid()».
+
+-- ═══ STEG 6 (1. nov. 2026): lagringsbøtter følgjer prosjektmedlemskap ═══
+-- Migrasjon `sikkerheit_steg6_bottar`: hjelpar kan_se_sti_prosjekt(sti, mappenivå) (numerisk mappe = project_id → kan_se_prosjekt).
+-- Vedlegg: sti <project_id>/fil → alle medlemmar les/skriv/slett; flat sti (gamle 9 filer, eller utan prosjekt) = berre eigar (owner_id).
+-- Gamle policyar «auth_upload» (alle innlogga) og «vedlegg_les_eigne» fjerna. bilete-mobil og dtm-resultatdokument: <user_id>/<project_id>/fil,
+-- eigar-mappe eller medlem; rolle endra frå public til authenticated. Bøtte «brukar» og bygningsapp-* er uendra.
+-- Rollback: drop policy vedlegg_*/prosjektfiler_*; lag att auth_upload (insert, bucket Vedlegg), vedlegg_les_eigne, bilete_mobil_storage_all, dtm_resultatdokument_storage_all.

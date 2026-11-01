@@ -599,7 +599,9 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
   const uploadToSupabase = async (file) => {
     try {
       const { supabase } = await import('./supabase')
-      const path = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`
+      const { vedleggOpplastingSti } = await import('./vedlegg')
+      const pId = projectVal && projectVal !== '__new__' ? parseInt(projectVal) : null
+      const path = vedleggOpplastingSti(pId, `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`)
       const { data, error } = await supabase.storage.from('Vedlegg').upload(path, file)
       if (error) throw error
       const { data: urlData } = supabase.storage.from('Vedlegg').getPublicUrl(path)

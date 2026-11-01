@@ -1,4 +1,4 @@
-import { opneVedlegg } from './vedlegg'
+import { opneVedlegg, vedleggOpplastingSti } from './vedlegg'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import DatePicker from './DatePicker'
@@ -18,7 +18,7 @@ function fmtDate(d) {
 }
 
 // ── Popup for å redigere / opprette ei sak ────────────────────────────────
-function CaseModal({ caseData, onSave, onDelete, onClose, userId }) {
+function CaseModal({ caseData, onSave, onDelete, onClose, userId, projectId }) {
   const [title,     setTitle]     = useState(caseData.title || '')
   const [resp,      setResp]      = useState(caseData.responsible || '')
   const [coResp,    setCoResp]    = useState(caseData.co_responsible || '')
@@ -42,7 +42,7 @@ function CaseModal({ caseData, onSave, onDelete, onClose, userId }) {
     const added = []
     for (const file of files) {
       try {
-        const path = `${userId}/saker/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+        const path = vedleggOpplastingSti(projectId, `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`)
         const { error } = await supabase.storage.from('Vedlegg').upload(path, file)
         if (error) throw error
         const { data } = supabase.storage.from('Vedlegg').getPublicUrl(path)
@@ -407,7 +407,7 @@ export default function CaseTable({ noteId, projectId, userId }) {
       )}
 
       {modal && (
-        <CaseModal caseData={modal} userId={userId}
+        <CaseModal caseData={modal} userId={userId} projectId={projectId}
           onSave={saveCase} onDelete={deleteCase} onClose={() => setModal(null)}/>
       )}
     </div>

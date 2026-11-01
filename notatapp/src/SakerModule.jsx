@@ -7,7 +7,7 @@ import OppgaveVindauge from './OppgaveVindauge'
 import OppgaveInnfoering from './OppgaveInnfoering'
 import Timeline from './Timeline'
 import usePersonar from './usePersonar'
-import { opneVedlegg } from './vedlegg'
+import { opneVedlegg, vedleggOpplastingSti } from './vedlegg'
 import { FELT } from './FlyttbartModal'
 import { personFarge, fmtDato as fmtKortDato } from './kanbanLogikk'
 import {
@@ -167,7 +167,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
       const uploaded = []
       for (const file of stagedFiles) {
         try {
-          const path = `${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+          const path = vedleggOpplastingSti(activeProjectId, `${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`)
           const { error: upErr } = await supabase.storage.from('Vedlegg').upload(path, file)
           if (upErr) throw upErr
           const { data: urlData } = supabase.storage.from('Vedlegg').getPublicUrl(path)
@@ -264,7 +264,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
   // ── Vedlegg ──────────────────────────────────────────────────
   const uploadAttachment = async (caseId, file) => {
     try {
-      const path = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      const path = vedleggOpplastingSti(activeProjectId, `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`)
       const { error: upErr } = await supabase.storage.from('Vedlegg').upload(path, file)
       if (upErr) throw upErr
       const { data: urlData } = supabase.storage.from('Vedlegg').getPublicUrl(path)

@@ -1,6 +1,10 @@
 import { supabase } from './supabase'
 
 // Vedlegg-bøtta er privat: lenkjer er signerte og tidsavgrensa (1 time). Gamle vedlegg har berre den tidlegare offentlege URL-en lagra — stien vert henta ut av han.
+// Ny opplasting: <project_id>/<fil> gir alle prosjektmedlemmar tilgang (bøtte-policy). Utan prosjekt vert stien flat = berre eigaren.
+export function vedleggOpplastingSti(projectId, filnamn) {
+  return projectId ? `${projectId}/${filnamn}` : filnamn
+}
 export function vedleggSti(att) {
   if (att?.path) return att.path
   const m = String(att?.url || '').match(/\/Vedlegg\/(.+?)(\?|$)/)
