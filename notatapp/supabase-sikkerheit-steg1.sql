@@ -49,3 +49,9 @@ REVOKE EXECUTE ON FUNCTION public.sok_index_notes(), public.sok_index_cases(), p
 -- Trigger trg_projects_behald_eigar hindrar endra user_id. Klient: .eq('user_id') fjerna frå lesing/oppdatering av projects i useStore, ProsjektModule, KundeModule, DTM/Bilete/Kvalitet/Malar/Resultatdokument, teikningsnummer.js.
 -- Rollback: drop policy projects_select/insert/update/delete on projects; drop trigger trg_projects_behald_eigar on projects;
 --   create policy projects_select on projects for select using (auth.uid() = user_id); (tilsvarande insert with check, update, delete)
+
+-- ═══ STEG 5c (1. nov. 2026): cases, case_comments, case_columns → prosjektmedlemskap ═══
+-- Migrasjon `sikkerheit_steg5_saker`: cases/case_columns = kan_se_prosjekt(project_id); case_comments via kan_se_sak(case_id);
+-- insert krev user_id = auth.uid(); kommentarar kan berre endrast/slettast av forfattaren. Trigger trg_behald_eigar på cases og case_columns.
+-- note_columns er medvite uendra (personleg kolonneval, eigar-basert).
+-- Rollback: drop policy cases_*/case_comments_*/case_columns_*; recreate med (auth.uid() = user_id); drop trigger trg_behald_eigar; drop function kan_se_sak.

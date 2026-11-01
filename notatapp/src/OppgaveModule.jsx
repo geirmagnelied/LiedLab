@@ -89,7 +89,7 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
       supabase.from('kanban_tavler').select('*').eq('user_id', userId).eq('project_id', activeProjectId).order('id'),
       supabase.from('kanban_kort').select('*').eq('user_id', userId).eq('project_id', activeProjectId).order('sortering').order('id'),
       supabase.from('prosjekt_personell').select('id,namn').eq('user_id', userId).eq('project_id', activeProjectId).order('sortering').order('id'),
-      supabase.from('cases').select('*').eq('user_id', userId).eq('project_id', activeProjectId).order('id', { ascending: false }),
+      supabase.from('cases').select('*').eq('project_id', activeProjectId).order('id', { ascending: false }),
       supabase.from('framdrift_planar').select('elementer').eq('user_id', userId).eq('project_id', activeProjectId).maybeSingle(),
     ]).then(([t, k, p, s, f]) => {
       if (avbrote) return

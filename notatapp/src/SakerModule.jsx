@@ -70,7 +70,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     if (!userId || !activeProjectId) { setCases([]); setComments({}); setEigneKolonnar([]); setLoading(false); return }
     setLoading(true)
     const { data: caseData, error: caseErr } = await supabase.from('cases').select('*')
-      .eq('user_id', userId).eq('project_id', activeProjectId).is('deleted_at', null)
+      .eq('project_id', activeProjectId).is('deleted_at', null)
       .order('created_at', { ascending: false })
     if (caseErr) { console.error(caseErr); setLoading(false); return }
     const list = caseData || []
@@ -98,7 +98,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     }
     // Eigendefinerte kolonnar for dette prosjektet
     const { data: colData, error: colErr } = await supabase.from('case_columns').select('*')
-      .eq('user_id', userId).eq('project_id', activeProjectId)
+      .eq('project_id', activeProjectId)
       .order('sortering', { ascending: true })
     if (colErr) {
       console.warn('Klarte ikkje hente eigne kolonnar (er case_columns oppretta?)', colErr.message)
@@ -129,7 +129,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     if (sakId && res?.id) {
       const eksisterande = cases.find(x => x.id === sakId)?.linkedTasks || []
       const nye = [...eksisterande, ...tasks.map(t => ({ noteId: res.id, taskId: t.id }))]
-      const { error } = await supabase.from('cases').update({ linked_tasks: nye }).eq('id', sakId).eq('user_id', userId)
+      const { error } = await supabase.from('cases').update({ linked_tasks: nye }).eq('id', sakId)
       if (error) { alert('Oppgåvene vart lagra, men kopling til saka feila: ' + error.message); return }
       await supabase.from('case_comments').insert({
         id: Date.now() + 500, case_id: sakId, user_id: userId, author: currentUser, system: true,
@@ -175,7 +175,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
         } catch (e) { console.error('Opplasting feila:', file.name, e) }
       }
       if (uploaded.length > 0) {
-        await supabase.from('cases').update({ attachments: uploaded }).eq('id', id).eq('user_id', userId)
+        await supabase.from('cases').update({ attachments: uploaded }).eq('id', id)
       }
     }
 
@@ -192,7 +192,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     const oldLabel = STATUS_LABELS[c.status]
     const { error } = await supabase.from('cases').update({
       status: newStatus, updated_at: new Date().toISOString(),
-    }).eq('id', caseId).eq('user_id', userId)
+    }).eq('id', caseId)
     if (error) { alert('Klarte ikkje lagre statusendring: ' + error.message); return }
     const commentId = Date.now()
     await supabase.from('case_comments').insert({
@@ -220,7 +220,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     const c = cases.find(x => x.id === caseId)
     if (!c || c.linkedNotes.includes(noteId)) return
     const newLinks = [...c.linkedNotes, noteId]
-    const { error } = await supabase.from('cases').update({ linked_notes: newLinks }).eq('id', caseId).eq('user_id', userId)
+    const { error } = await supabase.from('cases').update({ linked_notes: newLinks }).eq('id', caseId)
     if (error) { alert('Klarte ikkje kople notat: ' + error.message); return }
     const note = (notes || []).find(n => n.id === noteId)
     await supabase.from('case_comments').insert({
@@ -234,7 +234,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     const c = cases.find(x => x.id === caseId)
     if (!c) return
     const newLinks = c.linkedNotes.filter(id => id !== noteId)
-    await supabase.from('cases').update({ linked_notes: newLinks }).eq('id', caseId).eq('user_id', userId)
+    await supabase.from('cases').update({ linked_notes: newLinks }).eq('id', caseId)
     await loadCases()
   }
   const addTaskLink = async (caseId, noteId, taskId) => {
@@ -242,7 +242,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     if (!c) return
     if (c.linkedTasks.some(t => t.noteId === noteId && t.taskId === taskId)) return
     const newLinks = [...c.linkedTasks, { noteId, taskId }]
-    const { error } = await supabase.from('cases').update({ linked_tasks: newLinks }).eq('id', caseId).eq('user_id', userId)
+    const { error } = await supabase.from('cases').update({ linked_tasks: newLinks }).eq('id', caseId)
     if (error) { alert('Klarte ikkje kople oppg\u00E5ve: ' + error.message); return }
     const note = (notes || []).find(n => n.id === noteId)
     const task = note?.tasks?.find(t => t.id === taskId)
@@ -257,7 +257,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     const c = cases.find(x => x.id === caseId)
     if (!c) return
     const newLinks = c.linkedTasks.filter(t => !(t.noteId === noteId && t.taskId === taskId))
-    await supabase.from('cases').update({ linked_tasks: newLinks }).eq('id', caseId).eq('user_id', userId)
+    await supabase.from('cases').update({ linked_tasks: newLinks }).eq('id', caseId)
     await loadCases()
   }
 
@@ -271,7 +271,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
       const att = { name: file.name, path, url: urlData.publicUrl, size: file.size, type: file.type }
       const c = cases.find(x => x.id === caseId)
       const newAtt = [...(c?.attachments || []), att]
-      await supabase.from('cases').update({ attachments: newAtt }).eq('id', caseId).eq('user_id', userId)
+      await supabase.from('cases').update({ attachments: newAtt }).eq('id', caseId)
       await supabase.from('case_comments').insert({
         id: Date.now(), case_id: caseId, user_id: userId, author: currentUser, system: true,
         text: `${currentUser} la ved fil: "${file.name}"`, created_at: new Date().toISOString(),
@@ -285,7 +285,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     const c = cases.find(x => x.id === caseId)
     if (!c) return
     const newAtt = c.attachments.filter(a => a.path !== path)
-    await supabase.from('cases').update({ attachments: newAtt }).eq('id', caseId).eq('user_id', userId)
+    await supabase.from('cases').update({ attachments: newAtt }).eq('id', caseId)
     await loadCases()
   }
 
@@ -310,7 +310,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
 
   const deleteColumn = async (key) => {
     const { error } = await supabase.from('case_columns').delete()
-      .eq('key', key).eq('user_id', userId).eq('project_id', activeProjectId)
+      .eq('key', key).eq('project_id', activeProjectId)
     if (error) { alert('Klarte ikkje slette kolonnen: ' + error.message); return }
     setEigneKolonnar(prev => prev.filter(k => k.key !== key))
   }
@@ -325,7 +325,7 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     setCases(prev => prev.map(x => x.id === caseId ? { ...x, ekstra: neste } : x))
     const { error } = await supabase.from('cases')
       .update({ ekstra: neste, updated_at: new Date().toISOString() })
-      .eq('id', caseId).eq('user_id', userId)
+      .eq('id', caseId)
     if (error) {
       alert('Klarte ikkje lagre verdien.\n\nHar du køyrt SQL-en som legg til kolonnen «ekstra» i cases-tabellen?\n\n' + error.message)
       await loadCases()

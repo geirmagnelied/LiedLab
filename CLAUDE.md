@@ -53,6 +53,14 @@ den relevante fila når ei oppgåve gjeld eit tema han dekkjer:
   omdøypast (namnekollisjon, sjå fila). Må byggjast FØR
   `claude/varslingssystem.md` sitt «ansvarleg_user_id»-steg gjev mening.
   Les denne FØR du rører autentisering, RLS eller `office_id`/`offices`
+- `claude/kommunikasjonsmodul.md` — **spesifisert, IKKJE bygd enno** (1.
+  nov. 2026): to delar — (1) enkel prosjektchat (`prosjekt_meldingar`, same
+  `kan_se_prosjekt()`-tilgang som notat/prosjekt, medvite enkel sidan
+  appen skal gjøre chat-behov begrensa), og (2) ekstern/open
+  kommunikasjon (`samtalar`/`samtale_deltakarar`) som lar folk UTANOM
+  kontoret delta via ein eksplisitt deltakarliste, uavhengig av
+  `office_members`/`project_members`. Les denne FØR du byggjer noko
+  chat-/meldingsrelatert
 
 Same innhald finst òg (kan verte forelda over tid) som eigne dokument i
 Claude-prosjektet **"Digitale verktøy"** på claude.ai — `claude/`-mappa her
