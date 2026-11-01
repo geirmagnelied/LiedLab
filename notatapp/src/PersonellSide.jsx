@@ -28,7 +28,7 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
     if (!userId || !pid) { setPersonar([]); setLastar(false); return }
     setLastar(true)
     const { data, error } = await supabase.from('prosjekt_personell').select('*')
-      .eq('user_id', userId).eq('project_id', pid).order('sortering').order('id')
+      .eq('project_id', pid).order('sortering').order('id')
     if (error) setFeil('Klarte ikkje lese personell — er migrasjonen køyrd? ' + error.message)
     let liste = data || []
     // Brukaren som eig prosjektet skal vere med som standard (éin gong per prosjekt)
@@ -71,14 +71,14 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
     }
     setPersonar(ps => ps.map(p => (p.id === id ? { ...p, ...endring } : p)))
     const { error } = await supabase.from('prosjekt_personell').update({ ...endring, updated_at: new Date().toISOString() })
-      .eq('id', id).eq('user_id', userId)
+      .eq('id', id)
     if (error) { setFeil('Klarte ikkje lagre: ' + error.message); setPersonar(ps => ps.map(p => (p.id === id ? gammal : p))) }
   }
 
   const slett = async (id) => {
     const p = personar.find(x => x.id === id)
     if (!p || !window.confirm(`Fjerne ${p.namn} frå prosjektet?`)) return
-    const { error } = await supabase.from('prosjekt_personell').delete().eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('prosjekt_personell').delete().eq('id', id)
     if (error) { setFeil('Klarte ikkje slette: ' + error.message); return }
     setPersonar(ps => ps.filter(x => x.id !== id))
   }
@@ -101,7 +101,7 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
 
   const kopierFra = async (fraId) => {
     if (!fraId) return
-    const { data } = await supabase.from('prosjekt_personell').select('*').eq('user_id', userId).eq('project_id', +fraId).order('sortering')
+    const { data } = await supabase.from('prosjekt_personell').select('*').eq('project_id', +fraId).order('sortering')
     const finst = new Set(personar.map(p => p.namn.trim().toLowerCase()))
     const nye = (data || []).filter(p => !finst.has(p.namn.trim().toLowerCase()))
       .map((p, i) => ({ user_id: userId, project_id: pid, namn: p.namn, rolle: p.rolle, prosent: p.prosent, epost: p.epost, merknad: '', sortering: personar.length + i }))

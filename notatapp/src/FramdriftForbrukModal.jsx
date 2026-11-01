@@ -58,7 +58,7 @@ export default function FramdriftForbrukModal({ userId, prosjekt, elementer, onL
   const importer = async () => {
     setLagrar(true); setFeil('')
     try {
-      const { error: e1 } = await supabase.from('framdrift_forbruk').delete().eq('user_id', userId).eq('project_id', prosjekt.id).gte('dato', res.fra).lte('dato', res.til)
+      const { error: e1 } = await supabase.from('framdrift_forbruk').delete().eq('project_id', prosjekt.id).gte('dato', res.fra).lte('dato', res.til)
       if (e1) throw e1
       const rader = res.rader.map(r => ({ user_id: userId, project_id: prosjekt.id, dato: r.dato, vekeaar: r.vekeaar, vekenr: r.vekenr, ansatt: r.ansatt, ansatt_namn: r.ansattNamn,
         aktivitet: r.aktivitet, kode: r.kode, timar: r.timar, beskrivelse: r.beskrivelse, kilde: filnamn || 'app' }))

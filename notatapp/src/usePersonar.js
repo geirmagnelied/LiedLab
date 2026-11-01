@@ -15,7 +15,7 @@ export default function usePersonar(userId, projectId) {
   useEffect(() => {
     if (!userId || !projectId) { setPersonell([]); return }
     let ok = true
-    supabase.from('prosjekt_personell').select('namn').eq('user_id', userId).eq('project_id', projectId).order('sortering').order('id')
+    supabase.from('prosjekt_personell').select('namn').eq('project_id', projectId).order('sortering').order('id')
       .then(({ data }) => { if (ok) setPersonell((data || []).map(p => p.namn).filter(Boolean)) })
     return () => { ok = false }
   }, [userId, projectId])

@@ -18,7 +18,7 @@ async function hentEpost() {
 }
 
 async function finnNamn(userId, epost, meta) {
-  const { data } = await supabase.from('prosjekt_personell').select('fornamn,etternamn,namn').eq('user_id', userId).ilike('epost', epost)
+  const { data } = await supabase.from('prosjekt_personell').select('fornamn,etternamn,namn').ilike('epost', epost)
     .neq('fornamn', '').neq('etternamn', '').limit(1)
   if (data?.length) return { fornamn: data[0].fornamn, etternamn: data[0].etternamn }
   if (meta.fornamn || meta.etternamn) return { fornamn: meta.fornamn || '', etternamn: meta.etternamn || '' }
@@ -37,7 +37,7 @@ export async function leggTilMegSomPersonell(userId, projectId, { eksisterande =
   const { epost, meta } = await hentEpost()
   let finst = eksisterande
   if (!finst) {
-    const { data } = await supabase.from('prosjekt_personell').select('namn,epost').eq('user_id', userId).eq('project_id', projectId)
+    const { data } = await supabase.from('prosjekt_personell').select('namn,epost').eq('project_id', projectId)
     finst = data || []
   }
   if (epost && finst.some(p => p.epost && p.epost.toLowerCase() === epost.toLowerCase())) return null

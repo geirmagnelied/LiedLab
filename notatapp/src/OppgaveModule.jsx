@@ -49,7 +49,7 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
 
   const merkNy = (ids) => { setNyeIds(new Set(ids)); setTimeout(() => setNyeIds(new Set()), 700) }
   const lagreEndring = useCallback(async (id, patch) => {
-    const { error } = await supabase.from('kanban_kort').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('kanban_kort').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) setFeil('Lagring feila: ' + error.message)
   }, [userId])
 
@@ -86,11 +86,11 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
     let avbrote = false
     setLastar(true)
     Promise.all([
-      supabase.from('kanban_tavler').select('*').eq('user_id', userId).eq('project_id', activeProjectId).order('id'),
-      supabase.from('kanban_kort').select('*').eq('user_id', userId).eq('project_id', activeProjectId).order('sortering').order('id'),
-      supabase.from('prosjekt_personell').select('id,namn').eq('user_id', userId).eq('project_id', activeProjectId).order('sortering').order('id'),
+      supabase.from('kanban_tavler').select('*').eq('project_id', activeProjectId).order('id'),
+      supabase.from('kanban_kort').select('*').eq('project_id', activeProjectId).order('sortering').order('id'),
+      supabase.from('prosjekt_personell').select('id,namn').eq('project_id', activeProjectId).order('sortering').order('id'),
       supabase.from('cases').select('*').eq('project_id', activeProjectId).order('id', { ascending: false }),
-      supabase.from('framdrift_planar').select('elementer').eq('user_id', userId).eq('project_id', activeProjectId).maybeSingle(),
+      supabase.from('framdrift_planar').select('elementer').eq('project_id', activeProjectId).maybeSingle(),
     ]).then(([t, k, p, s, f]) => {
       if (avbrote) return
       if (t.error) setFeil('Klarte ikkje laste tavler: ' + t.error.message + ' (er supabase-kanban.sql køyrt?)')
@@ -137,7 +137,7 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
   }
   const settAvslutta = async (t, verdi) => {
     setMeny(false)
-    await supabase.from('kanban_tavler').update({ avslutta: verdi }).eq('id', t.id).eq('user_id', userId)
+    await supabase.from('kanban_tavler').update({ avslutta: verdi }).eq('id', t.id)
     const ny = tavlerRef.current.map(x => x.id === t.id ? { ...x, avslutta: verdi } : x)
     setTavler(ny)
     if (verdi && valgtTavle === t.id) setValgtTavle((ny.find(x => !x.avslutta) || {}).id || null)
@@ -198,7 +198,7 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
       setKort(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x)); await lagreEndring(id, patch); return
     }
     setKort(prev => prev.filter(x => x.id !== id))
-    const { error } = await supabase.from('kanban_kort').delete().eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('kanban_kort').delete().eq('id', id)
     if (error) setFeil('Sletting feila: ' + error.message)
   }
 

@@ -61,3 +61,9 @@ REVOKE EXECUTE ON FUNCTION public.sok_index_notes(), public.sok_index_cases(), p
 -- (prosjektmedlem; rader utan project_id = berre eigar), og barnetabellane ks_kontroll_svar/dtm_versjonar (via kan_se_dtm_dok) og dtm_utsending_dokument
 -- (via kan_se_utsending). trg_behald_eigar på alle. Klient: DTM/Kvalitet/Bilete/Oppgåve/Dashboard utan .eq('user_id').
 -- Rollback: drop alle policyar på tabellane og lag att «auth.uid() = user_id»; drop trigger trg_behald_eigar; drop function kan_se_dtm_dok, kan_se_utsending.
+
+-- ═══ STEG 5e (1. nov. 2026): Framdrift, Kanban, personell, søk, project_cases → prosjektmedlemskap ═══
+-- Migrasjon `sikkerheit_steg5_framdrift_kanban_personell`: framdrift_planar, framdrift_forbruk, kanban_kort, kanban_tavler, prosjekt_personell, project_cases
+-- (prosjektmedlem; utan project_id = eigar), sok_index_select (prosjektmedlem), sok() utan user_id-filter (RLS styrer).
+-- Unike indeksar flytta frå per brukar til per prosjekt: framdrift_planar(project_id), kanban_tavler(project_id, fase). Klient: upsert onConflict 'project_id'.
+-- Rollback: drop policyane og lag att «auth.uid() = user_id»; gjenopprett unike (user_id, project_id[, fase]); sok() med «s.user_id = auth.uid()».

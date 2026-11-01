@@ -247,7 +247,7 @@ export default function CaseTable({ noteId, projectId, userId }) {
     setLoading(true)
     supabase.from('project_cases')
       .select('*')
-      .eq('user_id', userId)
+      
       .eq('note_id', noteId)
       .order('case_number', { ascending: true })
       .then(({ data, error }) => {
@@ -263,7 +263,7 @@ export default function CaseTable({ noteId, projectId, userId }) {
     // Sequential per project; fallback to per note when no project
     let q = supabase.from('project_cases')
       .select('case_number')
-      .eq('user_id', userId)
+      
       .order('case_number', { ascending: false })
       .limit(1)
     q = projectId ? q.eq('project_id', projectId) : q.eq('note_id', noteId)
@@ -281,7 +281,7 @@ export default function CaseTable({ noteId, projectId, userId }) {
             deadline: c.deadline, status: c.status, solution: c.solution,
             attachments: c.attachments, updated_at: new Date().toISOString(),
           })
-          .eq('id', c.id).eq('user_id', userId)
+          .eq('id', c.id)
         if (error) throw error
         setCases(prev => prev.map(x => x.id === c.id ? { ...x, ...c } : x))
       } else {
@@ -307,7 +307,7 @@ export default function CaseTable({ noteId, projectId, userId }) {
   }
 
   const deleteCase = async (id) => {
-    await supabase.from('project_cases').delete().eq('id', id).eq('user_id', userId)
+    await supabase.from('project_cases').delete().eq('id', id)
     setCases(prev => prev.filter(c => c.id !== id))
     setModal(null)
   }

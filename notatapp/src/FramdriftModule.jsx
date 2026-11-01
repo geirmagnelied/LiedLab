@@ -135,7 +135,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     setLagringStatus('lagrar')
     const { error } = await supabase.from('framdrift_planar').upsert(
       { user_id: userId, project_id: prosjektId, elementer: els, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,project_id' })
+      { onConflict: 'project_id' })
     if (error) { console.warn('[Framdrift] lagring feila:', error.message); setLagringStatus('feil'); return }
     skitten.current = false
     setLagringStatus('lagra')
@@ -157,7 +157,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     historikk.current = []; setAngreAntal(0); setValgt(null); setLukka(new Set()); setLagringStatus('')
     if (!userId || !activeProjectId) { elRef.current = []; setElementer([]); setLastar(false); return }
     setLastar(true)
-    supabase.from('framdrift_planar').select('elementer').eq('user_id', userId).eq('project_id', activeProjectId).maybeSingle()
+    supabase.from('framdrift_planar').select('elementer').eq('project_id', activeProjectId).maybeSingle()
       .then(({ data, error }) => {
         if (avbrote) return
         if (error) console.warn('[Framdrift] kunne ikkje lese plan:', error.message)
@@ -170,7 +170,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   useEffect(() => {
     let avbrote = false
     if (!userId || !activeProjectId) { setPersonell([]); return }
-    supabase.from('prosjekt_personell').select('*').eq('user_id', userId).eq('project_id', activeProjectId).order('sortering').order('id')
+    supabase.from('prosjekt_personell').select('*').eq('project_id', activeProjectId).order('sortering').order('id')
       .then(async ({ data }) => {
         let liste = data || []
         const ny = await sikrStandardPersonell(userId, activeProjectId, liste)
@@ -183,7 +183,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const lastDokument = useCallback(() => {
     if (!userId || !activeProjectId) { setDokument([]); return Promise.resolve() }
     return supabase.from('dtm_dokumenter').select('id,nr,tittel,fag,fase,delprosjekt,ferdigstillelse,timebudsjett,i_leveranseplan')
-      .eq('user_id', userId).eq('project_id', activeProjectId).order('nr')
+      .eq('project_id', activeProjectId).order('nr')
       .then(({ data }) => setDokument(data || []))
   }, [userId, activeProjectId])
   useEffect(() => { lastDokument() }, [lastDokument])
@@ -192,7 +192,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const lastForbruk = useCallback(() => {
     if (!userId || !activeProjectId) { setForbrukRader([]); return Promise.resolve() }
     return supabase.from('framdrift_forbruk').select('dato,vekeaar,vekenr,ansatt,ansatt_namn,aktivitet,kode,timar,beskrivelse')
-      .eq('user_id', userId).eq('project_id', activeProjectId).order('dato').limit(20000)
+      .eq('project_id', activeProjectId).order('dato').limit(20000)
       .then(({ data }) => setForbrukRader((data || []).map(r => ({ dato: r.dato, vekeaar: r.vekeaar, vekenr: r.vekenr, ansatt: r.ansatt, ansattNamn: r.ansatt_namn, aktivitet: r.aktivitet, kode: r.kode, timar: +r.timar || 0, beskrivelse: r.beskrivelse }))))
   }, [userId, activeProjectId])
   useEffect(() => { lastForbruk() }, [lastForbruk])

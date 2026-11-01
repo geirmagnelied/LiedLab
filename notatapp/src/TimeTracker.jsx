@@ -145,7 +145,7 @@ export default function TimeTracker({ userId, projects, addProject, mode, initDa
   const [planKoder, setPlanKoder] = useState({})
   useEffect(() => {
     if (!userId) return
-    supabase.from('framdrift_planar').select('project_id, elementer').eq('user_id', userId)
+    supabase.from('framdrift_planar').select('project_id, elementer')
       .then(({ data }) => {
         const m = {}
         for (const p of (data || [])) {
