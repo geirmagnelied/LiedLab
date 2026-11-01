@@ -246,6 +246,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   const [selected, setSelected]         = useState(null) // project id
   const [form, setForm]                 = useState(null)  // prosjektkort data
   const [dirty, setDirty]               = useState(false)
+  const [erNytt, setErNytt]             = useState(false)  // utkast som ikkje er lagra i databasen enno
   const [loading, setLoading]           = useState(true)
   const [geoResults, setGeoResults]     = useState([])
   const [geoQuery, setGeoQuery]         = useState('')
@@ -305,6 +306,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   // ── Vel prosjekt ──────────────────────────────────────────────
   const selectProject = (id) => {
     if (dirty && !window.confirm('Du har ulagra endringar. Vil du forkaste dei?')) return
+    setErNytt(false)
     setSelected(id)
     const p = prosjektList.find(x => x.id === id)
     if (p) {
@@ -314,11 +316,11 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
         name: p.name,
         ...tomtProsjekt(),
         ...p.details,
-        projectNumber: p.projectNumber,
+        projectNumber: p.projectNumber || genererProsjektnummer(prosjektList.map(x => x.projectNumber)),
         status: p.status,
       })
     }
-    setDirty(false)
+    setDirty(!!p && !p.projectNumber)
     // Synk med det globalt aktive prosjektet (valt i TopBar), slik at alle andre
     // modular filtrerer på det same prosjektet ein no jobbar med her
     if (onSetActiveProject && id !== activeProjectId) onSetActiveProject(id)
@@ -338,42 +340,58 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
         name: p.name,
         ...tomtProsjekt(),
         ...p.details,
-        projectNumber: p.projectNumber,
+        projectNumber: p.projectNumber || genererProsjektnummer(prosjektList.map(x => x.projectNumber)),
         status: p.status,
       })
-      setDirty(false)
+      setDirty(!p.projectNumber)
     }
   }, [activeProjectId, prosjektList])
 
   // ── Nytt prosjekt ─────────────────────────────────────────────
-  const nyttProsjekt = async () => {
+  // Nytt prosjekt er berre eit UTKAST i skjemaet — ingenting vert skrive til databasen før brukar trykkjer «Lagre».
+  const nyttProsjekt = () => {
     if (dirty && !window.confirm('Du har ulagra endringar. Vil du forkaste dei?')) return
     const nr = genererProsjektnummer(prosjektList.map(p => p.projectNumber))
     const id = Date.now()
-    const details = tomtProsjekt()
-    const row = {
-      id, user_id: userId, name: `Nytt prosjekt ${nr}`,
-      favorite: false, type: 'work',
-      office_id: activeOfficeId,
-      project_number: nr, project_status: 'tilbod',
-      details,
-      created_at: new Date().toISOString(),
-    }
-    const { error } = await supabase.from('projects').insert(row)
-    if (!error) {
-      merkSeedet(id); leggTilMegSomPersonell(userId, id, { eksisterande: [] })
-      onSetActiveProject?.(id)
-      await loadProsjekt()
-      setSelected(id)
-      setForm({ ...details, projectNumber: nr, status: 'tilbod', name: row.name })
-      setDirty(false)
-    }
+    setSelected(id)
+    setErNytt(true)
+    setForm({ ...tomtProsjekt(), projectNumber: nr, status: 'tilbod', name: `Nytt prosjekt ${nr}` })
+    setDirty(true)
+    setSide('kort')
+  }
+  const forkastUtkast = () => {
+    if (!window.confirm('Forkaste det nye prosjektet utan å lagre?')) return
+    setErNytt(false); setSelected(null); setForm(null); setDirty(false)
+  }
+  const genererNr = () => {
+    const nr = genererProsjektnummer(prosjektList.map(p => p.projectNumber))
+    setForm(f => ({ ...f, projectNumber: nr })); setDirty(true)
   }
 
   // ── Lagre prosjekt ────────────────────────────────────────────
   const lagreProsjekt = async () => {
     if (!selected || !form) return
+    if (!String(form.projectNumber || '').trim()) {
+      alert('Prosjektnummer må fyllast ut. Skriv inn eit nummer, eller trykk «Generer» for å få neste ledige.')
+      return
+    }
     const { projectNumber, status, name, ...details } = form
+    if (erNytt) {
+      const row = {
+        id: selected, user_id: userId, name: name || `Prosjekt ${projectNumber}`,
+        favorite: false, type: 'work', office_id: activeOfficeId,
+        project_number: String(projectNumber).trim(), project_status: status || 'tilbod',
+        details, created_at: new Date().toISOString(),
+      }
+      const { error } = await supabase.from('projects').insert(row)
+      if (error) { alert('Klarte ikkje opprette prosjektet: ' + error.message); return }
+      merkSeedet(selected); leggTilMegSomPersonell(userId, selected, { eksisterande: [] })
+      setErNytt(false); setDirty(false)
+      await loadProsjekt()
+      onProjectCreated?.()
+      onSetActiveProject?.(selected)
+      return
+    }
     const { error, data } = await supabase.from('projects').update({
       name: name || `Prosjekt ${projectNumber}`,
       project_number: projectNumber,
@@ -493,6 +511,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   const laasOppdragssti = async () => {
     const sti = (oppdragsForslag || '').trim()
     if (!sti) { alert('Skriv eller vel ein sti fyrst.'); return }
+    if (erNytt || !String(form.projectNumber || '').trim() || dirty) { alert('Lagre prosjektet med eit prosjektnummer før du låser oppdragsmappa.'); return }
     if (!window.confirm(
       `Lås prosjektet til:\n${sti}\n\n` +
       `Følgjande mapper vert oppretta der:\n${OPPDRAGSMAPPER.map(m => '• ' + m).join('\n')}\n\n` +
@@ -588,7 +607,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
 
   // ══════════════════════════════════════════════════════════════
   // «Alle prosjekt» valt øvst → landingsside med søk (i staden for den gamle prosjektlista til venstre)
-  if (!activeProjectId) {
+  if (!activeProjectId && !erNytt) {
     return <ProsjektOversikt liste={filteredList} loading={loading} filter={filter} setFilter={setFilter} papirkorgTal={papirkorgTal}
       onVel={selectProject} onNytt={nyttProsjekt} onSlett={slettProsjekt} onGjenopprett={gjenopprettProsjekt} onSlettEndeleg={slettEndeleg}/>
   }
@@ -622,14 +641,14 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
               </span>
               <span style={{ fontSize:13, color:'var(--text2)' }}>{form.name}</span>
               <div style={{ flex:1 }}/>
-              <button onClick={() => slettProsjekt(selected)}
-                title="Slett prosjekt"
+              <button onClick={() => erNytt ? forkastUtkast() : slettProsjekt(selected)}
+                title={erNytt ? 'Forkast utkast' : 'Slett prosjekt'}
                 style={{ display:'flex', alignItems:'center', gap:6,
                   padding:'6px 14px', borderRadius:'var(--r)',
                   border:'1.5px solid var(--border)',
                   background:'rgba(220,38,38,.18)', color:'var(--text2)',
                   fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-                🗑 Slett prosjekt
+                {erNytt ? '✕ Forkast utkast' : '🗑 Slett prosjekt'}
               </button>
             </>
           )}
@@ -675,7 +694,11 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
               {/* ── Grunndata ── */}
               <Section title="Grunndata">
                 <Row>
-                  <F {...bind} label="Prosjektnummer" id="projectNumber" style={{ fontFamily:'var(--mono)', fontWeight:700 }}/>
+                  <div style={{ flex:1, minWidth:0, display:'flex', gap:6, alignItems:'flex-end' }}>
+                    <F {...bind} label="Prosjektnummer *" id="projectNumber" style={{ fontFamily:'var(--mono)', fontWeight:700, borderColor: String(form.projectNumber || '').trim() ? undefined : 'var(--danger)' }}/>
+                    <button type="button" onClick={genererNr} title="Fyll inn neste ledige prosjektnummer"
+                      style={{ padding:'8px 10px', borderRadius:'var(--r)', border:'1.5px solid var(--border)', background:'var(--bg3)', cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'var(--font)', color:'var(--text2)' }}>Generer</button>
+                  </div>
                   <F {...bind} label="Prosjektnamn" id="name"/>
                 </Row>
                 <Row>

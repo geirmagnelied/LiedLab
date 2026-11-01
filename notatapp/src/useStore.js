@@ -261,13 +261,18 @@ export function useStore(userId) {
     const ex = projects.find(p => p.name.toLowerCase() === name.toLowerCase() && p.officeId === officeId)
     if (ex) return ex
     const id = Date.now()
+    // Prosjektnummer ÅÅNNN vert alltid sett (neste ledige), slik at oppdragssti ikkje får tomt nummer
+    const aar = String(new Date().getFullYear()).slice(2)
+    const brukte = projects.map(p => p.projectNumber).filter(nr => nr && String(nr).startsWith(aar)).map(nr => parseInt(String(nr).slice(2))).filter(n => !isNaN(n))
+    const nr = aar + String((brukte.length ? Math.max(...brukte) : 0) + 1).padStart(3, '0')
     const { error } = await supabase.from('projects').insert({
       id, user_id: userId, name, favorite: false, type, office_id: officeId,
+      project_number: nr, project_status: 'tilbod',
       created_at: new Date().toISOString(),
     })
     if (!error) {
       import('./personellStandard').then(m => { m.merkSeedet(id); m.leggTilMegSomPersonell(userId, id, { eksisterande: [] }) })
-      setProjects(ps => [...ps, { id, name, favorite: false, type, officeId, createdAt: new Date().toISOString() }]
+      setProjects(ps => [...ps, { id, name, projectNumber: nr, favorite: false, type, officeId, createdAt: new Date().toISOString() }]
         .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || a.name.localeCompare(b.name)))
     }
     return { id, name, favorite: false, officeId }
@@ -364,7 +369,7 @@ export function useStore(userId) {
     toggleNoteFavorite, toggleNotePinned,
     noteColumns, addNoteColumn, deleteNoteColumn, setNoteExtraValue,
     addTask, updateTask, deleteTask,
-    addProject, updateProject, deleteProject, toggleFavorite,
+    addProject, updateProject, deleteProject, toggleFavorite, reloadAll: loadAll,
     addOffice, updateOffice, deleteOffice,
   }
 }

@@ -54,7 +54,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const { notes, projects, loading, addNote, updateNote, deleteNote, toggleDone,
           toggleNoteFavorite, toggleNotePinned,
           noteColumns, addNoteColumn, deleteNoteColumn, setNoteExtraValue,
-          addTask, updateTask, deleteTask, addProject, updateProject, deleteProject, toggleFavorite,
+          addTask, updateTask, deleteTask, addProject, updateProject, deleteProject, toggleFavorite, reloadAll,
           offices, addOffice, updateOffice, deleteOffice } = useStore(userId)
 
   const [view,              setView]              = useState('notatar')
@@ -459,7 +459,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         )}
         {activeModule === 'timar' && <TimeTracker userId={userId} activeOfficeId={activeOfficeId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
         {activeModule === 'kalender' && <KalenderModule projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} onEdit={handleEdit}/>}
-        {activeModule === 'prosjekt' && <ProsjektModule userId={userId} projects={officeProjects} offices={offices} activeOfficeId={activeOfficeId} addProject={addProject} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
+        {activeModule === 'prosjekt' && <ProsjektModule userId={userId} projects={officeProjects} offices={offices} activeOfficeId={activeOfficeId} addProject={addProject} onProjectCreated={reloadAll} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
         {activeModule === 'kunde' && <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'kvalitet' && <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
         {activeModule === 'oppgaver' && <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} notes={modeNotes}/>}
@@ -606,7 +606,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         <Dashboard userId={userId} userEmail={userEmail} activeOfficeId={activeOfficeId} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>
       ) : activeModule === 'prosjekt' ? (
         <ProsjektModule userId={userId} projects={officeProjects} offices={offices}
-          activeOfficeId={activeOfficeId} addProject={addProject}
+          activeOfficeId={activeOfficeId} addProject={addProject} onProjectCreated={reloadAll}
           activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>
       ) : activeModule === 'kalender' ? (
         <KalenderModule projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} onEdit={handleEdit}/>
