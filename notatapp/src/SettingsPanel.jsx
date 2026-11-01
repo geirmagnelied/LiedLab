@@ -37,8 +37,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
   const activeOffice = offices.find(o => o.id === activeOfficeId)
   // Admin = aktiv admin-medlem ELLER eigar av kontoret (offices-radene er
   // lasta per innlogga brukar, så eit aktivt kontor i lista er alltid eigd av deg)
-  const isAdmin = !!activeOffice
-    || members.some(m => m.user_id === userId && m.role === 'admin' && m.status === 'active')
+  const isAdmin = members.some(m => m.user_id === userId && m.role === 'admin' && m.status === 'active')
 
   // Load members for active office
   useEffect(() => {
@@ -96,49 +95,27 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
   }, [])
 
   const sendInvite = async () => {
-    if (!inviteEmail.trim()) return
+    const epost = inviteEmail.trim().toLowerCase()
+    if (!epost) return
+    if (!/.+@.+\..+/.test(epost)) { setFeedback({ type: 'err', msg: 'Legg inn ei gyldig e-postadresse.' }); return }
+    if (members.some(m => (m.invited_email || '').toLowerCase() === epost)) { setFeedback({ type: 'err', msg: 'Denne e-posten er alt invitert eller medlem.' }); return }
     setSending(true); setFeedback(null)
     try {
-      // Generate a unique token
-      const token = crypto.randomUUID()
-      const { error } = await supabase.from('office_members').insert({
-        office_id:     activeOfficeId,
-        invited_email: inviteEmail.trim().toLowerCase(),
-        role:          inviteRole,
-        status:        'pending',
-        invite_token:  token,
-      })
+      // 1) Ventande medlemskap (RLS: berre administratorar). Vert aktivt når personen loggar inn med denne stadfesta e-posten.
+      const { data: nyRad, error } = await supabase.from('office_members').insert({
+        office_id: activeOfficeId, invited_email: epost, role: inviteRole, status: 'pending', invited_at: new Date().toISOString(),
+      }).select().single()
       if (error) throw error
-
-      // Send invite email via our Edge Function
-      const appUrl = window.location.origin
-      const inviteLink = `${appUrl}/?invite=${token}`
-
-      const res = await fetch('https://hcdtagtkyewhrbrvrbqh.supabase.co/functions/v1/send-invite', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjZHRhZ3RreWV3aHJicnZyYnFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2ODk0MDksImV4cCI6MjA5NjI2NTQwOX0.1Kg8MnI-ffWa5Ecc54BT_wP_mnftH9B1ZPIOoGaADfM`,
-        },
-        body: JSON.stringify({
-          to:          inviteEmail.trim(),
-          inviteLink,
-          officeName:  activeOffice?.name || 'Notatapp',
-          inviterEmail: userEmail,
-          role:         inviteRole,
-        }),
-      })
-
-      if (!res.ok) throw new Error('Klarte ikkje sende e-post')
-
-      setMembers(prev => [...prev, {
-        invited_email: inviteEmail.trim().toLowerCase(),
-        role: inviteRole, status: 'pending', invite_token: token
-      }])
+      setMembers(prev => [...prev, nyRad])
       setInviteEmail('')
-      setFeedback({ type: 'ok', msg: `Invitasjon sendt til ${inviteEmail.trim()}` })
+      // 2) E-post med lenkje til å opprette konto (edge-funksjonen sjekkar at du er administrator)
+      const { data, error: fe } = await supabase.functions.invoke('inviter-medlem', {
+        body: { officeId: activeOfficeId, epost, redirectTo: window.location.origin + window.location.pathname },
+      })
+      if (fe) throw new Error('Medlemskapet er lagt inn, men e-posten kunne ikkje sendast: ' + (data?.feil || fe.message))
+      setFeedback({ type: 'ok', msg: data?.melding || 'Invitasjon sendt til ' + epost })
     } catch (err) {
-      setFeedback({ type: 'err', msg: `Feil: ${err.message}` })
+      setFeedback({ type: 'err', msg: 'Feil: ' + err.message })
     }
     setSending(false)
   }

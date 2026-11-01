@@ -78,3 +78,9 @@ REVOKE EXECUTE ON FUNCTION public.sok_index_notes(), public.sok_index_cases(), p
 -- ═══ STEG 7 (1. nov. 2026): offices-lesing via medlemskap ═══
 -- Ingen DB-endring (offices_select = is_office_member(id) frå steg 3). Klient: useStore les/oppdaterer/slettar offices utan .eq('user_id'),
 -- slik at medlemmar som ikkje eig kontoret ser det i velgaren. Oppdatering/sletting krev admin (RLS).
+
+-- ═══ STEG 8 (1. nov. 2026): invitasjonsflyt ═══
+-- Migrasjon `sikkerheit_steg8_invitasjon`: rpc aksepter_invitasjonar() (security definer, kallast av klienten rett etter innlogging).
+-- Aktiverer office_members-rader med status 'pending' og user_id null der invited_email = stadfesta e-post til innlogga brukar.
+-- Edge-funksjon `inviter-medlem` (verify_jwt, krev is_office_admin) sender e-post via auth.admin.inviteUserByEmail; har personen alt konto, vert ingen e-post sendt.
+-- Rollback: drop function aksepter_invitasjonar; slett edge-funksjonen inviter-medlem.

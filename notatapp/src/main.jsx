@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import Auth from './Auth.jsx'
 import SjekklisteVindauge from './SjekklisteVindauge.jsx'
+import SettPassord from './SettPassord.jsx'
 import './index.css'
 import { supabase } from './supabase.js'
 import { useState, useEffect } from 'react'
@@ -52,16 +53,26 @@ class Feilfangar extends React.Component {
   }
 }
 
+// Invitasjons- og gløymt-passord-lenkjer kjem med #...type=invite|recovery i URL-en. Supabase-klienten fjernar hashen ved oppstart,
+// så han må lesast her på modulnivå, før noko anna rekk å røre han.
+const trengerPassordFraLenkje = typeof window !== 'undefined' && /type=(invite|recovery)/.test(window.location.hash)
+
 function Root() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [settPassord, setSettPassord] = useState(trengerPassordFraLenkje)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session); setLoading(false)
-    })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setSession(session)
+    // Aktiver ventande kontor-invitasjonar som matchar den stadfesta e-posten, FØR appen vert montert (slik at kontora er med frå fyrste lasting)
+    const aksepter = async (s) => {
+      if (s) { try { await supabase.rpc('aksepter_invitasjonar') } catch (e) { console.error('Aksept av invitasjon feila:', e) } }
+      setSession(s); setLoading(false)
+    }
+    supabase.auth.getSession().then(({ data: { session } }) => aksepter(session))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((e, session) => {
+      if (e === 'PASSWORD_RECOVERY') setSettPassord(true)
+      if (e === 'SIGNED_IN') setTimeout(() => aksepter(session), 0)   // ikkje kall supabase direkte inne i callbacken
+      else setSession(session)
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -73,6 +84,7 @@ function Root() {
     </div>
   )
 
+  if (session && settPassord) return <SettPassord onFerdig={() => setSettPassord(false)}/>
   return session ? <App userId={session.user.id} userEmail={session.user.email}/> : <Auth/>
 }
 

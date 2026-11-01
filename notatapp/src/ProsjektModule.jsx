@@ -3,6 +3,7 @@ import DatePicker from './DatePicker'
 import { supabase } from './supabase'
 import NummereringVal from './NummereringVal'
 import PersonellSide from './PersonellSide'
+import ProsjektTilgang from './ProsjektTilgang'
 import { leggTilMegSomPersonell, merkSeedet } from './personellStandard'
 import { STANDARD_NUMMERERING } from './teikningsnummer'
 
@@ -656,7 +657,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
 
         {/* Fanerad (NL3): Prosjektinfo · Personell — aktiv fane svart med kvit tekst (konsekvent i alle modular) */}
         <div style={{ display:'flex', gap:6, padding:'8px 20px', borderBottom:'1px solid var(--border)', background:'var(--bg2)', flexShrink:0 }}>
-          {[['kort','Prosjektinfo'],['personell','Personell']].map(([k, t]) => (
+          {[['kort','Prosjektinfo'],['personell','Personell'],...(erNytt ? [] : [['tilgang','Tilgang']])].map(([k, t]) => (
             <button key={k} onClick={() => setSide(k)}
               style={{ padding:'6px 16px', border:'1.5px solid ' + (side === k ? '#0A0A0A' : 'transparent'), borderRadius:8, cursor:'pointer', fontFamily:'var(--font)',
                 fontSize:13, fontWeight: side === k ? 700 : 500, background: side === k ? '#0A0A0A' : 'transparent', color: side === k ? '#fff' : 'var(--text2)' }}>
@@ -664,6 +665,12 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
             </button>
           ))}
         </div>
+
+        {side === 'tilgang' && !erNytt && (
+          <div style={{ flex:1, overflow:'auto', padding:'22px 28px' }}>
+            <ProsjektTilgang prosjekt={prosjektList.find(p => p.id === selected)} userId={userId}/>
+          </div>
+        )}
 
         {side === 'personell' && (
           <div style={{ flex:1, overflow:'auto', padding:'22px 28px', display:'flex', flexDirection:'column', minHeight:0 }}>
