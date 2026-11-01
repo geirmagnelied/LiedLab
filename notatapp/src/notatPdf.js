@@ -1,4 +1,5 @@
 import { vedleggUrl } from './vedlegg'
+import { reinHtml } from './sanitiser'
 // ═══════════════════════════════════════════════════════════════════
 //  notatPdf — eksport av notat / møtenotat / referat til PDF som VEKTOR (ekte tekst, linjer og flater — ikkje bilete).
 //  1) Notatet vert lagt ut i ein skjult A4-breidd-boks av nettlesaren sjølv (så tabellar, lister, fargar m.m. får same
@@ -186,7 +187,7 @@ export async function eksporterNotatPdf(note, prosjektNamn = '') {
   const boks = document.createElement('div')
   boks.setAttribute('data-notranslate', '')
   boks.style.cssText = `position:fixed;left:-10000px;top:0;width:${INN_B}px;background:#fff;`
-  boks.innerHTML = `<style>${CSS}</style><div class="pdf-notat">${byggHtml(note, prosjektNamn)}</div>`
+  boks.innerHTML = `<style>${CSS}</style><div class="pdf-notat">${reinHtml(byggHtml(note, prosjektNamn))}</div>`
   document.body.appendChild(boks)
   let data
   try {

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { reinHtml } from './sanitiser'
 import { opneVedlegg } from './vedlegg'
 import { fmtDateShort } from './sakerKonstantar'
 import { eksporterNotatPdf } from './notatPdf'
@@ -102,7 +103,7 @@ export default function NotePreview({ note, projects, onEdit, onUpdateTask }) {
       <div style={{ flex:1, overflowY:'auto', padding:'16px 18px' }}>
         {note.html
           ? <div style={{ fontSize:13.5, lineHeight:1.7, color:'var(--text)' }}
-              dangerouslySetInnerHTML={{ __html: note.html }}/>
+              dangerouslySetInnerHTML={{ __html: reinHtml(note.html) }}/>
           : note.text
             ? <div style={{ fontSize:13.5, lineHeight:1.7, color:'var(--text)', whiteSpace:'pre-wrap' }}>{note.text}</div>
             : <div style={{ fontSize:12.5, color:'var(--text3)', fontStyle:'italic' }}>Ingen tekst i notatet</div>}

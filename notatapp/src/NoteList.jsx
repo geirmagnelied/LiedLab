@@ -1,4 +1,5 @@
 import { favorittForst } from './projectFavoritt'
+import { reinHtml } from './sanitiser'
 import { useState, useRef } from 'react'
 import { fmt } from './dateUtils'
 
@@ -336,7 +337,7 @@ function NoteCard({ note, projects, onDelete, onToggleDone, onEdit, onUpdateTask
           )}
           {hasBody&&(
             <div style={{ fontSize:13,color:'var(--text)',lineHeight:1.7,marginBottom:4,opacity:note.done?.6:1 }}
-              dangerouslySetInnerHTML={{__html:note.html}}/>
+              dangerouslySetInnerHTML={{__html:reinHtml(note.html)}}/>
           )}
           {note.attachments?.length > 0 && (
             <div style={{ marginBottom:10 }}>

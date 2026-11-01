@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { reinHtml } from './sanitiser'
 import { parseISO, format, startOfWeek, endOfWeek, addDays, addWeeks, addMonths,
   startOfMonth, endOfMonth, getISOWeek, isSameDay, isToday, isSameMonth } from 'date-fns'
 import { nb } from 'date-fns/locale'
@@ -140,7 +141,7 @@ export default function Timeline({ notes, projects, height, onResize, onSelectNo
             heileNotatet.html
               ? <div style={{fontSize:11.5,lineHeight:1.5,color:'var(--text2)',maxHeight:120,
                   overflow:'hidden',marginBottom:6,borderTop:'1px solid var(--border)',paddingTop:6}}
-                  dangerouslySetInnerHTML={{__html:heileNotatet.html}}/>
+                  dangerouslySetInnerHTML={{__html:reinHtml(heileNotatet.html)}}/>
               : <div style={{fontSize:11.5,lineHeight:1.5,color:'var(--text2)',maxHeight:120,
                   overflow:'hidden',whiteSpace:'pre-wrap',marginBottom:6,borderTop:'1px solid var(--border)',paddingTop:6}}>
                   {heileNotatet.text}

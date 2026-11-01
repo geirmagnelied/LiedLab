@@ -4,5 +4,21 @@
       "source": "/liedlab/notatblokk/(.*)",
       "destination": "/liedlab/notatblokk/index.html"
     }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=(), payment=()" },
+        { "key": "Strict-Transport-Security", "value": "max-age=31536000" },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://hcdtagtkyewhrbrvrbqh.supabase.co; media-src 'self' blob: data:; connect-src 'self' https://hcdtagtkyewhrbrvrbqh.supabase.co wss://hcdtagtkyewhrbrvrbqh.supabase.co https://data.brreg.no https://ws.geonorge.no; frame-src 'self' blob: data: https://hcdtagtkyewhrbrvrbqh.supabase.co; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        }
+      ]
+    }
   ]
 }

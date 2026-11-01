@@ -8,6 +8,9 @@ import './index.css'
 import { supabase } from './supabase.js'
 import { useState, useEffect } from 'react'
 
+// Skriftstilarket i index.html vert lasta med media=print og gjort aktivt her (erstattar inline onload, som ein streng CSP ville blokkert)
+document.querySelectorAll('link[data-skrift]').forEach(l => { const pa = () => { l.media = 'all' }; if (l.sheet) pa(); else l.addEventListener('load', pa) })
+
 // Electron/Windows: etter alert()/confirm()/prompt() sluttar tekstfelt å ta imot tastetrykk. Be skalet ta fokuset tilbake.
 if (typeof window !== 'undefined' && window.fokusFiks) {
   for (const namn of ['alert', 'confirm', 'prompt']) {

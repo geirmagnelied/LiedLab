@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { reinHtml } from './sanitiser'
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays,
   isSameDay, isSameMonth, isToday, parseISO, getISOWeek } from 'date-fns'
 import { nb } from 'date-fns/locale'
@@ -110,7 +111,7 @@ export default function CalendarView({ notes, projects, onDelete, onToggleDone, 
           {!selectedNotes.length
             ? <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', paddingTop: 10 }}>Ingen notatar</div>
             : selectedNotes.map(n => (
-              <div key={n.id} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 9px', marginBottom: 5, fontSize: 11, color: 'var(--text)', lineHeight: 1.5, cursor: 'pointer' }} dangerouslySetInnerHTML={{ __html: n.html || n.text }} />
+              <div key={n.id} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 9px', marginBottom: 5, fontSize: 11, color: 'var(--text)', lineHeight: 1.5, cursor: 'pointer' }} dangerouslySetInnerHTML={{ __html: reinHtml(n.html || n.text) }} />
             ))}
         </div>
       </div>

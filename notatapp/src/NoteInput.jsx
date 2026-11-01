@@ -1,4 +1,6 @@
 import { favorittForst, prosjektValTekst } from './projectFavoritt'
+import { reinHtml } from './sanitiser'
+const escHtml = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { nextFriday, fmt } from './dateUtils'
 import SketchPad from './SketchPad'
@@ -225,7 +227,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
       return
     }
     if (titleRef.current)  titleRef.current.value  = isEdit ? (editNote.title||'') : ''
-    if (editorRef.current) editorRef.current.innerHTML = isEdit ? (editNote.html||editNote.text||'') : ''
+    if (editorRef.current) editorRef.current.innerHTML = isEdit ? reinHtml(editNote.html||editNote.text||'') : ''
     setTasks(isEdit ? (editNote.tasks||[]) : [])
     setTag(isEdit ? editNote.tag : null)
     setProjectVal(isEdit ? String(editNote.projectId||'') : (defaultProjectId ? String(defaultProjectId) : ''))
@@ -504,7 +506,7 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
     if (undoStack.length === 0) return
     const prev = undoStack[undoStack.length - 1]
     if (titleRef.current)  titleRef.current.value  = prev.title
-    if (editorRef.current) editorRef.current.innerHTML = prev.html
+    if (editorRef.current) editorRef.current.innerHTML = reinHtml(prev.html)
     setAttachments(prev.attachments)
     setTasks(prev.tasks)
     setUndoStack(s => s.slice(0, -1))
@@ -635,12 +637,12 @@ const NoteInput = forwardRef(function NoteInput({ projects, onAdd, onAutoSave, o
         if (!titleRef.current.value) titleRef.current.value = subject
         // APPEND to existing editor content — do NOT overwrite
         if (editorRef.current) {
-          const fromLine = from ? `<div style="font-size:12px;color:#888;margin-bottom:8px">Frå: ${from}</div>` : ''
-          const emailBlock = `<div style="margin-top:12px;padding:10px 12px;background:rgba(21,101,192,.06);border-left:3px solid #1565C0;border-radius:6px"><b>E-post: ${subject}</b>${fromLine}<br>${body.replace(/\n/g,'<br>')}</div>`
+          const fromLine = from ? `<div style="font-size:12px;color:#888;margin-bottom:8px">Frå: ${escHtml(from)}</div>` : ''
+          const emailBlock = `<div style="margin-top:12px;padding:10px 12px;background:rgba(21,101,192,.06);border-left:3px solid #1565C0;border-radius:6px"><b>E-post: ${escHtml(subject)}</b>${fromLine}<br>${escHtml(body).replace(/\n/g,'<br>')}</div>`
           const existing = editorRef.current.innerHTML.trim()
-          editorRef.current.innerHTML = existing
+          editorRef.current.innerHTML = reinHtml(existing
             ? existing + '<br>' + emailBlock
-            : emailBlock
+            : emailBlock)
         }
         const att = await uploadToSupabase(file)
         if (att) setAttachments(prev => [...prev, att])
