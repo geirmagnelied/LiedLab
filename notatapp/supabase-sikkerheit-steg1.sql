@@ -74,3 +74,7 @@ REVOKE EXECUTE ON FUNCTION public.sok_index_notes(), public.sok_index_cases(), p
 -- Gamle policyar «auth_upload» (alle innlogga) og «vedlegg_les_eigne» fjerna. bilete-mobil og dtm-resultatdokument: <user_id>/<project_id>/fil,
 -- eigar-mappe eller medlem; rolle endra frå public til authenticated. Bøtte «brukar» og bygningsapp-* er uendra.
 -- Rollback: drop policy vedlegg_*/prosjektfiler_*; lag att auth_upload (insert, bucket Vedlegg), vedlegg_les_eigne, bilete_mobil_storage_all, dtm_resultatdokument_storage_all.
+
+-- ═══ STEG 7 (1. nov. 2026): offices-lesing via medlemskap ═══
+-- Ingen DB-endring (offices_select = is_office_member(id) frå steg 3). Klient: useStore les/oppdaterer/slettar offices utan .eq('user_id'),
+-- slik at medlemmar som ikkje eig kontoret ser det i velgaren. Oppdatering/sletting krev admin (RLS).

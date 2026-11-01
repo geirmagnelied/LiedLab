@@ -67,7 +67,7 @@ export function useStore(userId) {
     await migrateLocalStorage(userId)
 
     const [{ data: oData }, { data: pData }, { data: nData }, { data: colData }] = await Promise.all([
-      supabase.from('offices').select('*').eq('user_id', userId).order('sort_order').order('name'),
+      supabase.from('offices').select('*').order('sort_order').order('name'),
       supabase.from('projects').select('*').order('favorite', { ascending: false }).order('name'),
       supabase.from('notes').select('*').order('created_at', { ascending: false }),
       supabase.from('note_columns').select('*').eq('user_id', userId).order('sortering', { ascending: true }),
@@ -301,12 +301,12 @@ export function useStore(userId) {
   }
 
   const updateOffice = async (id, changes) => {
-    await supabase.from('offices').update(changes).eq('id', id).eq('user_id', userId)
+    await supabase.from('offices').update(changes).eq('id', id)
     setOffices(os => os.map(o => o.id === id ? { ...o, ...changes } : o))
   }
 
   const deleteOffice = async (id) => {
-    await supabase.from('offices').delete().eq('id', id).eq('user_id', userId)
+    await supabase.from('offices').delete().eq('id', id)
     await supabase.from('projects').update({ office_id: null }).eq('office_id', id).eq('user_id', userId)
     setOffices(os => os.filter(o => o.id !== id))
     setProjects(ps => ps.map(p => p.officeId === id ? { ...p, officeId: null } : p))
