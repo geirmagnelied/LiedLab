@@ -14,3 +14,6 @@
 
 ## Prosjektstyring (2. nov. 2026)
 Nytt toppikon rett under Dashboard: **Prosjektstyring** (`prosjektstyring` i `AppRail.jsx`) med undermodulane Prosjekt, Framdrift og Kalender, til å styre det aktive prosjektet. Prosjekt er flytta ut av Kontordrift (som no har Kundar, Ansatte, Kontorkalender og innstillingane), og Framdrift/Kalender har ikkje lenger eigne toppikon. Utan valt prosjekt sender `App.jsx` Framdrift/Kalender til Prosjekt-sida (prosjektlista der ein vel prosjekt).
+
+## «Endre prosjekt» (2. nov. 2026)
+Verktøylinja øvst i Prosjekt-modulen («Lagra» + «Slett prosjekt») er fjerna. Nøkkelinfo (prosjektkortet), personell og tilgang er skrivevern til ein administrator i kontoret trykker **✎ Endre prosjekt** (på fanelinja). I endringsmodus finst **Lagre** (lagrar og går ut av modusen) og **Avbryt**; **Slett prosjekt** ligg nedst i prosjektkortet (berre i endringsmodus). Nye prosjekt (utkast) startar i endringsmodus. Dette er ei UI-sperre — databasen (RLS) er uendra.

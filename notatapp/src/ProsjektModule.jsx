@@ -259,7 +259,19 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   }, [userId])
   const [filter, setFilter]             = useState('alle') // alle|tilbod|aktiv|arkiv
   const [sidebarWidth]                  = useState(240)
-  const [side, setSide]                   = useState('kort') // 'kort' | 'personell' | 'kalender'
+  const [side, setSide]                   = useState('kort') // 'kort' | 'personell' | 'tilgang'
+  // Nøkkelinfo, personell og tilgang kan berre endrast etter «Endre prosjekt», og berre av administrator (i kontoret som eig prosjektet)
+  const [redigerer, setRedigerer]         = useState(false)
+  const [erAdmin, setErAdmin]             = useState(false)
+  const valtOfficeId = prosjektList.find(x => x.id === selected)?.officeId || null
+  useEffect(() => {
+    if (!userId || !selected) { setErAdmin(false); return }
+    if (!valtOfficeId) { setErAdmin(true); return }   // prosjekt utan kontor er berre ditt eige
+    let avbrote = false
+    supabase.from('office_members').select('id').eq('office_id', valtOfficeId).eq('user_id', userId).eq('role', 'admin').eq('status', 'active').limit(1)
+      .then(({ data }) => { if (!avbrote) setErAdmin(!!data?.length) })
+    return () => { avbrote = true }
+  }, [userId, selected, valtOfficeId])
 
   // ── Last prosjekt med detaljar ────────────────────────────────
   const loadProsjekt = useCallback(async () => {
@@ -307,7 +319,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
   // ── Vel prosjekt ──────────────────────────────────────────────
   const selectProject = (id) => {
     if (dirty && !window.confirm('Du har ulagra endringar. Vil du forkaste dei?')) return
-    setErNytt(false)
+    setErNytt(false); setRedigerer(false)
     setSelected(id)
     const p = prosjektList.find(x => x.id === id)
     if (p) {
@@ -334,7 +346,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     if (dirty) return // ikkje forkast ulagra endringar automatisk
     const p = prosjektList.find(x => x.id === activeProjectId)
     if (p) {
-      setSelected(p.id)
+      setSelected(p.id); setRedigerer(false)
       setForm({
         projectNumber: p.projectNumber,
         status: p.status,
@@ -355,14 +367,21 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
     const nr = genererProsjektnummer(prosjektList.map(p => p.projectNumber))
     const id = Date.now()
     setSelected(id)
-    setErNytt(true)
+    setErNytt(true); setRedigerer(true)
     setForm({ ...tomtProsjekt(), projectNumber: nr, status: 'tilbod', name: `Nytt prosjekt ${nr}` })
     setDirty(true)
     setSide('kort')
   }
   const forkastUtkast = () => {
     if (!window.confirm('Forkaste det nye prosjektet utan å lagre?')) return
-    setErNytt(false); setSelected(null); setForm(null); setDirty(false)
+    setErNytt(false); setRedigerer(false); setSelected(null); setForm(null); setDirty(false)
+  }
+  // Avbryt endring: tilbake til lagra verdiar og ut av endringsmodus
+  const avbrytEndring = () => {
+    if (dirty && !window.confirm('Forkaste ulagra endringar?')) return
+    const p = prosjektList.find(x => x.id === selected)
+    if (p) setForm({ projectNumber: p.projectNumber, status: p.status, name: p.name, ...tomtProsjekt(), ...p.details, projectNumber: p.projectNumber, status: p.status })
+    setDirty(false); setRedigerer(false)
   }
   const genererNr = () => {
     const nr = genererProsjektnummer(prosjektList.map(p => p.projectNumber))
@@ -387,7 +406,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
       const { error } = await supabase.from('projects').insert(row)
       if (error) { alert('Klarte ikkje opprette prosjektet: ' + error.message); return }
       merkSeedet(selected); leggTilMegSomPersonell(userId, selected, { eksisterande: [] })
-      setErNytt(false); setDirty(false)
+      setErNytt(false); setDirty(false); setRedigerer(false)
       await loadProsjekt()
       onProjectCreated?.()
       onSetActiveProject?.(selected)
@@ -408,7 +427,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
       alert('Lagring feila — prosjektet vart ikkje funne i databasen.')
       return
     }
-    setDirty(false)
+    setDirty(false); setRedigerer(false)
     await loadProsjekt()
   }
 
@@ -620,41 +639,6 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
       {/* ── Hovudinnhald: prosjektkort ── */}
       <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
-        {/* Topbar */}
-        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'0 16px',
-          height:50, flexShrink:0, background:'var(--bg3)',
-          borderBottom:'1px solid var(--border)' }}>
-          {form && (
-            <>
-              <button onClick={lagreProsjekt}
-                disabled={!dirty}
-                style={{ display:'flex', alignItems:'center', gap:6,
-                  padding:'6px 16px', borderRadius:'var(--r)',
-                  border: dirty ? '1.5px solid var(--brand)' : '1.5px solid var(--border)',
-                  background: dirty ? 'var(--brand)' : 'rgba(255,255,255,.5)',
-                  color: dirty ? '#fff' : 'var(--text3)',
-                  fontSize:13, fontWeight:700, cursor: dirty ? 'pointer' : 'default',
-                  fontFamily:'var(--font)', transition:'all .15s' }}>
-                {dirty ? '● Lagre' : '✓ Lagra'}
-              </button>
-              <span style={{ fontSize:13, color:'var(--text2)', fontFamily:'var(--mono)' }}>
-                {form.projectNumber}
-              </span>
-              <span style={{ fontSize:13, color:'var(--text2)' }}>{form.name}</span>
-              <div style={{ flex:1 }}/>
-              <button onClick={() => erNytt ? forkastUtkast() : slettProsjekt(selected)}
-                title={erNytt ? 'Forkast utkast' : 'Slett prosjekt'}
-                style={{ display:'flex', alignItems:'center', gap:6,
-                  padding:'6px 14px', borderRadius:'var(--r)',
-                  border:'1.5px solid var(--border)',
-                  background:'rgba(220,38,38,.18)', color:'var(--text2)',
-                  fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-                {erNytt ? '✕ Forkast utkast' : '🗑 Slett prosjekt'}
-              </button>
-            </>
-          )}
-        </div>
-
         {/* Fanerad (NL3): Prosjektinfo · Personell — aktiv fane svart med kvit tekst (konsekvent i alle modular) */}
         <div style={{ display:'flex', gap:6, padding:'8px 20px', borderBottom:'1px solid var(--border)', background:'var(--bg2)', flexShrink:0 }}>
           {[['kort','Prosjektinfo'],['personell','Personell'],...(erNytt ? [] : [['tilgang','Tilgang']])].map(([k, t]) => (
@@ -664,17 +648,36 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
               {t}
             </button>
           ))}
+          <div style={{ flex:1 }}/>
+          {form && !redigerer && erAdmin && !erNytt && (
+            <button onClick={() => setRedigerer(true)}
+              style={{ padding:'6px 16px', borderRadius:'var(--r)', border:'1.5px solid var(--brand)', background:'var(--brandbg)', color:'var(--brand)', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
+              ✎ Endre prosjekt
+            </button>
+          )}
+          {form && !redigerer && !erAdmin && !erNytt && (
+            <span title="Berre administratorar i kontoret kan endre prosjektet" style={{ fontSize:12, color:'var(--text3)' }}>Berre administrator kan endre prosjektet</span>
+          )}
+          {form && redigerer && (<>
+            <span style={{ fontSize:12, color:'var(--warn)', fontWeight:600 }}>{dirty ? '● Ulagra endringar' : 'Endrar prosjektet'}</span>
+            {!erNytt && <button onClick={avbrytEndring}
+              style={{ padding:'6px 14px', borderRadius:'var(--r)', border:'1.5px solid var(--border)', background:'transparent', color:'var(--text2)', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>Avbryt</button>}
+            <button onClick={lagreProsjekt}
+              style={{ padding:'6px 18px', borderRadius:'var(--r)', border:'1.5px solid var(--brand)', background:'var(--brand)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
+              Lagre
+            </button>
+          </>)}
         </div>
 
         {side === 'tilgang' && !erNytt && (
           <div style={{ flex:1, overflow:'auto', padding:'22px 28px' }}>
-            <ProsjektTilgang prosjekt={prosjektList.find(p => p.id === selected)} userId={userId}/>
+            <ProsjektTilgang prosjekt={prosjektList.find(p => p.id === selected)} userId={userId} kanRedigere={redigerer}/>
           </div>
         )}
 
         {side === 'personell' && (
           <div style={{ flex:1, overflow:'auto', padding:'22px 28px', display:'flex', flexDirection:'column', minHeight:0 }}>
-            <PersonellSide userId={userId} prosjekt={prosjektList.find(p => p.id === selected)} prosjektListe={prosjektList}/>
+            <PersonellSide userId={userId} prosjekt={prosjektList.find(p => p.id === selected)} prosjektListe={prosjektList} kanRedigere={redigerer}/>
           </div>
         )}
 
@@ -692,6 +695,7 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
               </p>
             </div>
           ) : (
+            <fieldset disabled={!redigerer} style={{ border:0, padding:0, margin:0, minWidth:0 }}>
             <div style={{ maxWidth:1180, display:'grid',
               gridTemplateColumns:'1fr 1fr', gap:'0 32px', alignItems:'start' }}>
 
@@ -1065,26 +1069,28 @@ export default function ProsjektModule({ userId, projects: existingProjects, off
               </Section>
 
               </div>
-              {/* ── Lagre-knapp (spenner over begge kolonnar) ── */}
-              <div style={{ gridColumn:'1 / -1', display:'flex', gap:10, marginTop:12, paddingBottom:40 }}>
+              {/* ── Lagre / slett (berre i endringsmodus; spenner over begge kolonnar) ── */}
+              {redigerer && (
+              <div style={{ gridColumn:'1 / -1', display:'flex', gap:10, marginTop:12, paddingBottom:40, alignItems:'center' }}>
                 <button onClick={lagreProsjekt}
-                  disabled={!dirty}
-                  style={{ padding:'10px 24px', borderRadius:'var(--r)',
-                    border:'none',
-                    background: dirty ? 'var(--brand)' : 'var(--bg4)',
-                    color: dirty ? '#fff' : 'var(--text3)',
-                    fontSize:14, fontWeight:700, cursor: dirty ? 'pointer' : 'default',
-                    fontFamily:'var(--font)', transition:'all .15s' }}>
+                  style={{ padding:'10px 24px', borderRadius:'var(--r)', border:'none', background:'var(--brand)', color:'#fff',
+                    fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
                   Lagre prosjektkort
                 </button>
-                {dirty && (
-                  <span style={{ fontSize:12, color:'var(--warn)', alignSelf:'center', fontWeight:500 }}>
-                    Ulagra endringar
-                  </span>
-                )}
+                {!erNytt && <button onClick={avbrytEndring}
+                  style={{ padding:'10px 18px', borderRadius:'var(--r)', border:'1.5px solid var(--border)', background:'transparent', color:'var(--text2)', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>Avbryt</button>}
+                {dirty && <span style={{ fontSize:12, color:'var(--warn)', fontWeight:500 }}>Ulagra endringar</span>}
+                <div style={{ flex:1 }}/>
+                <button onClick={() => erNytt ? forkastUtkast() : slettProsjekt(selected)}
+                  title={erNytt ? 'Forkast utkast' : 'Flytt prosjektet til papirkorga'}
+                  style={{ padding:'10px 18px', borderRadius:'var(--r)', border:'1.5px solid var(--danger)', background:'transparent', color:'var(--danger)', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+                  {erNytt ? '✕ Forkast utkast' : '🗑 Slett prosjekt'}
+                </button>
               </div>
+              )}
 
             </div>
+            </fieldset>
           )}
         </div>
         )}

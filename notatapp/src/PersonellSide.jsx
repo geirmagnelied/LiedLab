@@ -18,7 +18,7 @@ import { FAGROLLAR } from './leveranseplanGenerator'
 const knapp = { padding: '6px 12px', border: '1.5px solid var(--border)', borderRadius: 7, background: 'var(--bg2)', color: 'var(--text2)',
   fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font)', cursor: 'pointer' }
 
-export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
+export default function PersonellSide({ userId, prosjekt, prosjektListe, kanRedigere = false }) {
   const [personar, setPersonar] = useState([])
   const [lastar, setLastar] = useState(true)
   const [feil, setFeil] = useState('')
@@ -145,7 +145,7 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
           overbelastning vert varsla. Dobbeltklikk ei celle for å rette.
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      {kanRedigere ? (<div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button style={{ ...knapp, background: 'var(--brand)', borderColor: 'var(--brand)', color: '#fff' }} onClick={() => {}} hidden>+ Legg til person</button>
         <select value="" onChange={e => { if (e.target.value) leggTilAnsatt(e.target.value) }} disabled={!ledigeAnsatte.length}
           style={{ padding: '6px 8px', border: '1.5px solid var(--brand)', borderRadius: 7, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font)', background: 'var(--brand)', color: '#fff', cursor: 'pointer', opacity: ledigeAnsatte.length ? 1 : .6 }}
@@ -162,11 +162,11 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
           </select>
         )}
         {feil && <span style={{ fontSize: 12.5, color: 'var(--danger)' }}>{feil}</span>}
-      </div>
+      </div>) : <div style={{ fontSize: 12, color: 'var(--text3)' }}>Trykk «Endre prosjekt» (administrator) for å legge til eller endre personell.</div>}
       <div style={{ flex: 1, minHeight: 260, display: 'flex', flexDirection: 'column', border: '1.5px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
         {lastar ? <div style={{ padding: 16, color: 'var(--text3)', fontSize: 13 }}>Lastar…</div> : (
           <DataTabell rader={personar} kolonnar={kolonnar} hentVerdi={hentVerdi} radId={p => p.id}
-            onSetVerdi={settVerdi} radMeny={{ onSlett: (id) => slett(id) }} rutenettRedigering
+            onSetVerdi={kanRedigere ? settVerdi : undefined} radMeny={kanRedigere ? { onSlett: (id) => slett(id) } : undefined} rutenettRedigering={kanRedigere}
             prefsKey="liedlab-personell-v1" itemNamn="personar" defaultSortering={{ key: 'namn', dir: 'asc' }}/>
         )}
       </div>
