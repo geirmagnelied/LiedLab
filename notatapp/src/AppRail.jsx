@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useT } from './sprak'
-import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, GanttChartSquare, CalendarDays, ChevronsLeft, ChevronsRight, UserRound, PenTool, FileText, FolderKanban, Building2, Users, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, GanttChartSquare, CalendarDays, ChevronsLeft, ChevronsRight, UserRound, PenTool, FileText, FolderKanban, Building2, Users } from 'lucide-react'
 
 // ── Paraply-struktur (brukar sitt eige krav 30. sept. 2026) ──────────
 // «Admin» og «Gjeremål» er reine NAVIGASJONS-paraplyar utan eigen
@@ -17,7 +17,7 @@ const MODULES = [
   { key: 'framdrift', ikon: GanttChartSquare, letter: 'Fd',  label: 'Framdrift', color: '#34D399' },
   { key: 'kalender', ikon: CalendarDays,  letter: 'Ka',  label: 'Kalender', color: '#2A9D8F' },
   { key: 'malar', ikon: FileText, letter: 'Ml', label: 'Malar', color: '#38BDF8' },
-  { key: 'admin', ikon: Building2, letter: 'Kd', label: 'Kontordrift', color: '#9CA3AF', born: ['prosjekt', 'kunde', 'ansatte', 'kontorkalender'] },
+  { key: 'admin', ikon: Building2, letter: 'Kd', label: 'Kontordrift', color: '#9CA3AF', born: ['prosjekt', 'kunde', 'ansatte', 'kontorkalender', 'innst_kontor', 'innst_medlemmar', 'innst_kontaktar'] },
 ]
 
 // Undermodulane sjølve (dei EKSISTERANDE `activeModule`-verdiane, uendra —
@@ -30,6 +30,9 @@ export const UNDERMODULAR = {
     { key:'kunde',           letter:'K',  label:'Kundar',          color:'#D4537E' },
     { key:'ansatte',         letter:'A',  label:'Ansatte',         color:'#9CA3AF' },
     { key:'kontorkalender',  letter:'Ka', label:'Kontorkalender',  color:'#2A9D8F' },
+    { key:'innst_kontor',    letter:'Ko', label:'Kontor',          color:'#9CA3AF' },
+    { key:'innst_medlemmar', letter:'M',  label:'Medlemmar',       color:'#9CA3AF' },
+    { key:'innst_kontaktar', letter:'Kt', label:'Kontaktar',       color:'#9CA3AF' },
   ],
   gjeremaal: [
     { key:'saker',    letter:'S', label:'Saksbehandling', color:'#E07A5F' },
@@ -135,12 +138,6 @@ export default function AppRail({ activeModule, onModuleChange, modus = 'min', o
       ))}
 
       <div style={{ flex: 1, minHeight: 10 }}/>
-
-      {/* Botn-sone: berre Innstillingar (Brukar vert opna frå namnet i TN, Logg ut ligg i Brukar-modulen) */}
-      <div style={{ height: 1, background: 'var(--border)', margin: smal ? '0 10px 12px' : '0 4px 12px', alignSelf: 'stretch', flexShrink: 0 }}/>
-      <Knapp mod={{ color: '#9CA3AF' }} ikon={Settings} namn={t('topp.innstillingar', 'Innstillingar')} kode="In"
-        active={false} hovered={hoveredModule === 'innst'}
-        onClick={() => onOpenSettings?.()} onEnter={() => setHoveredModule('innst')} onLeave={() => setHoveredModule(null)}/>
 
       {/* Dra for å endre breidda */}
       {!mobil && <div onMouseDown={startDrag} title="Dra for å endre breidda (snappar til ikon / ikon+bokstav / ikon+tekst)"

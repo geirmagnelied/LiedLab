@@ -75,7 +75,6 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const [bileteMelding,     setBileteMelding]     = useState('')
   const fotoRef = useRef(null)
   const [activeOfficeId,    setActiveOfficeId]    = useState(null)    // null = show all
-  const [showSettings,      setShowSettings]      = useState(false)
   const [skisseMelding, setSkisseMelding] = useState('')
   const [railLive, setRailLive] = useState(null) // breidd på VN under dragning (så logorutå i toppen følgjer med)
   const [railModus, setRailModus] = useState(() => { try { const v = localStorage.getItem('liedlab-rail-modus'); return RAIL_MODUSAR.includes(v) ? v : 'min' } catch { return 'min' } })
@@ -391,8 +390,12 @@ function AppInnhald({ userId, userEmail, brukar }) {
   }
 
   if (isMobile) return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100vh',
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', boxSizing:'border-box',
+      paddingLeft:'env(safe-area-inset-left)', paddingRight:'env(safe-area-inset-right)',
       overflow:'hidden', background:'var(--bg)', position:'relative' }}>
+      {/* Liggande modus: svart, heildekkande marg over kamerautsnittet/«busslomma» på sidene (0 bredd når telefonen ikkje har noko) */}
+      <div aria-hidden style={{ position:'fixed', top:0, bottom:0, left:0, width:'env(safe-area-inset-left)', background:'#000', zIndex:200, pointerEvents:'none' }}/>
+      <div aria-hidden style={{ position:'fixed', top:0, bottom:0, right:0, width:'env(safe-area-inset-right)', background:'#000', zIndex:200, pointerEvents:'none' }}/>
 
       {/* Mobil-toppfelt: heilt svart felt øverst (under iPhone sin notch/«busslomme»), så rada med hamburger (venstre), prosjektvelgjar og brukar.
           Hamburgeren ekspanderer ned eksakt same navigasjon som venstremenyen på skrivebord (AppRail). Sjå claude/mobil-grensesnitt.md */}
@@ -409,7 +412,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
             </span>
           </button>
           <div style={{ flex:1, minWidth:0, display:'flex', justifyContent:'center' }}>
-            <ProsjektVelger projects={officeProjects} activeProjectId={selectedProjectId} onSelectProject={setSelectedProjectId} onToggleFavorite={toggleFavorite}/>
+            <ProsjektVelger kort projects={officeProjects} activeProjectId={selectedProjectId} onSelectProject={setSelectedProjectId} onToggleFavorite={toggleFavorite}/>
           </div>
           <button onClick={() => { setActiveModule('bruker'); setMobileSheet(false) }} title={brukar.visNamn || 'Brukar'}
             style={{ width:36, height:36, borderRadius:'50%', overflow:'hidden', flexShrink:0, cursor:'pointer', padding:0,
@@ -421,7 +424,6 @@ function AppInnhald({ userId, userEmail, brukar }) {
           <div style={{ position:'absolute', top:'100%', left:0, right:0, maxHeight:'calc(100vh - 120px)', overflowY:'auto', background:'var(--bg)', borderBottom:'1px solid var(--border)', boxShadow:'0 14px 30px rgba(0,0,0,.35)' }}>
             <AppRail mobil activeModule={activeModule} modus="full"
               onModuleChange={m => { setActiveModule(m); setMobileSheet(false) }}
-              onOpenSettings={() => { setShowSettings(true); setMobileSheet(false) }}
               onLogout={() => { import('./supabase').then(m => m.supabase.auth.signOut()) }}/>
           </div>
         )}
@@ -435,7 +437,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'bruker' && <BrukarModule userId={userId} userEmail={userEmail} brukar={brukar}/>}
         {activeModule === 'malar' && <MalarModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId} brukar={brukar} offices={offices} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'skisse' && <div style={{ height:'calc(100vh - 190px)', display:'flex', position:'relative' }}><SketchPad innbygd existingDataUrl={null} onClose={() => setActiveModule('dashboard')} onSave={lagreSkisse}/></div>}
-        {activeModule === 'dashboard' && <Dashboard userId={userId} userEmail={userEmail} activeOfficeId={activeOfficeId} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>}
+        {activeModule === 'dashboard' && <Dashboard userId={userId} userEmail={userEmail} activeOfficeId={activeOfficeId} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId} activeProjectId={selectedProjectId}/>}
         {activeModule === 'notatar' && (
           <>
             <div style={{ display:'flex', gap:6, marginBottom:12 }}>
@@ -468,6 +470,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'dtm' && <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
         {activeModule === 'bilete' && <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
         {['kontordrift', 'ansatte', 'kontorkalender'].includes(activeModule) && <KontordriftModule side={activeModule === 'kontorkalender' ? 'kalender' : 'ansatte'} userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>}
+        {INNST_SIDER[activeModule] && <SettingsPanel innbygd side={INNST_SIDER[activeModule]} offices={offices} activeOfficeId={activeOfficeId} userId={userId} userEmail={userEmail} onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}/>}
         {activeModule === 'framdrift' && <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId}/>}
       </div>
 
@@ -526,18 +529,6 @@ function AppInnhald({ userId, userEmail, brukar }) {
         />
       )}
 
-      {showSettings && (
-        <SettingsPanel
-          onClose={() => setShowSettings(false)}
-          offices={offices}
-          activeOfficeId={activeOfficeId}
-          userId={userId}
-          userEmail={userEmail}
-          onAddOffice={addOffice}
-          onUpdateOffice={updateOffice}
-          onDeleteOffice={deleteOffice}
-        />
-      )}
     </div>
   )
 
@@ -560,7 +551,6 @@ function AppInnhald({ userId, userEmail, brukar }) {
         brukarNamn={brukar.visNamn}
         brukarBilete={brukar.bileteUrl}
         onOpenBruker={() => setActiveModule('bruker')}
-        onOpenSettings={() => setShowSettings(true)}
         offices={offices}
         activeOfficeId={activeOfficeId}
         onSetOffice={handleSetOffice}
@@ -576,7 +566,6 @@ function AppInnhald({ userId, userEmail, brukar }) {
         modus={railModus}
         onModus={settRailModus}
         onLiveBredde={setRailLive}
-        onOpenSettings={() => setShowSettings(true)}
         onLogout={() => { import('./supabase').then(m => m.supabase.auth.signOut()) }}
       />
 
@@ -603,7 +592,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
       ) : activeModule === 'bruker' ? (
         <BrukarModule userId={userId} userEmail={userEmail} brukar={brukar}/>
       ) : activeModule === 'dashboard' ? (
-        <Dashboard userId={userId} userEmail={userEmail} activeOfficeId={activeOfficeId} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId}/>
+        <Dashboard userId={userId} userEmail={userEmail} activeOfficeId={activeOfficeId} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId} activeProjectId={selectedProjectId}/>
       ) : activeModule === 'prosjekt' ? (
         <ProsjektModule userId={userId} projects={officeProjects} offices={offices}
           activeOfficeId={activeOfficeId} addProject={addProject} onProjectCreated={reloadAll}
@@ -629,6 +618,8 @@ function AppInnhald({ userId, userEmail, brukar }) {
         <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>
       ) : ['kontordrift', 'ansatte', 'kontorkalender'].includes(activeModule) ? (
         <KontordriftModule side={activeModule === 'kontorkalender' ? 'kalender' : 'ansatte'} userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>
+      ) : INNST_SIDER[activeModule] ? (
+        <SettingsPanel innbygd side={INNST_SIDER[activeModule]} offices={offices} activeOfficeId={activeOfficeId} userId={userId} userEmail={userEmail} onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}/>
       ) : activeModule === 'framdrift' ? (
         <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId}/>
       ) : (
@@ -748,23 +739,14 @@ function AppInnhald({ userId, userEmail, brukar }) {
         />
       )}
 
-      {showSettings && (
-        <SettingsPanel
-          onClose={() => setShowSettings(false)}
-          offices={offices}
-          activeOfficeId={activeOfficeId}
-          userId={userId}
-          userEmail={userEmail}
-          onAddOffice={addOffice}
-          onUpdateOffice={updateOffice}
-          onDeleteOffice={deleteOffice}
-        />
-      )}
     </div>
 )
 }
 
-const MODULE_LABELS = { skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Kanban', saker:'Saksbehandling', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Framdrift' }
+// Innstillingane er ein del av Kontordrift (vert viste i hovudvindauget, ikkje som panel)
+const INNST_SIDER = { innst_kontor: 'office', innst_medlemmar: 'members', innst_kontaktar: 'kontaktar' }
+
+const MODULE_LABELS = { innst_kontor:'Kontor', innst_medlemmar:'Medlemmar', innst_kontaktar:'Kontaktar', skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Kanban', saker:'Saksbehandling', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Framdrift' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())

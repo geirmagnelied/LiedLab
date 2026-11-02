@@ -159,3 +159,7 @@ sjå noko i det heile, er allereie fulle kontormedlemmar.
   flat liste filtrert på klikk?
 
 **STATUS 2. nov. 2026 — del 1 (prosjektchat v1) bygd.** Tabell `prosjekt_meldingar` (`supabase-prosjekt-meldingar.sql`), RLS via `kan_se_prosjekt()` (select/insert; insert krev `user_id = auth.uid()`, ingen update/delete), Realtime på tabellen, ny fane «Chat» i Prosjekt (`ProsjektChat.jsx`). Meldingar vert vist som rein tekst, maks 4000 teikn, ein kronologisk straum, namn frå `office_members.invited_email`. `svar_til`/`tema`/`system` finst i tabellen men er ubrukte i UI. IKKJE gjort: søkeindeks (`sok_index`), vedlegg, @nemning/varsel, uleste-markering. Del 2 (samtalar) er ikkje bygd.
+
+## Chatten flytta til Dashboard + kontorchat (2. nov. 2026)
+- «Chat»-fana i Prosjekt er fjerna. Chatten ligg no som eit kort nedst i **Dashboard**: valt prosjekt → prosjektets chat (`prosjekt_meldingar`), «alle prosjekt» → generell **kontorchat** (ny tabell `kontor_meldingar`, RLS `is_office_member(office_id)`, Realtime; SQL i `notatapp/supabase-kontor-meldingar.sql`).
+- `ProsjektChat.jsx` handterer begge (prop `prosjekt` eller `kontorId`). Same avgrensingar som v1 (ingen redigering/sletting, søk, vedlegg, @nemning eller uleste-markering).

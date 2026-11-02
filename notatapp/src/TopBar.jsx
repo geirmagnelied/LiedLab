@@ -7,7 +7,25 @@ import { favorittForst } from './projectFavoritt'
 // kunne SØKJAST i, ikkje berre scrollast gjennom. Reint klientside-filter
 // over den alt innlasta `projects`-lista (ingen database-tur nødvendig,
 // til skilnad frå SokeFelt.jsx sitt innhaldssøk).
-export function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFavorite }) {
+// Mobil: prosjektnummer + forkorting, maks `maks` teikn. Så mykje av første ordet som det er plass til (med punktum bak),
+// så første bokstav (stor) i kvart av dei neste orda — «GreenH Langstranda for Consto» → «GreenH.LFC».
+export function kortProsjektNamn(p, maks = 20) {
+  const nr = p.projectNumber ? String(p.projectNumber).trim() : ''
+  const plass = maks - (nr ? nr.length + 1 : 0)
+  const namn = (p.name || '').trim()
+  let kort = namn
+  if (namn.length > plass) {
+    const ord = namn.split(/\s+/)
+    const forste = ord[0]
+    const initialar = ord.slice(1).map(o => (o.match(/[\p{L}\p{N}]/u) || [''])[0].toUpperCase()).filter(Boolean)
+    const rom = Math.max(2, plass - 1 - initialar.length)   // 1 = punktumet
+    kort = (forste.length > rom ? forste.slice(0, rom) : forste) + '.' + initialar.join('')
+    if (kort.length > plass) kort = kort.slice(0, plass)
+  }
+  return nr ? `${nr} ${kort}` : kort
+}
+
+export function ProsjektVelger({ projects, activeProjectId, onSelectProject, onToggleFavorite, kort = false }) {
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const [sok, setSok]   = useState('')
@@ -34,7 +52,7 @@ export function ProsjektVelger({ projects, activeProjectId, onSelectProject, onT
           background: active ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.06)',
           color:'#fff', fontSize:13, fontWeight:600, fontFamily:'var(--font)', cursor:'pointer',
           whiteSpace:'nowrap', textAlign:'left' }}>
-        {active ? merkelapp(active) : t('topp.alleProsjekt')}
+        {active ? (kort ? kortProsjektNamn(active) : merkelapp(active)) : t('topp.alleProsjekt')}
       </button>
       {open && (
         <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, width:300, maxHeight:360,

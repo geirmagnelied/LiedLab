@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from './supabase'
 import { useT } from './sprak'
+import ProsjektChat from './ProsjektChat'
 
 // Startsida: midtstilte, flytande «kort» med siste aktivitet og status.
 // Notat/oppgåver kjem frå den alt innlasta store (props); timar og DTM-endringar
@@ -46,12 +47,13 @@ const Rad = ({ hovud, under, hogre, onKlikk }) => (
   </div>
 )
 
-export default function Dashboard({ userId, userEmail, projects, notes, onOpneModul, onVelgProsjekt, activeOfficeId }) {
+export default function Dashboard({ userId, userEmail, projects, notes, onOpneModul, onVelgProsjekt, activeOfficeId, activeProjectId }) {
   const { t, sprak } = useT()
   const prosjektNamn = useMemo(() => Object.fromEntries((projects || []).map(p => [p.id, p.name])), [projects])
   const prosjektIds = useMemo(() => new Set((projects || []).map(p => p.id)), [projects])
   const [timar, setTimar] = useState(null)   // { 'YYYY-MM-DD': timar }
   const [dtm, setDtm] = useState(null)
+  const chatProsjekt = (projects || []).find(p => p.id === activeProjectId) || null   // valt prosjekt → prosjektchat; «alle prosjekt» → kontorchat
 
   const mnd = useMemo(() => mandag(new Date()), [])
   useEffect(() => {
@@ -143,6 +145,20 @@ export default function Dashboard({ userId, userEmail, projects, notes, onOpneMo
                 hogre={relTid(d.updated_at)} onKlikk={() => { onVelgProsjekt?.(d.project_id); onOpneModul('dtm') }}/>
             ))}
           </Kort>
+
+          {/* Chat: valt prosjekt → prosjektets chat, «alle prosjekt» → generell kontorchat */}
+          <div style={{ gridColumn: '1 / -1', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#A78BFA' }}/>
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text2)' }}>💬 Chat</span>
+              <span style={{ fontSize: 12.5, color: 'var(--text3)', fontWeight: 600 }}>— {chatProsjekt ? (chatProsjekt.projectNumber ? chatProsjekt.projectNumber + ' ' : '') + chatProsjekt.name : 'Heile kontoret'}</span>
+            </div>
+            <div style={{ height: 420, padding: '12px 16px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              {chatProsjekt || activeOfficeId
+                ? <ProsjektChat key={chatProsjekt ? 'p' + chatProsjekt.id : 'k' + activeOfficeId} prosjekt={chatProsjekt} kontorId={activeOfficeId} userId={userId}/>
+                : <Tom tekst="Vel eit kontor for å bruke chatten."/>}
+            </div>
+          </div>
         </div>
       </div>
     </div>

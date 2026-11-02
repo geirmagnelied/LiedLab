@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from './supabase'
 
-// Enkel prosjektchat v1: éin kronologisk straum per prosjekt. Same tilgang som resten av prosjektet (RLS: kan_se_prosjekt).
+// Enkel chat v1: éin kronologisk straum per prosjekt (`prosjekt`) eller, utan valt prosjekt, éin generell for heile kontoret (`kontorId`).
+// Prosjekt: same tilgang som prosjektet (RLS: kan_se_prosjekt). Kontor: alle aktive kontormedlemmar (RLS: is_office_member).
 // Ingen redigering/sletting. Meldingar vert vist som rein tekst (aldri HTML).
 const namnFraEpost = (e) => (e || '?').split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 const dagTekst = (iso) => new Date(iso).toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long' })
 const klokke = (iso) => new Date(iso).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
 
-export default function ProsjektChat({ prosjekt, userId }) {
+export default function ProsjektChat({ prosjekt, kontorId, userId }) {
   const [meldingar, setMeldingar] = useState([])
   const [namn, setNamn]           = useState({})   // user_id → visingsnamn
   const [tekst, setTekst]         = useState('')
@@ -15,7 +16,11 @@ export default function ProsjektChat({ prosjekt, userId }) {
   const [feil, setFeil]           = useState('')
   const [sender, setSender]       = useState(false)
   const botnRef = useRef(null)
-  const pid = prosjekt?.id
+  const erProsjekt = !!prosjekt
+  const pid = erProsjekt ? prosjekt.id : kontorId
+  const tabell = erProsjekt ? 'prosjekt_meldingar' : 'kontor_meldingar'
+  const nokkel = erProsjekt ? 'project_id' : 'office_id'
+  const namnKontor = erProsjekt ? prosjekt.officeId : kontorId
 
   const leggTil = useCallback((rad) => {
     setMeldingar(prev => prev.some(m => m.id === rad.id) ? prev : [...prev, rad].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id))
@@ -27,8 +32,8 @@ export default function ProsjektChat({ prosjekt, userId }) {
     setLastar(true); setFeil(''); setMeldingar([])
     ;(async () => {
       const [m, k] = await Promise.all([
-        supabase.from('prosjekt_meldingar').select('*').eq('project_id', pid).order('created_at', { ascending: true }).limit(500),
-        prosjekt.officeId ? supabase.from('office_members').select('user_id, invited_email').eq('office_id', prosjekt.officeId).eq('status', 'active') : Promise.resolve({ data: [] }),
+        supabase.from(tabell).select('*').eq(nokkel, pid).order('created_at', { ascending: true }).limit(500),
+        namnKontor ? supabase.from('office_members').select('user_id, invited_email').eq('office_id', namnKontor).eq('status', 'active') : Promise.resolve({ data: [] }),
       ])
       if (avbrote) return
       if (m.error) setFeil('Klarte ikkje hente meldingar: ' + m.error.message)
@@ -36,11 +41,11 @@ export default function ProsjektChat({ prosjekt, userId }) {
       setNamn(Object.fromEntries((k.data || []).filter(x => x.user_id).map(x => [x.user_id, namnFraEpost(x.invited_email)])))
       setLastar(false)
     })()
-    const kanal = supabase.channel('prosjekt-chat-' + pid)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'prosjekt_meldingar', filter: `project_id=eq.${pid}` }, p => leggTil(p.new))
+    const kanal = supabase.channel(tabell + '-' + pid)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: tabell, filter: `${nokkel}=eq.${pid}` }, p => leggTil(p.new))
       .subscribe()
     return () => { avbrote = true; supabase.removeChannel(kanal) }
-  }, [pid, prosjekt?.officeId, leggTil])
+  }, [pid, tabell, nokkel, namnKontor, leggTil])
 
   useEffect(() => { botnRef.current?.scrollIntoView({ block: 'end' }) }, [meldingar.length, lastar])
 
@@ -48,20 +53,20 @@ export default function ProsjektChat({ prosjekt, userId }) {
     const t = tekst.trim()
     if (!t || sender) return
     setSender(true); setFeil('')
-    const { data, error } = await supabase.from('prosjekt_meldingar').insert({ project_id: pid, user_id: userId, tekst: t }).select().single()
+    const { data, error } = await supabase.from(tabell).insert({ [nokkel]: pid, user_id: userId, tekst: t }).select().single()
     setSender(false)
     if (error) { setFeil('Klarte ikkje sende: ' + error.message); return }
     setTekst('')
     leggTil(data)
   }
 
-  if (!prosjekt) return null
+  if (!pid) return null
   let sisteDag = ''
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxWidth: 760, minHeight: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 2px 12px', minHeight: 0 }}>
         {lastar ? <div style={{ color: 'var(--text3)', fontSize: 13 }}>Lastar…</div>
-          : meldingar.length === 0 ? <div style={{ color: 'var(--text3)', fontSize: 13, textAlign: 'center', padding: 30 }}>Ingen meldingar enno. Skriv ei kort melding til alle i prosjektet.</div>
+          : meldingar.length === 0 ? <div style={{ color: 'var(--text3)', fontSize: 13, textAlign: 'center', padding: 30 }}>Ingen meldingar enno. {erProsjekt ? 'Skriv ei kort melding til alle i prosjektet.' : 'Skriv ei kort melding til alle på kontoret.'}</div>
           : meldingar.map(m => {
             const dag = dagTekst(m.created_at); const nyDag = dag !== sisteDag; sisteDag = dag
             const eg = m.user_id === userId

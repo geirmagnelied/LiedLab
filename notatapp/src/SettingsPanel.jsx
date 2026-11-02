@@ -9,8 +9,9 @@ const OFFICE_COLORS = [
   { label: 'Raud',    value: '#B91C1C' },
 ]
 
+// `innbygd` = vist i hovudvindauget som ein del av Kontordrift (side: 'office' | 'members' | 'kontaktar'), ikkje som flytande panel.
 export default function SettingsPanel({ onClose, offices, activeOfficeId, userId, userEmail,
-  onAddOffice, onUpdateOffice, onDeleteOffice }) {
+  onAddOffice, onUpdateOffice, onDeleteOffice, innbygd = false, side = 'office' }) {
   const [tab,        setTab]        = useState('office')  // 'office' | 'profile'
   const [members,    setMembers]    = useState([])
   const [loadingM,   setLoadingM]   = useState(true)
@@ -22,6 +23,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
   const [editColor,  setEditColor]  = useState('')
   const [firma, setFirma] = useState({ org_nr: '', adresse: '', postnr: '', poststad: '', telefon: '', epost: '' })   // firmainfo (ansvarleg søkjar i Malar-modulen)
   const panelRef = useRef(null)
+  const aktivTab = innbygd ? side : tab
 
   // ── Kontaktar (namn+initialar+e-post) — brukt av KS-modulen sin
   // egenkontroll/fagkontroll/godkjenning-arbeidsflyt til å slå opp
@@ -87,6 +89,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
 
   // Close on outside click
   useEffect(() => {
+    if (innbygd) return undefined
     const handler = (e) => {
       if (panelRef.current && !panelRef.current.contains(e.target)) onClose()
     }
@@ -147,9 +150,13 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
   }
 
   const s = {
-    overlay: { position:'fixed', inset:0, zIndex:900, background:'rgba(0,0,0,.35)',
+    overlay: innbygd
+      ? { flex:1, minWidth:0, overflowY:'auto', background:'var(--bg)', display:'flex', justifyContent:'center', alignItems:'flex-start' }
+      : { position:'fixed', inset:0, zIndex:900, background:'rgba(0,0,0,.35)',
       display:'flex', alignItems:'flex-start', justifyContent:'flex-start', padding:'0' },
-    panel:   { width:480, height:'100vh', background:'var(--bg2)', boxShadow:'var(--shadow-lg)',
+    panel:   innbygd
+      ? { width:'100%', maxWidth:720, display:'flex', flexDirection:'column' }
+      : { width:480, height:'100vh', background:'var(--bg2)', boxShadow:'var(--shadow-lg)',
       display:'flex', flexDirection:'column', overflow:'hidden' },
     header:  { background:'var(--brand)', padding:'20px 22px', display:'flex',
       alignItems:'center', justifyContent:'space-between', flexShrink:0 },
@@ -161,7 +168,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
       fontSize:14, fontWeight:active?700:500,
       borderBottom:active?'2px solid var(--brand)':'2px solid transparent',
       marginBottom:'-2px' }),
-    body:    { flex:1, overflowY:'auto', padding:'22px' },
+    body:    innbygd ? { padding:'4px 24px 48px' } : { flex:1, overflowY:'auto', padding:'22px' },
     label:   { fontSize:11, fontWeight:700, color:'var(--text3)',
       textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5, display:'block' },
     input:   { width:'100%', padding:'9px 12px', border:'1.5px solid var(--border)',
@@ -177,6 +184,12 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
     <div style={s.overlay}>
       <div ref={panelRef} style={s.panel}>
         {/* Header */}
+        {innbygd ? (
+          <div style={{ padding:'28px 24px 14px' }}>
+            <div style={{ fontSize:22, fontWeight:800, color:'var(--text)' }}>{{ office:'Kontor', members:'Medlemmar', kontaktar:'Kontaktar' }[side]}</div>
+            <div style={{ fontSize:12.5, color:'var(--text3)', marginTop:3 }}>{activeOffice?.name || 'Ingen kontor valt'}</div>
+          </div>
+        ) : (<>
         <div style={s.header}>
           <div>
             <div style={{ fontSize:17, fontWeight:800, color:'#fff' }}>Innstillingar</div>
@@ -199,10 +212,11 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
           <button style={s.tab(tab==='kontaktar')} onClick={() => setTab('kontaktar')}>Kontaktar</button>
           <button style={s.tab(tab==='profile')} onClick={() => setTab('profile')}>Min profil</button>
         </div>
+        </>)}
 
         <div style={s.body}>
           {/* ── Kontor-fana ── */}
-          {tab === 'office' && (
+          {aktivTab === 'office' && (
             <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
               <div>
                 <label style={s.label}>Namn</label>
@@ -268,7 +282,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
           )}
 
           {/* ── Medlemmar-fana ── */}
-          {tab === 'members' && (
+          {aktivTab === 'members' && (
             <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
               {isAdmin && (
                 <div style={{ background:'var(--bg3)', borderRadius:'var(--r2)',
@@ -365,7 +379,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
           )}
 
           {/* ── Kontaktar-fana (KS-varsling) ── */}
-          {tab === 'kontaktar' && (
+          {aktivTab === 'kontaktar' && (
             <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
               <p style={{ fontSize:12.5, color:'var(--text3)', lineHeight:1.6, margin:0 }}>
                 Brukt til å slå opp e-postadressa når kvalitetssystemet skal varsle om at eit dokument er klart
@@ -410,7 +424,7 @@ export default function SettingsPanel({ onClose, offices, activeOfficeId, userId
           )}
 
           {/* ── Profil-fana ── */}
-          {tab === 'profile' && (
+          {aktivTab === 'profile' && (
             <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
               <div style={{ display:'flex', alignItems:'center', gap:14,
                 padding:'16px', background:'var(--bg3)', borderRadius:'var(--r2)' }}>
