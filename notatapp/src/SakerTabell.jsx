@@ -8,7 +8,7 @@ import {
 } from './sakerKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
-//  Saksbehandling-tabellen — saker og oppgåver (frå notat/oppgåve-inndata) i same liste; type går fram av «Type»-kolonna.
+//  Saksbehandling-tabellen — saker, oppgåver (frå notat/oppgåve-inndata) og notat i same liste; type går fram av «Type»-kolonna.
 //  Kolonnedefinisjonar og celle-visning; sjølve tabellmotoren ligg i DataTabell. Kvar rad er bygd i SakerModule:
 //    { radId: 'S12' | 'O<notat>_<oppgåve>', rad: 'sak' | 'oppgave', number, title, status, statusLabel, statusFarge, ansvarlig, frist, opprettet, … }
 //  Kolonnene som berre gjeld saker (Fag, Sakstype, Prioritet, Kommentarar …) er skjult som standard og viser «—» for oppgåver.
@@ -46,7 +46,8 @@ export const radNr = (r) => String(r.number ?? '')
 
 export default function SakerTabell({
   rader, comments, eigne = [],
-  onOpenRad, onSetExtra, onNyKolonne, onSlettKolonne, verktoyForan, verktoyEtter,
+  onOpenRad, onSetExtra, onNyKolonne, onSlettKolonne, verktoyForan, verktoyEtter, verktoyHogre,
+  onRowClick, valtId, merking, radMeny,
 }) {
   const antalKommentarar = useCallback((c) => (c.rad === 'sak' ? (comments?.[c.id] || []).length : 0), [comments])
 
@@ -55,7 +56,7 @@ export default function SakerTabell({
     switch (key) {
       case 'prosjekt':  return c.prosjektNr || '—'
       case 'number':    return radNr(c)
-      case 'rad':       return sak ? 'Sak' : 'Oppgåve'
+      case 'rad':       return c.typeTekst || (sak ? 'Sak' : 'Oppgåve')
       case 'title':     return c.title || ''
       case 'status':    return c.statusLabel || ''
       case 'prioritet': return sak ? (PRIO_LABELS[c.prioritet] || c.prioritet || '') : '—'
@@ -74,7 +75,7 @@ export default function SakerTabell({
 
   const hentSorteringsverdi = useCallback((c, key) => {
     switch (key) {
-      case 'number':    return (c.rad === 'sak' ? 0 : 1000000) + (Number(c.number) || 0)
+      case 'number':    return (c.rad === 'sak' ? 0 : c.rad === 'notat' ? 2000000 : 1000000) + (Number(c.number) || 0)
       case 'status':    return STATUS_RANG.indexOf(c.statusLabel)
       case 'prioritet': return c.rad === 'sak' ? PRIO_ORDER.indexOf(c.prioritet) : 99
       case 'frist':     return c.frist ? new Date(c.frist).getTime() : Infinity
@@ -87,12 +88,13 @@ export default function SakerTabell({
 
   const lagCelle = useCallback((c, kol, { farge }) => {
     const t = hentVerdi(c, kol.key)
+    if (kol.key === 'status' && !t) return <span style={{ color: 'var(--text3)', opacity: .5 }}>—</span>
     if (kol.key === 'status')    return <Pille tekst={t} farge={farge ? (c.statusFarge || STATUS_COLORS[c.status]) : null}/>
     if (kol.key === 'prioritet') return t === '—' ? <span style={{ color: 'var(--text3)', opacity: .5 }}>—</span> : <Pille tekst={t} farge={farge ? PRIO_COLORS[c.prioritet] : null}/>
     if (kol.key === 'title')     return <span style={{ fontWeight: 600, color: 'var(--text)' }}>{t}</span>
     // Sak: mørk grøn bakgrunn / oppgåve: matchande lys grøn
     if (kol.key === 'rad')       return farge
-      ? (c.rad === 'sak' ? <Pille tekst={t} bakgrunn="#1F6B4A" tekstfarge="#fff"/> : <Pille tekst={t} bakgrunn="#CDEBDC" tekstfarge="#1F6B4A"/>)
+      ? (c.rad === 'sak' ? <Pille tekst={t} bakgrunn="#1F6B4A" tekstfarge="#fff"/> : c.rad === 'notat' ? <Pille tekst={t} bakgrunn="#DCEBFA" tekstfarge="#1E5A96"/> : <Pille tekst={t} bakgrunn="#CDEBDC" tekstfarge="#1F6B4A"/>)
       : <Pille tekst={t}/>
     if (kol.key === 'number' || kol.key === 'prosjekt' || kol.key === 'sak')
       return <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--text2)' }}>{t}</span>
@@ -125,16 +127,20 @@ export default function SakerTabell({
       lagCelle={lagCelle}
       rangering={rangering}
       radId={c => c.radId}
-      radStil={c => ({ opacity: c.ferdig ? .6 : 1 })}
+      radStil={c => ({ opacity: c.ferdig ? .6 : 1, ...(c.radId === valtId ? { background: 'var(--brandbg)' } : {}) })}
       onOpenRad={id => onOpenRad?.(id)}
+      onRowClick={(id, r) => onRowClick?.(id, r)}
+      merking={merking}
+      radMeny={radMeny}
       verktoyForan={verktoyForan}
       verktoyEtter={verktoyEtter}
+      verktoyHogre={verktoyHogre}
       visningsMeny
-      onSetExtra={(id, key, val) => { if (String(id).startsWith('S')) onSetExtra?.(Number(String(id).slice(1)), key, val) }}
+      onSetExtra={(id, key, val) => onSetExtra?.(id, key, val)}
       onNyKolonne={onNyKolonne}
       onSlettKolonne={onSlettKolonne}
       prefsKey={PREFS_KEY}
-      itemNamn="saker og oppgåver"
+      itemNamn="saker, oppgåver og notat"
       defaultSortering={{ key: 'opprettet', dir: 'desc' }}
     />
   )

@@ -9,7 +9,7 @@ import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, I
 const MODULES = [
   { key: 'dashboard', ikon: LayoutDashboard, letter: 'D',   label: 'Dashboard', color: '#A78BFA' },
   { key: 'dtm', ikon: FolderTree,       letter: 'DTM', label: 'Dokument, tegningar og modellar', color: '#E9C46A' },
-  { key: 'gjeremaal', ikon: ListChecks, letter: 'S',   label: 'Saksbehandling', color: '#52B788', born: ['saker', 'oppgaver', 'notatar'] },
+  { key: 'gjeremaal', ikon: ListChecks, letter: 'S',   label: 'Saksbehandling', color: '#52B788', born: ['saker', 'oppgaver'] },
   { key: 'timar', ikon: Clock,     letter: 'T',   label: 'Timar',    color: '#60A5D4' },
   { key: 'kvalitet', ikon: ShieldCheck,  letter: 'KS',  label: 'Kvalitetssystem', color: '#EC9A5A' },
   { key: 'bilete', ikon: BileteIkon,    letter: 'B',   label: 'Bilete',   color: '#F4A261' },
@@ -37,7 +37,6 @@ export const UNDERMODULAR = {
   gjeremaal: [
     { key:'saker',    letter:'S', label:'Saksbehandling', color:'#E07A5F' },
     { key:'oppgaver', letter:'K', label:'Kanban',   color:'#4EADA3' },
-    { key:'notatar',  letter:'N', label:'Notatar',  color:'#52B788' },
   ],
 }
 

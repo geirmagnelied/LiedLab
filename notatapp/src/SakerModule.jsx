@@ -6,6 +6,8 @@ import NySakModal from './NySakModal'
 import OppgaveVindauge from './OppgaveVindauge'
 import OppgaveInnfoering from './OppgaveInnfoering'
 import Timeline from './Timeline'
+import NotePreview from './NotePreview'
+import { SakForhandsvising, OppgaveForhandsvising, TomForhandsvising } from './SakerForhandsvising'
 import usePersonar from './usePersonar'
 import { opneVedlegg, vedleggOpplastingSti } from './vedlegg'
 import { FELT } from './FlyttbartModal'
@@ -28,14 +30,17 @@ function fmtDate(iso) {
 function initials(name) { return (name || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Saksbehandling — saker (cases) og oppgåver (notat-oppgåver, notes.tasks) i éi tabell.
+//  Saksbehandling — saker (cases), oppgåver (notat-oppgåver, notes.tasks) og notat i éi tabell (notat vart slått saman hit 2. nov. 2026).
+//  Markert rad vert vist i ei førehandsvising heilt til høgre (notat: NotePreview, sak/oppgåve: SakerForhandsvising).
 //  Oppgåver er IKKJE Kanban-kort: dei vert laga med same inndata som «Ny oppgåve» i Notatar (OppgaveInnfoering) og kan høyre til ei sak
 //  (cases.linked_tasks). Kanban-kort er eigne kort som brukaren sjølv lagar i Kanban-modulen.
 //  Saksstatus: Registrert (raud) → Påbegynt (gul) → Lukka (grøn).
 // ═══════════════════════════════════════════════════════════════════
 const oppgRadId = (noteId, taskId) => 'O' + noteId + '_' + taskId
 
-export default function SakerModule({ userId, userEmail, activeProjectId, projects, notes, activeOfficeId, onAddNote, onUpdateTask, onDeleteTask }) {
+export default function SakerModule({ userId, userEmail, activeProjectId, projects, notes, activeOfficeId, onAddNote, onUpdateTask, onDeleteTask,
+  onNyttNotat, onEditNote, onDeleteNote, onToggleNoteDone, onToggleNoteFavorite, onToggleNotePinned,
+  noteColumns = [], onSetNoteExtra, onDeleteNoteColumn, fristVisning }) {
   const activeProject = (projects || []).find(p => p.id === activeProjectId)
   // Berre notat frå det aktive prosjektet skal kunne koplast til ei sak
   const projectNotes = (notes || []).filter(n => n.projectId === activeProjectId)
@@ -55,7 +60,14 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
   const [oppgModal, setOppgModal]   = useState(null) // { modus: 'ny' } | { modus: 'edit', noteId, task }
   const [visSaker, setVisSaker]     = useState(true)
   const [visOppgaver, setVisOppgaver] = useState(true)
-  const [skjulFerdige, setSkjulFerdige] = useState(false)
+  const [visNotat, setVisNotat]     = useState(true)
+  const [ferdigVal, setFerdigVal]   = useState('alle') // lukka saker / ferdige oppgåver / arkiverte notat: 'alle' | 'skjul' | 'berre'
+  const [visning, setVisning]      = useState('tabell') // 'tabell' | 'fristar'
+  const [valtId, setValtId]         = useState(null)     // enkeltklikka rad → førehandsvising til høgre
+  const [valde, setValde]           = useState(() => new Set())
+  const [nyttMeny, setNyttMeny]     = useState(false)
+  const [previewBr, setPreviewBr]   = useState(() => { try { const v = parseInt(localStorage.getItem('liedlab-notat-preview-w')); return isNaN(v) ? 380 : v } catch { return 380 } })
+  const mobil = typeof window !== 'undefined' && window.innerWidth < 768
   const [fristFilter, setFristFilter] = useState('alle') // 'alle' | 'veke' | 'manad'
   const [filterOpen, setFilterOpen] = useState(false)
   const [tidslinje, setTidslinje]   = useState(() => { try { return localStorage.getItem('liedlab-gjeremaal-tidslinje') === '1' } catch { return false } })
@@ -337,32 +349,50 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
   const prosjektNr = activeProject?.projectNumber || ''
   const sakNrAvOppgave = {}
   cases.forEach(c => (c.linkedTasks || []).forEach(l => { sakNrAvOppgave[l.noteId + '|' + l.taskId] = caseNoText(c.number) }))
-  const oppgaveRader = projectNotes.flatMap(n => (n.tasks || []).map(t => ({
+  // Notat: det valde prosjektet sine, eller alle (kontoret) når «alle prosjekt» er valt
+  const scopeNotes = activeProjectId ? projectNotes : (notes || [])
+  const prosjektNrAv = (pid) => (projects || []).find(p => p.id === pid)?.projectNumber || ''
+  const sakNrAvNotat = {}
+  cases.forEach(c => (c.linkedNotes || []).forEach(id => { sakNrAvNotat[id] = caseNoText(c.number) }))
+  const notatRader = scopeNotes
+    .filter(n => !(n.tag === 'oppgåve' && !(n.text || '').trim() && !(n.html || '').trim()))   // reine oppgåve-notat vert vist som oppgåver
+    .map(n => ({
+      rad: 'notat', radId: 'N' + n.id, id: n.id, noteId: n.id, number: n.nr ?? '',
+      title: n.title || n.text?.substring(0, 60) || 'Utan tittel', description: n.text || '',
+      typeTekst: n.isMeeting ? 'Møte' : n.isReferat ? 'Referat' : 'Notat',
+      status: n.done ? 'arkivert' : '', statusLabel: n.done ? 'Arkivert' : '', statusFarge: '#6B7280',
+      ansvarlig: '', frist: '', opprettet: n.createdAt || '', prosjektNr: prosjektNrAv(n.projectId), sakNr: sakNrAvNotat[n.id] || '',
+      ferdig: !!n.done, favorite: !!n.favorite, pinned: !!n.pinned, ekstra: n.ekstra || {}, linkedNotes: [], linkedTasks: [],
+    }))
+  const oppgaveRader = scopeNotes.flatMap(n => (n.tasks || []).map(t => ({
     rad: 'oppgave', radId: oppgRadId(n.id, t.id), id: t.id, noteId: n.id, number: t.nr ?? '', title: t.text || '',
     status: t.done ? 'lukka' : 'ny', statusLabel: STATUS_LABELS[t.done ? 'lukka' : 'ny'], statusFarge: STATUS_COLORS[t.done ? 'lukka' : 'ny'],
     ansvarlig: t.ansvarleg || '', frist: t.date || '', opprettet: t.id > 1e12 ? new Date(t.id).toISOString() : (n.createdAt || ''),
-    prosjektNr, sakNr: sakNrAvOppgave[n.id + '|' + t.id] || '', ferdig: !!t.done, ekstra: {}, linkedNotes: [], linkedTasks: [],
+    prosjektNr: prosjektNrAv(n.projectId), noteTittel: n.title || '', sakNr: sakNrAvOppgave[n.id + '|' + t.id] || '', ferdig: !!t.done, ekstra: {}, linkedNotes: [], linkedTasks: [],
   })))
   const alleRader = [
     ...cases.map(c => ({ ...c, rad: 'sak', radId: 'S' + c.id, prosjektNr, statusLabel: STATUS_LABELS[c.status] || c.status, statusFarge: STATUS_COLORS[c.status], ferdig: c.status === 'lukka',
       number: caseNoText(c.number) })),
     ...oppgaveRader,
+    ...notatRader,
   ]
   const soek = search.trim().toLowerCase()
   const rader = alleRader.filter(r => {
-    if (r.rad === 'sak' ? !visSaker : !visOppgaver) return false
-    if (skjulFerdige && r.ferdig) return false
+    if (r.rad === 'sak' ? !visSaker : r.rad === 'oppgave' ? !visOppgaver : !visNotat) return false
+    if (ferdigVal === 'skjul' && r.ferdig) return false
+    if (ferdigVal === 'berre' && !r.ferdig) return false
     if (fagFilter !== 'alle' && (r.rad !== 'sak' || r.fag !== fagFilter)) return false
     if (fristFilter !== 'alle' && !fristIPeriode(r.frist, fristFilter)) return false
-    if (soek && ![r.title, r.number, r.description, r.ansvarlig, r.fag, r.statusLabel, r.rad === 'sak' ? 'sak' : 'oppgåve'].join(' ').toLowerCase().includes(soek)) return false
+    if (soek && ![r.title, r.number, r.description, r.ansvarlig, r.fag, r.statusLabel, r.typeTekst || (r.rad === 'sak' ? 'sak' : 'oppgåve'), r.prosjektNr].join(' ').toLowerCase().includes(soek)) return false
     return true
   })
-  const aktiveFilter = (visSaker ? 0 : 1) + (visOppgaver ? 0 : 1) + (skjulFerdige ? 1 : 0) + (fagFilter !== 'alle' ? 1 : 0) + (fristFilter !== 'alle' ? 1 : 0)
+  const aktiveFilter = (visSaker ? 0 : 1) + (visOppgaver ? 0 : 1) + (visNotat ? 0 : 1) + (ferdigVal !== 'alle' ? 1 : 0) + (fagFilter !== 'alle' ? 1 : 0) + (fristFilter !== 'alle' ? 1 : 0)
   const openCase = cases.find(c => c.id === openCaseId)
-  const nullstillFilter = () => { setVisSaker(true); setVisOppgaver(true); setSkjulFerdige(false); setFagFilter('alle'); setFristFilter('alle') }
+  const nullstillFilter = () => { setVisSaker(true); setVisOppgaver(true); setVisNotat(true); setFerdigVal('alle'); setFagFilter('alle'); setFristFilter('alle') }
 
   const opneRad = (id) => {
     const s = String(id)
+    if (s[0] === 'N') { const n = (notes || []).find(x => 'N' + x.id === s); if (n) onEditNote?.(n); return }
     if (s[0] === 'S') { setOpenCaseId(Number(s.slice(1))); return }
     const m = s.match(/^O(\d+)_(\d+)$/); if (!m) return
     const note = (notes || []).find(n => String(n.id) === m[1]); const task = (note?.tasks || []).find(t => String(t.id) === m[2])
@@ -375,33 +405,83 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
     tasks: [{ id: r.radId, text: (r.rad === 'sak' ? 'Sak ' : '') + r.title, date: String(r.frist).slice(0, 10), done: false }],
   }))
 
-  // ── Ingen prosjekt valt ────────────────────────────────────────
-  if (!activeProjectId) {
-    return (
-      <div style={{ display:'flex', flex:1, flexDirection:'column', overflow:'hidden' }}>
-        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:14 }}>
-          <div style={{ width:72, height:72, borderRadius:18, background:'var(--brandbg2)',
-            display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, fontWeight:900, color:'var(--brand)' }}>S</div>
-          <p style={{ fontSize:14, color:'var(--text3)', textAlign:'center', maxWidth:380, lineHeight:1.7 }}>
-            {'Saksbehandling (saker og oppgåver) er organisert per prosjekt. Vel eit prosjekt i nedtrekksmenyen øvst for å sjå og opprette saker og oppgåver.'}
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   const KNAPP_PRIM = { padding:'7px 14px', borderRadius:'var(--r)', border:'none', background:'var(--brand)', color:'#fff', fontWeight:700, fontSize:12.5, cursor:'pointer', fontFamily:'var(--font)' }
   const KNAPP_SEK = { padding:'7px 14px', borderRadius:'var(--r)', border:'1.5px solid var(--brand2)', background:'var(--brandbg)', color:'var(--brand)', fontWeight:700, fontSize:12.5, cursor:'pointer', fontFamily:'var(--font)' }
   const ETIKETT = { fontSize:10.5, fontWeight:800, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.07em' }
 
-  // Verktøylinja i tabellen: ny sak/oppgåve, søk (i både saker og oppgåver, etter filteret), filter — og Visning/kolonnar står til høgre for dei
+  // Eigne kolonnar: sakene sine (case_columns) + notata sine (note_columns); verdiane ligg i høvesvis cases.ekstra og notes.ekstra
+  const alleKolonnar = [...eigneKolonnar, ...noteColumns.filter(k => !eigneKolonnar.some(e => e.key === k.key))]
+  const settEkstra = (id, key, val) => {
+    const t = String(id)
+    if (t[0] === 'S') setExtraValue(Number(t.slice(1)), key, val)
+    else if (t[0] === 'N') onSetNoteExtra?.(Number(t.slice(1)), key, val)
+  }
+  const slettKolonne = (key) => (noteColumns.some(k => k.key === key) ? onDeleteNoteColumn?.(key) : deleteColumn(key))
+
+  // Massehandlingar (shift/ctrl-klikk) og radmeny gjeld notat; sak/oppgåve har sine eigne statusar
+  const valdeNotat = (notes || []).filter(n => valde.has('N' + n.id))
+  const slettNotatMedStadfesting = (n) => { if (window.confirm('Sikker på at du vil slette notatet «' + (n.title || n.text?.substring(0, 60) || 'Utan tittel') + '»?\n\nDenne handlinga kan ikkje angrast.')) onDeleteNote?.(n.id) }
+  const arkiverValde = () => { valdeNotat.forEach(n => { if (!n.done) onToggleNoteDone?.(n.id) }); setValde(new Set()) }
+  const slettValde = () => {
+    if (!window.confirm('Sikker på at du vil slette ' + valdeNotat.length + ' notat?\n\nDenne handlinga kan ikkje angrast.')) return
+    valdeNotat.forEach(n => onDeleteNote?.(n.id)); setValde(new Set())
+  }
+  const radMeny = {
+    gjelder: r => r.rad === 'notat',
+    erFavoritt: r => !!r.favorite, onFavoritt: (id, r) => onToggleNoteFavorite?.(r.noteId),
+    erFesta: r => !!r.pinned, onFestTilTopp: (id, r) => onToggleNotePinned?.(r.noteId),
+    erArkivert: r => !!r.ferdig, onArkiver: (id, r) => onToggleNoteDone?.(r.noteId),
+    onSlett: (id, r) => { const n = (notes || []).find(x => x.id === r.noteId); if (n) slettNotatMedStadfesting(n) },
+    ekstraVal: [{ ikon: '↗', namn: 'Opne', onKlikk: (id) => opneRad(id) }],
+  }
+
+  // Førehandsvising heilt til høgre (som i Notatar): markert notat, sak eller oppgåve
+  const valtRad = alleRader.find(r => r.radId === valtId)
+  const forhandsvising = () => {
+    if (!valtRad) return <TomForhandsvising/>
+    if (valtRad.rad === 'notat') {
+      const n = (notes || []).find(x => x.id === valtRad.noteId)
+      return n ? <NotePreview note={n} projects={projects} onEdit={onEditNote} onUpdateTask={onUpdateTask}/> : <TomForhandsvising/>
+    }
+    if (valtRad.rad === 'sak') {
+      const c = cases.find(x => x.id === valtRad.id)
+      return c ? <SakForhandsvising c={c} comments={comments[c.id] || []} notat={projectNotes} onOpne={() => setOpenCaseId(c.id)}
+        onToggleOppgave={(noteId, taskId, done) => onUpdateTask?.(noteId, taskId, { done })} onOpenOppgave={opneRad} onVelgRad={setValtId}/> : <TomForhandsvising/>
+    }
+    return <OppgaveForhandsvising rad={valtRad} onToggle={(noteId, taskId, done) => onUpdateTask?.(noteId, taskId, { done })} onRediger={() => opneRad(valtRad.radId)} onVelgRad={setValtId}/>
+  }
+  const maxPreviewBr = () => Math.max(500, Math.round(window.innerWidth * 0.7))
+  const startPreviewResize = (e) => {
+    e.preventDefault()
+    const startX = e.clientX, startW = previewBr
+    const flytt = (ev) => setPreviewBr(Math.max(240, Math.min(maxPreviewBr(), Math.round(startW - (ev.clientX - startX)))))
+    const slepp = () => {
+      window.removeEventListener('mousemove', flytt); window.removeEventListener('mouseup', slepp); document.body.style.cursor = ''
+      setPreviewBr(w => { try { localStorage.setItem('liedlab-notat-preview-w', String(w)) } catch { /* privat modus */ } return w })
+    }
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('mousemove', flytt); window.addEventListener('mouseup', slepp)
+  }
+
+  // Verktøylinja i tabellen: ny sak/oppgåve/notat (nedtrekk), filter — Visning/kolonnar står til høgre for dei, og søket heilt til høgre
   const verktoyForan = (<>
-    <button onClick={()=>setShowNewModal(true)} style={KNAPP_PRIM}>+ Ny sak</button>
+    <button onClick={()=>setShowNewModal(true)} disabled={!activeProjectId} title={activeProjectId ? undefined : 'Vel eit prosjekt øvst for å lage ei sak'}
+      style={{ ...KNAPP_PRIM, opacity: activeProjectId ? 1 : .5, cursor: activeProjectId ? 'pointer' : 'default' }}>+ Ny sak</button>
     <button onClick={()=>setOppgModal({ modus: 'ny' })} style={KNAPP_SEK}>{'+ Ny oppgåve'}</button>
+    <div style={{ position:'relative' }}>
+      <button onClick={()=>setNyttMeny(v=>!v)} style={KNAPP_SEK}>{'+ Nytt notat ▾'}</button>
+      {nyttMeny && (<>
+        <div onClick={()=>setNyttMeny(false)} style={{ position:'fixed', inset:0, zIndex:90 }}/>
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:100, minWidth:160, padding:6, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:'var(--r2)', boxShadow:'var(--shadow-lg)' }}>
+          {[['regular', 'Nytt notat'], ['meeting', 'Nytt møte'], ['referat', 'Nytt referat']].map(([typ, namn]) => (
+            <button key={typ} onClick={()=>{ setNyttMeny(false); onNyttNotat?.(typ) }}
+              style={{ display:'block', width:'100%', textAlign:'left', padding:'8px 12px', border:'none', borderRadius:6, background:'transparent', color:'var(--text)', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--bg3)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{namn}</button>
+          ))}
+        </div>
+      </>)}
+    </div>
     <div style={{ width:1, height:22, background:'var(--border)' }}/>
-    <input placeholder={'Søk i saker og oppgåver…'} value={search} onChange={e=>setSearch(e.target.value)}
-      style={{ padding:'7px 12px', borderRadius:'var(--r)', border:'1.5px solid var(--border)', background:'var(--bg)', color:'var(--text)',
-        fontSize:12.5, fontFamily:'var(--font)', outline:'none', width:230 }}/>
     <div style={{ position:'relative' }}>
       <button type="button" className="dt-knapp" onClick={()=>setFilterOpen(v=>!v)}
         style={aktiveFilter ? { borderColor:'var(--brand2)', background:'var(--brandbg)', color:'var(--brand)' } : undefined}>
@@ -417,7 +497,12 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
           <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
             <input type="checkbox" checked={visOppgaver} onChange={e=>setVisOppgaver(e.target.checked)}/>{'Oppgåver'} <span style={{ color:'var(--text3)' }}>({oppgaveRader.length})</span></label>
           <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
-            <input type="checkbox" checked={skjulFerdige} onChange={e=>setSkjulFerdige(e.target.checked)}/>Skjul lukka</label>
+            <input type="checkbox" checked={visNotat} onChange={e=>setVisNotat(e.target.checked)}/>Notat <span style={{ color:'var(--text3)' }}>({notatRader.length})</span></label>
+          <div style={{ ...ETIKETT, marginTop:4 }}>Lukka / arkivert</div>
+          {[['alle', 'Vis alle'], ['skjul', 'Skjul lukka og arkiverte'], ['berre', 'Berre lukka og arkiverte']].map(([v, t]) => (
+            <label key={v} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+              <input type="radio" name="gjeremaal-ferdig" checked={ferdigVal === v} onChange={()=>setFerdigVal(v)}/>{t}</label>
+          ))}
           <div style={{ ...ETIKETT, marginTop:4 }}>Frist</div>
           {[['alle', 'Alle fristar'], ['veke', 'Frist denne veka'], ['manad', 'Frist denne månaden']].map(([v, t]) => (
             <label key={v} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
@@ -426,34 +511,80 @@ export default function SakerModule({ userId, userEmail, activeProjectId, projec
           <div style={{ ...ETIKETT, marginTop:4 }}>Fag (berre saker)</div>
           <select value={fagFilter} onChange={e=>setFagFilter(e.target.value)} style={FELT}>
             <option value="alle">Alle fag</option>{FAG.map(f => <option key={f} value={f}>{f}</option>)}</select>
+          {fristVisning && (<>
+            <div style={{ ...ETIKETT, marginTop:4 }}>Oversikt</div>
+            <div style={{ display:'flex', gap:6 }}>
+              <button type="button" className="dt-knapp" onClick={()=>{ setVisning('tabell'); setFilterOpen(false) }} style={visning === 'tabell' ? { borderColor:'var(--brand2)', background:'var(--brandbg)', color:'var(--brand)' } : undefined}>Tabell</button>
+              <button type="button" className="dt-knapp" onClick={()=>{ setVisning('fristar'); setFilterOpen(false) }} style={visning === 'fristar' ? { borderColor:'var(--brand2)', background:'var(--brandbg)', color:'var(--brand)' } : undefined}>Fristar</button>
+            </div>
+          </>)}
           {aktiveFilter > 0 && <button onClick={nullstillFilter}
             style={{ alignSelf:'flex-start', background:'none', border:'none', color:'var(--brand)', fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'var(--font)', padding:0 }}>Nullstill filter</button>}
         </div>
       </>)}
     </div>
+    {valdeNotat.length > 0 && (
+      <div style={{ display:'flex', alignItems:'center', gap:6, padding:'3px 10px', borderRadius:20, background:'var(--brandbg)' }}>
+        <span style={{ fontSize:12, fontWeight:700, color:'var(--brand)' }}>{valdeNotat.length} notat valt</span>
+        <button onClick={arkiverValde} className="dt-knapp" style={{ padding:'3px 9px' }}>Arkiver valde</button>
+        <button onClick={slettValde} className="dt-knapp" style={{ padding:'3px 9px', color:'#B91C1C', borderColor:'#B91C1C' }}>Slett valde</button>
+        <button onClick={()=>setValde(new Set())} className="dt-knapp" style={{ padding:'3px 9px' }}>Avbryt</button>
+      </div>
+    )}
   </>)
   const verktoyEtter = (
-    <button type="button" className="dt-knapp" onClick={()=>settTidslinje(!tidslinje)} title="Vis frist-tidslinja (same som i Notatar) for saker og oppgåver"
+    <button type="button" className="dt-knapp" onClick={()=>settTidslinje(!tidslinje)} title="Vis frist-tidslinja for saker, oppgåver og notat"
       style={tidslinje ? { borderColor:'var(--brand2)', background:'var(--brandbg)', color:'var(--brand)' } : undefined}>Tidslinje</button>
+  )
+  const verktoyHogre = (
+    <input placeholder={'Søk i saker, oppgåver og notat…'} value={search} onChange={e=>setSearch(e.target.value)}
+      style={{ padding:'7px 12px', borderRadius:'var(--r)', border:'1.5px solid var(--border)', background:'var(--bg)', color:'var(--text)',
+        fontSize:12.5, fontFamily:'var(--font)', outline:'none', width:230 }}/>
   )
 
   return (
     <div style={{ display:'flex', flex:1, flexDirection:'column', overflow:'hidden' }}>
-      {/* Matrise */}
-      {loading ? (
+      {visning === 'fristar' && fristVisning ? (
+        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+          <div style={{ padding:'7px 16px', borderBottom:'1px solid var(--border)', background:'var(--bg2)', flexShrink:0 }}>
+            <button type="button" className="dt-knapp" onClick={()=>setVisning('tabell')}>← Tilbake til tabellen</button>
+          </div>
+          <div style={{ flex:1, overflowY:'auto', padding:'22px 26px' }}>{fristVisning()}</div>
+        </div>
+      ) : loading ? (
         <div style={{ padding:20, color:'var(--text3)', fontSize:13 }}>{'Lastar…'}</div>
       ) : (
-        <SakerTabell
-          rader={rader}
-          comments={comments}
-          eigne={eigneKolonnar}
-          onOpenRad={opneRad}
-          onSetExtra={setExtraValue}
-          onNyKolonne={addColumn}
-          onSlettKolonne={deleteColumn}
-          verktoyForan={verktoyForan}
-          verktoyEtter={verktoyEtter}
-        />
+        <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
+          {/* Tabell — venstre */}
+          <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            <SakerTabell
+              rader={rader}
+              comments={comments}
+              eigne={alleKolonnar}
+              onOpenRad={opneRad}
+              onRowClick={(id) => { if (mobil) opneRad(id); else setValtId(id) }}
+              valtId={valtId}
+              merking={{ valde, onEndre: setValde }}
+              radMeny={radMeny}
+              onSetExtra={settEkstra}
+              onNyKolonne={addColumn}
+              onSlettKolonne={slettKolonne}
+              verktoyForan={verktoyForan}
+              verktoyEtter={verktoyEtter}
+              verktoyHogre={verktoyHogre}
+            />
+          </div>
+          {!mobil && (<>
+            {/* Dragbar delelinje — justerer breidda på førehandsvisinga */}
+            <div onMouseDown={startPreviewResize} title="Dra for å justere breidda" style={{ width:7, flexShrink:0, cursor:'col-resize', position:'relative' }}>
+              <div style={{ position:'absolute', left:3, top:0, bottom:0, width:1, background:'var(--border)' }}/>
+            </div>
+            {/* Førehandsvising av markert notat/sak/oppgåve — heilt til høgre */}
+            <div style={{ width:previewBr, minWidth:240, maxWidth:maxPreviewBr(), flexShrink:0, display:'flex', flexDirection:'column', overflow:'hidden', borderLeft:'1px solid var(--border)' }}>
+              {forhandsvising()}
+            </div>
+          </>)}
+        </div>
       )}
 
       {tidslinje && (
