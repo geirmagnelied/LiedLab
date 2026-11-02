@@ -967,7 +967,7 @@ export default function DTMModule({ userId, userEmail, projects, activeProjectId
                 Alle dokumenter ({dokumenter.length})
               </button>
               {KATEGORIAR.map(k => (
-                <button key={k} onClick={() => setAktivtSett(k)}
+                <button key={k} onClick={() => { setAktivtSett(k); if (laast) skannUkjendeFiler(oppdragsSti, dokumenter) }}   /* les mappene på nytt ved kvart klikk */
                   style={{ padding:'6px 13px', borderRadius:6, fontSize:12.5, fontWeight:700,
                     border:'1.5px solid', cursor:'pointer',
                     borderColor: aktivtSett === k ? KATEGORI_FARGE[k] : 'var(--border)',

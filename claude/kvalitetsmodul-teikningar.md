@@ -228,3 +228,10 @@ neste steg sin ansvarlege, om ein kontakt med rette initialane finst.
 sjekkar for punkta merkt «Auto» i Excel-fila (regex/skanning, tilsvarande
 `prosjektplan-tegningskontroll.md` sin PDF-kvalitetsanalyse) — alle punkt
 er reint manuelle avkryssingar i denne fyrste versjonen.
+
+## Revisjon 2. nov. 2026 — sjekkliste, nummereringsmalar, fagroller, dokumentkontroll
+- **Sjekklista (`SjekklisteVindauge.jsx`)** er omlaga til liggande A4-oppsett: kontrolltekst ca. 70 %, så tre gjensidig utelukkande val (**Kontrollert / Ikkje relevant / Må avklarast i neste fase**) og eit lite kommentarfelt, kompakte rader. Svar lagrast i `ks_kontroll_svar.status` (`avkrossa` = status «kontrollert», for bakoverkompatibilitet). Electron-vindauget er no 1180×800 (`electron/main.js`; krev omstart av skrivebordsappen).
+- **«Sjekkliste utfylt»** er ei ny kolonne i kontrolltabellen (`DTMTabell`, nøkkel `sjekkliste`, `dtm_dokumenter.sjekkliste_utfylt` jsonb: `{ egenkontroll: { at, av, kontrollert, ikkje_relevant, neste_fase, totalt }, … }`). Vert sett ved «Ferdigstill». Klikk på merket opnar lista att for innsyn (skrivebeskytta, knapp «Lukk», rører ikkje køen). Tabellen hentar radene på nytt når hovudvindauget får fokus.
+- **Nummereringsmalar** (`NUMMERERINGSMALAR` i `teikningsnummer.js`, val i `NummereringVal`): Standard (DS-356), GreenH, Forsvarsbygg, Statsbygg, Eige oppsett. Ein mal set avkryssingane; `details.nummerering.mal` hugsar valet. **Ledda per mal er førebelse — rett dei når dei faktiske krava ligg føre.**
+- **Fagroller** i Personell-kolonna «Rolle»: Arkitekt (ARK), Planleggjar (Plan), Landskapsarkitekt (LARK), Bimkoordinator (BIMKO) (`FAGROLLAR`); eksisterande fritekst-rollar vert behaldne som val.
+- **Dokumentkontroll:** klikk på ein kategori-filtrering i DTM les mappene på nytt (`skannUkjendeFiler`), så filer som er lagt inn utanom Import dukkar opp i «ukjende filer»-varselet.

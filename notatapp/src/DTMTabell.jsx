@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import DataTabell, { Pille } from './DataTabell'
 import { fmtDateShort } from './sakerKonstantar'
 import { reknStatus, løysAktivtSett, KATEGORIAR, KATEGORI_LABEL, KATEGORI_MAPPE, FERDIGSTILLING_STATUS,
-  EKSTERN_DOK_KATEGORIAR, utsendingsnrTekst, LEVERANSE_FASAR, LEVERANSE_FASAR_BASIS, LEVERANSE_FASAR_EKSTRA, erForsinka, erPlanlagtUtanFil } from './dtmKonstantar'
+  EKSTERN_DOK_KATEGORIAR, KONTROLLTYPE, utsendingsnrTekst, LEVERANSE_FASAR, LEVERANSE_FASAR_BASIS, LEVERANSE_FASAR_EKSTRA, erForsinka, erPlanlagtUtanFil } from './dtmKonstantar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  DTM-matrisa — kolonnedefinisjonar og celle-visning for eitt «sett»
@@ -63,6 +63,8 @@ const BASE_COLUMNS = [
   { key:'utarbeida_av',label:'Utarbeida av', art:'val',   maskinlest:true },
   { key:'fk_person',   label:'Fagkontroll',  art:'val',   maskinlest:true },
   { key:'godkjent_av', label:'Godkjent',     art:'val',   maskinlest:true },
+  // Sjekklister som er fylt ut og lukka (egen-/fag-/godkjenningskontroll). Klikk opnar lista. Fylt ut av sjekkliste-vindauget (dtm_dokumenter.sjekkliste_utfylt).
+  { key:'sjekkliste',  label:'Sjekkliste utfylt', art:'tekst', utanFilter:true, beregna:true, standardSkjult:true },
   { key:'oppdragsnr',  label:'Oppdragsnr.',  art:'tekst', mono:true, maskinlest:true },
   // Generelt på/av-felt, IKKJE avgrensa til éin kategori — t.d. eit utsendt
   // tilbod (eksternt_dokument) kan vere styrande for arbeidet, same som eit
@@ -105,7 +107,7 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
                                      // SAME kolonnedefinisjonane (BASE_COLUMNS) men med EI ANNA standardvising
                                      // og EIT EIGE, SEPARAT lagra kolonneoppsett enn DTM-modulen sitt eige
                                      // (sjå claude/kvalitetsmodul-teikningar.md, «Del B»).
-                                     prefsKeySuffix, standardSynlegeKolonnar }) {
+                                     prefsKeySuffix, standardSynlegeKolonnar, onOpneSjekkliste }) {
   const hentVerdi = useCallback((rad, key) => {
     const { sett, g } = hentGjeldande(rad, aktivtSett)
     switch (key) {
@@ -143,6 +145,7 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       case 'oppdragsgivar': return rad.oppdragsgivar || ''
       case 'tiltakshavar':  return rad.tiltakshavar || ''
       case 'oppdragsnr':    return rad.oppdragsnr || ''
+      case 'sjekkliste':    return Object.keys(KONTROLLTYPE).filter(t => rad.sjekkliste_utfylt?.[t]).map(t => KONTROLLTYPE[t].namn).join(', ')
       case 'lagra_av':    return rad.lagra_av || ''
       case 'lasta_opp':   return fmtDateShort(g.lasta_opp)
       case 'utsendingar': return (utsendingarPerDokument[rad.id] || [])
@@ -193,6 +196,20 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       return <span style={{ color: forsinka ? 'var(--danger)' : undefined, fontWeight: forsinka ? 700 : undefined }}
         title={forsinka ? 'Planlagt dato er passert — ikkje markert sendt enno' : undefined}>{verdi}</span>
     }
+    if (kol.key === 'sjekkliste') {
+      const typar = Object.keys(KONTROLLTYPE).filter(t => rad.sjekkliste_utfylt?.[t])
+      if (!typar.length) return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>
+      return (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+          {typar.map(t => (
+            <button key={t} type="button" title="Opne den utfylte sjekklista" onClick={e => { e.stopPropagation(); onOpneSjekkliste?.(rad, t) }}
+              style={{ border:'1px solid var(--success)', background:'rgba(5,150,105,.08)', color:'var(--success)', borderRadius:10, padding:'1px 8px', fontSize:11.5, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
+              ✓ {KONTROLLTYPE[t].namn}
+            </button>
+          ))}
+        </div>
+      )
+    }
     if (kol.key === 'utsendingar') {
       const liste = utsendingarPerDokument[rad.id] || []
       if (!liste.length) return <span style={{ color:'var(--text3)', opacity:.45 }}>—</span>
@@ -205,7 +222,7 @@ export default function DTMTabell({ dokumenter, aktivtSett, onSetVerdi, onOpneFi
       )
     }
     return undefined
-  }, [aktivtSett, utsendingarPerDokument])
+  }, [aktivtSett, utsendingarPerDokument, onOpneSjekkliste])
 
   // Radmeny (☰): favoritt/fest-til-topp (same generiske mønster som
   // notat-tabellen) + «Del fil»/«Registrer utsending» (via radMeny.ekstraVal).

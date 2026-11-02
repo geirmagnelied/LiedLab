@@ -214,6 +214,17 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
     const { error } = await supabase.from('dtm_dokumenter').update({ [felt]: verdi, updated_at: no }).eq('id', id)
     if (error) alert('Klarte ikkje lagre endringa: ' + error.message)
   }
+  // Opnar ei (alt utfylt) sjekkliste for innsyn — same vindauge som «Start …», men utan å røre køen
+  const kontrollOpneSjekkliste = async (rad, type) => {
+    if (!harBru) { setKontrollFeil('Sjekkliste-vindauget krev skrivebordsversjonen.'); return }
+    await window.resultatdokumentAPI.ksApneSjekklisteVindauge(rad.id, type)
+  }
+  // Sjekkliste-vindauget er eit eige vindauge: hent radene på nytt når dette vindauget får fokus att
+  useEffect(() => {
+    const fokus = () => lastKontrollDokumenter()
+    window.addEventListener('focus', fokus)
+    return () => window.removeEventListener('focus', fokus)
+  }, [lastKontrollDokumenter])
   const kontrollToggleFavorite = (id) => { const d = kontrollDokumenter.find(x => x.id === id); if (d) kontrollSettVerdi(id, 'favorite', !d.favorite) }
   const kontrollTogglePinned   = (id) => { const d = kontrollDokumenter.find(x => x.id === id); if (d) kontrollSettVerdi(id, 'pinned', !d.pinned) }
 
@@ -417,10 +428,11 @@ export default function KvalitetModule({ userId, projects, activeProjectId }) {
                   onOpneFil={kontrollOpneFil}
                   onToggleFavorite={kontrollToggleFavorite}
                   onTogglePinned={kontrollTogglePinned}
+                  onOpneSjekkliste={kontrollOpneSjekkliste}
                   merking={{ valde:kontrollValde, onEndre:setKontrollValde }}
                   oppdragsSti={dtmOppdragsSti}
                   prefsKeySuffix="ks-kontroll"
-                  standardSynlegeKolonnar={['nr','tittel','filtype','rev','utarbeida_av','fk_person','godkjent_av']}
+                  standardSynlegeKolonnar={['nr','tittel','filtype','rev','utarbeida_av','fk_person','godkjent_av','sjekkliste']}
                 />
               )}
             </div>

@@ -22,6 +22,13 @@ import sjekklisteData from './sjekklister/tegningskontroll.json'
 //  («Held fram automatisk til neste dokument i køen»).
 // ═══════════════════════════════════════════════════════════════════
 
+const STATUSVAL = [
+  { nokkel:'kontrollert',    namn:'Kontrollert' },
+  { nokkel:'ikkje_relevant', namn:'Ikkje relevant' },
+  { nokkel:'neste_fase',     namn:'Må avklarast i neste fase' },
+]
+const SJEKK_KOLONNAR = 'minmax(0, 70fr) repeat(3, 84px) minmax(120px, 22fr)'
+
 function TypeVal({ verdi, sett }) {
   return (
     <select value={verdi || ''} onChange={e => sett(e.target.value || null)}
@@ -68,7 +75,7 @@ export default function SjekklisteVindauge({ dokumentId: startId, kontrolltype }
     const { data: s } = await supabase.from('ks_kontroll_svar').select('*')
       .eq('dokument_id', id).eq('kontrolltype', kontrolltype)
     const svarMap = {}
-    ;(s || []).forEach(r => { svarMap[r.sjekkpunkt_id] = { avkrossa: r.avkrossa, merknad: r.merknad || '' } })
+    ;(s || []).forEach(r => { svarMap[r.sjekkpunkt_id] = { status: r.status || (r.avkrossa ? 'kontrollert' : null), merknad: r.merknad || '' } })
     setSvar(svarMap)
     setLastar(false)
   }, [kontrolltype])
@@ -80,7 +87,7 @@ export default function SjekklisteVindauge({ dokumentId: startId, kontrolltype }
   const punkt = useMemo(() => hentGjeldandeSjekkliste(sjekklisteData, type, stadium), [type, stadium])
 
   const settSvar = useCallback((sjekkpunktId, endring) => {
-    setSvar(s => ({ ...s, [sjekkpunktId]: { ...(s[sjekkpunktId] || { avkrossa:false, merknad:'' }), ...endring } }))
+    setSvar(s => ({ ...s, [sjekkpunktId]: { ...(s[sjekkpunktId] || { status:null, merknad:'' }), ...endring } }))
   }, [])
 
   // Lagrar EITT sjekkpunkt-svar med det same (ikkje debounca — svara er
@@ -91,21 +98,25 @@ export default function SjekklisteVindauge({ dokumentId: startId, kontrolltype }
     await supabase.from('ks_kontroll_svar').upsert({
       id: Date.now() + Math.floor(Math.random() * 1000),
       user_id: session.user.id, dokument_id: dokumentId, kontrolltype,
-      sjekkpunkt_id: sjekkpunktId, avkrossa: !!nyttSvar.avkrossa, merknad: nyttSvar.merknad || '',
+      sjekkpunkt_id: sjekkpunktId, avkrossa: nyttSvar.status === 'kontrollert', status: nyttSvar.status || null, merknad: nyttSvar.merknad || '',
       updated_at: new Date().toISOString(),
     }, { onConflict: 'dokument_id,kontrolltype,sjekkpunkt_id' })
   }, [session, dokumentId, kontrolltype])
 
-  const veksleAvkryssa = (sjekkpunktId) => {
-    const nytt = { ...(svar[sjekkpunktId] || { avkrossa:false, merknad:'' }), avkrossa: !(svar[sjekkpunktId]?.avkrossa) }
-    settSvar(sjekkpunktId, { avkrossa: nytt.avkrossa })
+  // Tre gjensidig utelukkande val per punkt (klikk på det valde fjernar det att)
+  const veksleStatus = (sjekkpunktId, status) => {
+    const gjeldande = svar[sjekkpunktId]?.status || null
+    const nytt = { ...(svar[sjekkpunktId] || { status:null, merknad:'' }), status: gjeldande === status ? null : status }
+    settSvar(sjekkpunktId, { status: nytt.status })
     lagreSvar(sjekkpunktId, nytt)
   }
   const settMerknad = (sjekkpunktId, tekst) => settSvar(sjekkpunktId, { merknad: tekst })
-  const lagreMerknad = (sjekkpunktId) => lagreSvar(sjekkpunktId, svar[sjekkpunktId] || { avkrossa:false, merknad:'' })
+  const lagreMerknad = (sjekkpunktId) => lagreSvar(sjekkpunktId, svar[sjekkpunktId] || { status:null, merknad:'' })
 
-  const talAvkryssa = punkt.filter(p => svar[p.id]?.avkrossa).length
-  const talKritiskUsjekka = punkt.filter(p => p.kritisk && !svar[p.id]?.avkrossa).length
+  const talAvkryssa = punkt.filter(p => svar[p.id]?.status).length
+  const talKritiskUsjekka = punkt.filter(p => p.kritisk && svar[p.id]?.status !== 'kontrollert' && svar[p.id]?.status !== 'ikkje_relevant').length
+  // Lista er alt ferdig utfylt og lukka for denne kontrolltypen → vert opna for innsyn, ikkje på nytt gjennom køen
+  const alleredeUtfylt = dokument?.sjekkliste_utfylt?.[kontrolltype] || null
 
   // Opnar den assosierte fila for eit dokument i systemet sitt standard-
   // program (same mønster som DTM/KvalitetModule elles) — brukt både ved
@@ -145,9 +156,15 @@ export default function SjekklisteVindauge({ dokumentId: startId, kontrolltype }
 
   const ferdigstill = async () => {
     if (!dokument) return
+    if (alleredeUtfylt) { window.close(); return }
     setFerdigstiller(true)
+    const teljing = (s) => punkt.filter(p => svar[p.id]?.status === s).length
+    const utfylt = { ...(dokument.sjekkliste_utfylt || {}), [kontrolltype]: {
+      at: new Date().toISOString(), av: session.user.email || '', type: type || null, stadium: stadium || null,
+      kontrollert: teljing('kontrollert'), ikkje_relevant: teljing('ikkje_relevant'), neste_fase: teljing('neste_fase'), totalt: punkt.length,
+    } }
     const { error } = await supabase.from('dtm_dokumenter')
-      .update({ kontrollstatus: cfg.ferdigStatus, updated_at: new Date().toISOString() })
+      .update({ kontrollstatus: cfg.ferdigStatus, sjekkliste_utfylt: utfylt, updated_at: new Date().toISOString() })
       .eq('id', dokument.id)
     if (error) { setFeil('Klarte ikkje lagre ferdigstillinga: ' + error.message); setFerdigstiller(false); return }
 
@@ -190,12 +207,10 @@ export default function SjekklisteVindauge({ dokumentId: startId, kontrolltype }
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:'var(--bg2)' }}>
       <style>{`:root, body, #root { height:100%; margin:0 }`}</style>
-      <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', background:'var(--brand)', flexShrink:0 }}>
-        <div style={{ fontSize:11, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase', color:'rgba(255,255,255,.75)' }}>
-          {cfg.namn}
-        </div>
-        <div style={{ fontSize:16, fontWeight:800, color:'#fff', fontFamily:'var(--mono)' }}>{dokument.nr}</div>
-        <div style={{ fontSize:13, color:'rgba(255,255,255,.85)' }}>{dokument.tittel}</div>
+      <div style={{ padding:'8px 18px', borderBottom:'1px solid var(--border)', background:'var(--brand)', flexShrink:0, display:'flex', alignItems:'baseline', gap:14, flexWrap:'wrap' }}>
+        <span style={{ fontSize:11, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase', color:'rgba(255,255,255,.75)' }}>{cfg.namn}</span>
+        <span style={{ fontSize:15, fontWeight:800, color:'#fff', fontFamily:'var(--mono)' }}>{dokument.nr}</span>
+        <span style={{ fontSize:13, color:'rgba(255,255,255,.85)' }}>{dokument.tittel}</span>
       </div>
 
       <div style={{ padding:'10px 18px', borderBottom:'1px solid var(--border)', display:'flex',
@@ -204,13 +219,27 @@ export default function SjekklisteVindauge({ dokumentId: startId, kontrolltype }
         <TypeVal verdi={type} sett={setTypeOverstyrt}/>
         {stadium && <span style={{ fontSize:11, color:'var(--text3)' }}>Stadium: <b>{stadium}</b></span>}
         <div style={{ flex:1 }}/>
-        <span style={{ fontSize:11.5, color:'var(--text3)' }}>{talAvkryssa}/{punkt.length} avkryssa</span>
+        <span style={{ fontSize:11.5, color:'var(--text3)' }}>{talAvkryssa}/{punkt.length} behandla</span>
         {talKritiskUsjekka > 0 && (
-          <span style={{ fontSize:11.5, color:'var(--danger)', fontWeight:700 }}>{talKritiskUsjekka} kritiske ikkje avkryssa</span>
+          <span style={{ fontSize:11.5, color:'var(--danger)', fontWeight:700 }}>{talKritiskUsjekka} kritiske ikkje kontrollerte</span>
         )}
       </div>
 
-      <div style={{ flex:1, overflow:'auto', padding:'6px 0' }}>
+      {alleredeUtfylt && (
+        <div style={{ padding:'6px 18px', background:'rgba(5,150,105,.10)', color:'var(--success)', fontSize:12, fontWeight:700, flexShrink:0 }}>
+          ✓ Sjekklista vart fylt ut {new Date(alleredeUtfylt.at).toLocaleDateString('nb-NO')}{alleredeUtfylt.av ? ' av ' + alleredeUtfylt.av : ''} — du ser den som ho vart levert.
+        </div>
+      )}
+
+      {/* Liggande A4-oppsett: kontrolltekst ca. 70 %, så tre val og eit lite kommentarfelt */}
+      <div style={{ flex:1, overflow:'auto' }}>
+        <div style={{ display:'grid', gridTemplateColumns:SJEKK_KOLONNAR, alignItems:'center', position:'sticky', top:0, zIndex:2,
+          background:'var(--bg3)', borderBottom:'1.5px solid var(--border)', padding:'5px 14px', gap:8,
+          fontSize:10.5, fontWeight:800, letterSpacing:'.04em', textTransform:'uppercase', color:'var(--text3)' }}>
+          <span>Kontrollpunkt</span>
+          {STATUSVAL.map(v => <span key={v.nokkel} style={{ textAlign:'center', lineHeight:1.15 }}>{v.namn}</span>)}
+          <span>Kommentar</span>
+        </div>
         {punkt.length === 0 && (
           <div style={{ padding:'20px 18px', fontSize:13, color:'var(--text3)' }}>
             Ingen sjekkpunkt for denne kombinasjonen — vel ein annan type over, eller rediger Excel-fila og
@@ -218,39 +247,37 @@ export default function SjekklisteVindauge({ dokumentId: startId, kontrolltype }
           </div>
         )}
         {punkt.map(p => {
-            const v = svar[p.id] || { avkrossa:false, merknad:'' }
-            return (
-              <div key={p.id} style={{ padding:'8px 18px', borderBottom:'1px solid var(--border)',
-                background: v.avkrossa ? 'rgba(5,150,105,.05)' : 'transparent' }}>
-                <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
-                  <input type="checkbox" checked={v.avkrossa} onChange={() => veksleAvkryssa(p.id)}
-                    style={{ width:16, height:16, marginTop:2, accentColor:'var(--brand)', cursor:'pointer', flexShrink:0 }}/>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, color:'var(--text)', textDecoration: v.avkrossa ? 'line-through' : 'none',
-                      opacity: v.avkrossa ? .7 : 1 }}>
-                      {p.tekst}
-                      {p.kritisk && <span title="Kritisk punkt" style={{ color:'var(--danger)', marginLeft:5, fontWeight:800 }}>!</span>}
-                    </div>
-                    <div style={{ fontSize:10.5, color:'var(--text3)', marginTop:1 }}>
-                      {p.ref}{p.ref && p.stadium?.length ? ' · ' : ''}{p.stadium?.join(', ')}
-                      {p.auto && <span style={{ marginLeft:6, color:'var(--brand)' }}>⚙ kan automatiserast</span>}
-                    </div>
-                    <input value={v.merknad} onChange={e => settMerknad(p.id, e.target.value)}
-                      onBlur={() => lagreMerknad(p.id)} placeholder="Merknad …"
-                      style={{ marginTop:5, width:'100%', boxSizing:'border-box', padding:'4px 8px', fontSize:12,
-                        borderRadius:'var(--r)', border:'1px solid var(--border)', background:'var(--bg2)',
-                        color:'var(--text)', outline:'none', fontFamily:'var(--font)' }}/>
-                  </div>
+          const v = svar[p.id] || { status:null, merknad:'' }
+          return (
+            <div key={p.id} style={{ display:'grid', gridTemplateColumns:SJEKK_KOLONNAR, alignItems:'center', gap:8,
+              padding:'3px 14px', borderBottom:'1px solid var(--border)', background: v.status === 'kontrollert' ? 'rgba(5,150,105,.05)' : 'transparent' }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:12, lineHeight:1.3, color:'var(--text)' }}>
+                  {p.tekst}
+                  {p.kritisk && <span title="Kritisk punkt" style={{ color:'var(--danger)', marginLeft:5, fontWeight:800 }}>!</span>}
+                  {p.ref && <span style={{ fontSize:10, color:'var(--text3)', marginLeft:6 }}>{p.ref}</span>}
                 </div>
               </div>
-            )
+              {STATUSVAL.map(sv => (
+                <div key={sv.nokkel} style={{ textAlign:'center' }}>
+                  <input type="checkbox" checked={v.status === sv.nokkel} onChange={() => veksleStatus(p.id, sv.nokkel)} title={sv.namn} disabled={!!alleredeUtfylt}
+                    style={{ width:15, height:15, accentColor:'var(--brand)', cursor: alleredeUtfylt ? 'default' : 'pointer' }}/>
+                </div>
+              ))}
+              <input value={v.merknad} onChange={e => settMerknad(p.id, e.target.value)}
+                onBlur={() => lagreMerknad(p.id)} placeholder="…" disabled={!!alleredeUtfylt}
+                style={{ width:'100%', boxSizing:'border-box', padding:'2px 6px', fontSize:11.5,
+                  borderRadius:'var(--r)', border:'1px solid var(--border)', background:'var(--bg2)',
+                  color:'var(--text)', outline:'none', fontFamily:'var(--font)' }}/>
+            </div>
+          )
         })}
       </div>
 
-      <div style={{ padding:'12px 18px', borderTop:'1px solid var(--border)', flexShrink:0, background:'var(--bg2)' }}>
+      <div style={{ padding:'8px 18px', borderTop:'1px solid var(--border)', flexShrink:0, background:'var(--bg2)' }}>
         {varselStatus && <div style={{ fontSize:11.5, color:'var(--text3)', marginBottom:8 }}>{varselStatus}</div>}
         <button className="dt-knapp hovud" style={{ width:'100%' }} disabled={ferdigstiller} onClick={ferdigstill}>
-          {ferdigstiller ? 'Lagrar…' : `Ferdigstill ${cfg.namn.toLowerCase()}`}
+          {ferdigstiller ? 'Lagrar…' : alleredeUtfylt ? 'Lukk' : `Ferdigstill ${cfg.namn.toLowerCase()}`}
         </button>
       </div>
     </div>

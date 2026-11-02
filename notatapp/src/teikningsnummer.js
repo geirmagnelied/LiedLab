@@ -23,6 +23,15 @@ export const STANDARD_NUMMERERING = {
   medFase: true,
 }
 
+// Namngjevne oppsett for oppdragsgjevarar. Eige oppsett = ingen mal vald (brukar krysser av sjølv).
+// MERK: ledda er eit førebels oppsett — rett dei her når kontoret har dei faktiske nummerkrava frå oppdragsgjevaren.
+export const NUMMERERINGSMALAR = [
+  { key: 'standard',    namn: 'Standard (DS-356)',  verdi: { medBygningsfagkode: false, medBygg: false, medLopenummer: true, medFase: true } },
+  { key: 'greenh',      namn: 'GreenH',             verdi: { medBygningsfagkode: false, medBygg: true,  medLopenummer: true, medFase: true } },
+  { key: 'forsvarsbygg', namn: 'Forsvarsbygg',      verdi: { medBygningsfagkode: true,  medBygg: true,  medLopenummer: true, medFase: false } },
+  { key: 'statsbygg',   namn: 'Statsbygg',          verdi: { medBygningsfagkode: true,  medBygg: false, medLopenummer: true, medFase: false } },
+]
+
 export const hentNummerering = (details) => ({ ...STANDARD_NUMMERERING, ...(details?.nummerering || {}) })
 
 // DS-356 typekodar (45 er den gamle KS-koden for fasade, behalden for lesing av eldre nummer)

@@ -4,6 +4,7 @@ import DataTabell from './DataTabell'
 import useKontorkalender from './useKontorkalender'
 import { kapasitetPerVeke } from './kontorkalender'
 import { leggTilMegSomPersonell, sikrStandardPersonell } from './personellStandard'
+import { FAGROLLAR } from './leveranseplanGenerator'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Personell per prosjekt (Prosjekt-modulen, eiga side) — kven som arbeider
@@ -114,7 +115,8 @@ export default function PersonellSide({ userId, prosjekt, prosjektListe }) {
   const kolonnar = [
     { key: 'fornamn',   label: 'Fornamn',   art: 'tekst', redigerbar: true, w: 150, utanFilter: true },
     { key: 'etternamn', label: 'Etternamn', art: 'tekst', redigerbar: true, w: 170, utanFilter: true },
-    { key: 'rolle',   label: 'Rolle',       art: 'val',   redigerbar: true, w: 180 },
+    // Fagrollane er faste val; eksisterande fritekst-rollar vert behaldne som val så dei ikkje forsvinn
+    { key: 'rolle',   label: 'Rolle',       art: 'val',   redigerbar: true, w: 180, val: ['', ...new Set([...FAGROLLAR, ...personar.map(p => p.rolle).filter(Boolean)])] },
     { key: 'prosent', label: 'Prosent',     art: 'tal',   redigerbar: true, w: 90, ikkjeSummer: true },
     { key: 'timepris', label: 'Timepris kr/t', art: 'tal', redigerbar: true, w: 120, ikkjeSummer: true },
     { key: 'kapasitet', label: 'Kapasitet t/veke', art: 'tal', beregna: true, w: 140, ikkjeSummer: true },

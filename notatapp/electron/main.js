@@ -1221,7 +1221,7 @@ function urlMedSpørjestreng(url, spørjestreng) {
 ipcMain.handle('ks:apne-sjekkliste-vindauge', async (event, { dokumentId, kontrolltype }) => {
   const spørjestreng = `sjekkliste=1&dokumentId=${encodeURIComponent(dokumentId)}&kontrolltype=${encodeURIComponent(kontrolltype)}`
   const vindauge = new BrowserWindow({
-    width: 640, height: 860, minWidth: 440, minHeight: 480,
+    width: 1180, height: 800, minWidth: 760, minHeight: 480,
     icon: path.join(__dirname, '..', 'icon.png'),
     backgroundColor: '#0A0A0A',
     webPreferences: {

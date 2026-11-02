@@ -197,4 +197,7 @@ export function genererForslag(inn, { fag = 'A', prosjekttype = 'detalj', nummer
   return rader.map((r, i) => ({ ...r, id: `r${i}_${Math.random().toString(36).slice(2, 7)}` }))
 }
 
-export const FAG_NAMN = { A: 'Arkitekt', ARK: 'Arkitekt', K: 'Konstruksjon', L: 'Landskap' }
+export const FAG_NAMN = { A: 'Arkitekt', ARK: 'Arkitekt', PLAN: 'Planleggjar', LARK: 'Landskapsarkitekt', BIMKO: 'Bimkoordinator', K: 'Konstruksjon', L: 'Landskap' }
+
+// Fagroller i prosjektpersonell (Rolle-kolonna): namn med kortkode i parentes
+export const FAGROLLAR = ['Arkitekt (ARK)', 'Planleggjar (Plan)', 'Landskapsarkitekt (LARK)', 'Bimkoordinator (BIMKO)']
