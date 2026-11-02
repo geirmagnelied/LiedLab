@@ -80,6 +80,10 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const [railModus, setRailModus] = useState(() => { try { const v = localStorage.getItem('liedlab-rail-modus'); return RAIL_MODUSAR.includes(v) ? v : 'min' } catch { return 'min' } })
   const settRailModus = (m) => { setRailModus(m); try { localStorage.setItem('liedlab-rail-modus', m) } catch { /* privat modus */ } }
   const [activeModule,      setActiveModule]      = useState('dashboard') // startsida; elles 'notatar' | 'timar' | 'kvalitet' …
+  // Prosjektstyring styrer det AKTIVE prosjektet: utan valt prosjekt går Framdrift/Kalender til prosjektlista der ein vel eitt
+  useEffect(() => {
+    if (!selectedProjectId && (activeModule === 'framdrift' || activeModule === 'kalender')) setActiveModule('prosjekt')
+  }, [selectedProjectId, activeModule])
   const [selectedNoteId,    setSelectedNoteId]    = useState(null) // markert (enkeltklikka) notat i NoteTabell — vist i NotePreview
   const [previewWidth,      setPreviewWidth]      = useState(() => {
     try { const v = parseInt(localStorage.getItem('liedlab-notat-preview-w')); return isNaN(v) ? 380 : v }

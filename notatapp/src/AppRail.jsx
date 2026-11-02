@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useT } from './sprak'
-import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, GanttChartSquare, CalendarDays, ChevronsLeft, ChevronsRight, UserRound, PenTool, FileText, FolderKanban, Building2, Users } from 'lucide-react'
+import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, ChevronsLeft, ChevronsRight, UserRound, PenTool, FileText, FolderKanban, Building2, Users } from 'lucide-react'
 
 // ── Paraply-struktur (brukar sitt eige krav 30. sept. 2026) ──────────
 // «Admin» og «Gjeremål» er reine NAVIGASJONS-paraplyar utan eigen
@@ -8,16 +8,15 @@ import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, I
 // (rail 2). Resten av modulane er framleis direkte, uendra topp-nivå-val.
 const MODULES = [
   { key: 'dashboard', ikon: LayoutDashboard, letter: 'D',   label: 'Dashboard', color: '#A78BFA' },
+  { key: 'prosjektstyring', ikon: FolderKanban, letter: 'Ps', label: 'Prosjektstyring', color: '#85B7EB', born: ['prosjekt', 'framdrift', 'kalender'] },
   { key: 'dtm', ikon: FolderTree,       letter: 'DTM', label: 'Dokument, tegningar og modellar', color: '#E9C46A' },
   { key: 'gjeremaal', ikon: ListChecks, letter: 'S',   label: 'Saksbehandling', color: '#52B788', born: ['saker', 'oppgaver', 'notatar'] },
   { key: 'timar', ikon: Clock,     letter: 'T',   label: 'Timar',    color: '#60A5D4' },
   { key: 'kvalitet', ikon: ShieldCheck,  letter: 'KS',  label: 'Kvalitetssystem', color: '#EC9A5A' },
   { key: 'bilete', ikon: BileteIkon,    letter: 'B',   label: 'Bilete',   color: '#F4A261' },
   { key: 'skisse',    ikon: PenTool, letter: 'Sk', label: 'Skisse', color: '#F59E0B' },
-  { key: 'framdrift', ikon: GanttChartSquare, letter: 'Fd',  label: 'Framdrift', color: '#34D399' },
-  { key: 'kalender', ikon: CalendarDays,  letter: 'Ka',  label: 'Kalender', color: '#2A9D8F' },
   { key: 'malar', ikon: FileText, letter: 'Ml', label: 'Malar', color: '#38BDF8' },
-  { key: 'admin', ikon: Building2, letter: 'Kd', label: 'Kontordrift', color: '#9CA3AF', born: ['prosjekt', 'kunde', 'ansatte', 'kontorkalender', 'innst_kontor', 'innst_medlemmar', 'innst_kontaktar'] },
+  { key: 'admin', ikon: Building2, letter: 'Kd', label: 'Kontordrift', color: '#9CA3AF', born: ['kunde', 'ansatte', 'kontorkalender', 'innst_kontor', 'innst_medlemmar', 'innst_kontaktar'] },
 ]
 
 // Undermodulane sjølve (dei EKSISTERANDE `activeModule`-verdiane, uendra —
@@ -25,8 +24,12 @@ const MODULES = [
 // og App.jsx (for å avgjere kva paraply som skal syne som aktiv) kan bruke
 // same kjelde.
 export const UNDERMODULAR = {
+  prosjektstyring: [
+    { key:'prosjekt',  letter:'P',  label:'Prosjekt',  color:'#85B7EB' },
+    { key:'framdrift', letter:'Fd', label:'Framdrift', color:'#34D399' },
+    { key:'kalender',  letter:'Ka', label:'Kalender',  color:'#2A9D8F' },
+  ],
   admin: [
-    { key:'prosjekt',        letter:'P',  label:'Prosjekt',        color:'#85B7EB' },
     { key:'kunde',           letter:'K',  label:'Kundar',          color:'#D4537E' },
     { key:'ansatte',         letter:'A',  label:'Ansatte',         color:'#9CA3AF' },
     { key:'kontorkalender',  letter:'Ka', label:'Kontorkalender',  color:'#2A9D8F' },

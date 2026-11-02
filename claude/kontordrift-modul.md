@@ -11,3 +11,6 @@
 
 ## Skisse (VN) — retta 18. okt. 2026
 «Skisse» i VN er ein vanleg modul (`activeModule === 'skisse'`) som opnar `SketchPad` **innbygd i hovudvindauget** (`<SketchPad innbygd …>`, ikkje fullskjerm-overlegg). «Lagre» lagar skissa som notat (tittel «Skisse dato klokkeslett», valt prosjekt); «Avbryt» går til Dashboard. Fyrste versjon la overlegget i mobil-greina av `App.jsx`, så det vart aldri synleg på skrivebord.
+
+## Prosjektstyring (2. nov. 2026)
+Nytt toppikon rett under Dashboard: **Prosjektstyring** (`prosjektstyring` i `AppRail.jsx`) med undermodulane Prosjekt, Framdrift og Kalender, til å styre det aktive prosjektet. Prosjekt er flytta ut av Kontordrift (som no har Kundar, Ansatte, Kontorkalender og innstillingane), og Framdrift/Kalender har ikkje lenger eigne toppikon. Utan valt prosjekt sender `App.jsx` Framdrift/Kalender til Prosjekt-sida (prosjektlista der ein vel prosjekt).
