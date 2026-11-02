@@ -79,9 +79,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const [railLive, setRailLive] = useState(null) // breidd på VN under dragning (så logorutå i toppen følgjer med)
   const [railModus, setRailModus] = useState(() => { try { const v = localStorage.getItem('liedlab-rail-modus'); return RAIL_MODUSAR.includes(v) ? v : 'min' } catch { return 'min' } })
   const settRailModus = (m) => { setRailModus(m); try { localStorage.setItem('liedlab-rail-modus', m) } catch { /* privat modus */ } }
-  const [activeModule,      setActiveModuleRaw]   = useState('dashboard') // startsida; elles 'saker' | 'timar' | 'kvalitet' …
-  // Notatar er slått saman med Saksbehandling (2. nov. 2026): eldre snarvegar til 'notatar' (Dashboard m.fl.) går til 'saker'
-  const setActiveModule = useCallback((m) => setActiveModuleRaw(m === 'notatar' ? 'saker' : m), [])
+  const [activeModule,      setActiveModule]      = useState('dashboard') // startsida; elles 'notatar' | 'timar' | 'kvalitet' …
   const [selectedNoteId,    setSelectedNoteId]    = useState(null) // markert (enkeltklikka) notat i NoteTabell — vist i NotePreview
   const [previewWidth,      setPreviewWidth]      = useState(() => {
     try { const v = parseInt(localStorage.getItem('liedlab-notat-preview-w')); return isNaN(v) ? 380 : v }
@@ -468,10 +466,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'kvalitet' && <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
         {activeModule === 'oppgaver' && <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} notes={modeNotes}/>}
         {activeModule === 'farge' && <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>}
-        {activeModule === 'saker' && <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId} onAddNote={addNote} onUpdateTask={updateTask} onDeleteTask={deleteTask}
-          noteColumns={noteColumns} onSetNoteExtra={setNoteExtraValue} onDeleteNoteColumn={deleteNoteColumn}
-          onNyttNotat={handleNewNote} onEditNote={handleEdit} onDeleteNote={deleteNote} onToggleNoteDone={toggleDone} onToggleNoteFavorite={toggleNoteFavorite} onToggleNotePinned={toggleNotePinned}
-          fristVisning={() => <DeadlineView notes={visibleNotes} projects={projects} {...listProps}/>}/>}
+        {activeModule === 'saker' && <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId} onAddNote={addNote} onUpdateTask={updateTask} onDeleteTask={deleteTask}/>}
         {activeModule === 'dtm' && <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
         {activeModule === 'bilete' && <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
         {['kontordrift', 'ansatte', 'kontorkalender'].includes(activeModule) && <KontordriftModule side={activeModule === 'kontorkalender' ? 'kalender' : 'ansatte'} userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>}
@@ -616,10 +611,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
       ) : activeModule === 'farge' ? (
         <FargeModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'saker' ? (
-        <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId} onAddNote={addNote} onUpdateTask={updateTask} onDeleteTask={deleteTask}
-          noteColumns={noteColumns} onSetNoteExtra={setNoteExtraValue} onDeleteNoteColumn={deleteNoteColumn}
-          onNyttNotat={handleNewNote} onEditNote={handleEdit} onDeleteNote={deleteNote} onToggleNoteDone={toggleDone} onToggleNoteFavorite={toggleNoteFavorite} onToggleNotePinned={toggleNotePinned}
-          fristVisning={() => <DeadlineView notes={visibleNotes} projects={projects} {...listProps}/>}/>
+        <SakerModule userId={userId} userEmail={userEmail} activeProjectId={selectedProjectId} projects={officeProjects} notes={modeNotes} activeOfficeId={activeOfficeId} onAddNote={addNote} onUpdateTask={updateTask} onDeleteTask={deleteTask}/>
       ) : activeModule === 'dtm' ? (
         <DTMModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>
       ) : activeModule === 'bilete' ? (

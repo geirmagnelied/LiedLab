@@ -194,7 +194,6 @@ export default function DataTabell({
   radGruppe, // valfri; { forelder(rad) → forelder-id | null } — rader med forelder følgjer rett etter forelderen (uavhengig av sortering),
              // går utanom filter (følgjer forelderen) og vert ikkje summert i totalraden. Brukt til person-underrader i Framdrift.
   bryttOverskrift = false, // valfri; høgare kolonneoverskrifter der namn med to ord vert viste over to rader og lange ord vert delte med bindestrek
-  verktoyHogre,               // valfri; ReactNode heilt til høgre i verktøylinja (etter radteljaren), t.d. søk
   verktoyForan, verktoyEtter, // valfri; ReactNode først / sist i verktøylinja (t.d. «+ Ny», søk, filter). Saman med visningsMeny gjev det ei samla verktøylinje
   visningsMeny = false,       // valfri; Fargekode/Tettleik/Totalrad ligg i ein «Visning ▾»-meny, og «+ Kolonnar»/«Nullstill» står saman med dei andre knappane til venstre
   standardSynlegeKolonnar, // valfri; [key,...] — overstyrer standard skjulte-utrekninga (elles kol.standardSkjult)
@@ -879,7 +878,6 @@ export default function DataTabell({
         <span style={{ fontSize:11.5, color:'var(--text3)' }}>
           {rader.length}{rader.length !== (dataRader || []).length ? ` av ${(dataRader || []).length}` : ''} {itemNamn}
         </span>
-        {verktoyHogre}
         {!visningsMeny && <>
         <button type="button" className="dt-knapp" onClick={e => opneMeny('kolonnar', null, e)}>+ Kolonnar</button>
         <button type="button" className="dt-knapp" onClick={nullstill} title="Tilbake til standard kolonnar, breidder og sortering">
@@ -1218,7 +1216,6 @@ export default function DataTabell({
         const favoritt  = !!radMeny.erFavoritt?.(rad)
         const festa     = !!radMeny.erFesta?.(rad)
         const arkivert  = !!radMeny.erArkivert?.(rad)
-        const harRadVal = radMeny.gjelder ? !!radMeny.gjelder(rad) : true   // valfri: favoritt/fest/arkiver/slett gjeld berre nokre radtypar
         return (
           <div className="dt-meny" style={{ left:meny.left, top:meny.top, width:210 }}>
             {meny.redigerCelle && (() => {
@@ -1240,33 +1237,33 @@ export default function DataTabell({
                 </>
               )
             })()}
-            {harRadVal && radMeny.onFavoritt && (
+            {radMeny.onFavoritt && (
               <button type="button" className="dt-val" onClick={() => { radMeny.onFavoritt(meny.key, rad); setMeny(null) }}>
                 <span className="dt-rmikon">{favoritt ? '★' : '☆'}</span>
                 <span>{favoritt ? 'Fjern favoritt' : 'Merk som favoritt'}</span>
               </button>
             )}
-            {harRadVal && radMeny.onFestTilTopp && (
+            {radMeny.onFestTilTopp && (
               <button type="button" className="dt-val" onClick={() => { radMeny.onFestTilTopp(meny.key, rad); setMeny(null) }}>
                 <span className="dt-rmikon">📌</span>
                 <span>{festa ? 'Løys frå toppen' : 'Fest til toppen'}</span>
               </button>
             )}
-            {harRadVal && radMeny.onArkiver && (<>
+            {radMeny.onArkiver && (<>
               <div className="dt-skilje"/>
               <button type="button" className="dt-val" onClick={() => { radMeny.onArkiver(meny.key, rad); setMeny(null) }}>
                 <span className="dt-rmikon">⤓</span>
                 <span>{arkivert ? 'Hent ut av arkivet' : 'Arkiver'}</span>
               </button>
             </>)}
-            {harRadVal && radMeny.onSlett && (
+            {radMeny.onSlett && (
               <button type="button" className="dt-val" onClick={() => { radMeny.onSlett(meny.key, rad); setMeny(null) }}>
                 <span className="dt-rmikon">🗑</span>
                 <span>Slett</span>
               </button>
             )}
             {radMeny.ekstraVal?.length > 0 && (<>
-              {harRadVal && (radMeny.onFavoritt || radMeny.onFestTilTopp || radMeny.onArkiver || radMeny.onSlett) && <div className="dt-skilje"/>}
+              {(radMeny.onFavoritt || radMeny.onFestTilTopp || radMeny.onArkiver || radMeny.onSlett) && <div className="dt-skilje"/>}
               {radMeny.ekstraVal.map((val) => (
                 <button key={val.namn} type="button" className="dt-val" onClick={() => { val.onKlikk(meny.key, rad, { rader }); setMeny(null) }}>
                   <span className="dt-rmikon">{val.ikon}</span>
