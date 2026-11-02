@@ -8,7 +8,7 @@ import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, I
 // (rail 2). Resten av modulane er framleis direkte, uendra topp-nivå-val.
 const MODULES = [
   { key: 'dashboard', ikon: LayoutDashboard, letter: 'D',   label: 'Dashboard', color: '#A78BFA' },
-  { key: 'prosjektstyring', ikon: FolderKanban, letter: 'Ps', label: 'Prosjektstyring', color: '#85B7EB', born: ['prosjekt', 'framdrift', 'kalender'] },
+  { key: 'prosjektstyring', ikon: FolderKanban, letter: 'Ps', label: 'Prosjektstyring', color: '#85B7EB', born: ['prosjektdash', 'prosjekt', 'framdrift', 'kalender'] },
   { key: 'dtm', ikon: FolderTree,       letter: 'DTM', label: 'Dokument, tegningar og modellar', color: '#E9C46A' },
   { key: 'gjeremaal', ikon: ListChecks, letter: 'S',   label: 'Saksbehandling', color: '#52B788', born: ['saker', 'oppgaver', 'notatar'] },
   { key: 'timar', ikon: Clock,     letter: 'T',   label: 'Timar',    color: '#60A5D4' },
@@ -25,6 +25,7 @@ const MODULES = [
 // same kjelde.
 export const UNDERMODULAR = {
   prosjektstyring: [
+    { key:'prosjektdash', letter:'D', label:'Dashboard', color:'#A78BFA' },
     { key:'prosjekt',  letter:'P',  label:'Prosjekt',  color:'#85B7EB' },
     { key:'framdrift', letter:'Fd', label:'Framdrift', color:'#34D399' },
     { key:'kalender',  letter:'Ka', label:'Kalender',  color:'#2A9D8F' },

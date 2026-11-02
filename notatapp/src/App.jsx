@@ -20,6 +20,7 @@ import TimeTracker from './TimeTracker'
 import ForecastView from './ForecastView'
 import SettingsPanel from './SettingsPanel'
 import Timeline from './Timeline'
+import ProsjektDashboard from './ProsjektDashboard'
 
 // Modulane vert lasta fyrst når dei trengst (code-splitting) — gjev mykje raskare oppstart. Etter at appen er teikna,
 // vert dei resterande laste i bakgrunnen (ledig tid) så modulbyte likevel er umiddelbare.
@@ -82,7 +83,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const [activeModule,      setActiveModule]      = useState('dashboard') // startsida; elles 'notatar' | 'timar' | 'kvalitet' …
   // Prosjektstyring styrer det AKTIVE prosjektet: utan valt prosjekt går Framdrift/Kalender til prosjektlista der ein vel eitt
   useEffect(() => {
-    if (!selectedProjectId && (activeModule === 'framdrift' || activeModule === 'kalender')) setActiveModule('prosjekt')
+    if (!selectedProjectId && (activeModule === 'framdrift' || activeModule === 'kalender' || activeModule === 'prosjektdash')) setActiveModule('prosjekt')
   }, [selectedProjectId, activeModule])
   const [selectedNoteId,    setSelectedNoteId]    = useState(null) // markert (enkeltklikka) notat i NoteTabell — vist i NotePreview
   const [previewWidth,      setPreviewWidth]      = useState(() => {
@@ -466,6 +467,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'timar' && <TimeTracker userId={userId} activeOfficeId={activeOfficeId} projects={officeProjects} addProject={(n,t)=>addProject(n,t,activeOfficeId)} mode={mode}/>}
         {activeModule === 'kalender' && <KalenderModule projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} onEdit={handleEdit}/>}
         {activeModule === 'prosjekt' && <ProsjektModule userId={userId} projects={officeProjects} offices={offices} activeOfficeId={activeOfficeId} addProject={addProject} onProjectCreated={reloadAll} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
+        {activeModule === 'prosjektdash' && <ProsjektDashboard prosjekt={officeProjects.find(p => p.id === selectedProjectId)} userId={userId}/>}
         {activeModule === 'kunde' && <KundeModule userId={userId} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'kvalitet' && <KvalitetModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>}
         {activeModule === 'oppgaver' && <OppgaveModule userId={userId} projects={officeProjects} activeOfficeId={activeOfficeId} activeProjectId={selectedProjectId} notes={modeNotes}/>}
@@ -601,6 +603,8 @@ function AppInnhald({ userId, userEmail, brukar }) {
         <ProsjektModule userId={userId} projects={officeProjects} offices={offices}
           activeOfficeId={activeOfficeId} addProject={addProject} onProjectCreated={reloadAll}
           activeProjectId={selectedProjectId} onSetActiveProject={setSelectedProjectId}/>
+      ) : activeModule === 'prosjektdash' ? (
+        <ProsjektDashboard prosjekt={officeProjects.find(p => p.id === selectedProjectId)} userId={userId}/>
       ) : activeModule === 'kalender' ? (
         <KalenderModule projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} onEdit={handleEdit}/>
       ) : activeModule === 'kunde' ? (
@@ -750,7 +754,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
 // Innstillingane er ein del av Kontordrift (vert viste i hovudvindauget, ikkje som panel)
 const INNST_SIDER = { innst_kontor: 'office', innst_medlemmar: 'members', innst_kontaktar: 'kontaktar' }
 
-const MODULE_LABELS = { innst_kontor:'Kontor', innst_medlemmar:'Medlemmar', innst_kontaktar:'Kontaktar', skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Kanban', saker:'Saksbehandling', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Framdrift' }
+const MODULE_LABELS = { prosjektdash:'Prosjekt-dashboard', innst_kontor:'Kontor', innst_medlemmar:'Medlemmar', innst_kontaktar:'Kontaktar', skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Kanban', saker:'Saksbehandling', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Framdrift' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())

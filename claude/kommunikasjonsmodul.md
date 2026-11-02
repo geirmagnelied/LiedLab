@@ -163,3 +163,9 @@ sjå noko i det heile, er allereie fulle kontormedlemmar.
 ## Chatten flytta til Dashboard + kontorchat (2. nov. 2026)
 - «Chat»-fana i Prosjekt er fjerna. Chatten ligg no som eit kort nedst i **Dashboard**: valt prosjekt → prosjektets chat (`prosjekt_meldingar`), «alle prosjekt» → generell **kontorchat** (ny tabell `kontor_meldingar`, RLS `is_office_member(office_id)`, Realtime; SQL i `notatapp/supabase-kontor-meldingar.sql`).
 - `ProsjektChat.jsx` handterer begge (prop `prosjekt` eller `kontorId`). Same avgrensingar som v1 (ingen redigering/sletting, søk, vedlegg, @nemning eller uleste-markering).
+
+## Prosjekt-dashboard (2. nov. 2026)
+Ny første undermodul under **Prosjektstyring**: `prosjektdash` (`ProsjektDashboard.jsx`). Tre område: **Prosjektbilete** (opplasting/dra-og-slepp, galleri med lysbilete, lagra i Vedlegg-bøtta under `<prosjekt-id>/prosjektbilete/`), **Nyheiter** (tabell `prosjekt_nyheiter`, forfattar/administrator kan slette) og **Prosjektchat** (`ProsjektChat`, `prosjekt_meldingar`). Prosjektchatten ligg òg som kort nedst i hovud-Dashboard når eit prosjekt er valt. Utan valt prosjekt sender `App.jsx` til Prosjekt-sida.
+
+## Administrator-krav i databasen (2. nov. 2026)
+«Endre prosjekt» er no sikra i databasen (sjå `notatapp/supabase-prosjekt-admin-nyheiter.sql`): berre administrator i kontoret kan endre namn, nummer, status, kontor og detaljfelt i prosjektet (medlemmer kan framleis endre favoritt, teikningsnummer-oppsett og kunde-kopling frå Kundar), legge til/fjerne tilgang, endre personell og slette prosjekt.

@@ -1,0 +1,6 @@
+-- 2. nov. 2026. Migrasjonane `prosjekt_krev_administrator` og `prosjekt_nyheiter`, køyrde i Supabase.
+-- 1) Administrator-krav: kan_administrere_prosjekt(pid) (admin i kontoret, eller eigar av prosjekt utan kontor); trigger trg_projects_krev_admin
+--    (ikkje-administratorar kan berre endre favoritt og details-nøklane nummerering/client*), projects_delete, project_members_insert/delete,
+--    prosjekt_personell insert/update/delete (administrator eller prosjektets eigar via kan_endre_personell).
+-- 2) Tabell prosjekt_nyheiter (select/insert: kan_se_prosjekt; slett: forfattar eller administrator).
+-- Sjå migrasjonane i Supabase for full SQL.
