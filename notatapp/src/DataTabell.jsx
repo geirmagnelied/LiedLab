@@ -1643,7 +1643,7 @@ const CSS = `
   transform:scaleX(0); transform-origin:left; transition:transform .22s cubic-bezier(.4,0,.2,1) }
 .dt-tabell th:hover::after, .dt-tabell th.sortert::after { transform:scaleX(1) }
 .dt-th { display:flex; align-items:center; gap:5px; padding:0 10px; height:38px; cursor:pointer; user-select:none;
-  font-size:12px; font-weight:700; letter-spacing:0; color:var(--text); transition:background .15s }
+  font-size:12px; font-weight:800; letter-spacing:0; color:var(--tabell-hovud-tekst); transition:background .15s }
 .dt-th:hover { background:var(--brandbg) }
 .dt-namn { overflow:hidden; text-overflow:ellipsis; min-width:0 }
 .dt-th.brytt { height:56px }

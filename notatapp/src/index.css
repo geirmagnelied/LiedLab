@@ -10,7 +10,8 @@
   --brandbg2:    rgba(27,67,50,.18);
   --bg:          #FFFFFF;
   --bg2:         #FFFFFF;
-  --tabell-hovud: #D6E4F4;   /* blå bakgrunn på tabelloverskrifter (resten av tabellen er kvit) */
+  --tabell-hovud: #A9C8EC;   /* blå bakgrunn på tabelloverskrifter (resten av tabellen er kvit) */
+  --tabell-hovud-tekst: #000000;
   --bg3:         #F3F4F6;
   --bg4:         #E5E7EB;
   --border:      #B7D9C8;

@@ -384,7 +384,7 @@ export default function DTMImportModal({ kategori, oppdragsSti, dokumenter, onLu
   )
 }
 
-const thStil = { textAlign:'left', padding:'7px 8px', fontSize:11, fontWeight:700, color:'var(--text3)',
+const thStil = { textAlign:'left', padding:'7px 8px', fontSize:11, fontWeight:800, color:'var(--tabell-hovud-tekst)',
   textTransform:'uppercase', letterSpacing:'.04em', borderBottom:'1px solid var(--border)' }
 const tdStil = { padding:'4px 8px', borderBottom:'1px solid var(--border)' }
 const inputStil = { width:'100%', padding:'4px 6px', border:'1px solid var(--border)', borderRadius:5,

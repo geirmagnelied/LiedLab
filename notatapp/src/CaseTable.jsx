@@ -312,7 +312,7 @@ export default function CaseTable({ noteId, projectId, userId }) {
     setModal(null)
   }
 
-  const th = { padding:'9px 10px', fontSize:11, fontWeight:700, color:'var(--text3)',
+  const th = { padding:'9px 10px', fontSize:11, fontWeight:800, color:'var(--tabell-hovud-tekst)',
     textTransform:'uppercase', letterSpacing:'.04em', textAlign:'left',
     borderBottom:'2px solid var(--border)', background:'var(--tabell-hovud)',
     whiteSpace:'nowrap' }

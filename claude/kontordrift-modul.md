@@ -23,3 +23,7 @@ Verktøylinja øvst i Prosjekt-modulen («Lagra» + «Slett prosjekt») er fjern
 - **Prosjektdokumenter** (`ProsjektDokumenter.jsx`, nøkkel `prosjektdok`): `DTMTabell` med dei DTM-dokumenta i prosjektet der «Kategori eksternt dok.» er Kontrakt, Oppdragsbekreftelse eller Endringsavtale (`PROSJEKTDOK_KATEGORIAR` i `dtmKonstantar.js`, lagt til i `EKSTERN_DOK_KATEGORIAR`). Dokumenta vert lagde inn i DTM; kategorien kan òg setjast i denne tabellen.
 - **Farger:** `--bg` er kvit i alle tema, `--bg3`/`--bg4` er nøytrale grå, og tabelloverskrifter bruker `--tabell-hovud` (blå, `#D6E4F4`). Merkevarefargane (`--brand*`) er uendra.
 - **Husk sist:** `App.jsx` lagrar kontor og prosjekt per brukar i `localStorage` (`liedlab-sist:<userId>`) og gjenopprettar dei ved oppstart (prosjektet vert sjekka mot kontoret ved fyrste innlasting).
+
+## Tabelloverskrifter og Timar (3. nov. 2026)
+- Tabelloverskrifter: `--tabell-hovud` er no `#A9C8EC` (blå) med svart, feit tekst (`--tabell-hovud-tekst`) i alle tabellar.
+- **Timar** (`TimeTracker.jsx`): oppsummeringa per prosjekt og aktivitet har ingen fyll og ingen ikon (overskrifta er ei vanleg overskrift). Oppføringane vert **sorterte etter tid automatisk** 3 sekund etter siste endring i «Tidsbruk». Ei **pil** (↑) i Tidsbruk-cella lyser gult når det er eit udekka tidsrom mellom det som kom før (etter starttid) og denne oppføringa; peikar viser frå–til.

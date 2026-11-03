@@ -69,6 +69,7 @@ export default function TimeTracker({ userId, projects, addProject, mode, initDa
   const [saveStatus, setSaveStatus] = useState('idle')
   const [errorMsg,   setErrorMsg]   = useState(null)
   const debounceRef = useRef({})
+  const brukarRedigerte = useRef(false)   // sant etter at brukar har endra tidsbruk (utløyser automatisk sortering etter tid)
   // «Flytt timar»: alle lagra oppføringar for dagen kan flyttast til ein annan dag
   const [flyttApen, setFlyttApen]     = useState(false)
   const [flyttDato, setFlyttDato]     = useState('')
@@ -134,6 +135,7 @@ export default function TimeTracker({ userId, projects, addProject, mode, initDa
           isPersisted: true,
         }))
         rows.push(emptyRow())
+        brukarRedigerte.current = false
         setEntries(rows)
         setLoading(false)
       })
@@ -169,6 +171,7 @@ export default function TimeTracker({ userId, projects, addProject, mode, initDa
     setEntries(prev => {
       const updated = prev.map(r => r.id === rowId ? { ...r, ...changes } : r)
       if ('rawInput' in changes) {
+        brukarRedigerte.current = true
         const target = updated.find(r => r.id === rowId)
         const { hours, startTime, endTime } = parseTimeInput(changes.rawInput)
         target.hours     = hours
@@ -336,6 +339,16 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
     setErrorMsg(null); setSaveStatus('saved'); setTimeout(() => setSaveStatus('idle'), 1500)
   }
 
+  // Sorterer automatisk etter tid nokre sekund etter at brukar sluttar å endre tidsbruk (berre når rekkjefølgja ikkje alt stemmer)
+  const sorterRef = useRef(null)
+  sorterRef.current = { erKronologisk, sorterKronologisk }
+  const tidsSignatur = entries.map(r => (r.startTime || '') + '>' + (r.endTime || '')).join('|')
+  useEffect(() => {
+    if (!brukarRedigerte.current) return undefined
+    const t = setTimeout(() => { if (!sorterRef.current.erKronologisk) sorterRef.current.sorterKronologisk() }, 3000)
+    return () => clearTimeout(t)
+  }, [tidsSignatur])
+
   const deleteRow = async (rowId) => {
     const row = entries.find(r => r.id === rowId)
     if (!row) return
@@ -386,6 +399,18 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
       }
     }
     return { kart, par }
+  }, [entries])
+
+  // ── Udekka tid: ei oppføring som startar seinare enn alt som kom før (etter starttid) sluttar → pila i rada lyser ──
+  const hull = useMemo(() => {
+    const hm = (m) => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')
+    const liste = entries.filter(r => r.startTime && r.endTime).map(r => { const s = tilMin(r.startTime); let e = tilMin(r.endTime); if (e <= s) e += 1440; return { id: r.id, s, e } }).sort((a, b) => a.s - b.s)
+    const kart = new Map(); let maks = null
+    for (const x of liste) {
+      if (maks != null && x.s > maks) kart.set(x.id, { fra: hm(maks), til: hm(x.s), min: x.s - maks })
+      maks = maks == null ? x.e : Math.max(maks, x.e)
+    }
+    return kart
   }, [entries])
 
   // ── Kolonnebreidder (dra i kanten på kolonneoverskrifta; dobbeltklikk = standard). 0 = fleksibel (1fr) ──
@@ -521,11 +546,11 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
         borderRadius: 'var(--r2)', background: 'var(--bg2)' }}>
 
         <div style={{ display: 'grid', gridTemplateColumns: malKol, minWidth: 'min-content',
-          background: 'var(--bg3)', borderBottom: '2px solid var(--border)',
+          background: 'var(--tabell-hovud)', borderBottom: '2px solid var(--border)',
           position: 'sticky', top: 0, zIndex: 5 }}>
           {[['Prosjekt', 'Prosjekt', 'left'], ['Aktivitetsnr.', 'Aktivitetsnummer = aktivitetskode i Framdrift. Vel frå lista når prosjektet har kodar, elles skriv du kode (eller lèt vere).', 'left'], ['Tidsbruk', 'Tidsbruk', 'left'],
             ['Beskriving', 'Beskriving', 'left'], ['Timar', 'Timar', 'right'], ['Sendt inn', 'Sendt inn', 'center']].map(([namn, tittel, just], i) => (
-            <div key={namn} title={tittel} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', position: 'relative',
+            <div key={namn} title={tittel} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 800, color: 'var(--tabell-hovud-tekst)', position: 'relative',
               textTransform: 'uppercase', letterSpacing: '.05em', borderRight: '1px solid var(--border)', textAlign: just }}>
               {namn}
               <div onMouseDown={e => startKolResize(i, e)} onDoubleClick={() => nullstillKol(i)} title="Dra for å endre kolonnebreidda (dobbeltklikk = standard)"
@@ -611,12 +636,16 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
               </div>
 
               <div style={{ borderRight: '1px solid var(--border)', position: 'relative' }}>
+                {row.startTime && (() => { const h = hull.get(row.id); return (
+                  <span title={h ? 'Udekka tid før denne oppføringa: ' + h.fra + '–' + h.til + ' (' + (h.min >= 60 ? Math.floor(h.min / 60) + ' t ' : '') + (h.min % 60 ? h.min % 60 + ' min' : '') + ')' : 'Ingen udekka tid før denne oppføringa'}
+                    style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 1, fontSize: 16, fontWeight: 900, lineHeight: 1, cursor: 'default',
+                      color: h ? '#F59E0B' : 'var(--border2)', opacity: h ? 1 : .35, textShadow: h ? '0 0 7px rgba(245,158,11,.95), 0 0 2px rgba(245,158,11,.9)' : 'none' }}>↑</span>) })()}
                 <input type="text" value={row.rawInput}
                   disabled={isSubmitted}
                   onChange={e => updateRow(row.id, { rawInput: e.target.value })}
                   placeholder="t.d. 9.30-10"
                   title={(overlapp.kart.has(row.id) ? '⚠ Overlappar med rad ' + overlapp.kart.get(row.id).map(o => o.nr + ' (' + o.r.startTime + '–' + o.r.endTime + ')').join(', ') + '\n\n' : '') + 'Fleksibelt format:\n09.30-10  ·  2,5  ·  2,5t  ·  1:30  ·  2t30min'}
-                  style={{ ...cellInput, fontFamily: 'var(--mono)', ...(overlapp.kart.has(row.id) ? { background: 'rgba(220,38,38,.12)', boxShadow: 'inset 0 0 0 2px var(--danger)', color: 'var(--danger)', fontWeight: 700 } : { color: isSubmitted ? 'var(--text3)' : 'var(--text)' }) }}/>
+                  style={{ ...cellInput, paddingRight: 28, fontFamily: 'var(--mono)', ...(overlapp.kart.has(row.id) ? { background: 'rgba(220,38,38,.12)', boxShadow: 'inset 0 0 0 2px var(--danger)', color: 'var(--danger)', fontWeight: 700 } : { color: isSubmitted ? 'var(--text3)' : 'var(--text)' }) }}/>
               </div>
 
               <div style={{ borderRight: '1px solid var(--border)' }}>
@@ -669,9 +698,8 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
         })}
 
         {antallGrupper > 1 && (
-          <div style={{ borderTop: '2px solid var(--brand3)', background: 'var(--bg3)' }}>
-            <div style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700,
-              color: 'var(--brand)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+          <div style={{ borderTop: '2px solid var(--border)' }}>
+            <div style={{ padding: '14px 14px 8px', fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>
               Oppsummering per prosjekt og aktivitet
             </div>
             {Object.entries(totalsByProject).sort((a,b) => b[1]-a[1]).map(([key, total]) => {
@@ -682,7 +710,7 @@ ${innsendt} av dei er markert «sendt inn» og vert òg flytta.` : ''))) return
                 <div key={key} style={{ borderTop: '1px solid var(--border)' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: malKol, minWidth: 'min-content' }}>
                     <div style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
-                      {proj ? `📁 ${proj.name}` : '— Utan prosjekt —'}
+                      {proj ? proj.name : '— Utan prosjekt —'}
                     </div>
                     <div></div>
                     <div></div>
