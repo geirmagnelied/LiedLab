@@ -10,7 +10,7 @@ import { supabase } from './supabase'
 const CSS = `
 .an-in { width:100%; padding:5px 7px; border:1px solid transparent; border-radius:4px; font-size:13px; font-family:var(--font); background:transparent; color:var(--text); outline:none; box-sizing:border-box }
 .an-in:hover { border-color:var(--border) } .an-in:focus { border-color:var(--brand2); background:var(--bg2) }
-.an-th { text-align:left; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text3); padding:9px 8px; border-bottom:2px solid var(--border); background:var(--bg3); white-space:nowrap }
+.an-th { text-align:left; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text3); padding:9px 8px; border-bottom:2px solid var(--border); background:var(--tabell-hovud); white-space:nowrap }
 .an-td { padding:3px 4px; border-bottom:1px solid var(--border); vertical-align:middle }
 .an-kn { border:1.5px solid var(--border); background:var(--bg2); color:var(--text2); border-radius:7px; padding:5px 11px; font-size:12px; font-weight:700; font-family:var(--font); cursor:pointer; white-space:nowrap }
 .an-kn:hover:not(:disabled) { border-color:var(--brand2); color:var(--brand); background:var(--brandbg) } .an-kn:disabled { opacity:.5; cursor:default }

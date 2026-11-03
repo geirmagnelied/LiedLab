@@ -314,7 +314,7 @@ export default function CaseTable({ noteId, projectId, userId }) {
 
   const th = { padding:'9px 10px', fontSize:11, fontWeight:700, color:'var(--text3)',
     textTransform:'uppercase', letterSpacing:'.04em', textAlign:'left',
-    borderBottom:'2px solid var(--border)', background:'var(--bg3)',
+    borderBottom:'2px solid var(--border)', background:'var(--tabell-hovud)',
     whiteSpace:'nowrap' }
   const td = { padding:'9px 10px', fontSize:13, color:'var(--text)',
     borderBottom:'1px solid var(--border)', verticalAlign:'top' }

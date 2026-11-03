@@ -11,7 +11,7 @@ const ORD = {
   nn: {
     // navigasjon (venstrefane)
     'nav.dashboard': 'Dashboard', 'nav.dtm': 'Dokument, tegningar og modellar', 'nav.gjeremaal': 'Saksbehandling', 'nav.timar': 'Timar',
-    'nav.kvalitet': 'Kvalitetssystem', 'nav.farge': 'Farge', 'nav.bilete': 'Bilete', 'nav.framdrift': 'Framdrift', 'nav.kalender': 'Kalender', 'nav.bruker': 'Brukar',
+    'nav.kvalitet': 'Kvalitetssystem', 'nav.farge': 'Farge', 'nav.bilete': 'Bilete', 'nav.framdrift': 'Prosjektplan', 'nav.kalender': 'Kalender', 'nav.bruker': 'Brukar',
     'nav.prosjekt': 'Prosjekt', 'nav.kunde': 'Kundar', 'nav.kontordrift': 'Kontordrift', 'nav.notatar': 'Notatar', 'nav.oppgaver': 'Kanban', 'nav.saker': 'Saksbehandling',
     'nav.breidde': 'Breidde', 'nav.berreIkon': 'Berre ikon', 'nav.ikonBokstav': 'Ikon og bokstav', 'nav.ikonTekst': 'Ikon og full tekst',
     // toppfelt
@@ -31,7 +31,7 @@ const ORD = {
     'dash.godmorgon': 'God morgon', 'dash.goddag': 'God dag', 'dash.godkveld': 'God kveld', 'dash.sisteNotat': 'Siste notat', 'dash.opneOppgaver': 'Opne oppgåver', 'dash.timarVeka': 'Timar denne veka', 'dash.sisteDtm': 'Siste i DTM',
   },
   bm: {
-    'nav.dtm': 'Dokumenter, tegninger og modeller', 'nav.gjeremaal': 'Saksbehandling', 'nav.timar': 'Timer', 'nav.bilete': 'Bilder', 'nav.framdrift': 'Fremdrift', 'nav.bruker': 'Bruker',
+    'nav.dtm': 'Dokumenter, tegninger og modeller', 'nav.gjeremaal': 'Saksbehandling', 'nav.timar': 'Timer', 'nav.bilete': 'Bilder', 'nav.framdrift': 'Prosjektplan', 'nav.bruker': 'Bruker',
     'nav.kunde': 'Kunder', 'nav.notatar': 'Notater', 'nav.oppgaver': 'Kanban', 'nav.saker': 'Saksbehandling', 'nav.breidde': 'Bredde', 'nav.berreIkon': 'Bare ikon', 'nav.ikonBokstav': 'Ikon og bokstav', 'nav.ikonTekst': 'Ikon og full tekst',
     'topp.sokProsjekt': 'Søk prosjekt…', 'topp.innstillingar': 'Innstillinger', 'topp.minSide': 'Min side', 'topp.fjernFavoritt': 'Fjern favoritt',
     'bruker.tittel': 'Bruker', 'bruker.info': 'Brukerinfo', 'bruker.namn': 'Navn', 'bruker.fodselsaar': 'Fødselsår', 'bruker.bilete': 'Bilde', 'bruker.lastOpp': 'Last opp bilde', 'bruker.fjernBilete': 'Fjern bilde',

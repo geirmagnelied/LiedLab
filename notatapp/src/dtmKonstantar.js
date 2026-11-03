@@ -37,7 +37,9 @@ export const KATEGORI_MAPPE = {
 }
 
 // Dei fire faste vala for «Kategori eksternt dokument»-kolonna (DTMTabell.jsx).
-export const EKSTERN_DOK_KATEGORIAR = ['Vedtak', 'Leverandørdokument', 'Tilbodsunderlag', 'Prosjekteringsunderlag']
+// Prosjektdokument (vist under Prosjektstyring → Prosjektdokumenter): kontrakt, oppdragsbekreftingar og endringsavtalar
+export const PROSJEKTDOK_KATEGORIAR = ['Kontrakt', 'Oppdragsbekreftelse', 'Endringsavtale']
+export const EKSTERN_DOK_KATEGORIAR = ['Vedtak', 'Leverandørdokument', 'Tilbodsunderlag', 'Prosjekteringsunderlag', ...PROSJEKTDOK_KATEGORIAR]
 
 // Kanalar ei utsending kan gå via — fleirval, sjå DTMUtsendingModal.jsx.
 export const UTSENDING_KANALAR = [

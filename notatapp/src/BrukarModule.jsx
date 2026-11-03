@@ -21,7 +21,7 @@ const CSS = `
 .bk-knapp:hover { border-color:var(--brand2); color:var(--brand); background:var(--brandbg) }
 .bk-knapp.hovud { background:var(--brand); border-color:var(--brand); color:#fff }
 .bk-etikett { font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--text3); font-weight:700; margin-bottom:4px; display:block }
-.bk-th { text-align:left; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text3); padding:8px 8px; border-bottom:2px solid var(--border); background:var(--bg3); white-space:nowrap }
+.bk-th { text-align:left; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text3); padding:8px 8px; border-bottom:2px solid var(--border); background:var(--tabell-hovud); white-space:nowrap }
 .bk-td { padding:3px 4px; border-bottom:1px solid var(--border); vertical-align:top }
 `
 

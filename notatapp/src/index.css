@@ -8,10 +8,11 @@
   --brand4:      #52B788;
   --brandbg:     rgba(27,67,50,.10);
   --brandbg2:    rgba(27,67,50,.18);
-  --bg:          #F4F9F6;
+  --bg:          #FFFFFF;
   --bg2:         #FFFFFF;
-  --bg3:         #E8F4EF;
-  --bg4:         #D4EBE0;
+  --tabell-hovud: #D6E4F4;   /* blå bakgrunn på tabelloverskrifter (resten av tabellen er kvit) */
+  --bg3:         #F3F4F6;
+  --bg4:         #E5E7EB;
   --border:      #B7D9C8;
   --border2:     #8FBFA8;
   --text:        #0A1810;
@@ -35,10 +36,10 @@
   --brand4:      #60A5D4;
   --brandbg:     rgba(26,86,160,.10);
   --brandbg2:    rgba(26,86,160,.18);
-  --bg:          #F0F5FB;
+  --bg:          #FFFFFF;
   --bg2:         #FFFFFF;
-  --bg3:         #E0EBF7;
-  --bg4:         #C8DAEF;
+  --bg3:         #F3F4F6;
+  --bg4:         #E5E7EB;
   --border:      #A8C4E0;
   --border2:     #7AAAD0;
   --text:        #081320;
@@ -55,10 +56,10 @@
   --brand4:      #EC9A5A;
   --brandbg:     rgba(194,87,10,.10);
   --brandbg2:    rgba(194,87,10,.18);
-  --bg:          #FBF5F0;
+  --bg:          #FFFFFF;
   --bg2:         #FFFFFF;
-  --bg3:         #F5E8DC;
-  --bg4:         #EDD4BE;
+  --bg3:         #F3F4F6;
+  --bg4:         #E5E7EB;
   --border:      #DDB897;
   --border2:     #C89070;
   --text:        #1E0E00;

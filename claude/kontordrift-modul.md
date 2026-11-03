@@ -17,3 +17,9 @@ Nytt toppikon rett under Dashboard: **Prosjektstyring** (`prosjektstyring` i `Ap
 
 ## «Endre prosjekt» (2. nov. 2026)
 Verktøylinja øvst i Prosjekt-modulen («Lagra» + «Slett prosjekt») er fjerna. Nøkkelinfo (prosjektkortet), personell og tilgang er skrivevern til ein administrator i kontoret trykker **✎ Endre prosjekt** (på fanelinja). I endringsmodus finst **Lagre** (lagrar og går ut av modusen) og **Avbryt**; **Slett prosjekt** ligg nedst i prosjektkortet (berre i endringsmodus). Nye prosjekt (utkast) startar i endringsmodus. Dette er ei UI-sperre — databasen (RLS) er uendra.
+
+## Prosjektstyring: rekkjefølgje, Prosjektplan, Prosjektdokumenter, farger, husk sist prosjekt (3. nov. 2026)
+- Undermenyen i Prosjektstyring: **Prosjekt · Dashboard · Prosjektplan · Prosjektdokumenter · Kalender**. Klikk på Prosjektstyring-ikonet opnar Dashboard (`start: 'prosjektdash'` i `AppRail.jsx`). «Framdrift» heiter no **Prosjektplan** (berre namnet; modulnøkkelen `framdrift` er uendra).
+- **Prosjektdokumenter** (`ProsjektDokumenter.jsx`, nøkkel `prosjektdok`): `DTMTabell` med dei DTM-dokumenta i prosjektet der «Kategori eksternt dok.» er Kontrakt, Oppdragsbekreftelse eller Endringsavtale (`PROSJEKTDOK_KATEGORIAR` i `dtmKonstantar.js`, lagt til i `EKSTERN_DOK_KATEGORIAR`). Dokumenta vert lagde inn i DTM; kategorien kan òg setjast i denne tabellen.
+- **Farger:** `--bg` er kvit i alle tema, `--bg3`/`--bg4` er nøytrale grå, og tabelloverskrifter bruker `--tabell-hovud` (blå, `#D6E4F4`). Merkevarefargane (`--brand*`) er uendra.
+- **Husk sist:** `App.jsx` lagrar kontor og prosjekt per brukar i `localStorage` (`liedlab-sist:<userId>`) og gjenopprettar dei ved oppstart (prosjektet vert sjekka mot kontoret ved fyrste innlasting).

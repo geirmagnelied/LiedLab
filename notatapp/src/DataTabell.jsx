@@ -1637,7 +1637,7 @@ const CSS = `
 .dt-pil, .dt-pil * { cursor:default !important }
 .dt-pil .dt-grip { cursor:col-resize !important }
 .dt-pil input, .dt-pil textarea { cursor:text !important }
-.dt-tabell th { position:sticky; top:0; z-index:5; background:var(--bg3); padding:0; text-align:left;
+.dt-tabell th { position:sticky; top:0; z-index:5; background:var(--tabell-hovud); padding:0; text-align:left;
   border-bottom:2px solid var(--border); border-right:1px solid var(--border); white-space:nowrap }
 .dt-tabell th::after { content:''; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:var(--brand);
   transform:scaleX(0); transform-origin:left; transition:transform .22s cubic-bezier(.4,0,.2,1) }
@@ -1659,7 +1659,7 @@ const CSS = `
 .dt-caret:hover { background:var(--brand); color:#fff; opacity:1 }
 .dt-grip { position:absolute; top:0; right:-3px; width:7px; height:100%; cursor:col-resize; z-index:6 }
 .dt-grip:hover { background:var(--brand3); opacity:.5 }
-.dt-radmeny-hovud { position:sticky; top:0; z-index:5; background:var(--bg3); border-bottom:2px solid var(--border);
+.dt-radmeny-hovud { position:sticky; top:0; z-index:5; background:var(--tabell-hovud); border-bottom:2px solid var(--border);
   border-right:1px solid var(--border) }
 .dt-draghandtak { width:20px; flex-shrink:0; display:flex; align-items:center; justify-content:center; cursor:grab;
   color:var(--text3); font-size:13px; letter-spacing:-3px; user-select:none }
@@ -1674,7 +1674,7 @@ const CSS = `
 .dt-radmeny-knapp:hover { background:var(--bg3) }
 .dt-radmeny-stjerne { color:var(--text3); font-size:10px; position:absolute; top:2px; right:2px }
 .dt-rmikon { width:20px; flex:0 0 auto; text-align:center; font-size:15px; color:var(--text2) }
-.dt-radvel-hovud { position:sticky; top:0; z-index:5; background:var(--bg3); border-bottom:2px solid var(--border);
+.dt-radvel-hovud { position:sticky; top:0; z-index:5; background:var(--tabell-hovud); border-bottom:2px solid var(--border);
   border-right:1px solid var(--border) }
 .dt-radvel-celle { cursor:pointer }
 .dt-radvel-celle:hover .dt-radvel-boks { border-color:${CELLEVAL_FARGE} }
