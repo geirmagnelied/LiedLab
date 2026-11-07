@@ -114,3 +114,7 @@ Alle tre endringane er bygde. Val som vart gjorde undervegs:
 - **Innstillingar er ikkje lenger eit panel.** Knappen nedst i `AppRail` er fjerna. `SettingsPanel` har ein `innbygd`-modus og vert vist i hovudvindauget som tre nye undermodular under Kontordrift (til høgre for Kontorkalender): `innst_kontor` (Kontor), `innst_medlemmar` (Medlemmar), `innst_kontaktar` (Kontaktar). `App.jsx` mappar dei via `INNST_SIDER`. «Min profil»-fana er ikkje med (profilen ligg i Brukar). `showSettings`-staten er fjerna.
 - **Mobil prosjektnamn:** `kortProsjektNamn()` i `TopBar.jsx` (`ProsjektVelger kort`): prosjektnummer + forkorting, maks 20 teikn. Så mykje av første ordet som får plass med punktum bak, så første bokstav (stor) i kvart av dei neste orda — «2412 GreenH.LFC». Namn som passar heilt vert viste uforkorta.
 - **Liggande modus:** to faste svarte felt med bredde `env(safe-area-inset-left/right)` dekkjer utsnittet, og innhaldet har same padding. Ikkje testa på ekte telefon.
+
+## «Opne i nytt vindauge» og namneendring (7. nov. 2026)
+- Klikk på **LL-logoen** oppe til venstre (TopBar) opnar ein meny med «Opne i nytt vindauge»: same modul og prosjekt i eit eige vindauge (`?modul=…&prosjekt=…&nyttvindauge=1`; skrivebordsappen via IPC `app:apne-nytt-vindauge` — **krev omstart av appen**; nettlesaren via `window.open`). Det nye vindauget rører ikkje «sist opne»-minnet.
+- DTM heiter no **Dokumenter** i menyar og namn.

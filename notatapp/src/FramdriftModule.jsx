@@ -12,6 +12,7 @@ import FramdriftBemanning from './FramdriftBemanning'
 import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
 import { personFargeKart } from './personFarge'
 import { eksporterExcel } from './framdriftEksport'
+import FramdriftRapportModal from './FramdriftRapportModal'
 import FramdriftForbrukModal from './FramdriftForbrukModal'
 import { FdMeny, MenyPunkt, MenyTittel, MenySkilje, PalopInnanMeny } from './FramdriftVerktoy'
 import { palopSlutt } from './framdriftPalop'
@@ -87,7 +88,7 @@ function TekstFelt({ verdi, onLagre, type = 'text', ...rest }) {
     onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} {...rest}/>
 }
 
-export default function FramdriftModule({ userId, projects, notes, activeProjectId }) {
+export default function FramdriftModule({ userId, projects, notes, activeProjectId, brukarNamn }) {
   const [elementer, setElementer] = useState([])
   const [lastar, setLastar] = useState(true)
   const [lagringStatus, setLagringStatus] = useState('') // '' | 'lagrar' | 'lagra' | 'feil'
@@ -117,6 +118,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const [fdVis, setFdVisRaa] = useState(() => lsJson('liedlab-framdrift-vis', { eining: 'timar', delsummer: false }))   // Visning: eining i veke-kolonnane og delsummer
   const setFdVis = (patch) => setFdVisRaa(v => { const n = { ...v, ...patch }; try { localStorage.setItem('liedlab-framdrift-vis', JSON.stringify(n)) } catch { /* privat modus */ } return n })
   const [eksporterer, setEksporterer] = useState(false)
+  const [rapportStart, setRapportStart] = useState(null)   // null = lukka, elles kva rapport vindauget startar på
   const [koblingMelding, setKoblingMelding] = useState(null)
   const [leveransarOpen, setLeveransarOpen] = useState(false)
   const [personell, setPersonell] = useState([]) // prosjekt_personell for valt prosjekt (Prosjekt → Personell)
@@ -497,6 +499,14 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <MenyPunkt tittel="Excel — tabell med tidslinje" under="Same tabell, men vekekolonnane teiknar stolpane i fargar" onClick={() => { lukk(); eksporter(true) }}/>
             <div style={{ fontSize: 11, color: 'var(--text3)', padding: '4px 10px 2px' }}>Eit ekstra ark gir timar per person per veke.</div>
           </>)}</FdMeny>
+          <FdMeny etikett="Rapport" disabled={!elementer.length} breidd={310} tittel="Ferdige rapportar som PDF — standard eller eigne">{lukk => (<>
+            <MenyTittel>Standardrapportar</MenyTittel>
+            <MenyPunkt tittel="Rapport til kunde" under="Aktivitet, ansvarleg, budsjett · påløpt totalt · vald periode · prognose" onClick={() => { lukk(); setRapportStart('std-kunde') }}/>
+            <MenyPunkt tittel="Intern rapport" under="Som kunderapporten, med timar, timerate, avvik og venta sluttkostnad" onClick={() => { lukk(); setRapportStart('std-intern') }}/>
+            <MenySkilje/>
+            <MenyPunkt tittel="Eigne og delte rapportar…" under="Opne ein lagra rapport, eller lag ein ny" onClick={() => { lukk(); setRapportStart('std-kunde') }}/>
+            <MenyPunkt tittel="Ny rapport…" under="Vel seksjonar og kolonnar sjølv" onClick={() => { lukk(); setRapportStart('ny') }}/>
+          </>)}</FdMeny>
           <FdMeny etikett="PNS" breidd={270} disabled={!elementer.length} tittel="Prosjektnedbrytingsstruktur — vel kor mange nivå som skal vere opne">{lukk => (<>
             <MenyTittel>Vis til og med nivå</MenyTittel>
             {Array.from({ length: pnsMaks }, (_, i) => i + 1).map(k => (
@@ -712,6 +722,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
           onModus={m => settFelt(sel.id, 'ferdigModus', m)} onFerdig={n => settFelt(sel.id, 'ferdig', n)}/>
       )}
       {malOpen && <MalVindauge harPlan={elementer.length > 0} onLukk={() => setMalOpen(false)} onBruk={brukMal}/>}
+      {rapportStart && aktivtProsjekt && <FramdriftRapportModal key={rapportStart} startValg={rapportStart} onLukk={() => setRapportStart(null)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn}
+        elementer={elBase} forbrukRader={forbrukRader} personell={personell} kal={kal}/>}
       {forbrukOpen && aktivtProsjekt && <FramdriftForbrukModal userId={userId} prosjekt={aktivtProsjekt} elementer={elementer} onLukk={() => setForbrukOpen(false)} onFerdig={(r) => { setForbrukOpen(false); if (r?.nyeAktivitetar?.length) opprettAktivitetar(r.nyeAktivitetar); lastForbruk() }}/>}
       {importOpen && <FramdriftImportModal harPlan={elementer.length > 0} onLukk={() => setImportOpen(false)} onImporter={importer}/>}
     </div>

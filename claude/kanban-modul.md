@@ -207,3 +207,8 @@ Endringar etter første tilbakemelding frå Geir Magne:
   → kort med `sak_id`. Sakvindauget har òg «Oppgåver i saka» (liste + legg til).
 - **Kanban**: ingen «Flytt til…»-knapp på kort; merkefargen er ein innrykka stripe (kortkanten er synleg); kortvindauget er flyttbart/skalerbart med blå toppline;
   Ansvarleg er ei nedtrekksmeny lik Status (`PersonVelger.jsx`); kvar person får ein fast, unik farge frå namnet (`personFarge` i `kanbanLogikk.js`) på kort, i tabellen og i menyen.
+
+## Revisjon 7. nov. 2026
+- **Leveransar frå leveranseplanen:** ved opning (og fokus) sjekkar `synkDtm` DTM-leveransane. Manglar prosjektet ei tavle for fasen til ein uleverte leveranse, vert tavla oppretta automatisk (ikkje om ei tavle for fasen alt er avslutta); leveransar utan kjend fase går til Detaljprosjekt. Eitt kort per dokument (fleire leveransetidspunkt står i skildringa), frist = nærmaste ikkje-leverte planlagde dato. **Komande oppgåver** viser leveransekorta fyrst, sortert på frist (utan frist sist).
+- **Hover:** held ein musa i ro ~0,7 s over eit kort, vert heile oppgåva (tittel, skildring, status, ansvarleg, frist, lenkjer) vist i ein komprimert popover.
+- **Saksbehandling-menyen:** Saksbehandling · Notatar · Kanban (Kanban sist).

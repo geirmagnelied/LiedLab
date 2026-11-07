@@ -1,0 +1,3 @@
+-- 7. nov. 2026. Migrasjon `framdrift_rapportar` (køyrd i Supabase): delte rapport-oppsett for Prosjektplan.
+-- Synleg for alle med tilgang til prosjektet (kan_se_prosjekt); endring/sletting: forfattaren eller administrator (kan_administrere_prosjekt).
+-- Kolonnar: id, project_id, namn, oppsett jsonb, created_by, created_at, updated_at. Sjå migrasjonen i Supabase for full SQL.

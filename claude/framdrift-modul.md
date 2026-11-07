@@ -212,3 +212,11 @@ Kolonna **Ansvarleg** (tidslinjetabellen og tabellvisinga) er no eit **nedtrekk*
 - **Verktøylinja (NL3):** «Visning tidslinje», **− / ＋** (skalerer breidda tidslinja tek: ×0,8/×1,25, hugsa lokalt) og tidsoppløysinga **Dag · Veke · Månad · Månad+ · Kvartal** ligg no til høgre (over tidslinja) og vert berre viste i Tidslinje-visinga.
 - **Månad (ny) og Månad+:** «Månad+» er den gamle månadsvisinga (månadsoverskrift + vekenummer). «Månad» er tidslinja utan vekenummer med to summerader nedst: **Timar per månad** (planlagt + påløpt i blått) og **Påløpt honorar per månad** (kr). Veker over månadsskifte vert fordelte på månadene etter arbeidstimar (`manadDelar()`), og honorar reknar kvar person sin rate. Radene vert viste uavhengig av «Timar per veke»-valet.
 - **VN:** aktiv modul har svart bakgrunn og kvit tekst/ikon (gjeld òg mobilmenyen).
+
+## Rapportar (PDF) — 7. nov. 2026
+Ny meny **Rapport ▾** i Prosjektplan-verktøylinja (til høgre for Eksport). `FramdriftRapportModal.jsx` + `framdriftRapport.js` (reine funksjonar + PDF med pdf-lib, A4 liggande).
+- **Seksjonar (kolonnegrupper):** *Aktivitet og budsjett* · *Påløpt totalt* (til og med periodeslutten) · *Påløpt i perioden* · *Prognose resterande arbeid* (planlagde timar frå dagen etter periodeslutten og ut aktiviteten, delvis veke prorata etter arbeidsdagar; kroner = timar × timerate).
+- **Periode:** standard førre månad; kan setjast til eigen periode. Påløpt kjem frå importert forbruk (`framdrift_forbruk`, kopla på aktivitetskode), kroner = timar × personens/aktivitetens rate (same regel som tabellen); manuelt påløpt tal vert brukt viss det ikkje finst forbruk.
+- **Standardrapportar (låste):** *Rapport til kunde* (aktivitetsnr., aktivitet, ansvarleg, budsjett · påløpt kr/timar, gjenståande budsjett · periode kr/timar · prognose kr/timar) og *Intern rapport* (i tillegg planlagde timar, gjenståande timar, % brukt, venta sluttkostnad og avvik mot budsjett).
+- **Eigne rapportar:** vel seksjonar/kolonnar, tittel, fasar/delsummar, sum-rad, skjul aktivitetar utan tal. Lagra i `framdrift_rapportar` (`supabase-framdrift-rapportar.sql`) og **synlege for alle med tilgang til prosjektet**; forfattaren eller administrator kan endre/slette. «Lag eigen kopi» startar frå ein standardrapport.
+- Ikkje gjort: grafar, rekkjefølgje på kolonnar, PDF-fil lagra i DTM.
