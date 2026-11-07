@@ -75,7 +75,7 @@ export function planDtmSync(tavle, kort, dokumenter, userId) {
   const kjende = new Map(kort.filter(k => k.dtm_ref?.dokument_id != null).map(k => [String(k.dtm_ref.dokument_id), k]))
   let sortering = kortIKolonne(kort.filter(k => k.tavle_id === tavle.id), 'komande').length
   for (const dok of dokumenter) {
-    if (faseFraTekst(dok.fase) !== tavle.fase || !dtmLeveransar(dok).length) continue
+    if ((faseFraTekst(dok.fase) || 'detalj') !== tavle.fase || !dtmLeveransar(dok).length) continue   // leveransar utan kjend fase går til detaljprosjekt-tavla
     const data = dtmKortData(dok); const status = dtmStatus(dok)
     const k = kjende.get(String(dok.id))
     if (!k) {
@@ -97,7 +97,11 @@ export function planDtmSync(tavle, kort, dokumenter, userId) {
 }
 // Kort i ei kolonne, sortert (sortering, så oppretta)
 export function kortIKolonne(kort, status) {
-  return kort.filter(k => k.status === status).sort((a, b) => (a.sortering - b.sortering) || (String(a.created_at).localeCompare(String(b.created_at))))
+  const liste = kort.filter(k => k.status === status).sort((a, b) => (a.sortering - b.sortering) || (String(a.created_at).localeCompare(String(b.created_at))))
+  if (status !== 'komande') return liste
+  // Komande oppgåver: leveransane frå leveranseplanen (DTM) fyrst, sortert på nærmaste leveransefrist (utan frist sist); så dei andre korta i vanleg rekkjefølgje
+  const lev = liste.filter(k => k.dtm_ref).sort((a, b) => (a.frist ? 0 : 1) - (b.frist ? 0 : 1) || String(a.frist || '').localeCompare(String(b.frist || '')))
+  return [...lev, ...liste.filter(k => !k.dtm_ref)]
 }
 
 // WIP: tal kort per person i ei kolonne → { namn: tal }

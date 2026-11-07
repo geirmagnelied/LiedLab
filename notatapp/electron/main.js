@@ -1218,6 +1218,26 @@ ipcMain.handle('dtm:les-fil-bytes', async (event, { oppdragsSti, kategori, filna
 function urlMedSpørjestreng(url, spørjestreng) {
   return url + (url.includes('?') ? '&' : '?') + spørjestreng
 }
+// «Opne i nytt vindauge» (logo-menyen i TopBar): eit ekstra hovudvindauge med same modul og prosjekt (spørjestreng frå renderaren)
+ipcMain.handle('app:apne-nytt-vindauge', async (event, { qs }) => {
+  const sikker = String(qs || '').replace(/[^a-zA-Z0-9=&_.\-]/g, '')
+  const vindauge = new BrowserWindow({
+    width: 1300, height: 860, minWidth: 700, minHeight: 480,
+    icon: path.join(__dirname, '..', 'icon.png'),
+    backgroundColor: '#0A0A0A',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#0A0A0A', symbolColor: '#ffffff', height: 54 },
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false },
+  })
+  vindauge.webContents.on('before-input-event', (e, inn) => {
+    if (inn.type !== 'keyDown') return
+    const k = inn.key.toLowerCase()
+    if (k === 'f12' || (inn.control && inn.shift && k === 'i')) { vindauge.webContents.toggleDevTools(); e.preventDefault() }
+    else if (k === 'f5' || (inn.control && !inn.shift && k === 'r')) { vindauge.webContents.reload(); e.preventDefault() }
+  })
+  loadWithFallback(vindauge, [DEV_URL, PROD_URL, PROD_URL_BACKUP].map(u => urlMedSpørjestreng(u, sikker)))
+  return true
+})
 ipcMain.handle('ks:apne-sjekkliste-vindauge', async (event, { dokumentId, kontrolltype }) => {
   const spørjestreng = `sjekkliste=1&dokumentId=${encodeURIComponent(dokumentId)}&kontrolltype=${encodeURIComponent(kontrolltype)}`
   const vindauge = new BrowserWindow({

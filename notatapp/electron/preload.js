@@ -139,6 +139,9 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
   // Opnar det skalerbare sjekkliste-vindauget for kontroll av teikningar
   // (egenkontroll/fagkontroll/godkjenning) — sjå KvalitetModule.jsx og
   // SjekklisteVindauge.jsx.
+  // «Opne i nytt vindauge» (logo-menyen i TopBar)
+  apneNyttVindauge: (qs) => ipcRenderer.invoke('app:apne-nytt-vindauge', { qs }),
+
   ksApneSjekklisteVindauge: (dokumentId, kontrolltype) =>
     ipcRenderer.invoke('ks:apne-sjekkliste-vindauge', { dokumentId, kontrolltype }),
 

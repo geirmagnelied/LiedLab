@@ -62,8 +62,11 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const [view,              setView]              = useState('notatar')
   // Hugsar kontor og prosjekt som sist var oppe for denne brukaren (localStorage), så dei opnar seg fyrst ved neste oppstart
   const sistNokkel = 'liedlab-sist:' + userId
+  // «Opne i nytt vindauge» sender modul og prosjekt i adressa (?modul=…&prosjekt=…&nyttvindauge=1); eit slikt vindauge rører ikkje «sist opne»-minnet
+  const startParam = useMemo(() => new URLSearchParams(window.location.search), [])
+  const erSekundaer = startParam.get('nyttvindauge') === '1'
   const lagraSist = useMemo(() => { try { return JSON.parse(localStorage.getItem(sistNokkel)) || {} } catch { return {} } }, [sistNokkel])
-  const [selectedProjectId, setSelectedProjectId] = useState(lagraSist.project ?? null)
+  const [selectedProjectId, setSelectedProjectId] = useState(startParam.get('prosjekt') ? Number(startParam.get('prosjekt')) : (lagraSist.project ?? null))
   const sistValidert = useRef(false)
   const [tlCollapsed,       setTlCollapsed]       = useState(false)
   const [tlHeight,          setTlHeight]          = useState(INITIAL_TL_H)
@@ -85,7 +88,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
   const [railLive, setRailLive] = useState(null) // breidd på VN under dragning (så logorutå i toppen følgjer med)
   const [railModus, setRailModus] = useState(() => { try { const v = localStorage.getItem('liedlab-rail-modus'); return RAIL_MODUSAR.includes(v) ? v : 'min' } catch { return 'min' } })
   const settRailModus = (m) => { setRailModus(m); try { localStorage.setItem('liedlab-rail-modus', m) } catch { /* privat modus */ } }
-  const [activeModule,      setActiveModule]      = useState('dashboard') // startsida; elles 'notatar' | 'timar' | 'kvalitet' …
+  const [activeModule,      setActiveModule]      = useState(startParam.get('modul') || 'dashboard') // startsida; elles 'notatar' | 'timar' | 'kvalitet' …
   // Prosjektstyring styrer det AKTIVE prosjektet: utan valt prosjekt går Framdrift/Kalender til prosjektlista der ein vel eitt
   useEffect(() => {
     if (!selectedProjectId && (activeModule === 'framdrift' || activeModule === 'kalender' || activeModule === 'prosjektdash' || activeModule === 'prosjektdok')) setActiveModule('prosjekt')
@@ -172,7 +175,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
   }, [offices.length])
 
   useEffect(() => {
-    if (!activeOfficeId) return
+    if (!activeOfficeId || erSekundaer) return
     try { localStorage.setItem(sistNokkel, JSON.stringify({ office: activeOfficeId, project: selectedProjectId })) } catch { /* privat modus */ }
   }, [sistNokkel, activeOfficeId, selectedProjectId])
 
@@ -775,7 +778,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
 // Innstillingane er ein del av Kontordrift (vert viste i hovudvindauget, ikkje som panel)
 const INNST_SIDER = { innst_kontor: 'office', innst_medlemmar: 'members', innst_kontaktar: 'kontaktar' }
 
-const MODULE_LABELS = { prosjektdok:'Prosjektdokumenter', prosjektdash:'Prosjekt-dashboard', innst_kontor:'Kontor', innst_medlemmar:'Medlemmar', innst_kontaktar:'Kontaktar', skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Kanban', saker:'Saksbehandling', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokument, tegningar og modellar', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Prosjektplan' }
+const MODULE_LABELS = { prosjektdok:'Prosjektdokumenter', prosjektdash:'Prosjekt-dashboard', innst_kontor:'Kontor', innst_medlemmar:'Medlemmar', innst_kontaktar:'Kontaktar', skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Kanban', saker:'Saksbehandling', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokumenter', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Prosjektplan' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())

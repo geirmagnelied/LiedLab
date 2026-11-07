@@ -94,6 +94,16 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
                                   offices = [], activeOfficeId, onSetOffice, onAddOffice }) {
   const { t } = useT()
   const [showNewOffice,  setShowNewOffice]  = useState(false)
+  const [logoMeny, setLogoMeny] = useState(false)
+  // Opnar den gjeldande visinga (modul + prosjekt) i eit nytt vindauge — skrivebordsappen via IPC, nettlesaren via window.open
+  const opneNyttVindauge = () => {
+    setLogoMeny(false)
+    const p = new URLSearchParams({ nyttvindauge: '1' })
+    if (activeModule) p.set('modul', activeModule)
+    if (activeProjectId) p.set('prosjekt', String(activeProjectId))
+    if (window.resultatdokumentAPI?.apneNyttVindauge) window.resultatdokumentAPI.apneNyttVindauge(p.toString())
+    else window.open(window.location.pathname + '?' + p.toString(), '_blank', 'width=1300,height=860')
+  }
   const [newOfficeName,  setNewOfficeName]  = useState('')
   const [newOfficeColor, setNewOfficeColor] = useState('#1B4332')
 
@@ -121,8 +131,8 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
       <div style={{
         width: railBredde, minWidth: railBredde, height: '100%', transition: 'width .15s ease, min-width .15s ease',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        borderRight: '1px solid rgba(255,255,255,.08)',
-      }} title="LiedLab">
+        borderRight: '1px solid rgba(255,255,255,.08)', position: 'relative', cursor: 'pointer', WebkitAppRegion: 'no-drag',
+      }} title="LiedLab — meny" onClick={() => setLogoMeny(v => !v)}>
         <div style={{
           width: 34, height: 34, borderRadius: 9,
           background: 'rgba(255,255,255,.15)',
@@ -134,6 +144,17 @@ export default function TopBar({ projects, activeProjectId, onSelectProject, onT
         }}>
           LL
         </div>
+        {logoMeny && (<>
+          <div onClick={e => { e.stopPropagation(); setLogoMeny(false) }} style={{ position: 'fixed', inset: 0, zIndex: 190 }}/>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 'calc(100% - 4px)', left: 6, zIndex: 200, minWidth: 230, padding: 6, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)', cursor: 'default' }}>
+            <button onClick={opneNyttVindauge}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+              ⧉ Opne i nytt vindauge
+              <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--text3)', marginTop: 2 }}>Same visning og prosjekt, i eit eige vindauge</div>
+            </button>
+          </div>
+        </>)}
       </div>
 
       {/* ── Wordmark ── */}

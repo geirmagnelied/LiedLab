@@ -5,7 +5,7 @@ import KanbanTavle from './KanbanTavle'
 import KanbanKortModal from './KanbanKortModal'
 import KanbanKilder from './KanbanKilder'
 import { KANBAN_MALAR } from './kanbanMalar'
-import { medKortNummer, TAVLE_FASAR, DTM_KOLONNER, kortIKolonne, planFlytting, planDtmSync, filtrer, faseNamn, fmtDato } from './kanbanLogikk'
+import { medKortNummer, TAVLE_FASAR, DTM_KOLONNER, kortIKolonne, planFlytting, planDtmSync, filtrer, faseNamn, fmtDato, dtmLeveransar, faseFraTekst } from './kanbanLogikk'
 
 // ═══════════════════════════════════════════════════════════════════
 //  OppgaveModule = Kanban per prosjekt (Gjeremål → Oppgåver). Sjå claude/kanban-modul.md.
@@ -56,12 +56,20 @@ export default function OppgaveModule({ userId, projects, activeOfficeId, active
   // DTM-leveransar → kort (nye kort + statusjustering). Køyrer ved opning, fokus og når ei tavle vert oppretta.
   const synkDtm = useCallback(async (tavlerListe, kortListe) => {
     if (!userId || !activeProjectId || syncer.current) return
-    const aktive = (tavlerListe || tavlerRef.current).filter(t => !t.avslutta)
-    if (!aktive.length) return
     syncer.current = true
     try {
       const { data: dok, error } = await supabase.from('dtm_dokumenter').select(DTM_KOLONNER.join(',')).eq('project_id', activeProjectId)
       if (error || !dok) return
+      let liste = tavlerListe || tavlerRef.current
+      // Leveranseplanen har planlagde leveransar for ei fase utan tavle? Lag tavla automatisk (ikkje om ei tavle for fasen alt er avslutta).
+      const trengFasar = [...new Set(dok.filter(d => dtmLeveransar(d).some(l => !l.sendt)).map(d => faseFraTekst(d.fase) || 'detalj'))]
+      for (const fase of trengFasar) {
+        if (liste.some(t => t.fase === fase)) continue
+        const { data: nyTavle } = await supabase.from('kanban_tavler').insert({ user_id: userId, project_id: activeProjectId, fase }).select().single()
+        if (nyTavle) { liste = [...liste, nyTavle]; setTavler(liste); setValgtTavle(v => v ?? nyTavle.id) }
+      }
+      const aktive = liste.filter(t => !t.avslutta)
+      if (!aktive.length) return
       let alle = kortListe || kortRef.current
       const endringar = []
       for (const t of aktive) {
