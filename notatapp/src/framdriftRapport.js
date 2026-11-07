@@ -1,4 +1,4 @@
-import { addDays, format } from 'date-fns'
+import { addDays, format, getISOWeek, getISOWeekYear } from 'date-fns'
 import { tilDato } from './framdriftDato'
 import { visingsrader, harBorn, etterkommarar } from './framdriftLogikk'
 import { fordelTimar, personDelar, prisKartFra, snittpris, prisFor } from './framdriftTimar'
@@ -55,12 +55,19 @@ export const KOLONNER = {
 const kolDef = (sek, key) => KOLONNER[sek].find(k => k.key === key)
 
 // ── Standardrapportar (låste) ────────────────────────────────────────
-const BASIS = { periode: { modus: 'forrigeManad', fra: '', til: '' }, fasar: true, sumrad: true, berreMedTal: false, undertittel: '' }
+// prognoseModus: 'resterande' (berre sum), 'manad' (kolonne per månad) eller 'veke' (kolonne per veke) · ark: utskriftsformat for PDF
+const BASIS = { periode: { modus: 'forrigeManad', fra: '', til: '' }, fasar: true, sumrad: true, berreMedTal: false, undertittel: '',
+  prognoseModus: 'manad', ark: { storleik: 'A4', retning: 'landskap' }, delsum: false, perPerson: false }
+export const ARK = { A0: [2383.94, 3370.39], A1: [1683.78, 2383.94], A2: [1190.55, 1683.78], A3: [841.89, 1190.55], A4: [595.28, 841.89], A5: [419.53, 595.28] }
+export const arkMaal = (ark) => {
+  const [kort, lang] = ARK[ark?.storleik] || ARK.A4
+  return ark?.retning === 'portrett' ? [kort, lang] : [lang, kort]      // [breidd, høgd] i pt
+}
 export const STANDARD_RAPPORTAR = [
   { id: 'std-kunde', namn: 'Rapport til kunde', standard: true, oppsett: { ...BASIS, tittel: 'Prosjektrapport',
     seksjonar: { info: true, total: true, periode: true, prognose: true },
     kolonnar: { info: ['kode', 'namn', 'ansvarleg', 'budsjett'], total: ['palopKr', 'palopTimar', 'gjenKr'], periode: ['perKr', 'perTimar'], prognose: ['progKr', 'progTimar'] } } },
-  { id: 'std-intern', namn: 'Intern rapport', standard: true, oppsett: { ...BASIS, tittel: 'Intern prosjektrapport', berreMedTal: false,
+  { id: 'std-intern', namn: 'Intern rapport', standard: true, oppsett: { ...BASIS, tittel: 'Intern prosjektrapport', berreMedTal: false, delsum: true, perPerson: true,
     seksjonar: { info: true, total: true, periode: true, prognose: true },
     kolonnar: { info: ['kode', 'namn', 'ansvarleg', 'timarPlan', 'budsjett'], total: ['palopTimar', 'palopKr', 'gjenTimar', 'gjenKr', 'prosentBrukt'], periode: ['perTimar', 'perKr'], prognose: ['progTimar', 'progKr', 'sluttKr', 'avvikKr'] } } },
 ]
@@ -79,25 +86,37 @@ export function periodeFra(oppsett, idag = new Date()) {
 export const datoNo = (s) => (s ? s.split('-').reverse().join('.') : '')
 
 // ── Utrekning ───────────────────────────────────────────────────────
-function prognoseTimar(e, kal, tilIso) {
-  const til = tilDato(tilIso)
-  let sum = 0
-  for (const { veke, timar } of fordelTimar(e, kal)) {
-    const mandag = tilDato(veke)
-    if (addDays(mandag, 6) <= til) continue
-    if (mandag > til) { sum += timar; continue }
-    let etter = 0
-    for (let i = 0; i < 5; i++) if (addDays(mandag, i) > til) etter++   // delvis veke: arbeidsdagane etter periodeslutten
-    sum += timar * etter / 5
-  }
-  return sum
+const MND = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des']
+export function periodeNamn(key, modus) {
+  if (modus === 'veke') { const d = tilDato(key); return `U${getISOWeek(d)} ${String(getISOWeekYear(d)).slice(2)}` }
+  const [y, m] = key.split('-'); return `${MND[+m - 1]} ${y.slice(2)}`
 }
 
-// → { rader: [{ id, nivaa, gruppe, ...felt }], sum: {...} }. `elementer` = planen med effektive timar (medEffektiveTimar), `forbrukRader` = ALLE importerte timeføringar.
+// Planlagde timar ETTER periodeslutten: per veke (nøkkel = måndag) og per månad (nøkkel = yyyy-MM). Delvis veke vert fordelt på arbeidsdagane etter periodeslutten.
+function prognoseFordelt(e, kal, tilIso) {
+  const til = tilDato(tilIso)
+  const veke = new Map(), manad = new Map()
+  for (const { veke: v, timar } of fordelTimar(e, kal)) {
+    const mandag = tilDato(v)
+    if (addDays(mandag, 6) <= til) continue
+    const perDag = timar / 5
+    for (let i = 0; i < 5; i++) {
+      const d = addDays(mandag, i)
+      if (d <= til) continue
+      const kv = format(mandag, 'yyyy-MM-dd'), km = format(d, 'yyyy-MM')
+      veke.set(kv, (veke.get(kv) || 0) + perDag); manad.set(km, (manad.get(km) || 0) + perDag)
+    }
+  }
+  return { veke, manad, sum: [...veke.values()].reduce((a, b) => a + b, 0) }
+}
+
+// → { rader, sum, perioder }. rader: { id, nivaa, gruppe, delsum, utanTal, person, …felt }.
+// `elementer` = planen med effektive timar (medEffektiveTimar), `forbrukRader` = ALLE importerte timeføringar.
 export function byggRapportData({ elementer, forbrukRader, personell, kal, periode, oppsett }) {
   const prisar = prisKartFra(personell)
   const { perAkt } = kopleForbruk(elementer, forbrukRader)
   const erBlad = (e) => e.type === 'aktivitet' && !harBorn(elementer, e.id)
+  const modus = oppsett.prognoseModus || 'manad'
 
   const kostOgTimar = (e, rader) => {
     const delar = personDelar(e); const snitt = snittpris(e, prisar).pris
@@ -110,6 +129,22 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
     }
     return { t, k }
   }
+  const radNamn = (r) => r.ansattNamn || r.ansatt || ''
+
+  // Felles utrekning av eit tal-sett (aktivitet eller person). `del` = andel av aktivitetens timar (1 for heile aktiviteten).
+  const lagTal = ({ budsjett, timarPlan, timerate, palop, per, fordelt, snitt }) => {
+    const progT = fordelt.sum, progK = progT * snitt
+    const t = {
+      budsjett, timarPlan, timerate,
+      palopKr: palop.k, palopTimar: palop.t, gjenKr: budsjett - palop.k, gjenTimar: timarPlan - palop.t,
+      perKr: per.k, perTimar: per.t, progKr: progK, progTimar: progT,
+      sluttKr: palop.k + progK, avvikKr: budsjett - (palop.k + progK),
+    }
+    if (modus !== 'resterande') {
+      for (const [k, h] of (modus === 'veke' ? fordelt.veke : fordelt.manad)) { t['pt_' + k] = h; t['pk_' + k] = h * snitt }
+    }
+    return t
+  }
 
   const tal = (e) => {
     const snitt = snittpris(e, prisar).pris
@@ -121,53 +156,108 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
       const t = +e.palopTimar || 0
       palop = { t, k: e.palopHonorar != null && e.palopHonorar !== '' ? +e.palopHonorar : t * snitt }
     }
-    const per = kostOgTimar(e, iPeriode)
     const budsjett = +e.budsjett > 0 ? +e.budsjett : Math.round((+e.timar || 0) * snitt)
-    const progT = prognoseTimar(e, kal, periode.til)
-    const progK = progT * snitt
-    return {
-      budsjett, timarPlan: +e.timar || 0, timerate: snitt,
-      palopKr: palop.k, palopTimar: palop.t, gjenKr: budsjett - palop.k, gjenTimar: (+e.timar || 0) - palop.t,
-      perKr: per.k, perTimar: per.t, progKr: progK, progTimar: progT,
-      sluttKr: palop.k + progK, avvikKr: budsjett - (palop.k + progK),
-    }
+    return lagTal({ budsjett, timarPlan: +e.timar || 0, timerate: snitt, palop, per: kostOgTimar(e, iPeriode), fordelt: prognoseFordelt(e, kal, periode.til), snitt })
   }
-  const SUMFELT = ['budsjett', 'timarPlan', 'palopKr', 'palopTimar', 'gjenKr', 'gjenTimar', 'perKr', 'perTimar', 'progKr', 'progTimar', 'sluttKr', 'avvikKr']
+
+  // Per person i ein aktivitet: planlagd del, faktisk forbruk og prognose (aktivitetens prognose × personens del)
+  const personTal = (e, t0) => {
+    const rader = perAkt.get(e.id) || []
+    const delar = personDelar(e)
+    const namnListe = delar.map(d => ({ namn: d.namn, del: d.del / 100, d }))
+    for (const r of rader) { const n = radNamn(r); if (n && !namnListe.some(x => nokkelNamn(x.namn) === nokkelNamn(n))) namnListe.push({ namn: n, del: 0, d: null }) }
+    const snitt = snittpris(e, prisar).pris
+    const fordeltAkt = prognoseFordelt(e, kal, periode.til)
+    return namnListe.map(p => {
+      const mine = rader.filter(r => nokkelNamn(radNamn(r)) === nokkelNamn(p.namn))
+      const rate = (+e.timerate > 0 ? +e.timerate : 0) || (p.d ? prisFor(p.d, prisar) : (prisar.get(p.namn.toLowerCase()) || 0)) || snitt
+      const kt = (liste) => ({ t: liste.reduce((a, r) => a + r.timar, 0), k: liste.reduce((a, r) => a + r.timar, 0) * rate })
+      const skaler = (m) => new Map([...m].map(([k, h]) => [k, h * p.del]))
+      const timarPlan = (t0.timarPlan || 0) * p.del
+      return { namn: p.namn, ...lagTal({
+        budsjett: timarPlan * rate, timarPlan, timerate: rate,
+        palop: kt(mine.filter(r => r.dato <= periode.til)), per: kt(mine.filter(r => r.dato >= periode.fra && r.dato <= periode.til)),
+        fordelt: { veke: skaler(fordeltAkt.veke), manad: skaler(fordeltAkt.manad), sum: fordeltAkt.sum * p.del }, snitt: rate }) }
+    })
+  }
+
+  const IKKJE_SUM = new Set(['nivaa', 'prosentBrukt', 'timerate'])
   const summer = (liste) => {
-    const s = Object.fromEntries(SUMFELT.map(f => [f, liste.reduce((a, x) => a + (x[f] || 0), 0)]))
-    s.prosentBrukt = s.budsjett > 0 ? (s.palopKr / s.budsjett) * 100 : null
-    s.timerate = s.timarPlan > 0 ? liste.reduce((a, x) => a + (x.timarPlan || 0) * (x.timerate || 0), 0) / s.timarPlan : 0
+    const felt = new Set()
+    for (const x of liste) for (const k of Object.keys(x)) if (typeof x[k] === 'number' && !IKKJE_SUM.has(k)) felt.add(k)
+    const s = Object.fromEntries([...felt].map(f => [f, liste.reduce((a, x) => a + (x[f] || 0), 0)]))
+    s.prosentBrukt = (s.budsjett || 0) > 0 ? (s.palopKr / s.budsjett) * 100 : null
+    s.timerate = (s.timarPlan || 0) > 0 ? liste.reduce((a, x) => a + (x.timarPlan || 0) * (x.timerate || 0), 0) / s.timarPlan : 0
     return s
   }
   const harTal = (t) => ['budsjett', 'timarPlan', 'palopKr', 'palopTimar', 'perTimar', 'progTimar'].some(f => Math.abs(t[f] || 0) > 0.001)
+  const medPct = (t) => { t.prosentBrukt = (t.budsjett || 0) > 0 ? (t.palopKr / t.budsjett) * 100 : null; return t }
 
   const bladTal = new Map()
-  for (const e of elementer) if (erBlad(e)) { const t = tal(e); t.prosentBrukt = t.budsjett > 0 ? (t.palopKr / t.budsjett) * 100 : null; bladTal.set(e.id, t) }
+  for (const e of elementer) if (erBlad(e)) bladTal.set(e.id, medPct(tal(e)))
   const bladUnder = (e) => etterkommarar(elementer, e.id).filter(erBlad)
 
   const rader = []
+  const apne = []                   // opne gruppar (for «Sum …»-rad etter siste delaktivitet)
+  const lukk = (nivaMin) => {
+    while (apne.length && apne[apne.length - 1].nivaa >= nivaMin) {
+      const g = apne.pop()
+      rader.push({ id: g.id + ':sum', nivaa: g.nivaa, gruppe: true, delsum: true, kode: '', namn: 'Sum ' + g.namn, ansvarleg: '', budsjettType: '', start: '', slutt: '', ...g.sum })
+    }
+  }
   for (const e of visingsrader(elementer, new Set())) {
     if (e.type === 'milepael') continue
+    if (oppsett.delsum && oppsett.fasar) lukk(e.nivå)
     if (erBlad(e)) {
       const t = bladTal.get(e.id)
       if (oppsett.berreMedTal && !harTal(t)) continue
-      rader.push({ id: e.id, nivaa: oppsett.fasar ? e.nivå : 0, gruppe: false, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: e.budsjettType || '',
+      const nivaa = oppsett.fasar ? e.nivå : 0
+      rader.push({ id: e.id, nivaa, gruppe: false, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: e.budsjettType || '',
         start: e.start ? datoNo(e.start) : '', slutt: e.slutt ? datoNo(e.slutt) : '', ...t })
+      if (oppsett.perPerson) personTal(e, t).forEach((p, i) => rader.push({ id: e.id + ':p' + i, nivaa: nivaa + 1, gruppe: false, person: true, kode: '', ansvarleg: '', budsjettType: '', start: '', slutt: '', ...medPct(p) }))
     } else if (oppsett.fasar) {
       const barn = bladUnder(e).map(b => bladTal.get(b.id)).filter(t => t && (!oppsett.berreMedTal || harTal(t)))
       if (!barn.length) continue
-      rader.push({ id: e.id, nivaa: e.nivå, gruppe: true, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: '', start: '', slutt: '', ...summer(barn) })
+      const s = summer(barn)
+      if (oppsett.delsum) {
+        rader.push({ id: e.id, nivaa: e.nivå, gruppe: true, utanTal: true, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: '', start: '', slutt: '' })
+        apne.push({ id: e.id, nivaa: e.nivå, namn: e.namn, sum: s })
+      } else rader.push({ id: e.id, nivaa: e.nivå, gruppe: true, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: '', start: '', slutt: '', ...s })
     }
   }
-  const alleBlad = rader.filter(r => !r.gruppe)
-  return { rader, sum: summer(alleBlad) }
+  lukk(-1)
+  const leggTil = rader.filter(r => !r.gruppe && !r.person)
+  // Prognoseperiodar (kolonnar): alle nøklar som har timar hos minst éin aktivitet
+  const nøklar = new Set()
+  for (const t of bladTal.values()) for (const k of Object.keys(t)) if (k.startsWith('pt_')) nøklar.add(k.slice(3))
+  const perioder = [...nøklar].sort().map(k => ({ key: k, label: periodeNamn(k, modus) }))
+  return { rader, sum: summer(leggTil), perioder }
 }
 
-// Kolonnene som faktisk vert vist (seksjon på + minst éi kolonne), i kjent rekkjefølgje
-export function valdeKolonnar(oppsett) {
-  return SEKSJONAR.filter(s => oppsett.seksjonar?.[s.key]).map(s => ({
-    ...s, kol: KOLONNER[s.key].filter(k => (oppsett.kolonnar?.[s.key] || []).includes(k.key)),
-  })).filter(s => s.kol.length)
+// Kolonnene som faktisk vert vist (seksjon på + minst éi kolonne), i kjent rekkjefølgje.
+// Med prognose per månad/veke vert kolonnar for kvar periode lagt framfor sum-kolonnane (timar og/eller kroner etter kva som er valt).
+export function valdeKolonnar(oppsett, perioder = []) {
+  const modus = oppsett.prognoseModus || 'manad'
+  return SEKSJONAR.filter(s => oppsett.seksjonar?.[s.key]).map(s => {
+    let kol = KOLONNER[s.key].filter(k => (oppsett.kolonnar?.[s.key] || []).includes(k.key))
+    if (s.key === 'prognose' && modus !== 'resterande' && perioder.length) {
+      const medT = kol.some(k => k.key === 'progTimar'), medK = kol.some(k => k.key === 'progKr')
+      const dyn = []
+      for (const p of perioder) {
+        if (medT) dyn.push({ key: 'pt_' + p.key, namn: p.label + ' (timar)', type: 't', b: 38, periode: true })
+        if (medK) dyn.push({ key: 'pk_' + p.key, namn: p.label + ' (kr)', type: 'kr', b: 48, periode: true })
+      }
+      kol = [...dyn, ...kol.map(k => (k.key === 'progTimar' ? { ...k, namn: 'Sum prognose (timar)' } : k.key === 'progKr' ? { ...k, namn: 'Sum prognose (kr)' } : k))]
+    }
+    return { ...s, kol }
+  }).filter(s => s.kol.length)
+}
+
+// Minste breidd (pt) kolonnane treng for å få plass med litt rom for aktivitetsnamnet
+export function trengBredd(oppsett, perioder) {
+  const kol = valdeKolonnar(oppsett, perioder).flatMap(g => g.kol)
+  const fast = kol.reduce((a, k) => a + (k.b || 0), 0)
+  return fast + (kol.some(k => k.b === 0) ? 150 : 0) + 68
 }
 
 // ── Formatering (berre teikn som Helvetica/WinAnsi kan teikne) ──────────
@@ -187,8 +277,8 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
   const doc = await PDFDocument.create()
   const fn = await doc.embedFont(StandardFonts.Helvetica), fb = await doc.embedFont(StandardFonts.HelveticaBold)
   const rens = (f, s) => String(s ?? '').split('').map(c => { try { f.encodeText(c); return c } catch { return c === '–' || c === '−' ? '-' : '?' } }).join('')
-  const B = 842, H = 595, M = 34
-  const grupperKol = valdeKolonnar(oppsett)
+  const [B, H] = arkMaal(oppsett.ark), M = 34
+  const grupperKol = valdeKolonnar(oppsett, data.perioder)
   const kol = grupperKol.flatMap(g => g.kol.map((k, i) => ({ ...k, sek: g.key, forst: i === 0 })))
   if (!kol.length) throw new Error('Rapporten har ingen kolonnar. Vel minst ein seksjon og ei kolonne.')
 
@@ -203,18 +293,22 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
   if (harNamn) W[kol.findIndex(k => k.b === 0)] = restB
   const X = W.reduce((a, w, i) => (a.push(i ? a[i - 1] + W[i - 1] : M), a), [])
 
-  const blaa = rgb(0.663, 0.784, 0.925), lys = rgb(0.93, 0.95, 0.98), strek = rgb(0.7, 0.72, 0.76), svart = rgb(0, 0, 0)
+  const blaa = rgb(0.663, 0.784, 0.925), lys = rgb(0.93, 0.95, 0.98), strek = rgb(0.7, 0.72, 0.76), svart = rgb(0, 0, 0), grå = rgb(0.3, 0.3, 0.3)
+  const SKILJE = 1.4                                                    // tjukk strek mellom hovuddelane (aktivitet | påløpt | periode | prognose)
   const bryt = (tekst, font, size, maks) => {          // ordbryting til maks breidd
     const ord = rens(font, tekst).split(/\s+/).filter(Boolean); const linjer = []; let l = ''
     for (const o of ord) { const t = l ? l + ' ' + o : o; if (font.widthOfTextAtSize(t, size) <= maks || !l) l = t; else { linjer.push(l); l = o } }
     if (l) linjer.push(l)
     return linjer.length ? linjer : ['']
   }
-  const kort = (tekst, font, size, maks) => {          // avkort med «…» (…→ «..» sidan WinAnsi manglar den i enkelte fonter)
+  const kort = (tekst, font, size, maks) => {          // avkort med «..»
     let t = rens(font, tekst)
     if (font.widthOfTextAtSize(t, size) <= maks) return t
     while (t.length > 1 && font.widthOfTextAtSize(t + '..', size) > maks) t = t.slice(0, -1)
     return t + '..'
+  }
+  const skiljeLinjer = (yTopp, yBotn) => {               // tjukke loddrette strekar ved starten på kvar seksjon (unntatt den fyrste) + kantane
+    kol.forEach((k, i) => { if (k.forst && i > 0) side.drawLine({ start: { x: X[i], y: yTopp }, end: { x: X[i], y: yBotn }, thickness: SKILJE, color: svart }) })
   }
 
   const sider = []
@@ -228,13 +322,16 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
     const t = []
     if (oppsett.seksjonar?.total) t.push(`Påløpt totalt: til og med ${datoNo(periode.til)}`)
     if (oppsett.seksjonar?.periode) t.push(`Periode: ${datoNo(periode.fra)} - ${datoNo(periode.til)}`)
-    if (oppsett.seksjonar?.prognose) t.push(`Prognose: planlagde timar frå ${datoNo(iso(addDays(tilDato(periode.til), 1)))} og ut aktiviteten`)
+    if (oppsett.seksjonar?.prognose) {
+      const per = oppsett.prognoseModus === 'veke' ? ', per veke' : oppsett.prognoseModus === 'resterande' ? '' : ', per månad'
+      t.push(`Prognose: planlagde timar frå ${datoNo(iso(addDays(tilDato(periode.til), 1)))} og ut aktiviteten${per}`)
+    }
     if (t.length) linje(t.join('   ·   '))
     return ty - 6
   }
   const tabellHovud = () => {
     const hG = 15
-    // gruppe-rad
+    const yTopp = y
     let gx = M
     for (const g of grupperKol) {
       const gw = kol.reduce((a, c, i) => (c.sek === g.key ? a + W[i] : a), 0)
@@ -253,6 +350,7 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
       })
     })
     y -= hK
+    skiljeLinjer(yTopp, y)
   }
   const nySide = () => { side = doc.addPage([B, H]); sider.push(side); y = tekstTopp(); tabellHovud() }
   nySide()
@@ -263,15 +361,18 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
     const fet = r.gruppe || sum
     const font = fet ? fb : fn
     if (r.gruppe) side.drawRectangle({ x: M, y: y - RH, width: bredd, height: RH, color: lys })
-    if (sum) side.drawLine({ start: { x: M, y: y }, end: { x: M + bredd, y: y }, thickness: 0.9, color: svart })
+    if (sum || r.delsum) side.drawLine({ start: { x: M, y: y }, end: { x: M + bredd, y: y }, thickness: sum ? 0.9 : 0.5, color: svart })
     kol.forEach((k, i) => {
-      if (k.forst && i > 0) side.drawLine({ start: { x: X[i], y: y }, end: { x: X[i], y: y - RH }, thickness: 0.4, color: strek })
       const innrykk = k.key === 'namn' && !sum ? r.nivaa * 7 : 0
-      const verdi = sum && k.key === 'namn' ? 'Sum' : sum && k.type === 'tekst' ? '' : fmtVerdi(r[k.key], k.type)
-      const t = kort(verdi, font, 7.5, W[i] - 6 - innrykk)
-      const tw = font.widthOfTextAtSize(t, 7.5)
-      side.drawText(t, { x: k.type === 'tekst' ? X[i] + 3 + innrykk : X[i] + W[i] - 3 - tw, y: y - 9.3, size: 7.5, font, color: svart })
+      let verdi
+      if (sum) verdi = k.key === 'namn' ? 'Sum' : k.type === 'tekst' ? '' : fmtVerdi(r[k.key], k.type)
+      else if (r.utanTal && k.type !== 'tekst') verdi = ''
+      else verdi = fmtVerdi(r[k.key], k.type)
+      const t = kort(verdi, font, r.person ? 7 : 7.5, W[i] - 6 - innrykk)
+      const tw = font.widthOfTextAtSize(t, r.person ? 7 : 7.5)
+      side.drawText(t, { x: k.type === 'tekst' ? X[i] + 3 + innrykk : X[i] + W[i] - 3 - tw, y: y - 9.3, size: r.person ? 7 : 7.5, font, color: r.person ? grå : svart })
     })
+    skiljeLinjer(y, y - RH)
     side.drawLine({ start: { x: M, y: y - RH }, end: { x: M + bredd, y: y - RH }, thickness: 0.25, color: rgb(0.85, 0.86, 0.88) })
     y -= RH
   }

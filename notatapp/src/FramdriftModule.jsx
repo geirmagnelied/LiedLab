@@ -500,12 +500,13 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <div style={{ fontSize: 11, color: 'var(--text3)', padding: '4px 10px 2px' }}>Eit ekstra ark gir timar per person per veke.</div>
           </>)}</FdMeny>
           <FdMeny etikett="Rapport" disabled={!elementer.length} breidd={310} tittel="Ferdige rapportar som PDF — standard eller eigne">{lukk => (<>
+            <MenyPunkt tittel="＋ Ny rapport…" under="Vel seksjonar og kolonnar sjølv" onClick={() => { lukk(); setRapportStart('ny') }}/>
+            <MenySkilje/>
             <MenyTittel>Standardrapportar</MenyTittel>
             <MenyPunkt tittel="Rapport til kunde" under="Aktivitet, ansvarleg, budsjett · påløpt totalt · vald periode · prognose" onClick={() => { lukk(); setRapportStart('std-kunde') }}/>
             <MenyPunkt tittel="Intern rapport" under="Som kunderapporten, med timar, timerate, avvik og venta sluttkostnad" onClick={() => { lukk(); setRapportStart('std-intern') }}/>
             <MenySkilje/>
             <MenyPunkt tittel="Eigne og delte rapportar…" under="Opne ein lagra rapport, eller lag ein ny" onClick={() => { lukk(); setRapportStart('std-kunde') }}/>
-            <MenyPunkt tittel="Ny rapport…" under="Vel seksjonar og kolonnar sjølv" onClick={() => { lukk(); setRapportStart('ny') }}/>
           </>)}</FdMeny>
           <FdMeny etikett="PNS" breidd={270} disabled={!elementer.length} tittel="Prosjektnedbrytingsstruktur — vel kor mange nivå som skal vere opne">{lukk => (<>
             <MenyTittel>Vis til og med nivå</MenyTittel>

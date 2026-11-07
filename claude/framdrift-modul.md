@@ -220,3 +220,11 @@ Ny meny **Rapport ▾** i Prosjektplan-verktøylinja (til høgre for Eksport). `
 - **Standardrapportar (låste):** *Rapport til kunde* (aktivitetsnr., aktivitet, ansvarleg, budsjett · påløpt kr/timar, gjenståande budsjett · periode kr/timar · prognose kr/timar) og *Intern rapport* (i tillegg planlagde timar, gjenståande timar, % brukt, venta sluttkostnad og avvik mot budsjett).
 - **Eigne rapportar:** vel seksjonar/kolonnar, tittel, fasar/delsummar, sum-rad, skjul aktivitetar utan tal. Lagra i `framdrift_rapportar` (`supabase-framdrift-rapportar.sql`) og **synlege for alle med tilgang til prosjektet**; forfattaren eller administrator kan endre/slette. «Lag eigen kopi» startar frå ein standardrapport.
 - Ikkje gjort: grafar, rekkjefølgje på kolonnar, PDF-fil lagra i DTM.
+
+## Rapportar — revisjon 7. nov. 2026 (tilbakemelding)
+
+- **Skiljestrekar**: tjukk loddrett strek (1,4 pt) ved starten på kvar hovuddel (aktivitet | påløpt totalt | påløpt i perioden | prognose), i heile tabellhøgda og på alle sider.
+- **Prognose per periode**: `oppsett.prognoseModus` = `manad` (standard) | `veke` | `resterande`. Planlagde timar etter periodeslutten vert fordelte på arbeidsdagar (`prognoseFordelt`) og gitt ei kolonne per månad/veke (timar og/eller kroner etter valde prognosekolonnar), pluss sum-kolonnar. Valet er eit utskriftsval og kan endrast òg for låste standardrapportar.
+- **Intern rapport**: `delsum` (eiga «Sum …»-rad etter kvar fase/delaktivitet; overskriftsrada er utan tal) og `perPerson` (kvar person under aktiviteten med planlagd del, faktisk forbruk og prognose = aktivitetens prognose × personens del; personrader er ikkje med i summane). Begge kan veljast i eigne rapportar.
+- **Ark**: `oppsett.ark` = `{ storleik: A0–A5, retning: landskap|portrett }`; vindauget åtvarar når kolonnane ikkje får plass (`trengBredd`). Skriftstorleiken er fast, større ark gir meir plass.
+- **Vindauget** (`FramdriftRapportModal.jsx`): flyttbart (dra i tittelfeltet), skalerbart (kantar/hjørne), maksimerbart (knapp eller dobbeltklikk på tittelfeltet), storleik i `localStorage` (`liedlab.rapportVindu`). Førehandsvisinga er den ferdige PDF-en (iframe mot blob-URL). «＋ Ny» står heilt til venstre nedst, og «＋ Ny rapport…» er øvst i Rapport-menyen.
