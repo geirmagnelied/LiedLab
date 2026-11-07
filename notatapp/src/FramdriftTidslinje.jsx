@@ -36,9 +36,9 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
   const manadSum = zoom === 'manadsum'   // «Månad»: tidslinje med månadssummar (timar og påløpt honorar) — «Månad+» er den gamle månadsvisinga med vekenummer
   const dagB = (DAGB[manadSum ? 'manad' : zoom] || DAGB.veke) * skala
   // Ekstrakolonnar i tabellen til venstre for tidslinja (høgreklikk på overskrifta). Val vert hugsa på denne maskina.
-  const STANDARD_KOL = ['kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'kpi', 'timar', 'budsjett', 'timerate']
-  const [valgteKol, setValgteKol] = useState(() => { try { const v = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v3')); return Array.isArray(v) ? v : STANDARD_KOL } catch { return STANDARD_KOL } })
-  const lagreKol = (n) => { setValgteKol(n); try { localStorage.setItem('liedlab-framdrift-tl-kol-v3', JSON.stringify(n)) } catch { /* privat modus */ } }
+  const STANDARD_KOL = ['kode', 'start', 'slutt', 'ansvarleg', 'btype', 'ferdig', 'kpi', 'timar', 'budsjett', 'timerate']
+  const [valgteKol, setValgteKol] = useState(() => { try { const v = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v4')) ?? JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v3')); return Array.isArray(v) ? (v.includes('btype') ? v : [...v, 'btype']) : STANDARD_KOL } catch { return STANDARD_KOL } })
+  const lagreKol = (n) => { setValgteKol(n); try { localStorage.setItem('liedlab-framdrift-tl-kol-v4', JSON.stringify(n)) } catch { /* privat modus */ } }
   const [kolMeny, setKolMeny] = useState(null) // { x, y }
   const [persTotOpen, setPersTotOpen] = useState(false)
   const kolDefs = valgteKol.map(k => KOLONNE_DEF.find(d => d.key === k)).filter(Boolean)

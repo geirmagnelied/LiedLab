@@ -21,7 +21,7 @@ export const KOLONNE_DEF = [
   { key: 'ferdig',       label: 'Ferdig %',     w: 70, hogre: true },
   { key: 'kpi',          label: 'KPI',          w: 56, hogre: true },
   { key: 'levnr',        label: 'Levering.',    w: 66, hogre: true },
-  { key: 'btype',        label: 'Budsjettype',  w: 100 },
+  { key: 'btype',        label: 'Aktivitetstype',  w: 120 },
   { key: 'budsjett',     label: 'Budsjett kr',  w: 90, hogre: true },
   { key: 'timerate',     label: 'Timerate',     w: 76, hogre: true },
   { key: 'timar',        label: 'Timar',        w: 64, hogre: true },
@@ -37,7 +37,15 @@ const TYPE_NAMN = { fase: 'Fase', aktivitet: 'Aktivitet', milepael: 'Milepæl' }
 
 // Kolonnar som kan redigerast direkte i tabellen (dobbeltklikk). Summasjonar/fasar: berre namn, kode og ansvarleg.
 export const REDIGERBARE = new Set(['namn', 'kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'btype', 'budsjett', 'timerate', 'timar', 'palopTimar', 'palopHonorar'])
-export const BTYPAR = ['', 'Fastpris', 'Budsjettpris', 'Ufakturerbart']
+// Aktivitetstype (lagra i e.budsjettType). Eldre verdiar (Budsjettpris, Ufakturerbart) vert vist som Budsjett / Ufakturerbar.
+export const BTYPAR = ['', 'Budsjett', 'Fastpris', 'Budsjett med tak', 'Ufakturerbar', 'Opplæring']
+export const normAktType = (v) => {
+  const t = String(v || '').trim().toLowerCase()
+  if (!t) return ''
+  if (t === 'budsjettpris') return 'Budsjett'
+  if (t === 'ufakturerbart') return 'Ufakturerbar'
+  return BTYPAR.find(k => k && k.toLowerCase() === t) || String(v)
+}
 
 // KPI = (prosent av budsjett/fastprishonorar som er brukt) ÷ (prosent estimert framdrift). Under 0,9 = grøn, 0,9–1 = gul/oransje, over 1 = raud
 // (pådraget ligg føre framdrifta). Utan budsjett vert prosent av planlagde timar brukt. '' = ikkje nok data, '∞' = pådrag utan framdrift.
@@ -83,7 +91,7 @@ export function bygVerdiar({ elementer, dokMap, prisar }) {
         })
       }
       case 'levnr': return e.type === 'aktivitet' && !erSammen(e) ? ((e.leveransar || []).length || '') : ''
-      case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjettType || '') : ''
+      case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? normAktType(e.budsjettType) : ''
       case 'budsjett': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjett || '') : e.type !== 'milepael' ? (sumBlad(e, c => +c.budsjett || 0) || '') : ''
       case 'timerate': {
         if (e.type === 'milepael') return ''

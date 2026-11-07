@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { likeDelar, fordelPaaUlaaste } from './FramdriftPersonarPanel'
 import { prisFor } from './framdriftTimar'
+import { BTYPAR, normAktType } from './framdriftVerdiar'
 import { personerMedForbruk, faktiskFor, nokkelNamn } from './framdriftForbruk'
 import { personFarge } from './personFarge'
 
@@ -85,8 +86,25 @@ function Tekst({ verdi, onLagre, list, bredde = 150, placeholder }) {
 }
 
 // ── Endringsregister: endringsmeldingar kopla til ein aktivitet. Revidert (kontoret) og godkjent av kunde har dei same kolonnane;
-//    haka overfører godkjent verdi (elles revidert) til aktiviteten, og kan angrast ved å fjerne haka. ──
+//    haka LEGG TIL godkjent verdi (elles revidert) på aktiviteten, og kan angrast ved å fjerne haka. ──
 const tilTal = (v) => { const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); return n > 0 ? n : null }
+const INNFELT = { padding: '2px 5px', border: '1px solid var(--border)', borderRadius: 3, fontSize: 12.5, background: 'var(--bg2)', color: 'var(--text)' }
+// Talfelt utan opp/ned-piler: vanleg tekstfelt med same ramme som namnefeltet
+function TalFelt({ verdi, onLagre, disabled, bredde = 84 }) {
+  const [v, setV] = useState(null)
+  const vis = v ?? (verdi ? String(verdi).replace('.', ',') : '')
+  const lagre = () => { if (v != null && v !== String(verdi ?? '').replace('.', ',')) onLagre(v); setV(null) }
+  return <input type="text" inputMode="decimal" value={vis} disabled={disabled} onChange={e => setV(e.target.value)} onBlur={lagre}
+    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { setV(null); e.currentTarget.blur() } }}
+    style={{ ...INNFELT, width: bredde, textAlign: 'right', fontFamily: 'var(--mono)', background: disabled ? 'var(--bg3)' : 'var(--bg2)' }}/>
+}
+function TekstFelt({ verdi, onLagre, bredde = 150, placeholder, disabled }) {
+  return <input defaultValue={verdi || ''} placeholder={placeholder} key={verdi} disabled={disabled}
+    onBlur={e => { const n = e.target.value.trim(); if (n !== (verdi || '')) onLagre(n) }}
+    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+    style={{ ...INNFELT, width: bredde, fontFamily: 'var(--font)' }}/>
+}
+const krTekst = (n) => (n > 0 ? Math.round(n).toLocaleString('nb-NO') : '')
 function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSett, onFlytt, onSlett, onOverfor }) {
   const [utkast, setUtkast] = useState({ akt: '', namn: '' })
   const aktId = utkast.akt || (aktivitetar.some(a => a.id === valgtId) ? valgtId : (aktivitetar[0]?.id ?? ''))
@@ -100,57 +118,65 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
   const VENSTRE = { borderLeft: '2px solid var(--text)' }
   const talCelle = (en, g, felt, ekstra) => (
     <td style={{ ...TD, ...(ekstra || {}) }}>
-      <Tal verdi={en[g]?.[felt] || ''} bredde={84} disabled={!!en.overfort}
+      <TalFelt verdi={en[g]?.[felt] || ''} bredde={84} disabled={!!en.overfort}
         onLagre={v => onSett(en.akt, en.id, { [g]: { ...(en[g] || {}), [felt]: tilTal(v) } })}/>
     </td>
   )
+  const produktCelle = (en, g) => <td style={{ ...TD, ...GRAA, minWidth: 84 }} title="Timebudsjett × timepris">{krTekst((en[g]?.timar || 0) * (en[g]?.timepris || 0))}</td>
   return (
     <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-      <table style={{ borderCollapse: 'collapse', minWidth: 1280, width: '100%' }}>
+      <table style={{ borderCollapse: 'collapse', minWidth: 1560, width: '100%' }}>
         <thead>
           <tr>
-            <th style={{ ...TH2, textAlign: 'left' }} colSpan={3}/>
-            <th style={GRP} colSpan={3}>Revidert (frå kontoret)</th>
-            <th style={GRP} colSpan={3}>Godkjent av kunde</th>
+            <th style={{ ...TH2, textAlign: 'left' }} colSpan={4}/>
+            <th style={GRP} colSpan={4}>Revidert (frå kontoret)</th>
+            <th style={GRP} colSpan={4}>Godkjent av kunde</th>
             <th style={{ ...TH2, ...VENSTRE }} colSpan={2}/>
           </tr>
           <tr>
             <th style={{ ...TH2, textAlign: 'left', width: 84 }}>Endringsnr.</th>
             <th style={{ ...TH2, textAlign: 'left', width: 230 }}>Namn på endring</th>
             <th style={{ ...TH2, textAlign: 'left', width: 220 }}>Aktivitet</th>
+            <th style={{ ...TH2, textAlign: 'left', width: 140 }}>Aktivitetstype</th>
             {[0, 1].map(i => (
               <Fragment key={i}>
-                <th style={{ ...TH2, ...(i === 0 ? VENSTRE : {}), ...(i === 1 ? VENSTRE : {}) }}>Nytt timebudsjett (t)</th>
+                <th style={{ ...TH2, ...VENSTRE }}>Timebudsjett (t)</th>
                 <th style={TH2}>Endring fastpris (kr)</th>
                 <th style={TH2}>Timepris (kr/t)</th>
+                <th style={TH2} title="Timebudsjett × timepris">Timer × pris (kr)</th>
               </Fragment>
             ))}
-            <th style={{ ...TH2, ...VENSTRE, width: 130 }} title="Overfører godkjende kostnader (elles reviderte) til aktiviteten. Fjern haka for å gå tilbake.">Overfør til aktivitet</th>
+            <th style={{ ...TH2, ...VENSTRE, width: 130 }} title="Legg til godkjende kostnader (elles reviderte) på aktiviteten. Fjern haka for å gå tilbake.">Legg til aktivitet</th>
             <th style={{ ...TH2, width: 26 }}/>
           </tr>
         </thead>
         <tbody>
           {endringar.map(en => (
             <tr key={en.akt + ':' + en.id} style={{ background: en.overfort ? 'var(--bg3)' : 'transparent' }}>
-              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}><Tekst verdi={en.nr} bredde={74} onLagre={n => onSett(en.akt, en.id, { nr: n })}/></td>
-              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}><Tekst verdi={en.namn} bredde={220} placeholder="Namn på endring" onLagre={n => onSett(en.akt, en.id, { namn: n })}/></td>
+              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}><TekstFelt verdi={en.nr} bredde={74} onLagre={n => onSett(en.akt, en.id, { nr: n })}/></td>
+              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}><TekstFelt verdi={en.namn} bredde={220} placeholder="Namn på endring" onLagre={n => onSett(en.akt, en.id, { namn: n })}/></td>
               <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
                 <select value={en.akt} disabled={!!en.overfort} onChange={e => onFlytt(en.akt, Number(e.target.value) || e.target.value, en.id)}
-                  style={{ width: 210, fontSize: 12.5, padding: '2px 3px', border: '1px solid var(--border)', borderRadius: 3, background: 'var(--bg2)', color: 'var(--text)' }}>
+                  style={{ ...INNFELT, width: 210 }}>
                   {aktivitetar.map(a => <option key={a.id} value={a.id}>{a.kode ? a.kode + ' ' : ''}{a.namn}</option>)}
                 </select>
               </td>
-              {talCelle(en, 'rev', 'timar', VENSTRE)}{talCelle(en, 'rev', 'fastpris')}{talCelle(en, 'rev', 'timepris')}
-              {talCelle(en, 'god', 'timar', VENSTRE)}{talCelle(en, 'god', 'fastpris')}{talCelle(en, 'god', 'timepris')}
+              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
+                <select value={normAktType(en.akttype)} disabled={!!en.overfort} onChange={e => onSett(en.akt, en.id, { akttype: e.target.value })} style={{ ...INNFELT, width: 130 }}>
+                  {BTYPAR.map(t => <option key={t} value={t}>{t || '(ikkje sett)'}</option>)}
+                </select>
+              </td>
+              {talCelle(en, 'rev', 'timar', VENSTRE)}{talCelle(en, 'rev', 'fastpris')}{talCelle(en, 'rev', 'timepris')}{produktCelle(en, 'rev')}
+              {talCelle(en, 'god', 'timar', VENSTRE)}{talCelle(en, 'god', 'fastpris')}{talCelle(en, 'god', 'timepris')}{produktCelle(en, 'god')}
               <td style={{ ...TD, ...VENSTRE, textAlign: 'center', fontFamily: 'var(--font)' }}>
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}
-                  title={en.overfort ? 'Overført til aktiviteten — fjern haka for å gå tilbake til førre verdiar' : 'Overfør godkjende kostnader (elles reviderte) til aktiviteten'}>
+                  title={en.overfort ? 'Lagt til aktiviteten — fjern haka for å gå tilbake til førre verdiar' : 'Legg godkjende kostnader (elles reviderte) til aktiviteten'}>
                   <input type="checkbox" checked={!!en.overfort} onChange={() => onOverfor(en.akt, en.id)} style={{ width: 16, height: 16, cursor: 'pointer' }}/>
-                  {en.overfort ? <span style={{ color: 'var(--success)', fontWeight: 700 }}>Overført</span> : <span style={{ color: 'var(--text3)' }}>Overfør</span>}
+                  {en.overfort ? <span style={{ color: 'var(--success)', fontWeight: 700 }}>Lagt til</span> : <span style={{ color: 'var(--text3)' }}>Legg til</span>}
                 </label>
               </td>
               <td style={{ ...TD, padding: '1px 4px' }}>
-                <button onClick={() => { if (window.confirm('Slette endringa ' + (en.nr || '') + (en.overfort ? '? Ho er alt overført til aktiviteten — verdiane i aktiviteten vert ikkje endra.' : '?'))) onSlett(en.akt, en.id) }}
+                <button onClick={() => { if (window.confirm('Slette endringa ' + (en.nr || '') + (en.overfort ? '? Ho er alt lagt til aktiviteten — verdiane i aktiviteten vert ikkje endra.' : '?'))) onSlett(en.akt, en.id) }}
                   title="Slett endringa" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 16, lineHeight: 1 }}>×</button>
               </td>
             </tr>
@@ -160,15 +186,14 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
             <td style={{ ...TD, ...GRAA, textAlign: 'left', fontFamily: 'var(--font)' }}>{nesteNr}</td>
             <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
               <input value={utkast.namn} placeholder="＋ Namn på ny endring" onChange={e => setUtkast(u => ({ ...u, namn: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') legg() }}
-                style={{ width: 220, padding: '2px 5px', border: '1px solid var(--border)', borderRadius: 3, fontSize: 12.5, background: 'var(--bg2)', color: 'var(--text)' }}/>
+                style={{ ...INNFELT, width: 220 }}/>
             </td>
             <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
-              <select value={aktId} onChange={e => setUtkast(u => ({ ...u, akt: Number(e.target.value) || e.target.value }))}
-                style={{ width: 210, fontSize: 12.5, padding: '2px 3px', border: '1px solid var(--border)', borderRadius: 3, background: 'var(--bg2)', color: 'var(--text)' }}>
+              <select value={aktId} onChange={e => setUtkast(u => ({ ...u, akt: Number(e.target.value) || e.target.value }))} style={{ ...INNFELT, width: 210 }}>
                 {aktivitetar.map(a => <option key={a.id} value={a.id}>{a.kode ? a.kode + ' ' : ''}{a.namn}</option>)}
               </select>
             </td>
-            {Array.from({ length: 6 }, (_, i) => <td key={i} style={{ ...TD, ...(i % 3 === 0 ? VENSTRE : {}) }}/>)}
+            {Array.from({ length: 9 }, (_, i) => <td key={i} style={{ ...TD, ...(i % 4 === 1 ? VENSTRE : {}) }}/>)}
             <td style={{ ...TD, ...VENSTRE, textAlign: 'center' }}>
               <button className="fd-knapp hovud" style={{ padding: '2px 10px', fontSize: 12 }} disabled={!aktId} onClick={legg} title="Legg til endringa — fyll deretter inn kostnadane i rada">＋ Legg til</button>
             </td>
@@ -177,8 +202,9 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
         </tbody>
       </table>
       <div style={{ padding: '8px 12px', fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.5 }}>
-        Fyll inn revidert timebudsjett, endring av fastpris og timepris, og den same raden med det kunden har godkjent. Haka overfører godkjende verdiar (er dei tomme, brukast dei reviderte) til aktiviteten
-        som endringa er kopla til. Tomme felt let aktivitetens eksisterande verdi stå. Fastpris er det nye budsjettet i kroner (erstattar det gamle), og timepris erstattar aktivitetens timerate. Du kan òg høgreklikke ein aktivitet og velje «Legg til endring».
+        Fyll inn timebudsjett, endring av fastpris og timepris, og den same raden med det kunden har godkjent. Haka LEGG TIL godkjende verdiar (er dei tomme, brukast dei reviderte) på aktiviteten:
+        timane vert lagde til aktivitetens timar, og beløpet (fastpris + timar × timepris) vert lagt til budsjettet. Timepris gjeld berre timane i endringa — tidlegare estimerte timar og summar er uendra.
+        Du kan òg høgreklikke ein aktivitet og velje «Legg til endring».
       </div>
     </div>
   )

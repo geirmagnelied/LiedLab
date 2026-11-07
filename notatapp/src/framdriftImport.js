@@ -252,7 +252,7 @@ export function parseMspXml(tekst) {
       const paaHon = erIsy ? tal(ev('Cost1')) / 100 : tal(verdi(t, 'ActualCost')) / 100
       if (paaHon) el.palopHonorar = Math.round(paaHon)
       if (paaTimar > 0 || paaHon) tel.medPaalopt++
-      if (ufakt) el.budsjettType = 'Ufakturerbart'
+      if (ufakt) el.budsjettType = 'Ufakturerbar'
       if (framdrift > 0) el.ferdigModus = 'skjonn'
     }
     if (type === 'fase') tel.fasar++

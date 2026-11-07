@@ -8,7 +8,7 @@ import { personDelar, fordelTimar, snittpris, prisFor } from './framdriftTimar'
 import { vekeStart } from './kontorkalender'
 import { personFarge } from './personFarge'
 import { personerMedForbruk, faktiskFor, nokkelNamn } from './framdriftForbruk'
-import { beregnKpi, kpiFarge } from './framdriftVerdiar'
+import { beregnKpi, kpiFarge, BTYPAR, normAktType } from './framdriftVerdiar'
 import { manadDelar, manadNamn } from './framdriftManad'
 import { FdMeny, MenyPunkt, MenyTittel, MenySkilje } from './FramdriftVerktoy'
 
@@ -36,7 +36,7 @@ const BASE_KOLONNAR = [
   { key: 'ferdig',    label: 'Ferdig %',    art: 'tal',   redigerbar: true, ikkjeSummer: true, w: 90 },
   { key: 'kpi',       label: 'KPI',         art: 'tal',   beregna: true, ikkjeSummer: true, mono: true, w: 70 },
   { key: 'levnr',     label: 'Leveransar',  art: 'tal',   beregna: true, ikkjeSummer: true, w: 90 },
-  { key: 'btype',     label: 'Budsjettype', art: 'val',   redigerbar: true, val: ['', 'Fastpris', 'Budsjettpris', 'Ufakturerbart'], w: 130 },
+  { key: 'btype',     label: 'Aktivitetstype', art: 'val',   redigerbar: true, val: BTYPAR, w: 140 },
   { key: 'budsjett',  label: 'Budsjett kr', art: 'tal',   redigerbar: true, w: 110 },
   { key: 'timerate',  label: 'Timerate kr/t', art: 'tal', redigerbar: true, ikkjeSummer: true, w: 110 },
   { key: 'palopTimar', label: 'Påløpte timar', art: 'tal', redigerbar: true, w: 110 },
@@ -245,7 +245,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
           ferdig: +(e.type === 'aktivitet' ? effektivFerdig(e, dokMap) : faseFerdig(elementer, e, dokMap)) || 0,
         })
       }
-      case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjettType || '') : ''
+      case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? normAktType(e.budsjettType) : ''
       case 'budsjett': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjett || '') : e.type !== 'milepael' ? (bladUnder(e).reduce((a, c) => a + (+c.budsjett || 0), 0) || '') : ''
       case 'timerate': {
         if (e.type === 'milepael') return ''

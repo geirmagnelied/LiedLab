@@ -3,6 +3,7 @@ import { tilDato } from './framdriftDato'
 import { visingsrader, harBorn, etterkommarar } from './framdriftLogikk'
 import { fordelTimar, personDelar, prisKartFra, snittpris, prisFor } from './framdriftTimar'
 import { kopleForbruk, nokkelNamn } from './framdriftForbruk'
+import { normAktType } from './framdriftVerdiar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Rapportar frå Prosjektplan (Framdrift) → PDF. Reine funksjonar: utrekning av rapportdata og teikning av PDF (pdf-lib, lasta ved bruk).
@@ -27,7 +28,7 @@ export const KOLONNER = {
     { key: 'kode', namn: 'Aktivitetsnr.', type: 'tekst', b: 54 },
     { key: 'namn', namn: 'Aktivitet', type: 'tekst', b: 0 },
     { key: 'ansvarleg', namn: 'Ansvarleg', type: 'tekst', b: 82 },
-    { key: 'budsjettType', namn: 'Budsjettype', type: 'tekst', b: 58 },
+    { key: 'budsjettType', namn: 'Aktivitetstype', type: 'tekst', b: 62 },
     { key: 'start', namn: 'Start', type: 'tekst', b: 52 },
     { key: 'slutt', namn: 'Slutt', type: 'tekst', b: 52 },
     { key: 'timarPlan', namn: 'Planlagde timar', type: 't', b: 52 },
@@ -66,10 +67,10 @@ export const arkMaal = (ark) => {
 export const STANDARD_RAPPORTAR = [
   { id: 'std-kunde', namn: 'Rapport til kunde', standard: true, oppsett: { ...BASIS, tittel: 'Prosjektrapport',
     seksjonar: { info: true, total: true, periode: true, prognose: true },
-    kolonnar: { info: ['kode', 'namn', 'ansvarleg', 'budsjett'], total: ['palopKr', 'palopTimar', 'gjenKr'], periode: ['perKr', 'perTimar'], prognose: ['progKr', 'progTimar'] } } },
+    kolonnar: { info: ['kode', 'namn', 'budsjettType', 'ansvarleg', 'budsjett'], total: ['palopKr', 'palopTimar', 'gjenKr'], periode: ['perKr', 'perTimar'], prognose: ['progKr', 'progTimar'] } } },
   { id: 'std-intern', namn: 'Intern rapport', standard: true, oppsett: { ...BASIS, tittel: 'Intern prosjektrapport', berreMedTal: false, delsum: true, perPerson: true,
     seksjonar: { info: true, total: true, periode: true, prognose: true },
-    kolonnar: { info: ['kode', 'namn', 'ansvarleg', 'timarPlan', 'budsjett'], total: ['palopTimar', 'palopKr', 'gjenTimar', 'gjenKr', 'prosentBrukt'], periode: ['perTimar', 'perKr'], prognose: ['progTimar', 'progKr', 'sluttKr', 'avvikKr'] } } },
+    kolonnar: { info: ['kode', 'namn', 'budsjettType', 'ansvarleg', 'timarPlan', 'budsjett'], total: ['palopTimar', 'palopKr', 'gjenTimar', 'gjenKr', 'prosentBrukt'], periode: ['perTimar', 'perKr'], prognose: ['progTimar', 'progKr', 'sluttKr', 'avvikKr'] } } },
 ]
 export const tomtOppsett = () => JSON.parse(JSON.stringify({ ...STANDARD_RAPPORTAR[0].oppsett, tittel: 'Ny rapport' }))
 
@@ -212,9 +213,18 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
       const t = bladTal.get(e.id)
       if (oppsett.berreMedTal && !harTal(t)) continue
       const nivaa = oppsett.fasar ? e.nivå : 0
-      rader.push({ id: e.id, nivaa, gruppe: false, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: e.budsjettType || '',
+      rader.push({ id: e.id, nivaa, gruppe: false, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: normAktType(e.budsjettType),
         start: e.start ? datoNo(e.start) : '', slutt: e.slutt ? datoNo(e.slutt) : '', ...t })
-      if (oppsett.perPerson) personTal(e, t).forEach((p, i) => rader.push({ id: e.id + ':p' + i, nivaa: nivaa + 1, gruppe: false, person: true, kode: '', ansvarleg: '', budsjettType: '', start: '', slutt: '', ...medPct(p) }))
+      if (oppsett.perPerson) personTal(e, t).forEach((p, i) => {
+        rader.push({ id: e.id + ':p' + i, nivaa: nivaa + 1, gruppe: false, person: true, kode: '', ansvarleg: '', budsjettType: '', start: '', slutt: '', ...medPct(p) })
+        // «+/- budsjett»: forbruk minus planlagd/budsjettert. Raud: over 20 % meir enn budsjett · gul: 10-20 % avvik · grå: under 10 % · blå: under 80 % av budsjett
+        if ((p.timarPlan || 0) > 0 || (p.palopTimar || 0) > 0) {
+          const d = (p.timarPlan || 0) > 0 ? p.palopTimar / p.timarPlan - 1 : Infinity
+          const farge = d > 0.2 ? 'raud' : d < -0.2 ? 'blaa' : Math.abs(d) >= 0.1 ? 'gul' : 'graa'
+          rader.push({ id: e.id + ':a' + i, nivaa: nivaa + 1, gruppe: false, person: true, avvikRad: true, farge, kode: '', namn: '+/- budsjett', ansvarleg: '', budsjettType: '', start: '', slutt: '',
+            palopTimar: p.palopTimar - (p.timarPlan || 0), palopKr: p.palopKr - (p.budsjett || 0) })
+        }
+      })
     } else if (oppsett.fasar) {
       const barn = bladUnder(e).map(b => bladTal.get(b.id)).filter(t => t && (!oppsett.berreMedTal || harTal(t)))
       if (!barn.length) continue
@@ -244,8 +254,8 @@ export function valdeKolonnar(oppsett, perioder = []) {
       const medT = kol.some(k => k.key === 'progTimar'), medK = kol.some(k => k.key === 'progKr')
       const dyn = []
       for (const p of perioder) {
-        if (medT) dyn.push({ key: 'pt_' + p.key, namn: p.label + ' (timar)', type: 't', b: 38, periode: true })
-        if (medK) dyn.push({ key: 'pk_' + p.key, namn: p.label + ' (kr)', type: 'kr', b: 48, periode: true })
+        if (medT) dyn.push({ key: 'pt_' + p.key, namn: p.label + ' (timar)', type: 't', b: 38, periode: true, pkey: p.key })
+        if (medK) dyn.push({ key: 'pk_' + p.key, namn: p.label + ' (kr)', type: 'kr', b: 48, periode: true, pkey: p.key })
       }
       kol = [...dyn, ...kol.map(k => (k.key === 'progTimar' ? { ...k, namn: 'Sum prognose (timar)' } : k.key === 'progKr' ? { ...k, namn: 'Sum prognose (kr)' } : k))]
     }
@@ -271,6 +281,9 @@ export function fmtVerdi(v, type) {
   return String(v)
 }
 
+const medFortegn = (v, type) => { const t = fmtVerdi(v, type); return t && t !== '-' && !t.startsWith('-') ? '+' + t : t }
+const AVVIK_FARGE = { raud: [0.8, 0.1, 0.1], gul: [0.78, 0.52, 0], graa: [0.5, 0.5, 0.5], blaa: [0.1, 0.35, 0.85] }
+
 // ── PDF ─────────────────────────────────────────────────────────────
 // Kolonnebreidder vert målte frå innhaldet: tal og overskrifter får alltid plass (aldri avkorta). Er det for lite plass, vert
 // heile tabellen (skrift, rader, breidder) forminska jamt. Lang tekst (aktivitetsnamn, ansvarleg) vert brotten over fleire linjer.
@@ -288,6 +301,7 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
 
   const alle = [...data.rader.map(r => ({ r, sum: false })), ...(oppsett.sumrad ? [{ r: { ...data.sum, gruppe: false, nivaa: 0 }, sum: true }] : [])]
   const tekstAv = (r, k, sum) => {
+    if (r.avvikRad) return k.key === 'namn' ? r.namn : (k.key === 'palopTimar' || k.key === 'palopKr') ? medFortegn(r[k.key], k.type) : ''
     if (sum) return k.key === 'namn' ? 'Sum' : k.type === 'tekst' ? '' : fmtVerdi(r[k.key], k.type)
     if (r.utanTal && k.type !== 'tekst') return ''
     return fmtVerdi(r[k.key], k.type)
@@ -300,7 +314,7 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
     if (k.key === 'namn') return 0
     let m = 0
     for (const { r, sum } of alle) {
-      const f = (r.gruppe || sum) ? fb : fn
+      const f = (r.gruppe || sum || r.avvikRad) ? fb : fn
       m = Math.max(m, f.widthOfTextAtSize(rens(f, tekstAv(r, k, sum)), BASE))
     }
     const innhald = k.type === 'tekst' ? Math.min(m + 8, 100) : m + 8
@@ -332,7 +346,11 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
   const skiljeLinjer = (yTopp, yBotn) => {               // loddrette strekar: ytterkantane + starten på kvar seksjon (unntatt den fyrste)
     const v = (x) => side.drawLine({ start: { x, y: yTopp }, end: { x, y: yBotn }, thickness: SKILJE, color: svart })
     v(M); v(M + bredd)
-    kol.forEach((k, i) => { if (k.forst && i > 0) v(X[i]) })
+    const tynn = (x) => side.drawLine({ start: { x, y: yTopp }, end: { x, y: yBotn }, thickness: 0.35, color: rgb(0.3, 0.3, 0.3) })
+    kol.forEach((k, i) => {
+      if (k.forst && i > 0) v(X[i])
+      else if (i > 0 && ((k.pkey && k.pkey !== kol[i - 1].pkey) || (!k.pkey && kol[i - 1].pkey))) tynn(X[i])      // tynn strek mellom prognoseperiodane
+    })
   }
 
   const sider = []
@@ -354,27 +372,27 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
     return ty - 6
   }
   const tabellHovud = () => {
-    const hG = 15 * S
+    const gl = grupperKol.map(g => { const gw = kol.reduce((a, c, i) => (c.sek === g.key ? a + W[i] : a), 0); return { g, gw, linjer: bryt(g.namn, fb, 8 * S, gw - 2 * pad) } })
+    const hG = Math.max(...gl.map(x => x.linjer.length)) * 9 * S + 6 * S
     const yTopp = y
     let gx = M
-    for (const g of grupperKol) {
-      const gw = kol.reduce((a, c, i) => (c.sek === g.key ? a + W[i] : a), 0)
-      const linjer = bryt(g.namn, fb, 8 * S, gw - 2 * pad)
-      side.drawRectangle({ x: gx, y: y - hG, width: gw, height: hG, color: blaa, borderColor: strek, borderWidth: 0.4 })
-      side.drawText(linjer.length > 1 ? kort(g.namn, fb, 8 * S, gw - 2 * pad) : linjer[0], { x: gx + pad, y: y - 10.5 * S, size: 8 * S, font: fb, color: svart })
+    for (const { gw, linjer } of gl) {
+      side.drawRectangle({ x: gx, y: y - hG, width: gw, height: hG, color: blaa, borderColor: svart, borderWidth: 0.5 })
+      linjer.forEach((l, j) => side.drawText(l, { x: gx + pad, y: y - 10.5 * S - j * 9 * S, size: 8 * S, font: fb, color: svart }))
       gx += gw
     }
     y -= hG
     const linjer = kol.map((k, i) => bryt(k.namn, fb, fh, W[i] - 2 * pad))
     const hK = Math.max(...linjer.map(l => l.length)) * 8.4 * S + 5 * S
     kol.forEach((k, i) => {
-      side.drawRectangle({ x: X[i], y: y - hK, width: W[i], height: hK, color: blaa, borderColor: strek, borderWidth: 0.4 })
+      side.drawRectangle({ x: X[i], y: y - hK, width: W[i], height: hK, color: blaa, borderColor: svart, borderWidth: 0.5 })
       linjer[i].forEach((l, j) => {
         const tw = fb.widthOfTextAtSize(l, fh)
         side.drawText(l, { x: k.type === 'tekst' ? X[i] + pad : X[i] + W[i] - pad - tw, y: y - 9 * S - j * 8.4 * S, size: fh, font: fb, color: svart })
       })
     })
     y -= hK
+    side.drawLine({ start: { x: M, y }, end: { x: M + bredd, y }, thickness: 1.6, color: rgb(0.04, 0.17, 0.4) })      // mørkeblå strek under overskrifta
     side.drawLine({ start: { x: M, y: yTopp }, end: { x: M + bredd, y: yTopp }, thickness: SKILJE, color: svart })
     skiljeLinjer(yTopp, y)
   }
@@ -400,9 +418,11 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
       const innrykk = k.key === 'namn' && !sum ? r.nivaa * 7 * S : 0
       cellelinjer[i].forEach((l, j) => {
         if (!l) return
-        const t = k.type === 'tekst' ? l : kort(l, font, sz, W[i] - 2 * pad)
-        const tw = font.widthOfTextAtSize(t, sz)
-        side.drawText(t, { x: k.type === 'tekst' ? X[i] + pad + innrykk : X[i] + W[i] - pad - tw, y: y - 8.6 * S - j * lh, size: sz, font, color: r.person ? grå : svart })
+        const fnt = r.avvikRad && k.type !== 'tekst' ? fb : font
+        const t = k.type === 'tekst' ? l : kort(l, fnt, sz, W[i] - 2 * pad)
+        const tw = fnt.widthOfTextAtSize(t, sz)
+        const farge = r.avvikRad && k.type !== 'tekst' ? rgb(...AVVIK_FARGE[r.farge]) : r.person ? grå : svart
+        side.drawText(t, { x: k.type === 'tekst' ? X[i] + pad + innrykk : X[i] + W[i] - pad - tw, y: y - 8.6 * S - j * lh, size: sz, font: fnt, color: farge })
       })
     })
     skiljeLinjer(y, y - RH)

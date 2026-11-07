@@ -19,6 +19,7 @@ import { palopSlutt } from './framdriftPalop'
 import { kopleForbruk, bygForbrukKart, nokkelNamn } from './framdriftForbruk'
 import { leveransarFerdig, effektivFerdig, brukarAuto, faseFerdig } from './framdriftFerdig'
 import useKontorkalender from './useKontorkalender'
+import { BTYPAR, normAktType } from './framdriftVerdiar'
 import { timarPerVeke, overbelastning, medEffektiveTimar, personDelar, prisKartFra, snittpris, prisFor } from './framdriftTimar'
 import { MALAR } from './framdriftMalar'
 import { iso, tilDato, parseDato, nesteArbeidsdag, forrigeArbeidsdag, formaterDato } from './framdriftDato'
@@ -331,15 +332,16 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     if (en.overfort) { settFelter(aktId, { ...(en.for || {}), endringar: merk(false, { for: null, overfortDato: null }) }); return }
     const v = (felt) => (en.god?.[felt] > 0 ? en.god[felt] : (en.rev?.[felt] > 0 ? en.rev[felt] : null))
     const timar = v('timar'), fast = v('fastpris'), rate = v('timepris')
-    if (!timar && !fast && !rate) { window.alert('Fyll inn minst eitt kostnadsfelt (timar, fastpris eller timepris) før overføring.'); return }
-    const patch = {}
-    if (rate) patch.timerate = rate
-    if (timar) {
-      patch.timar = Math.round(timar * 2) / 2; patch.modus = 'timar'
-      if (fast) patch.budsjett = Math.round(fast)
-      else { const p = snittpris({ ...e, ...patch }, prisKartFra(personell)).pris; patch.budsjett = p > 0 ? Math.round(patch.timar * p) : e.budsjett }
-    } else if (fast) { patch.budsjett = Math.round(fast); patch.modus = 'budsjett' }
-    else if (rate && (+e.timar > 0) && e.modus !== 'budsjett') patch.budsjett = Math.round(e.timar * rate)
+    if (!timar && !fast) { window.alert(rate ? 'Timepris gjeld berre timane i endringa — fyll inn timebudsjett (eller fastpris) òg.' : 'Fyll inn timebudsjett eller fastpris før du legg endringa til aktiviteten.'); return }
+    // Endringa vert LAGD TIL aktiviteten: timane kjem i tillegg til dei gamle, og beløpet (fastpris + timar × timepris) i tillegg til budsjettet.
+    // Timepris gjeld berre timane i endringa; tidlegare estimerte timar, timerate og summar er uendra.
+    const eff = elBase.find(x => x.id === aktId) || e
+    const snitt = snittpris(e, prisKartFra(personell)).pris
+    const gmlTimar = +eff.timar || 0
+    const gmlBudsjett = +e.budsjett > 0 ? +e.budsjett : Math.round(gmlTimar * snitt)
+    const belop = (fast || 0) + (timar ? timar * (rate || (fast ? 0 : snitt)) : 0)
+    const patch = { budsjett: Math.round(gmlBudsjett + belop) }
+    if (timar) { patch.timar = Math.round((gmlTimar + timar) * 2) / 2; patch.modus = 'timar' }
     const forr = Object.fromEntries(['timar', 'budsjett', 'timerate', 'modus'].map(k => [k, e[k]]))
     settFelter(aktId, { ...patch, endringar: merk(true, { for: forr, overfortDato: new Date().toISOString().slice(0, 10) }) })
   }
@@ -362,7 +364,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     if (key === 'timar') { settFelter(id, { timar: Math.max(0, Math.round((parseFloat(String(verdi).replace(',', '.')) || 0) * 2) / 2), modus: 'timar' }); return }
     if (key === 'budsjett') { if (elementer.find(x => x.id === id)?.type !== 'aktivitet') return; settFelter(id, { budsjett: Math.max(0, Math.round(parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.')) || 0)), modus: 'budsjett' }); return }
     if (key === 'kode') { settFelt(id, 'kode', String(verdi).trim()); return }
-    if (key === 'btype') { const t = ['Fastpris', 'Budsjettpris', 'Ufakturerbart'].find(k => k.toLowerCase() === String(verdi).trim().toLowerCase()); settFelt(id, 'budsjettType', t || ''); return }
+    if (key === 'btype') { const t = BTYPAR.find(k => k && k.toLowerCase() === normAktType(String(verdi).trim()).toLowerCase()); settFelt(id, 'budsjettType', t || ''); return }
     if (key === 'timerate') { const n = parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.')); settFelt(id, 'timerate', n > 0 ? Math.round(n) : null); return }
     if (key === 'palopTimar' || key === 'palopHonorar') {
       const n = parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.'))

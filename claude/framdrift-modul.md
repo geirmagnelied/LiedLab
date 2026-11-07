@@ -237,3 +237,10 @@ Ny meny **Rapport ▾** i Prosjektplan-verktøylinja (til høgre for Eksport). `
 - Høgreklikk på ei aktivitet (tidslinje og tabell) → «Legg til endring» (delegert `onContextMenu`; rader har `data-fd-id` / `data-radid`).
 - «＋ Ny» står først (heilt til venstre) i verktøylinja.
 - PDF-rapport: kolonnebreidder målt frå innhaldet (ingen avkorting av tal; heile tabellen vert forminska jamt viss det er for trongt, `bytes.skala`), tekst vert brotten over fleire linjer, tynnare skiljestrekar og ytterkant rundt tabellen.
+
+## Revisjon 7. nov. 2026 (kveld) — rapport, endringar og aktivitetstype
+
+- **Aktivitetstype** (feltet `budsjettType`, kolonne `btype`, tidlegare «Budsjettype»): verdiane er `Budsjett`, `Fastpris`, `Budsjett med tak`, `Ufakturerbar`, `Opplæring` (`BTYPAR`/`normAktType` i `framdriftVerdiar.js`; gamle `Budsjettpris`/`Ufakturerbart` vert vist som `Budsjett`/`Ufakturerbar`). Kolonnen står i tidslinje, tabell, Excel-eksport, endringsregisteret (`en.akttype`) og rapportane (info-seksjonen, med i begge standardrapportane).
+- **Endringar vert LAGDE TIL aktiviteten** (ikkje erstatning): timar = gamle + endringa sine; budsjett = gammalt (eller timar × snittpris) + fastpris + timar × timepris. Timepris gjeld berre timane i endringa; `timerate` og tidlegare estimat er uendra. Fjerna hake set tilbake `for`-verdiane. Endringstabellen har eigne tekstfelt (ikkje pilfelt), «Timebudsjett» og produktkolonne timar × pris for både revidert og godkjent.
+- **Intern rapport:** rad «+/- budsjett» under kvar person (forbruk − planlagd, timar og kr). Farge: raud (+, over 120 % av budsjett), gul (10–20 % avvik), grå (under 10 %), blå (under 80 %).
+- **PDF:** svarte celleramma i overskrifta, mørkeblå strek under overskrifta, tynn strek mellom prognoseperiodane, gruppeoverskrifter vert brotne over fleire linjer.
