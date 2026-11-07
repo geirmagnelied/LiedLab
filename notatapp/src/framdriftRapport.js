@@ -272,6 +272,9 @@ export function fmtVerdi(v, type) {
 }
 
 // ── PDF ─────────────────────────────────────────────────────────────
+// Kolonnebreidder vert målte frå innhaldet: tal og overskrifter får alltid plass (aldri avkorta). Er det for lite plass, vert
+// heile tabellen (skrift, rader, breidder) forminska jamt. Lang tekst (aktivitetsnamn, ansvarleg) vert brotten over fleire linjer.
+// Resultatet har eigenskapen `skala` (1 = full storleik).
 export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, prosjektNr, brukar }) {
   const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib')
   const doc = await PDFDocument.create()
@@ -281,34 +284,55 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
   const grupperKol = valdeKolonnar(oppsett, data.perioder)
   const kol = grupperKol.flatMap(g => g.kol.map((k, i) => ({ ...k, sek: g.key, forst: i === 0 })))
   if (!kol.length) throw new Error('Rapporten har ingen kolonnar. Vel minst ein seksjon og ei kolonne.')
-
-  // breidder: namn tek resten
   const bredd = B - 2 * M
-  const fast = kol.filter(k => k.b > 0).reduce((a, k) => a + k.b, 0)
-  const harNamn = kol.some(k => k.b === 0)
-  // tal-kolonnane vert skalerte ned slik at aktivitetsnamnet får minst 150 pt; utan namnekolonne fyller kolonnane heile breidda
-  const skala = harNamn ? Math.min(1, (bredd - 150) / fast) : bredd / fast
-  const W = kol.map(k => (k.b > 0 ? k.b * skala : 0))
-  const restB = bredd - W.reduce((a, x) => a + x, 0)
-  if (harNamn) W[kol.findIndex(k => k.b === 0)] = restB
+
+  const alle = [...data.rader.map(r => ({ r, sum: false })), ...(oppsett.sumrad ? [{ r: { ...data.sum, gruppe: false, nivaa: 0 }, sum: true }] : [])]
+  const tekstAv = (r, k, sum) => {
+    if (sum) return k.key === 'namn' ? 'Sum' : k.type === 'tekst' ? '' : fmtVerdi(r[k.key], k.type)
+    if (r.utanTal && k.type !== 'tekst') return ''
+    return fmtVerdi(r[k.key], k.type)
+  }
+  const BASE = 7.5, HOV = 7
+  const lengste = (t, f, s) => rens(f, t).split(/\s+/).filter(Boolean).reduce((a, o) => Math.max(a, f.widthOfTextAtSize(o, s)), 0)
+  // naturleg breidd per kolonne ved full skriftstorleik
+  const natur = kol.map(k => {
+    const hov = lengste(k.namn, fb, HOV) + 8
+    if (k.key === 'namn') return 0
+    let m = 0
+    for (const { r, sum } of alle) {
+      const f = (r.gruppe || sum) ? fb : fn
+      m = Math.max(m, f.widthOfTextAtSize(rens(f, tekstAv(r, k, sum)), BASE))
+    }
+    const innhald = k.type === 'tekst' ? Math.min(m + 8, 100) : m + 8
+    return Math.max(hov, innhald, 26)
+  })
+  const harNamn = kol.some(k => k.key === 'namn')
+  const trengs = natur.reduce((a, x) => a + x, 0) + (harNamn ? 150 : 0)
+  const S = Math.max(0.4, Math.min(1, bredd / trengs))
+  const W = natur.map(x => x * S)
+  if (harNamn) W[kol.findIndex(k => k.key === 'namn')] = bredd - W.reduce((a, x) => a + x, 0)
+  else { const ekstra = bredd - W.reduce((a, x) => a + x, 0); if (ekstra > 0) W.forEach((x, i) => { W[i] = x + ekstra * natur[i] / natur.reduce((a, y) => a + y, 0) }) }
   const X = W.reduce((a, w, i) => (a.push(i ? a[i - 1] + W[i - 1] : M), a), [])
+  const fs = BASE * S, fh = HOV * S, lh = 9.2 * S, pad = 3 * S
 
   const blaa = rgb(0.663, 0.784, 0.925), lys = rgb(0.93, 0.95, 0.98), strek = rgb(0.7, 0.72, 0.76), svart = rgb(0, 0, 0), grå = rgb(0.3, 0.3, 0.3)
-  const SKILJE = 1.4                                                    // tjukk strek mellom hovuddelane (aktivitet | påløpt | periode | prognose)
+  const SKILJE = 0.9                                                    // strek mellom hovuddelane (aktivitet | påløpt | periode | prognose) og rundt tabellen
   const bryt = (tekst, font, size, maks) => {          // ordbryting til maks breidd
     const ord = rens(font, tekst).split(/\s+/).filter(Boolean); const linjer = []; let l = ''
     for (const o of ord) { const t = l ? l + ' ' + o : o; if (font.widthOfTextAtSize(t, size) <= maks || !l) l = t; else { linjer.push(l); l = o } }
     if (l) linjer.push(l)
     return linjer.length ? linjer : ['']
   }
-  const kort = (tekst, font, size, maks) => {          // avkort med «..»
+  const kort = (tekst, font, size, maks) => {          // avkort med «..» (berre eit siste skansemiddel)
     let t = rens(font, tekst)
     if (font.widthOfTextAtSize(t, size) <= maks) return t
     while (t.length > 1 && font.widthOfTextAtSize(t + '..', size) > maks) t = t.slice(0, -1)
     return t + '..'
   }
-  const skiljeLinjer = (yTopp, yBotn) => {               // tjukke loddrette strekar ved starten på kvar seksjon (unntatt den fyrste) + kantane
-    kol.forEach((k, i) => { if (k.forst && i > 0) side.drawLine({ start: { x: X[i], y: yTopp }, end: { x: X[i], y: yBotn }, thickness: SKILJE, color: svart }) })
+  const skiljeLinjer = (yTopp, yBotn) => {               // loddrette strekar: ytterkantane + starten på kvar seksjon (unntatt den fyrste)
+    const v = (x) => side.drawLine({ start: { x, y: yTopp }, end: { x, y: yBotn }, thickness: SKILJE, color: svart })
+    v(M); v(M + bredd)
+    kol.forEach((k, i) => { if (k.forst && i > 0) v(X[i]) })
   }
 
   const sider = []
@@ -330,55 +354,64 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
     return ty - 6
   }
   const tabellHovud = () => {
-    const hG = 15
+    const hG = 15 * S
     const yTopp = y
     let gx = M
     for (const g of grupperKol) {
       const gw = kol.reduce((a, c, i) => (c.sek === g.key ? a + W[i] : a), 0)
+      const linjer = bryt(g.namn, fb, 8 * S, gw - 2 * pad)
       side.drawRectangle({ x: gx, y: y - hG, width: gw, height: hG, color: blaa, borderColor: strek, borderWidth: 0.4 })
-      side.drawText(kort(g.namn, fb, 8, gw - 6), { x: gx + 3, y: y - 10.5, size: 8, font: fb, color: svart })
+      side.drawText(linjer.length > 1 ? kort(g.namn, fb, 8 * S, gw - 2 * pad) : linjer[0], { x: gx + pad, y: y - 10.5 * S, size: 8 * S, font: fb, color: svart })
       gx += gw
     }
     y -= hG
-    const linjer = kol.map((k, i) => bryt(k.namn, fb, 7, W[i] - 6))
-    const hK = Math.max(...linjer.map(l => l.length)) * 8.4 + 5
+    const linjer = kol.map((k, i) => bryt(k.namn, fb, fh, W[i] - 2 * pad))
+    const hK = Math.max(...linjer.map(l => l.length)) * 8.4 * S + 5 * S
     kol.forEach((k, i) => {
       side.drawRectangle({ x: X[i], y: y - hK, width: W[i], height: hK, color: blaa, borderColor: strek, borderWidth: 0.4 })
       linjer[i].forEach((l, j) => {
-        const tw = fb.widthOfTextAtSize(l, 7)
-        side.drawText(l, { x: k.type === 'tekst' ? X[i] + 3 : X[i] + W[i] - 3 - tw, y: y - 9 - j * 8.4, size: 7, font: fb, color: svart })
+        const tw = fb.widthOfTextAtSize(l, fh)
+        side.drawText(l, { x: k.type === 'tekst' ? X[i] + pad : X[i] + W[i] - pad - tw, y: y - 9 * S - j * 8.4 * S, size: fh, font: fb, color: svart })
       })
     })
     y -= hK
+    side.drawLine({ start: { x: M, y: yTopp }, end: { x: M + bredd, y: yTopp }, thickness: SKILJE, color: svart })
     skiljeLinjer(yTopp, y)
   }
-  const nySide = () => { side = doc.addPage([B, H]); sider.push(side); y = tekstTopp(); tabellHovud() }
+  const avslutt = () => side.drawLine({ start: { x: M, y }, end: { x: M + bredd, y }, thickness: SKILJE, color: svart })
+  const nySide = () => { if (side) avslutt(); side = doc.addPage([B, H]); sider.push(side); y = tekstTopp(); tabellHovud() }
   nySide()
 
-  const RH = 13
   const rad = (r, { sum = false } = {}) => {
+    const font = (r.gruppe || sum) ? fb : fn
+    const sz = r.person ? fs * 0.94 : fs
+    // tekstkolonnar vert brotne over fleire linjer; radhøgda følgjer den lengste
+    const cellelinjer = kol.map((k, i) => {
+      const t = tekstAv(r, k, sum)
+      if (k.type !== 'tekst') return [t]
+      const innrykk = k.key === 'namn' && !sum ? r.nivaa * 7 * S : 0
+      return bryt(t, font, sz, W[i] - 2 * pad - innrykk)
+    })
+    const RH = Math.max(...cellelinjer.map(l => l.length)) * lh + 4 * S
     if (y - RH < M + 24) nySide()
-    const fet = r.gruppe || sum
-    const font = fet ? fb : fn
     if (r.gruppe) side.drawRectangle({ x: M, y: y - RH, width: bredd, height: RH, color: lys })
-    if (sum || r.delsum) side.drawLine({ start: { x: M, y: y }, end: { x: M + bredd, y: y }, thickness: sum ? 0.9 : 0.5, color: svart })
+    if (sum || r.delsum) side.drawLine({ start: { x: M, y }, end: { x: M + bredd, y }, thickness: sum ? 0.9 : 0.5, color: svart })
     kol.forEach((k, i) => {
-      const innrykk = k.key === 'namn' && !sum ? r.nivaa * 7 : 0
-      let verdi
-      if (sum) verdi = k.key === 'namn' ? 'Sum' : k.type === 'tekst' ? '' : fmtVerdi(r[k.key], k.type)
-      else if (r.utanTal && k.type !== 'tekst') verdi = ''
-      else verdi = fmtVerdi(r[k.key], k.type)
-      const t = kort(verdi, font, r.person ? 7 : 7.5, W[i] - 6 - innrykk)
-      const tw = font.widthOfTextAtSize(t, r.person ? 7 : 7.5)
-      side.drawText(t, { x: k.type === 'tekst' ? X[i] + 3 + innrykk : X[i] + W[i] - 3 - tw, y: y - 9.3, size: r.person ? 7 : 7.5, font, color: r.person ? grå : svart })
+      const innrykk = k.key === 'namn' && !sum ? r.nivaa * 7 * S : 0
+      cellelinjer[i].forEach((l, j) => {
+        if (!l) return
+        const t = k.type === 'tekst' ? l : kort(l, font, sz, W[i] - 2 * pad)
+        const tw = font.widthOfTextAtSize(t, sz)
+        side.drawText(t, { x: k.type === 'tekst' ? X[i] + pad + innrykk : X[i] + W[i] - pad - tw, y: y - 8.6 * S - j * lh, size: sz, font, color: r.person ? grå : svart })
+      })
     })
     skiljeLinjer(y, y - RH)
     side.drawLine({ start: { x: M, y: y - RH }, end: { x: M + bredd, y: y - RH }, thickness: 0.25, color: rgb(0.85, 0.86, 0.88) })
     y -= RH
   }
-  data.rader.forEach(r => rad(r))
-  if (oppsett.sumrad) rad({ ...data.sum, gruppe: false, nivaa: 0 }, { sum: true })
+  alle.forEach(({ r, sum }) => rad(r, { sum }))
   if (!data.rader.length) side.drawText('Ingen aktivitetar å vise.', { x: M, y: y - 14, size: 9, font: fn, color: svart })
+  avslutt()
 
   const no = new Date()
   const stempel = `Generert av ${brukar || 'ukjend brukar'} · ${no.toLocaleDateString('nb-NO')} kl. ${no.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })} · LiedLab`
@@ -388,7 +421,9 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
     s.drawText(st, { x: B - M - fn.widthOfTextAtSize(st, 7.5), y: 18, size: 7.5, font: fn, color: rgb(0.4, 0.4, 0.4) })
   })
   doc.setTitle(oppsett.tittel || 'Rapport'); doc.setCreator('LiedLab'); doc.setAuthor(brukar || '')
-  return doc.save()
+  const bytes = await doc.save()
+  bytes.skala = S
+  return bytes
 }
 
 export function lastNedPdf(bytes, filnamn) {

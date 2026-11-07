@@ -303,6 +303,57 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const settFelter = (id, patch) => oppdater(elementer.map(e => (e.id === id ? { ...e, ...patch } : e)))
   const settFelt = (id, felt, verdi) => oppdater(elementer.map(e => (e.id === id ? { ...e, [felt]: verdi } : e)))
 
+  // ── Endringar (endringsmeldingar): lagra på aktiviteten (e.endringar), vist i «Endringar»-registeret under tabellen ──
+  const [endrMeny, setEndrMeny] = useState(null)   // { x, y, id } — høgreklikk-meny på aktivitet
+  const [fanePuls, setFanePuls] = useState(null)   // ber registeret under tabellen om å opne ei bestemt fane
+  const aktivitetarFlat = useMemo(() => elementer.filter(e => e.type === 'aktivitet' && !erSumm(elementer, e)), [elementer])
+  const endringsliste = useMemo(() => aktivitetarFlat.flatMap(a => (a.endringar || []).map(en => ({ ...en, akt: a.id })))
+    .sort((a, b) => String(a.nr || '').localeCompare(String(b.nr || ''), 'nb', { numeric: true })), [aktivitetarFlat])
+  const nesteEndringsnr = 'E' + (endringsliste.reduce((m, en) => Math.max(m, parseInt((String(en.nr || '').match(/(\d+)\s*$/) || [])[1], 10) || 0), 0) + 1)
+  const settEndringar = (aktId, fn) => oppdater(elementer.map(e => (e.id === aktId ? { ...e, endringar: fn(e.endringar || []) } : e)))
+  const nyEndring = (aktId, { namn = '' } = {}) => {
+    const id = 'en' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)
+    settEndringar(aktId, l => [...l, { id, nr: nesteEndringsnr, namn, rev: {}, god: {}, overfort: false }])
+  }
+  const settEndring = (aktId, id, patch) => settEndringar(aktId, l => l.map(x => (x.id === id ? { ...x, ...patch } : x)))
+  const slettEndring = (aktId, id) => settEndringar(aktId, l => l.filter(x => x.id !== id))
+  const flyttEndring = (fra, til, id) => {
+    if (fra === til) return
+    const en = (elementer.find(e => e.id === fra)?.endringar || []).find(x => x.id === id)
+    if (!en) return
+    oppdater(elementer.map(e => (e.id === fra ? { ...e, endringar: (e.endringar || []).filter(x => x.id !== id) } : e.id === til ? { ...e, endringar: [...(e.endringar || []), en] } : e)))
+  }
+  // Haka: overfør godkjent verdi (elles revidert) til aktiviteten. Fjerna hake set tilbake dei førre verdiane.
+  const overforEndring = (aktId, id) => {
+    const e = elementer.find(x => x.id === aktId); const en = (e?.endringar || []).find(x => x.id === id)
+    if (!e || !en) return
+    const merk = (overfort, ekstra) => (e.endringar || []).map(x => (x.id === id ? { ...x, overfort, ...ekstra } : x))
+    if (en.overfort) { settFelter(aktId, { ...(en.for || {}), endringar: merk(false, { for: null, overfortDato: null }) }); return }
+    const v = (felt) => (en.god?.[felt] > 0 ? en.god[felt] : (en.rev?.[felt] > 0 ? en.rev[felt] : null))
+    const timar = v('timar'), fast = v('fastpris'), rate = v('timepris')
+    if (!timar && !fast && !rate) { window.alert('Fyll inn minst eitt kostnadsfelt (timar, fastpris eller timepris) før overføring.'); return }
+    const patch = {}
+    if (rate) patch.timerate = rate
+    if (timar) {
+      patch.timar = Math.round(timar * 2) / 2; patch.modus = 'timar'
+      if (fast) patch.budsjett = Math.round(fast)
+      else { const p = snittpris({ ...e, ...patch }, prisKartFra(personell)).pris; patch.budsjett = p > 0 ? Math.round(patch.timar * p) : e.budsjett }
+    } else if (fast) { patch.budsjett = Math.round(fast); patch.modus = 'budsjett' }
+    else if (rate && (+e.timar > 0) && e.modus !== 'budsjett') patch.budsjett = Math.round(e.timar * rate)
+    const forr = Object.fromEntries(['timar', 'budsjett', 'timerate', 'modus'].map(k => [k, e[k]]))
+    settFelter(aktId, { ...patch, endringar: merk(true, { for: forr, overfortDato: new Date().toISOString().slice(0, 10) }) })
+  }
+  const kontekstRad = (ev) => {
+    const rad = ev.target.closest?.('[data-fd-id], tr[data-radid]'); if (!rad) return
+    const raa = rad.getAttribute('data-fd-id') ?? rad.getAttribute('data-radid')
+    const akt = aktivitetarFlat.find(a => String(a.id) === String(raa)); if (!akt) return
+    ev.preventDefault(); setEndrMeny({ x: ev.clientX, y: ev.clientY, id: akt.id })
+  }
+  const leggTilEndringFraMeny = () => {
+    const id = endrMeny.id; setEndrMeny(null)
+    nyEndring(id); setValgt(id); setBemOpen(true); setFanePuls({ fane: 'endringar', n: Date.now() })
+  }
+
   const endreFraTabell = (id, key, verdi) => {
     if (key === 'namn') { if (String(verdi).trim()) settFelt(id, 'namn', String(verdi).trim()); return }
     if (key === 'ansvarleg') { settFelt(id, 'ansvarleg', String(verdi).trim()); return }
@@ -475,6 +526,14 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
       {/* Verktøylinje (NL3): Påløpt innan · visning · Ny · Import · Eksport · Visning · PNS */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', minHeight: 50, flexShrink: 0, flexWrap: 'wrap', background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
         {aktivtProsjekt && (<>
+          <FdMeny etikett="＋ Ny" hovud breidd={230}>{lukk => (<>
+            <MenyPunkt tittel="Ny aktivitet" onClick={() => { lukk(); leggTil('aktivitet') }}/>
+            <MenyPunkt tittel="Ny fase" onClick={() => { lukk(); leggTil('fase') }}/>
+            <MenyPunkt tittel="Ny milepæl" onClick={() => { lukk(); leggTil('milepael') }}/>
+            <MenySkilje/>
+            <MenyPunkt tittel="Frå mal…" under="Start frå ein ferdig fasemal" onClick={() => { lukk(); setMalOpen(true) }}/>
+          </>)}</FdMeny>
+          <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
           <PalopInnanMeny verdi={palopInnan} onEndre={setPalopInnan}/>
           <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
           <div className="fd-seg">
@@ -483,13 +542,6 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <button className={visning === 'maaned' ? 'pa' : ''} onClick={() => setVisning('maaned')} title="Tabell med månadskolonnar (veker over månadsskifte vert fordelte etter arbeidstimar)">Månad</button>
           </div>
           <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
-          <FdMeny etikett="＋ Ny" hovud breidd={230}>{lukk => (<>
-            <MenyPunkt tittel="Ny aktivitet" onClick={() => { lukk(); leggTil('aktivitet') }}/>
-            <MenyPunkt tittel="Ny fase" onClick={() => { lukk(); leggTil('fase') }}/>
-            <MenyPunkt tittel="Ny milepæl" onClick={() => { lukk(); leggTil('milepael') }}/>
-            <MenySkilje/>
-            <MenyPunkt tittel="Frå mal…" under="Start frå ein ferdig fasemal" onClick={() => { lukk(); setMalOpen(true) }}/>
-          </>)}</FdMeny>
           <FdMeny etikett="Import" breidd={300}>{lukk => (<>
             <MenyPunkt tittel="Importer plan…" under="MS Project (XML/ISY), Excel eller CSV" onClick={() => { lukk(); setImportOpen(true) }}/>
             <MenyPunkt tittel="Importer forbruk…" under="Påløpte timar frå timeføringsrapport (Excel)" onClick={() => { lukk(); setForbrukOpen(true) }}/>
@@ -691,7 +743,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                   </>)}
                 </div>
               )}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+              <div onContextMenu={kontekstRad} style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
               <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
               {visning === 'tidslinje' ? (
                 <FramdriftTidslinje delsummer={fdVis.delsummer} skala={skala} valde={valde} personell={personell} onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={velgRad}
@@ -703,7 +755,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                 <FramdriftTabell key={visning} valde={valde} onValde={setValde} periode={visning === 'maaned' ? 'manad' : 'veke'} onVis={setFdVis} eining={fdVis.eining} delsummer={fdVis.delsummer} personell={personell} forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={velgRad} onEndreFelt={endreFraTabell}/>
               )}
               </div>
-              <FramdriftBemanning el={selEff && selEff.type === 'aktivitet' ? selEff : null} summ={!!(sel && erSumm(elementer, sel))} personell={personell} prisar={prisKartFra(personell)}
+              <FramdriftBemanning fanePuls={fanePuls} endr={{ liste: endringsliste, aktivitetar: aktivitetarFlat, nesteNr: nesteEndringsnr, onNy: nyEndring, onSett: settEndring, onFlytt: flyttEndring, onSlett: slettEndring, onOverfor: overforEndring }} el={selEff && selEff.type === 'aktivitet' ? selEff : null} summ={!!(sel && erSumm(elementer, sel))} personell={personell} prisar={prisKartFra(personell)}
                 forbrukKart={forbrukKart} fargeKart={fargeKart} dokument={dokument} hogde={bemH} open={bemOpen}
                 onHogde={(h, ferdig) => { setBemH(h); if (ferdig) { try { localStorage.setItem('liedlab-framdrift-bem-h', String(h)) } catch { /* privat modus */ } } }}
                 onOpen={v => { setBemOpen(v); try { localStorage.setItem('liedlab-framdrift-bem-open', v ? '1' : '0') } catch { /* privat modus */ } }}
@@ -723,6 +775,13 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
           onModus={m => settFelt(sel.id, 'ferdigModus', m)} onFerdig={n => settFelt(sel.id, 'ferdig', n)}/>
       )}
       {malOpen && <MalVindauge harPlan={elementer.length > 0} onLukk={() => setMalOpen(false)} onBruk={brukMal}/>}
+      {endrMeny && (<>
+        <div onMouseDown={() => setEndrMeny(null)} onContextMenu={e => { e.preventDefault(); setEndrMeny(null) }} style={{ position: 'fixed', inset: 0, zIndex: 300 }}/>
+        <div style={{ position: 'fixed', left: Math.min(endrMeny.x, window.innerWidth - 220), top: Math.min(endrMeny.y, window.innerHeight - 70), zIndex: 301, minWidth: 200, padding: 5, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)' }}>
+          <button onClick={leggTilEndringFraMeny} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>＋ Legg til endring</button>
+        </div>
+      </>)}
       {rapportStart && aktivtProsjekt && <FramdriftRapportModal key={rapportStart} startValg={rapportStart} onLukk={() => setRapportStart(null)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn}
         elementer={elBase} forbrukRader={forbrukRader} personell={personell} kal={kal}/>}
       {forbrukOpen && aktivtProsjekt && <FramdriftForbrukModal userId={userId} prosjekt={aktivtProsjekt} elementer={elementer} onLukk={() => setForbrukOpen(false)} onFerdig={(r) => { setForbrukOpen(false); if (r?.nyeAktivitetar?.length) opprettAktivitetar(r.nyeAktivitetar); lastForbruk() }}/>}

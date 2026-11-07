@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from './supabase'
 import DatePicker from './DatePicker'
 import {
-  SEKSJONAR, KOLONNER, STANDARD_RAPPORTAR, ARK, arkMaal, tomtOppsett, periodeFra, datoNo, byggRapportData, valdeKolonnar, trengBredd,
+  SEKSJONAR, KOLONNER, STANDARD_RAPPORTAR, ARK, tomtOppsett, periodeFra, datoNo, byggRapportData, valdeKolonnar,
   lagRapportPdf, lastNedPdf, rapportFilnamn,
 } from './framdriftRapport'
 
@@ -90,12 +90,9 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
   const antKol = useMemo(() => valdeKolonnar(oppsett, data.perioder).reduce((a, g) => a + g.kol.length, 0), [oppsett, data.perioder])
   const ark = oppsett.ark || STANDARD_UT.ark
   const prognoseModus = oppsett.prognoseModus || 'manad'
-  const arkBreidd = arkMaal(ark)[0]
-  const trengs = trengBredd(oppsett, data.perioder)
-  const forSmalt = antKol > 0 && trengs > arkBreidd
 
   // Førehandsvising = den ferdige PDF-en (laga på nytt, litt utsett, når noko vert endra)
-  const [pdf, setPdf] = useState({ url: null, bytes: null, feil: '', lagar: false })
+  const [pdf, setPdf] = useState({ url: null, bytes: null, skala: 1, feil: '', lagar: false })
   const urlRef = useRef(null)
   useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current) }, [])
   useEffect(() => {
@@ -109,7 +106,7 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
         const gammal = urlRef.current
         const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
         urlRef.current = url
-        setPdf({ url, bytes, feil: '', lagar: false })
+        setPdf({ url, bytes, skala: bytes.skala || 1, feil: '', lagar: false })
         if (gammal) setTimeout(() => URL.revokeObjectURL(gammal), 2000)
       } catch (e) { if (!avbrutt) setPdf(p => ({ ...p, feil: e.message, lagar: false })) }
     }, 350)
@@ -222,7 +219,7 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
                 <option value="portrett">Portrett</option>
               </select>
             </div>
-            {forSmalt && <div style={{ fontSize: 11.5, color: 'var(--danger)', marginTop: 6, lineHeight: 1.5 }}>Kolonnane får ikkje plass i full storleik på {ark.storleik} {ark.retning} (treng ca. {Math.round(trengs / 2.835)} mm, arket er {Math.round(arkBreidd / 2.835)} mm brett). Vel eit større ark, portrett/landskap, eller færre kolonnar.</div>}
+            {pdf.skala < 0.85 && <div style={{ fontSize: 11.5, color: 'var(--danger)', marginTop: 6, lineHeight: 1.5 }}>Mange kolonnar: teksten er forminska til {Math.round(pdf.skala * 100)} % for å få plass på {ark.storleik} {ark.retning}. Vel eit større ark, portrett/landskap, eller færre kolonnar.</div>}
 
             {!lasen && (<>
               <div style={ETT}>Tittel</div>

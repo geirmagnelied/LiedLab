@@ -228,3 +228,12 @@ Ny meny **Rapport ▾** i Prosjektplan-verktøylinja (til høgre for Eksport). `
 - **Intern rapport**: `delsum` (eiga «Sum …»-rad etter kvar fase/delaktivitet; overskriftsrada er utan tal) og `perPerson` (kvar person under aktiviteten med planlagd del, faktisk forbruk og prognose = aktivitetens prognose × personens del; personrader er ikkje med i summane). Begge kan veljast i eigne rapportar.
 - **Ark**: `oppsett.ark` = `{ storleik: A0–A5, retning: landskap|portrett }`; vindauget åtvarar når kolonnane ikkje får plass (`trengBredd`). Skriftstorleiken er fast, større ark gir meir plass.
 - **Vindauget** (`FramdriftRapportModal.jsx`): flyttbart (dra i tittelfeltet), skalerbart (kantar/hjørne), maksimerbart (knapp eller dobbeltklikk på tittelfeltet), storleik i `localStorage` (`liedlab.rapportVindu`). Førehandsvisinga er den ferdige PDF-en (iframe mot blob-URL). «＋ Ny» står heilt til venstre nedst, og «＋ Ny rapport…» er øvst i Rapport-menyen.
+
+## Endringar (endringsmeldingar) — 7. nov. 2026
+
+- Lagra på aktiviteten: `e.endringar = [{ id, nr ('E1'…), namn, rev:{timar,fastpris,timepris}, god:{…same…}, overfort, for:{timar,budsjett,timerate,modus}, overfortDato }]` (følgjer planen, ingen ny tabell).
+- Fane «Endringar» til venstre for «Leveranseregister» i registeret under tabellen (`EndringsRegister` i `FramdriftBemanning.jsx`): alle endringar i prosjektet, med kolonnegruppene «Revidert (frå kontoret)» og «Godkjent av kunde» (same tre felt: nytt timebudsjett, fastpris, timepris), rad nedst for ny endring (nummer føreslått automatisk).
+- Haka «Overfør» (`overforEndring` i `FramdriftModule.jsx`): godkjent verdi (elles revidert) → aktivitetens `timar`/`budsjett`/`timerate` (`modus` vert `timar`, eller `budsjett` når berre fastpris er gitt). Gamle verdiar vert lagra i `for`; å fjerne haka set dei attende. Overførte endringar er låste.
+- Høgreklikk på ei aktivitet (tidslinje og tabell) → «Legg til endring» (delegert `onContextMenu`; rader har `data-fd-id` / `data-radid`).
+- «＋ Ny» står først (heilt til venstre) i verktøylinja.
+- PDF-rapport: kolonnebreidder målt frå innhaldet (ingen avkorting av tal; heile tabellen vert forminska jamt viss det er for trongt, `bytes.skala`), tekst vert brotten over fleire linjer, tynnare skiljestrekar og ytterkant rundt tabellen.

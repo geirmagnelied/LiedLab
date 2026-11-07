@@ -490,7 +490,7 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
               const erFase = r.type === 'fase' || (r.type === 'aktivitet' && (r.summ || harBorn(elementer, r.id))) // fase / summasjonsaktivitet
               const sel = valgt === r.id || !!valde?.has(r.id)
               return (
-                <div key={r.id} onClick={e => onVelg(r.id, e)}
+                <div key={r.id} data-fd-id={r.id} onClick={e => onVelg(r.id, e)}
                   style={{ height: RAD_H, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', cursor: 'default',
                     background: sel ? 'var(--brandbg2)' : erFase ? 'var(--bg3)' : 'transparent',
                     boxShadow: sel ? `inset 3px 0 0 ${VALG_FARGE}` : undefined }}
