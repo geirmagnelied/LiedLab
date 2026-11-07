@@ -244,3 +244,10 @@ Ny meny **Rapport ▾** i Prosjektplan-verktøylinja (til høgre for Eksport). `
 - **Endringar vert LAGDE TIL aktiviteten** (ikkje erstatning): timar = gamle + endringa sine; budsjett = gammalt (eller timar × snittpris) + fastpris + timar × timepris. Timepris gjeld berre timane i endringa; `timerate` og tidlegare estimat er uendra. Fjerna hake set tilbake `for`-verdiane. Endringstabellen har eigne tekstfelt (ikkje pilfelt), «Timebudsjett» og produktkolonne timar × pris for både revidert og godkjent.
 - **Intern rapport:** rad «+/- budsjett» under kvar person (forbruk − planlagd, timar og kr). Farge: raud (+, over 120 % av budsjett), gul (10–20 % avvik), grå (under 10 %), blå (under 80 %).
 - **PDF:** svarte celleramma i overskrifta, mørkeblå strek under overskrifta, tynn strek mellom prognoseperiodane, gruppeoverskrifter vert brotne over fleire linjer.
+
+## Endringsvarsel — 8. nov. 2026
+
+- Prosjektplan → «＋ Ny» → «Ny endring» opnar `FramdriftEndringsvarsel.jsx` (flytande vindauge: flytt, endre storleik, maksimer; lukking med ulagra endringar spør «Vil du lagre utkastet?»).
+- Innhald: tittel, kopling til éi eller fleire rader i endringstabellen (`e.endringar`), val 1 Behov for å justere budsjettet / 2 Endringsforslag / 3 Anna (kvar med beskriving og konsekvensar for framdrift), honorar-linjer (aktivitet, timar, timepris, timar × pris, fastpris, sum) og utgiftslinjer, kostnadstabell per aktivitet med totalsum, utarbeidd av + dato, vedlegg (dra inn / vel fil → bøtta `dtm-resultatdokument` under `<user>/<prosjekt>/endringsvarsel/<mappe>/`; eller referanse til `dtm_dokumenter`).
+- Lagring: tabell `framdrift_endringsvarsel` (status `utkast`/`ferdig`, `innhald` jsonb). SQL i `notatapp/supabase-framdrift-endringsvarsel.sql` — **må køyrast manuelt i Supabase SQL Editor** (migrasjonen frå Claude vart avvist av løyvesystemet).
+- Ikkje bygd enno: PDF/utsending av varselet, varsling til kunde, kopling av ferdig varsel tilbake til endringstabellen.

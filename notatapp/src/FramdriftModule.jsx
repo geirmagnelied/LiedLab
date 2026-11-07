@@ -13,6 +13,7 @@ import FramdriftLeveransarVindauge from './FramdriftLeveransarVindauge'
 import { personFargeKart } from './personFarge'
 import { eksporterExcel } from './framdriftEksport'
 import FramdriftRapportModal from './FramdriftRapportModal'
+import FramdriftEndringsvarsel from './FramdriftEndringsvarsel'
 import FramdriftForbrukModal from './FramdriftForbrukModal'
 import { FdMeny, MenyPunkt, MenyTittel, MenySkilje, PalopInnanMeny } from './FramdriftVerktoy'
 import { palopSlutt } from './framdriftPalop'
@@ -119,6 +120,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const [fdVis, setFdVisRaa] = useState(() => lsJson('liedlab-framdrift-vis', { eining: 'timar', delsummer: false }))   // Visning: eining i veke-kolonnane og delsummer
   const setFdVis = (patch) => setFdVisRaa(v => { const n = { ...v, ...patch }; try { localStorage.setItem('liedlab-framdrift-vis', JSON.stringify(n)) } catch { /* privat modus */ } return n })
   const [eksporterer, setEksporterer] = useState(false)
+  const [endrVarselOpen, setEndrVarselOpen] = useState(false)   // vindauget «Ny endring» (endringsvarsel)
   const [rapportStart, setRapportStart] = useState(null)   // null = lukka, elles kva rapport vindauget startar på
   const [koblingMelding, setKoblingMelding] = useState(null)
   const [leveransarOpen, setLeveransarOpen] = useState(false)
@@ -534,6 +536,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <MenyPunkt tittel="Ny milepæl" onClick={() => { lukk(); leggTil('milepael') }}/>
             <MenySkilje/>
             <MenyPunkt tittel="Frå mal…" under="Start frå ein ferdig fasemal" onClick={() => { lukk(); setMalOpen(true) }}/>
+            <MenySkilje/>
+            <MenyPunkt tittel="Ny endring" under="Endringsvarsel med kostnader og vedlegg" onClick={() => { lukk(); setEndrVarselOpen(true) }}/>
           </>)}</FdMeny>
           <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
           <PalopInnanMeny verdi={palopInnan} onEndre={setPalopInnan}/>
@@ -784,6 +788,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>＋ Legg til endring</button>
         </div>
       </>)}
+      {endrVarselOpen && aktivtProsjekt && <FramdriftEndringsvarsel onLukk={() => setEndrVarselOpen(false)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn} aktivitetar={aktivitetarFlat} endringar={endringsliste}/>}
       {rapportStart && aktivtProsjekt && <FramdriftRapportModal key={rapportStart} startValg={rapportStart} onLukk={() => setRapportStart(null)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn}
         elementer={elBase} forbrukRader={forbrukRader} personell={personell} kal={kal}/>}
       {forbrukOpen && aktivtProsjekt && <FramdriftForbrukModal userId={userId} prosjekt={aktivtProsjekt} elementer={elementer} onLukk={() => setForbrukOpen(false)} onFerdig={(r) => { setForbrukOpen(false); if (r?.nyeAktivitetar?.length) opprettAktivitetar(r.nyeAktivitetar); lastForbruk() }}/>}

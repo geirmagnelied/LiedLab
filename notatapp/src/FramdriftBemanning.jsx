@@ -88,9 +88,9 @@ function Tekst({ verdi, onLagre, list, bredde = 150, placeholder }) {
 // ── Endringsregister: endringsmeldingar kopla til ein aktivitet. Revidert (kontoret) og godkjent av kunde har dei same kolonnane;
 //    haka LEGG TIL godkjent verdi (elles revidert) på aktiviteten, og kan angrast ved å fjerne haka. ──
 const tilTal = (v) => { const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); return n > 0 ? n : null }
-const INNFELT = { padding: '2px 5px', border: '1px solid var(--border)', borderRadius: 3, fontSize: 12.5, background: 'var(--bg2)', color: 'var(--text)' }
+export const INNFELT = { padding: '2px 5px', border: '1px solid var(--border)', borderRadius: 3, fontSize: 12.5, background: 'var(--bg2)', color: 'var(--text)' }
 // Talfelt utan opp/ned-piler: vanleg tekstfelt med same ramme som namnefeltet
-function TalFelt({ verdi, onLagre, disabled, bredde = 84 }) {
+export function TalFelt({ verdi, onLagre, disabled, bredde = 84 }) {
   const [v, setV] = useState(null)
   const vis = v ?? (verdi ? String(verdi).replace('.', ',') : '')
   const lagre = () => { if (v != null && v !== String(verdi ?? '').replace('.', ',')) onLagre(v); setV(null) }
