@@ -77,8 +77,8 @@ function Tal({ verdi, onLagre, placeholder, disabled, bredde = 80, tittel }) {
     onFocus={e => { e.target.style.border = '1px solid var(--brand2)'; e.target.style.background = 'var(--bg2)' }}
     onBlurCapture={e => { e.target.style.border = '1px solid transparent'; e.target.style.background = disabled ? 'var(--bg3)' : 'transparent' }}/>
 }
-function Tekst({ verdi, onLagre, list, bredde = 150, placeholder }) {
-  return <input defaultValue={verdi || ''} list={list} placeholder={placeholder} key={verdi}
+function Tekst({ verdi, onLagre, list, bredde = 150, placeholder, disabled }) {
+  return <input defaultValue={verdi || ''} list={list} placeholder={placeholder} key={verdi} disabled={disabled}
     onBlur={e => { const n = e.target.value.trim(); if (n !== (verdi || '')) onLagre(n); e.target.style.border = '1px solid transparent' }}
     onFocus={e => { e.target.style.border = '1px solid var(--brand2)' }}
     onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
@@ -105,8 +105,74 @@ function TekstFelt({ verdi, onLagre, bredde = 150, placeholder, disabled }) {
     style={{ ...INNFELT, width: bredde, fontFamily: 'var(--font)' }}/>
 }
 const krTekst = (n) => (n > 0 ? Math.round(n).toLocaleString('nb-NO') : '')
-function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSett, onFlytt, onSlett, onOverfor }) {
+
+// ── Felles for registertabellane (Endringar, Bemanning): justerbare kolonnebreidder (dra i overskrifta), låsing av kolonnar
+//    (høgreklikk overskrifta), høgreklikk-meny på rader, heile cella er innfelt, og hover/fokus-effekt. ──
+const REG_CSS = `
+.fd-reg td input { min-width: 0; }
+.fd-reg { table-layout: fixed; border-collapse: collapse; }
+.fd-reg td { padding: 0 !important; position: relative; transition: background .12s; overflow: hidden; }
+.fd-reg td:not(:has(input,select)) { padding: 2px 8px !important; }
+.fd-reg td input:not([type=checkbox]), .fd-reg td select { width: 100% !important; box-sizing: border-box; height: 100%; min-height: 25px; border: none !important; border-radius: 0 !important; background: transparent !important; padding: 3px 8px !important; outline: none; }
+.fd-reg td input:disabled, .fd-reg td select:disabled { opacity: .7; cursor: not-allowed; }
+.fd-reg td:focus-within { outline: 2px solid var(--brand); outline-offset: -2px; background: var(--bg2) !important; }
+.fd-reg tbody tr:hover td { background: var(--brandbg); }
+.fd-reg tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 var(--brand2); }
+.fd-reg th { overflow: visible; }
+.reg-grip { position: absolute; right: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 3; }
+.reg-grip:hover { background: rgba(21,101,192,.35); }
+.fyll-hdl { display: none; position: absolute; right: 0; bottom: 0; width: 9px; height: 9px; background: var(--brand); border: 1px solid var(--bg2); cursor: crosshair; z-index: 4; }
+.fd-reg td:focus-within .fyll-hdl { display: block; }
+`
+function useRegister(nokkel, standard) {
+  const [b, setB] = useState(() => { try { const v = JSON.parse(localStorage.getItem(nokkel + '-b')); return Array.isArray(v) && v.length === standard.length ? v : standard } catch { return standard } })
+  const [laasa, setLaasa] = useState(() => { try { return JSON.parse(localStorage.getItem(nokkel + '-l')) || [] } catch { return [] } })
+  const [meny, setMeny] = useState(null)         // { x, y, kol } (overskrift) eller { x, y, rad } (rad)
+  const lagreB = (n) => { try { localStorage.setItem(nokkel + '-b', JSON.stringify(n)) } catch { /* privat modus */ } }
+  const start = (i, ev) => {
+    ev.preventDefault(); ev.stopPropagation()
+    const x0 = ev.clientX, b0 = b[i]
+    const mv = (e2) => { const w = Math.max(36, Math.min(700, Math.round(b0 + e2.clientX - x0))); setB(x => x.map((v, j) => (j === i ? w : v))) }
+    const opp = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); setB(x => { lagreB(x); return x }) }
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
+  }
+  const tilbake = (i) => setB(x => { const n = x.map((v, j) => (j === i ? standard[i] : v)); lagreB(n); return n })
+  const veksleLaas = (key) => setLaasa(l => { const n = l.includes(key) ? l.filter(k => k !== key) : [...l, key]; try { localStorage.setItem(nokkel + '-l', JSON.stringify(n)) } catch { /* privat modus */ } return n })
+  return {
+    b, tot: b.reduce((a, w) => a + w, 0), meny, setMeny, laast: (k) => laasa.includes(k), veksleLaas,
+    kolonnar: () => <colgroup>{b.map((w, i) => <col key={i} style={{ width: w }}/>)}</colgroup>,
+    grip: (i) => <span className="reg-grip" onMouseDown={e => start(i, e)} onDoubleClick={e => { e.stopPropagation(); tilbake(i) }} title="Dra for å endre breidda (dobbeltklikk = standard)"/>,
+  }
+}
+// Høgreklikk-meny: lås/lås opp kolonne, eller slett rad (raud, nedst)
+function RegMeny({ meny, onLukk, laast, onLaas, onSlett, slettTekst, slettBlokkert }) {
+  if (!meny) return null
+  const knapp = (fare, disabled) => ({ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderRadius: 6, background: 'transparent', color: fare ? '#B91C1C' : 'var(--text)', opacity: disabled ? .45 : 1, fontSize: 13, fontWeight: 600, cursor: disabled ? 'default' : 'pointer', fontFamily: 'var(--font)' })
+  const hov = (fare, disabled) => ({ onMouseEnter: e => { if (!disabled) e.currentTarget.style.background = fare ? 'rgba(185,28,28,.10)' : 'var(--bg3)' }, onMouseLeave: e => { e.currentTarget.style.background = 'transparent' } })
+  return (<>
+    <div onMouseDown={onLukk} onContextMenu={e => { e.preventDefault(); onLukk() }} style={{ position: 'fixed', inset: 0, zIndex: 399 }}/>
+    <div style={{ position: 'fixed', left: Math.min(meny.x, window.innerWidth - 280), top: Math.min(meny.y, window.innerHeight - 140), width: 270, zIndex: 400, padding: 5, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)' }}>
+      {meny.kol != null && <>
+        <button {...hov()} style={knapp()} onClick={() => { onLaas(meny.kol); onLukk() }}>{laast(meny.kol) ? '🔓 Lås opp kolonnen' : '🔒 Lås kolonnen for redigering'}</button>
+        <div style={{ fontSize: 11, color: 'var(--text3)', padding: '4px 12px 6px', lineHeight: 1.4 }}>Låsing hindrar redigering for hand i kolonnen. Automatiske oppdateringar og import vert ikkje stoppa.</div>
+      </>}
+      {meny.rad != null && <>
+        <div style={{ height: 1, background: 'var(--border)', margin: '0 4px 5px' }}/>
+        <button {...hov(true, slettBlokkert)} style={knapp(true, slettBlokkert)} title={slettBlokkert || 'Slettinga må stadfestast og kan gjenopprettast med Angre'}
+          onClick={() => { if (slettBlokkert) return; onSlett(meny.rad); onLukk() }}>🗑 {slettTekst}</button>
+      </>}
+    </div>
+  </>)
+}
+
+// ── Endringsregister: endringsmeldingar kopla til ein aktivitet. Revidert (kontoret) og godkjent av kunde har dei same kolonnane;
+//    haka LEGG TIL godkjent verdi (elles revidert) på aktiviteten, og kan angrast ved å fjerne haka. ──
+const ENDR_KOL = ['nr', 'namn', 'akt', 'akttype', 'status', 'statusdato', 'rev.timar', 'rev.fastpris', 'rev.timepris', 'rev.produkt', 'god.timar', 'god.fastpris', 'god.timepris', 'god.produkt', 'overfor', 'slett']
+const ENDR_STD = [86, 230, 220, 140, 140, 124, 104, 118, 104, 112, 104, 118, 104, 112, 130, 30]
+function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSett, onSettSamla, onFlytt, onSlett, onOverfor }) {
   const [utkast, setUtkast] = useState({ akt: '', namn: '' })
+  const [fyll, setFyll] = useState(null)       // { key, kilde, mal } — pågåande dra-og-fyll
+  const reg = useRegister('liedlab-fd-endr', ENDR_STD)
   const aktId = utkast.akt || (aktivitetar.some(a => a.id === valgtId) ? valgtId : (aktivitetar[0]?.id ?? ''))
   const legg = () => {
     if (!aktId) return
@@ -116,16 +182,54 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
   const GRP = { ...TH, textAlign: 'center', background: 'var(--tabell-hovud, #A9C8EC)', color: '#000', borderLeft: '2px solid var(--text)' }
   const TH2 = { ...TH, background: 'var(--tabell-hovud, #A9C8EC)', color: '#000', fontWeight: 800 }
   const VENSTRE = { borderLeft: '2px solid var(--text)' }
-  const talCelle = (en, g, felt, ekstra) => (
-    <td style={{ ...TD, ...(ekstra || {}) }}>
-      <TalFelt verdi={en[g]?.[felt] || ''} bredde={84} disabled={!!en.overfort}
-        onLagre={v => onSett(en.akt, en.id, { [g]: { ...(en[g] || {}), [felt]: tilTal(v) } })}/>
+  const i0 = (k) => ENDR_KOL.indexOf(k)
+  const th = (k, innhald, stil, tittel) => (
+    <th key={k} style={{ ...TH2, position: 'relative', ...(stil || {}) }} title={tittel} onContextMenu={e => { e.preventDefault(); reg.setMeny({ x: e.clientX, y: e.clientY, kol: k }) }}>
+      {reg.laast(k) && <span style={{ fontSize: 9, marginRight: 3 }}>🔒</span>}{innhald}{reg.grip(i0(k))}
+    </th>
+  )
+  const fyllTreff = (ri, k) => { if (!fyll || fyll.key !== k) return false; const [a, b] = fyll.mal > fyll.kilde ? [fyll.kilde + 1, fyll.mal] : [fyll.mal, fyll.kilde - 1]; return ri >= a && ri <= b }
+  const fyllPatch = (en, key, kilde) => {
+    if (key === 'namn') return { namn: kilde.namn }
+    if (key === 'akttype') return { akttype: kilde.akttype || '' }
+    if (key === 'status') return { status: kilde.status || '', statusDato: kilde.status ? (kilde.statusDato || new Date().toISOString().slice(0, 10)) : '' }
+    const [g, felt] = key.split('.')
+    return { [g]: { ...(en[g] || {}), [felt]: kilde[g]?.[felt] ?? null } }
+  }
+  const startFyll = (ev, ri, key) => {
+    ev.preventDefault(); ev.stopPropagation()
+    let mal = ri
+    const mv = (e2) => { const tr = document.elementFromPoint(e2.clientX, e2.clientY)?.closest?.('tr[data-rad]'); if (!tr) return; mal = +tr.getAttribute('data-rad'); setFyll({ key, kilde: ri, mal }) }
+    const opp = () => {
+      window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); setFyll(null)
+      if (mal === ri) return
+      const [a, b] = mal > ri ? [ri + 1, mal] : [mal, ri - 1]
+      const patchar = []
+      for (let i = a; i <= b; i++) { const en = endringar[i]; if (en && !en.overfort) patchar.push({ akt: en.akt, id: en.id, patch: fyllPatch(en, key, endringar[ri]) }) }
+      if (patchar.length) { if (onSettSamla) onSettSamla(patchar); else patchar.forEach(p => onSett(p.akt, p.id, p.patch)) }
+    }
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
+  }
+  // Celle-ramme: fyll-handtak (vist når cella har fokus) og markering av området som vert fylt
+  const celle = (ri, k, stil, innhald, redigerbar) => (
+    <td key={k} style={{ ...TD, ...(stil || {}), ...(fyllTreff(ri, k) ? { background: 'rgba(21,101,192,.18)' } : {}) }}>
+      {innhald}{redigerbar && !reg.laast(k) && <span className="fyll-hdl" onMouseDown={e => startFyll(e, ri, k)} title="Dra opp eller ned for å fylle same verdi i radene"/>}
     </td>
   )
-  const produktCelle = (en, g) => <td style={{ ...TD, ...GRAA, minWidth: 84 }} title="Timebudsjett × timepris">{krTekst((en[g]?.timar || 0) * (en[g]?.timepris || 0))}</td>
+  const talCelle = (ri, en, g, felt, ekstra) => celle(ri, g + '.' + felt, ekstra,
+    <TalFelt verdi={en[g]?.[felt] || ''} bredde={84} disabled={!!en.overfort || reg.laast(g + '.' + felt)}
+      onLagre={v => onSett(en.akt, en.id, { [g]: { ...(en[g] || {}), [felt]: tilTal(v) } })}/>, !en.overfort)
+  const produktCelle = (en, g) => <td key={g + '.produkt'} style={{ ...TD, ...GRAA }} title="Timebudsjett × timepris">{krTekst((en[g]?.timar || 0) * (en[g]?.timepris || 0))}</td>
+  const slettEn = (en) => {
+    if (en.overfort) { window.alert('Endringa er lagt til aktiviteten. Fjern haka «Lagt til» fyrst for å kunne slette ho.'); return }
+    if (window.confirm('Slette endringa ' + (en.nr || '') + (en.namn ? ' «' + en.namn + '»' : '') + '?\n\nSlettinga kan gjenopprettast med «Angre» (Ctrl+Z) øvst i Prosjektplan.')) onSlett(en.akt, en.id)
+  }
+  const menyEn = reg.meny?.rad != null ? endringar.find(e => e.id === reg.meny.rad) : null
   return (
     <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-      <table style={{ borderCollapse: 'collapse', minWidth: 1800, width: '100%' }}>
+      <style>{REG_CSS}</style>
+      <table className="fd-reg" style={{ width: reg.tot }}>
+        {reg.kolonnar()}
         <thead>
           <tr>
             <th style={{ ...TH2, textAlign: 'left' }} colSpan={6}/>
@@ -134,63 +238,58 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
             <th style={{ ...TH2, ...VENSTRE }} colSpan={2}/>
           </tr>
           <tr>
-            <th style={{ ...TH2, textAlign: 'left', width: 84 }}>Endringsnr.</th>
-            <th style={{ ...TH2, textAlign: 'left', width: 230 }}>Namn på endring</th>
-            <th style={{ ...TH2, textAlign: 'left', width: 220 }}>Aktivitet</th>
-            <th style={{ ...TH2, textAlign: 'left', width: 140 }}>Aktivitetstype</th>
-            <th style={{ ...TH2, textAlign: 'left', width: 140 }} title="Utkast → Sendt til kunde → Godkjent / Avvist. Vert sett automatisk frå endringsvarselet, men kan òg endrast her.">Status</th>
-            <th style={{ ...TH2, textAlign: 'left', width: 118 }}>Statusdato</th>
-            {[0, 1].map(i => (
-              <Fragment key={i}>
-                <th style={{ ...TH2, ...VENSTRE }}>Timebudsjett (t)</th>
-                <th style={TH2}>Endring fastpris (kr)</th>
-                <th style={TH2}>Timepris (kr/t)</th>
-                <th style={TH2} title="Timebudsjett × timepris">Timer × pris (kr)</th>
+            {th('nr', 'Endringsnr.', { textAlign: 'left' })}
+            {th('namn', 'Namn på endring', { textAlign: 'left' })}
+            {th('akt', 'Aktivitet', { textAlign: 'left' })}
+            {th('akttype', 'Aktivitetstype', { textAlign: 'left' })}
+            {th('status', 'Status', { textAlign: 'left' }, 'Utkast → Sendt til kunde → Godkjent / Avvist. Vert sett automatisk frå endringsvarselet, men kan òg endrast her.')}
+            {th('statusdato', 'Statusdato', { textAlign: 'left' })}
+            {['rev', 'god'].map((g, gi) => (
+              <Fragment key={g}>
+                {th(g + '.timar', 'Timebudsjett (t)', VENSTRE)}
+                {th(g + '.fastpris', 'Endring fastpris (kr)')}
+                {th(g + '.timepris', 'Timepris (kr/t)')}
+                {th(g + '.produkt', 'Timer × pris (kr)', null, 'Timebudsjett × timepris')}
               </Fragment>
             ))}
-            <th style={{ ...TH2, ...VENSTRE, width: 130 }} title="Legg til godkjende kostnader (elles reviderte) på aktiviteten. Fjern haka for å gå tilbake.">Legg til aktivitet</th>
-            <th style={{ ...TH2, width: 26 }}/>
+            {th('overfor', 'Legg til aktivitet', VENSTRE, 'Legg til godkjende kostnader (elles reviderte) på aktiviteten. Fjern haka for å gå tilbake.')}
+            <th style={{ ...TH2, position: 'relative' }}/>
           </tr>
         </thead>
         <tbody>
-          {endringar.map(en => (
-            <tr key={en.akt + ':' + en.id} style={{ background: en.overfort ? 'var(--bg3)' : 'transparent' }}>
-              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}><TekstFelt verdi={en.nr} bredde={74} onLagre={n => onSett(en.akt, en.id, { nr: n })}/></td>
-              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}><TekstFelt verdi={en.namn} bredde={220} placeholder="Namn på endring" onLagre={n => onSett(en.akt, en.id, { namn: n })}/></td>
-              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
-                <select value={en.akt} disabled={!!en.overfort} onChange={e => onFlytt(en.akt, Number(e.target.value) || e.target.value, en.id)}
-                  style={{ ...INNFELT, width: 210 }}>
+          {endringar.map((en, ri) => (
+            <tr key={en.akt + ':' + en.id} data-rad={ri} style={{ background: en.overfort ? 'var(--bg3)' : 'transparent' }}
+              onContextMenu={e => { e.preventDefault(); reg.setMeny({ x: e.clientX, y: e.clientY, rad: en.id }) }}>
+              {celle(ri, 'nr', { textAlign: 'left', fontFamily: 'var(--font)' }, <TekstFelt verdi={en.nr} disabled={reg.laast('nr')} onLagre={n => onSett(en.akt, en.id, { nr: n })}/>)}
+              {celle(ri, 'namn', { textAlign: 'left', fontFamily: 'var(--font)' }, <TekstFelt verdi={en.namn} placeholder="Namn på endring" disabled={reg.laast('namn')} onLagre={n => onSett(en.akt, en.id, { namn: n })}/>, true)}
+              {celle(ri, 'akt', { textAlign: 'left', fontFamily: 'var(--font)' },
+                <select value={en.akt} disabled={!!en.overfort || reg.laast('akt')} onChange={e => onFlytt(en.akt, Number(e.target.value) || e.target.value, en.id)} style={INNFELT}>
                   {aktivitetar.map(a => <option key={a.id} value={a.id}>{a.kode ? a.kode + ' ' : ''}{a.namn}</option>)}
-                </select>
-              </td>
-              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
-                <select value={normAktType(en.akttype)} disabled={!!en.overfort} onChange={e => onSett(en.akt, en.id, { akttype: e.target.value })} style={{ ...INNFELT, width: 130 }}>
+                </select>)}
+              {celle(ri, 'akttype', { textAlign: 'left', fontFamily: 'var(--font)' },
+                <select value={normAktType(en.akttype)} disabled={!!en.overfort || reg.laast('akttype')} onChange={e => onSett(en.akt, en.id, { akttype: e.target.value })} style={INNFELT}>
                   {BTYPAR.map(t => <option key={t} value={t}>{t || '(ikkje sett)'}</option>)}
-                </select>
-              </td>
-              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
-                <select value={en.status || ''} title={en.varselTittel ? 'Endringsvarsel: ' + en.varselTittel : 'Ikkje kopla til eit endringsvarsel'}
+                </select>, !en.overfort)}
+              {celle(ri, 'status', { textAlign: 'left', fontFamily: 'var(--font)' },
+                <select value={en.status || ''} disabled={reg.laast('status')} title={en.varselTittel ? 'Endringsvarsel: ' + en.varselTittel : 'Ikkje kopla til eit endringsvarsel'}
                   onChange={e => onSett(en.akt, en.id, { status: e.target.value, statusDato: e.target.value ? new Date().toISOString().slice(0, 10) : '' })}
-                  style={{ ...INNFELT, width: 130, fontWeight: 700, color: ENDR_STATUS_FARGE[en.status] || 'var(--text3)' }}>
+                  style={{ ...INNFELT, fontWeight: 700, color: ENDR_STATUS_FARGE[en.status] || 'var(--text3)' }}>
                   <option value="">(ingen)</option>
                   {ENDR_STATUSAR.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </td>
-              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
-                <input type="date" value={en.statusDato || ''} disabled={!en.status} onChange={e => onSett(en.akt, en.id, { statusDato: e.target.value })} style={{ ...INNFELT, width: 112 }}/>
-              </td>
-              {talCelle(en, 'rev', 'timar', VENSTRE)}{talCelle(en, 'rev', 'fastpris')}{talCelle(en, 'rev', 'timepris')}{produktCelle(en, 'rev')}
-              {talCelle(en, 'god', 'timar', VENSTRE)}{talCelle(en, 'god', 'fastpris')}{talCelle(en, 'god', 'timepris')}{produktCelle(en, 'god')}
+                </select>, true)}
+              {celle(ri, 'statusdato', { textAlign: 'left', fontFamily: 'var(--font)' },
+                <input type="date" value={en.statusDato || ''} disabled={!en.status || reg.laast('statusdato')} onChange={e => onSett(en.akt, en.id, { statusDato: e.target.value })} style={INNFELT}/>)}
+              {talCelle(ri, en, 'rev', 'timar', VENSTRE)}{talCelle(ri, en, 'rev', 'fastpris')}{talCelle(ri, en, 'rev', 'timepris')}{produktCelle(en, 'rev')}
+              {talCelle(ri, en, 'god', 'timar', VENSTRE)}{talCelle(ri, en, 'god', 'fastpris')}{talCelle(ri, en, 'god', 'timepris')}{produktCelle(en, 'god')}
               <td style={{ ...TD, ...VENSTRE, textAlign: 'center', fontFamily: 'var(--font)' }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: reg.laast('overfor') ? 'not-allowed' : 'pointer', fontSize: 12 }}
                   title={en.overfort ? 'Lagt til aktiviteten — fjern haka for å gå tilbake til førre verdiar' : 'Legg godkjende kostnader (elles reviderte) til aktiviteten'}>
-                  <input type="checkbox" checked={!!en.overfort} onChange={() => onOverfor(en.akt, en.id)} style={{ width: 16, height: 16, cursor: 'pointer' }}/>
+                  <input type="checkbox" checked={!!en.overfort} disabled={reg.laast('overfor')} onChange={() => onOverfor(en.akt, en.id)} style={{ width: 16, height: 16, cursor: 'pointer' }}/>
                   {en.overfort ? <span style={{ color: 'var(--success)', fontWeight: 700 }}>Lagt til</span> : <span style={{ color: 'var(--text3)' }}>Legg til</span>}
                 </label>
               </td>
               <td style={{ ...TD, padding: '1px 4px' }}>
-                <button onClick={() => { if (window.confirm('Slette endringa ' + (en.nr || '') + (en.overfort ? '? Ho er alt lagt til aktiviteten — verdiane i aktiviteten vert ikkje endra.' : '?'))) onSlett(en.akt, en.id) }}
-                  title="Slett endringa" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 16, lineHeight: 1 }}>×</button>
+                <button onClick={() => slettEn(en)} title="Slett endringa (høgreklikk på rada gir same val)" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 16, lineHeight: 1 }}>×</button>
               </td>
             </tr>
           ))}
@@ -198,11 +297,10 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
           <tr>
             <td style={{ ...TD, ...GRAA, textAlign: 'left', fontFamily: 'var(--font)' }}>{nesteNr}</td>
             <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
-              <input value={utkast.namn} placeholder="＋ Namn på ny endring" onChange={e => setUtkast(u => ({ ...u, namn: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') legg() }}
-                style={{ ...INNFELT, width: 220 }}/>
+              <input value={utkast.namn} placeholder="＋ Namn på ny endring" onChange={e => setUtkast(u => ({ ...u, namn: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') legg() }} style={INNFELT}/>
             </td>
             <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
-              <select value={aktId} onChange={e => setUtkast(u => ({ ...u, akt: Number(e.target.value) || e.target.value }))} style={{ ...INNFELT, width: 210 }}>
+              <select value={aktId} onChange={e => setUtkast(u => ({ ...u, akt: Number(e.target.value) || e.target.value }))} style={INNFELT}>
                 {aktivitetar.map(a => <option key={a.id} value={a.id}>{a.kode ? a.kode + ' ' : ''}{a.namn}</option>)}
               </select>
             </td>
@@ -217,14 +315,21 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
       <div style={{ padding: '8px 12px', fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.5 }}>
         Fyll inn timebudsjett, endring av fastpris og timepris, og den same raden med det kunden har godkjent. Haka LEGG TIL godkjende verdiar (er dei tomme, brukast dei reviderte) på aktiviteten:
         timane vert lagde til aktivitetens timar, og beløpet (fastpris + timar × timepris) vert lagt til budsjettet. Timepris gjeld berre timane i endringa — tidlegare estimerte timar og summar er uendra.
+        Dra i kolonneoverskrifta for å endre breidd, høgreklikk for å låse kolonnen, og dra handtaket nede til høgre i ei vald celle for å fylle nedover. Høgreklikk ei rad for å slette (kan angrast).
         Du kan òg høgreklikke ein aktivitet og velje «Legg til endring».
       </div>
+      <RegMeny meny={reg.meny} onLukk={() => reg.setMeny(null)} laast={reg.laast} onLaas={reg.veksleLaas}
+        onSlett={(id) => { const en = endringar.find(e => e.id === id); if (en) slettEn(en) }}
+        slettTekst={'Slett endringa ' + (menyEn?.nr || '')} slettBlokkert={menyEn?.overfort ? 'Endringa er lagt til aktiviteten — fjern haka «Lagt til» fyrst' : ''}/>
     </div>
   )
 }
 
+const BEM_KOL = ['kode', 'navn', 'ressurs', 'timer', 'rate', 'fast', 'kostnad', 'belastning', 'laas', 'kommentar', 'paaT', 'paaK', 'gjT', 'gjK', 'slett']
+const BEM_STD = [100, 190, 230, 100, 90, 120, 100, 120, 30, 210, 100, 110, 100, 110, 30]
 export default function FramdriftBemanning({ endr, fanePuls, el, summ, personell, prisar, forbrukKart, fargeKart, dokument, onEndre, onKopleLeveransar, onFerdigModus, onFerdig, hogde, onHogde, open, onOpen }) {
   const [fane, setFane] = useState('bemanning')
+  const reg = useRegister('liedlab-fd-bem', BEM_STD)
   useEffect(() => { if (fanePuls?.n) { setFane(fanePuls.fane); onOpen(true) } }, [fanePuls?.n]) // eslint-disable-line react-hooks/exhaustive-deps
   const fk = el ? forbrukKart?.get(el.id) : null
   const personar = useMemo(() => {
@@ -242,6 +347,12 @@ export default function FramdriftBemanning({ endr, fanePuls, el, summ, personell
     return { t: a.t + t, kost: a.kost + t * r + fast, fast: a.fast + fast, paa: a.paa + paa, kostPaa: a.kostPaa + paa * r }
   }, { t: 0, kost: 0, fast: 0, paa: 0, kostPaa: 0 })
 
+  // Fjern ressurs frå aktiviteten: ikkje mogleg når det er ført timar på ressursen; stadfesting, og kan angrast (Ctrl+Z i Prosjektplan)
+  const fjernRes = (namn) => {
+    const idx = personar.findIndex(x => nokkelNamn(x.namn) === nokkelNamn(namn)); if (idx < 0) return
+    if ((faktiskFor(fk, namn)?.total || 0) > 0) { window.alert('«' + namn + '» kan ikkje fjernast: det er ført timar på ressursen i denne aktiviteten.'); return }
+    if (window.confirm('Fjerne ressursen «' + namn + '» frå aktiviteten?\n\nSlettinga kan gjenopprettast med «Angre» (Ctrl+Z) øvst i Prosjektplan.')) settPersonar(fjernPerson(personar, idx))
+  }
   const ledige = (personell || []).filter(p => !personar.some(x => nokkelNamn(x.namn) === nokkelNamn(p.namn)))
   const leggTil = (namn) => { const ny = leggTilPerson(personar, namn); if (ny) settPersonar(ny); else window.alert('Kan ikkje leggje til — alle delane er låste, eller personen finst alt.') }
 
@@ -287,7 +398,7 @@ export default function FramdriftBemanning({ endr, fanePuls, el, summ, personell
       </div>
 
       {open && (fane === 'endringar' && endr ? (
-        <EndringsRegister aktivitetar={endr.aktivitetar} endringar={endr.liste} valgtId={el?.id} nesteNr={endr.nesteNr} onNy={endr.onNy} onSett={endr.onSett} onFlytt={endr.onFlytt} onSlett={endr.onSlett} onOverfor={endr.onOverfor}/>
+        <EndringsRegister aktivitetar={endr.aktivitetar} endringar={endr.liste} valgtId={el?.id} nesteNr={endr.nesteNr} onNy={endr.onNy} onSett={endr.onSett} onSettSamla={endr.onSettSamla} onFlytt={endr.onFlytt} onSlett={endr.onSlett} onOverfor={endr.onOverfor}/>
       ) : !el || summ ? (
         <div style={{ padding: 20, fontSize: 12.5, color: 'var(--text3)' }}>
           {summ ? 'Summasjonsaktivitetar og fasar har ikkje eiga bemanning — sum av underaktivitetane vert vist i tabellen. Vel ein underaktivitet.' : 'Klikk på ei aktivitetsrad i tidslinja eller tabellen for å sjå og endre bemanning og leveransar.'}
@@ -295,16 +406,17 @@ export default function FramdriftBemanning({ endr, fanePuls, el, summ, personell
       ) : fane === 'bemanning' ? (
         <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           <datalist id="fd-bem-personell">{(personell || []).map(p => <option key={p.id} value={p.namn}/>)}</datalist>
-          <table style={{ borderCollapse: 'collapse', minWidth: 1280, width: '100%' }}>
+          <style>{REG_CSS}</style>
+          <table className="fd-reg" style={{ width: reg.tot }}>
+            {reg.kolonnar()}
             <thead>
               <tr>
-                <th style={{ ...TH, textAlign: 'left', width: 96 }}>Aktivitetskode</th>
-                <th style={{ ...TH, textAlign: 'left', width: 190 }}>Navn</th>
-                <th style={{ ...TH, textAlign: 'left', width: 220 }}>Ressursnavn</th>
-                <th style={TH}>Ressurs timer</th><th style={TH}>Ressurs rate</th><th style={TH}>Ressurs faste kostnader</th>
-                <th style={TH}>Kostnad</th><th style={TH}>Belastning</th><th style={{ ...TH, width: 26 }}/>
-                <th style={{ ...TH, textAlign: 'left', width: 200 }}>Kommentar</th>
-                <th style={TH}>Påløpte timer</th><th style={TH}>Påløpt kostnad</th><th style={TH}>Gjenst. timer</th><th style={TH}>Gjenst. kostnad</th><th style={{ ...TH, width: 26 }}/>
+                {[['kode', 'Aktivitetskode', 'l'], ['navn', 'Navn', 'l'], ['ressurs', 'Ressursnavn', 'l'], ['timer', 'Ressurs timer'], ['rate', 'Ressurs rate'], ['fast', 'Ressurs faste kostnader'], ['kostnad', 'Kostnad'], ['belastning', 'Belastning'], ['laas', ''],
+                  ['kommentar', 'Kommentar', 'l'], ['paaT', 'Påløpte timer'], ['paaK', 'Påløpt kostnad'], ['gjT', 'Gjenst. timer'], ['gjK', 'Gjenst. kostnad'], ['slett', '']].map(([k, t, l], i) => (
+                  <th key={k} style={{ ...TH, position: 'sticky', textAlign: l ? 'left' : 'right' }} onContextMenu={e => { e.preventDefault(); if (k !== 'laas' && k !== 'slett') reg.setMeny({ x: e.clientX, y: e.clientY, kol: k }) }}>
+                    {reg.laast(k) && <span style={{ fontSize: 9, marginRight: 3 }}>🔒</span>}{t}{reg.grip(i)}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -314,34 +426,36 @@ export default function FramdriftBemanning({ endr, fanePuls, el, summ, personell
                 const t = timar * p.del / 100, r = rateFor(p), paa = faktiskFor(fk, p.namn)?.total || 0, fast = +p.fast || 0
                 const kost = t * r + fast
                 return (
-                  <tr key={p.namn} style={{ background: p.utanPlan ? 'var(--bg3)' : 'transparent' }}>
+                  <tr key={p.namn} style={{ background: p.utanPlan ? 'var(--bg3)' : 'transparent' }} onContextMenu={e => { e.preventDefault(); reg.setMeny({ x: e.clientX, y: e.clientY, rad: p.namn }) }}>
                     <td style={{ ...TD, ...GRAA, textAlign: 'left' }}>{el.kode || ''}</td>
                     <td style={{ ...TD, ...GRAA, textAlign: 'left', fontFamily: 'var(--font)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 190 }}>{el.namn}</td>
                     <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
-                      <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: personFarge(p.namn, fargeKart), marginRight: 6, verticalAlign: 'middle' }}/>
-                      {nokkelNamn(p.namn) === nokkelNamn(el.ansvarleg) && <span title="Ansvarleg for aktiviteten" style={{ color: '#B45309', marginRight: 3 }}>★</span>}{iPlan ? <Tekst verdi={p.namn} list="fd-bem-personell" bredde={176} onLagre={n => { if (n) settPersonar(personar.map((x, j) => (j === idx ? { ...x, namn: n } : x))) }}/>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <span style={{ display: 'inline-block', flexShrink: 0, width: 10, height: 10, borderRadius: 3, background: personFarge(p.namn, fargeKart), margin: '0 6px 0 8px' }}/>
+                      {nokkelNamn(p.namn) === nokkelNamn(el.ansvarleg) && <span title="Ansvarleg for aktiviteten" style={{ color: '#B45309', marginRight: 3 }}>★</span>}{iPlan ? <Tekst verdi={p.namn} list="fd-bem-personell" bredde={176} disabled={reg.laast('ressurs')} onLagre={n => { if (n) settPersonar(personar.map((x, j) => (j === idx ? { ...x, namn: n } : x))) }}/>
                         : <span style={{ fontWeight: 600 }}>{p.namn} <span style={{ fontSize: 11, color: 'var(--text3)' }}>(ført timar, ikkje i planen)</span></span>}
+                      </div>
                     </td>
-                    <td style={TD}>{iPlan ? <Tal verdi={avr2(t) || ''} bredde={78} tittel="Planlagde timar for ressursen — aktivitetens timar vert summen av ressurstimane"
+                    <td style={TD}>{iPlan ? <Tal verdi={avr2(t) || ''} bredde={78} disabled={reg.laast('timer')} tittel="Planlagde timar for ressursen — aktivitetens timar vert summen av ressurstimane"
                       onLagre={h => settTimar(idx, h)}/> : ''}</td>
-                    <td style={TD}>{iPlan ? <Tal verdi={p.pris || ''} placeholder={r ? String(Math.round(r)) : 'kr/t'} bredde={72} tittel={p.pris ? 'Eigen timerate i denne aktiviteten' : 'Tomt = timerate frå Personell (eller aktivitetens timerate)'}
+                    <td style={TD}>{iPlan ? <Tal verdi={p.pris || ''} placeholder={r ? String(Math.round(r)) : 'kr/t'} bredde={72} disabled={reg.laast('rate')} tittel={p.pris ? 'Eigen timerate i denne aktiviteten' : 'Tomt = timerate frå Personell (eller aktivitetens timerate)'}
                       onLagre={v => { const n = parseFloat(v); settPersonar(personar.map((x, j) => (j === idx ? { ...x, pris: n > 0 ? n : null } : x))) }}/> : kr(r)}</td>
-                    <td style={TD}>{iPlan ? <Tal verdi={p.fast || ''} bredde={84} tittel="Faste kostnader (utlegg o.l.) som kjem i tillegg til timer × rate"
+                    <td style={TD}>{iPlan ? <Tal verdi={p.fast || ''} bredde={84} disabled={reg.laast('fast')} tittel="Faste kostnader (utlegg o.l.) som kjem i tillegg til timer × rate"
                       onLagre={v => { const n = parseFloat(v); settPersonar(personar.map((x, j) => (j === idx ? { ...x, fast: n > 0 ? n : null } : x))) }}/> : ''}</td>
                     <td style={{ ...TD, ...GRAA }}>{kr(kost)}</td>
                     <td style={TD}>{iPlan ? (personar.length > 1
-                      ? <><Tal verdi={Math.round(p.del * 10) / 10} disabled={p.last} bredde={58} tittel="Ressursens del av aktivitetens timar (%)" onLagre={v => { const ny = settBelastning(personar, idx, v); if (ny) settPersonar(ny) }}/><span style={{ color: 'var(--text3)' }}>%</span></>
+                      ? <div style={{ display: 'flex', alignItems: 'center', paddingRight: 8 }}><Tal verdi={Math.round(p.del * 10) / 10} disabled={p.last || reg.laast('belastning')} bredde={58} tittel="Ressursens del av aktivitetens timar (%)" onLagre={v => { const ny = settBelastning(personar, idx, v); if (ny) settPersonar(ny) }}/><span style={{ color: 'var(--text3)' }}>%</span></div>
                       : '100 %') : ''}</td>
                     <td style={{ ...TD, padding: '1px 2px' }}>{iPlan && personar.length > 1 && (
                       <button onClick={() => settPersonar(personar.map((x, j) => (j === idx ? { ...x, last: !x.last } : x)))} title={p.last ? 'Belastninga er låst — klikk for å låse opp' : 'Lås belastninga'}
                         style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, opacity: p.last ? 1 : .35 }}>{p.last ? '🔒' : '🔓'}</button>)}</td>
-                    <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>{iPlan ? <Tekst verdi={p.kommentar} bredde={190} placeholder="Kommentar" onLagre={n => settPersonar(personar.map((x, j) => (j === idx ? { ...x, kommentar: n } : x)))}/> : ''}</td>
+                    <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>{iPlan ? <Tekst verdi={p.kommentar} bredde={190} placeholder="Kommentar" disabled={reg.laast('kommentar')} onLagre={n => settPersonar(personar.map((x, j) => (j === idx ? { ...x, kommentar: n } : x)))}/> : ''}</td>
                     <td style={{ ...TD, color: '#1565C0', fontWeight: 700 }}>{t1(paa)}</td>
                     <td style={{ ...TD, color: '#1565C0' }}>{kr(paa * r)}</td>
                     <td style={{ ...TD, color: t - paa < 0 ? 'var(--danger)' : undefined }}>{iPlan || paa ? t1(avr2(t - paa)) : ''}</td>
                     <td style={{ ...TD, color: kost - paa * r < 0 ? 'var(--danger)' : undefined }}>{iPlan || paa ? kr(kost - paa * r) : ''}</td>
                     <td style={{ ...TD, padding: '1px 4px' }}>{iPlan
-                      ? <button onClick={() => settPersonar(fjernPerson(personar, idx))} title="Fjern ressursen frå aktiviteten" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 16, lineHeight: 1 }}>×</button>
+                      ? <button onClick={() => fjernRes(p.namn)} title="Fjern ressursen frå aktiviteten (høgreklikk på rada gir same val)" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 16, lineHeight: 1 }}>×</button>
                       : <button className="fd-knapp" style={{ padding: '1px 7px', fontSize: 11 }} onClick={() => leggTil(p.namn)} title="Ta med i bemanninga">＋</button>}</td>
                   </tr>
                 )
@@ -368,6 +482,8 @@ export default function FramdriftBemanning({ endr, fanePuls, el, summ, personell
               )}
             </tbody>
           </table>
+          <RegMeny meny={reg.meny} onLukk={() => reg.setMeny(null)} laast={reg.laast} onLaas={reg.veksleLaas} onSlett={fjernRes}
+            slettTekst={'Fjern ressursen ' + (reg.meny?.rad || '')} slettBlokkert={reg.meny?.rad && (faktiskFor(fk, reg.meny.rad)?.total || 0) > 0 ? 'Det er ført timar på ressursen — kan ikkje fjernast' : (reg.meny?.rad && !personar.some(x => nokkelNamn(x.namn) === nokkelNamn(reg.meny.rad)) ? 'Ressursen er ikkje med i planen' : '')}/>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', flexWrap: 'wrap' }}>
             {personar.length > 1 && <button className="fd-knapp" onClick={() => settPersonar(likeDelar(personar).map(p => ({ ...p })))} title="Fordel timane likt på alle ulåste ressursar">Jamt</button>}
             <span style={{ fontSize: 11.5, color: 'var(--text3)' }}>Skriv timar per ressurs — aktivitetens timar vert summen. Belastning er ressursens del av timane (ikkje av beløpet). Rate her overstyrer prosjektets timerate for denne aktiviteten.</span>

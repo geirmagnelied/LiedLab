@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { addDays, getISOWeek, format } from 'date-fns'
 import DataTabell from './DataTabell'
 import { formaterDato, tilDato } from './framdriftDato'
-import { antalArbeidsdagar, visingsrader, pnsKart, harBorn, etterkommarar } from './framdriftLogikk'
+import { antalArbeidsdagar, visingsrader, pnsKart, harBorn, etterkommarar, kanFlytteTil } from './framdriftLogikk'
 import { effektivFerdig, faseFerdig } from './framdriftFerdig'
 import { personDelar, fordelTimar, snittpris, prisFor } from './framdriftTimar'
 import { vekeStart } from './kontorkalender'
@@ -52,7 +52,7 @@ const fmtT = (n) => (n > 0 ? Math.round(n * 10) / 10 : '')
 const UKE = 'uke_'
 const MAN = 'man_'
 
-export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart, personell = [], eining = 'timar', delsummer = false, periode = 'veke', onVis, valde, onValde }) {
+export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg, onEndreFelt, lukka = new Set(), onToggleLukka, prisar = new Map(), fargeKart, forbrukKart, personell = [], eining = 'timar', delsummer = false, periode = 'veke', onVis, valde, onValde, onFlyttHierarki }) {
   const [vekeVisn, setVekeVisn] = useState('plan') // plan | palopt | begge — kva vekekolonnane viser
   const [persTotOpen, setPersTotOpen] = useState(false)
   const modRef = useRef(false)   // sist museklikk hadde shift/ctrl (fleirval)
@@ -276,7 +276,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
   }, [namnPaId, dokMap, elementer, vekeTimar, vekeFaktisk, vekeVisn, forbrukKart, pns, erSammen, bladUnder, rateFor, palopHon, persTot, eining, honorarPlan, honorarFaktisk])
 
   // Namnecella: ▸/▾ for å vise/skjule person-underradene; person-rader får innrykk og fargeprikk
-  const lagCelle = useCallback((e, kol) => {
+  const lagCelleBase = useCallback((e, kol) => {
     if (kol.key === 'kpi') { const v = hentVerdi(e, 'kpi'); return v === '' || v == null ? '' : <span style={{ fontWeight: 800, color: kpiFarge(v) }}>{typeof v === 'number' ? v.toFixed(2).replace('.', ',') : v}</span> }
     if (kol.key !== 'namn') return undefined
     if (e.type === 'delsum') return <span style={{ paddingLeft: (e.nivå || 0) * 16 + 22, fontWeight: 800, color: 'var(--brand)' }}>∑ {e.namn}</span>
@@ -320,6 +320,43 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
     )
   }, [utvida, lukka, elementer, erSammen, onToggleLukka, persTotOpen, hentVerdi])
 
+  // Dra ei rad til ein annan plass i hierarkiet: handtaket ⠿ i namnecella. Over/under ei rad = same nivå som den, midt på = underaktivitet.
+  const dragIdRef = useRef(null)
+  const merkeRef = useRef(null)
+  const fjernMerke = () => { if (merkeRef.current) { for (const td of merkeRef.current.children) td.style.boxShadow = ''; merkeRef.current = null } }
+  const finnMaal = (ev) => {
+    const tr = ev.target.closest?.('tr[data-radid]'); if (!tr) return null
+    const mal = elementer.find(x => String(x.id) === tr.getAttribute('data-radid')); if (!mal) return null
+    const r = tr.getBoundingClientRect(), y = (ev.clientY - r.top) / r.height
+    return { tr, malId: mal.id, pos: y < 0.25 ? 'for' : y > 0.75 ? 'etter' : 'inni' }
+  }
+  const dragOver = (ev) => {
+    if (dragIdRef.current == null) return
+    const m = finnMaal(ev); fjernMerke(); if (!m) return
+    const ok = kanFlytteTil(elementer, dragIdRef.current, m.malId, m.pos); if (!ok) return
+    ev.preventDefault(); merkeRef.current = m.tr
+    const strek = m.pos === 'for' ? 'inset 0 3px 0 0 #16A34A' : m.pos === 'etter' ? 'inset 0 -3px 0 0 #16A34A' : 'inset 0 0 0 2px #16A34A'
+    for (const td of m.tr.children) td.style.boxShadow = strek
+  }
+  const dragSlipp = (ev) => {
+    const id = dragIdRef.current; if (id == null) return
+    const m = finnMaal(ev); fjernMerke(); dragIdRef.current = null
+    if (m && kanFlytteTil(elementer, id, m.malId, m.pos)) { ev.preventDefault(); onFlyttHierarki?.(id, m.malId, m.pos) }
+  }
+  const lagCelle = useCallback((e, kol) => {
+    const inn = lagCelleBase(e, kol)
+    if (kol.key !== 'namn' || !onFlyttHierarki || !['fase', 'aktivitet', 'milepael'].includes(e.type)) return inn
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+        <span draggable onDragStart={ev => { dragIdRef.current = e.id; ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', String(e.id)) }} onDragEnd={() => { dragIdRef.current = null; fjernMerke() }}
+          onMouseDown={ev => ev.stopPropagation()} onClick={ev => ev.stopPropagation()}
+          title="Dra for å flytte i hierarkiet (over/under ei rad = same nivå, midt på = underaktivitet)"
+          style={{ cursor: 'grab', color: 'var(--text3)', opacity: .55, fontSize: 13, lineHeight: 1, userSelect: 'none', marginRight: 2 }}>⠿</span>
+        {inn !== undefined ? inn : e.namn}
+      </span>
+    )
+  }, [lagCelleBase, onFlyttHierarki])
+
   const hentSorteringsverdi = useCallback((e, key) => {
     if (e.type === 'delsum') return key === 'pns' ? (pns.get(e.src.id) || '') + '.zzz' : undefined
     if (key.startsWith(UKE) || key.startsWith(MAN)) return vekeVisn === 'palopt' ? periodeSum(key, v => vekeFaktisk(e, v)) : periodeSum(key, v => vekeTimar(e, v))
@@ -341,7 +378,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
   const standardSynlege = useMemo(() => kolonnar.map(k => k.key).filter(k => !['type', 'fase', 'varig', 'avh', 'fordeling'].includes(k)), [kolonnar])
 
   return (
-    <div className="dt-pil" onMouseDownCapture={e => { modRef.current = e.shiftKey || e.ctrlKey || e.metaKey }}
+    <div className="dt-pil" onDragOver={dragOver} onDrop={dragSlipp} onMouseDownCapture={e => { modRef.current = e.shiftKey || e.ctrlKey || e.metaKey }}
       style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 300,
       border: '1.5px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', background: 'var(--bg3)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
