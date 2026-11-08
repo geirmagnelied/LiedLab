@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 import DatePicker from './DatePicker'
 import {
   SEKSJONAR, KOLONNER, STANDARD_RAPPORTAR, ARK, tomtOppsett, periodeFra, datoNo, byggRapportData, valdeKolonnar,
-  lagRapportPdf, lastNedPdf, rapportFilnamn,
+  lagRapportPdf, lastNedPdf, rapportFilnamn, rapportArkivNamn,
 } from './framdriftRapport'
 
 // ═══════════════════════════════════════════════════════════════════
@@ -113,9 +113,32 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
     return () => { avbrutt = true; clearTimeout(t) }
   }, [data, oppsett, periode, antKol, prosjekt.name, prosjekt.projectNumber, brukarNamn])
 
-  const lastNed = () => {
+  // Oppdragsstien (låst i prosjektet): rapporten vert lagra i «1 Oppdragsleiing\4 Rapportering» når skrivebordsappen og stien finst
+  const [oppdragsSti, setOppdragsSti] = useState('')
+  useEffect(() => {
+    let ok = true
+    supabase.from('projects').select('details').eq('id', prosjekt.id).single().then(({ data: p }) => {
+      if (ok) setOppdragsSti(p?.details?.oppdragsStiLast && p?.details?.oppdragsSti ? p.details.oppdragsSti : '')
+    })
+    return () => { ok = false }
+  }, [prosjekt.id])
+  const [lagraSti, setLagraSti] = useState(null)       // { mappe } etter vellykka lagring
+  const harBru = typeof window !== 'undefined' && !!window.resultatdokumentAPI?.framdriftLagreRapport
+  const lastNed = () => { if (pdf.bytes) lastNedPdf(pdf.bytes, rapportFilnamn(oppsett, prosjekt.projectNumber)) }
+  const lagrePdf = async () => {
     if (!pdf.bytes) return
-    lastNedPdf(pdf.bytes, rapportFilnamn(oppsett, prosjekt.projectNumber))
+    const namn = rapportArkivNamn(oppsett, prosjekt.projectNumber, prosjekt.name, periode)
+    if (!harBru || !oppdragsSti) {          // ingen mappe å lagre i (nettleser, gammal skrivebordsapp eller oppdragsstien er ikkje låst): vanleg nedlasting
+      lastNedPdf(pdf.bytes, namn)
+      setMelding(harBru ? 'Oppdragsstien er ikkje låst i prosjektet, so PDF-en vart lasta ned i staden. Lås stien under Prosjekt for automatisk arkivering.' : 'Automatisk arkivering krev oppdatert skrivebordsapp (start appen på nytt) — PDF-en vart lasta ned.')
+      return
+    }
+    setOpptatt(true); setMelding('')
+    const svar = await window.resultatdokumentAPI.framdriftLagreRapport(oppdragsSti, namn, pdf.bytes)
+    setOpptatt(false)
+    if (!svar?.ok) { setMelding('Klarte ikkje lagre i oppdragsmappa: ' + (svar?.melding || 'ukjend feil')); return }
+    setLagraSti({ mappe: svar.mappe })
+    setMelding('Lagra i 1 Oppdragsleiing / 4 Rapportering: ' + String(svar.sti).split('/').pop().split(String.fromCharCode(92)).pop())
   }
 
   const lagreNy = async () => {
@@ -201,7 +224,7 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
             )}
             <div style={{ fontSize: 11.5, color: 'var(--brand)', fontWeight: 700, marginTop: 6, lineHeight: 1.5 }}>
               {datoNo(periode.fra)} – {datoNo(periode.til)}
-              <div style={{ color: 'var(--text3)', fontWeight: 500 }}>Påløpt totalt: til og med {datoNo(periode.til)}. Prognose: frå dagen etter.</div>
+              <div style={{ color: 'var(--text3)', fontWeight: 500 }}>Påløpt akkumulert: til og med {datoNo(periode.til)}. Prognose: frå dagen etter.</div>
             </div>
 
             <div style={ETT}>Prognose</div>
@@ -271,7 +294,10 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
           {!lasen && !laget && eigenRad && <button onClick={lagreEndring} disabled={opptatt || !dirty} style={{ ...knapp(false), opacity: dirty ? 1 : .5 }}>Lagre endringar</button>}
           {!lasen && <button onClick={lagreNy} disabled={opptatt} style={knapp(false)}>{laget ? 'Lagre rapport…' : 'Lagre som ny…'}</button>}
           {lasen && <button onClick={lagreNy} disabled={opptatt} style={knapp(false)}>Lagre kopi som eigen rapport…</button>}
-          <button onClick={lastNed} disabled={!pdf.bytes || pdf.lagar} style={{ ...knapp(true), opacity: pdf.bytes && !pdf.lagar ? 1 : .5 }}>{pdf.lagar ? 'Lagar PDF…' : '⬇ Last ned PDF'}</button>
+          {lagraSti && <button onClick={() => window.resultatdokumentAPI?.apneMappe?.(lagraSti.mappe)} style={knapp(false)}>Opne mappa</button>}
+          <button onClick={lastNed} disabled={!pdf.bytes || pdf.lagar} style={{ ...knapp(false), opacity: pdf.bytes && !pdf.lagar ? 1 : .5 }} title="Last ned PDF-en til ei valfri mappe (ingen arkivering)">⬇ Last ned</button>
+          <button onClick={lagrePdf} disabled={!pdf.bytes || pdf.lagar || opptatt} style={{ ...knapp(true), opacity: pdf.bytes && !pdf.lagar ? 1 : .5 }}
+            title={harBru && oppdragsSti ? 'Lagrar PDF-en i oppdragsmappa: 1 Oppdragsleiing / 4 Rapportering' : 'Lastar ned PDF-en (arkivering krev skrivebordsappen og låst oppdragssti)'}>{pdf.lagar ? 'Lagar PDF…' : '💾 Lagre PDF'}</button>
         </div>
       </div>
     </div>

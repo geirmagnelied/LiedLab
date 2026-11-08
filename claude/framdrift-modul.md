@@ -261,3 +261,13 @@ Bygger på «Endringsvarsel — 8. nov. 2026» (tabellen `framdrift_endringsvars
 - **Tilbakeføring**: knappen «↑ Før tilbake til endringstabellen» skriv honorarlinjene til `rev` (timar, fastpris, vekta timepris = Σ(timar×pris)/Σtimar) for kvar kopla endring. Honorarlinja har ny kolonne «Endring» (`h.endring`); linjer utan endring høyrer til den einaste kopla endringa på same aktivitet. Endringar som alt er lagt til aktiviteten (`overfort`) vert hoppa over. Utgifter har ingen kolonne i endringstabellen og vert ikkje førte tilbake.
 - **PDF**: `framdriftVarselPdf.js` (`lagVarselPdf`, A4 ståande, pdf-lib): tittelfelt med utarbeidd/dato/status, endringar, valde punkt med beskriving og framdrift, honorar- og utgiftstabell, kostnader per aktivitet med totalsum, vedlegg, utsending. Knappar nederst: «⬇ PDF» (lastar ned) og «PDF → vedlegg» (lagrar i bøtta og legg til som vedlegg, t.d. versjonen som vart sendt).
 - **Autolagring**: eit alt lagra varsel vert lagra 12 s etter siste endring. Nye varsel må lagrast manuelt éin gong.
+
+## Rapport: rettingar — 8. nov. 2026 (natt)
+
+- **«+/- budsjett» samanliknar mot planlagd for same tidsrom**: før vart påløpt til no rekna mot HEILE planlagde timar. No: `planlagdIntervall()` (framdriftRapport.js) summerer planlagde timar (veketimar jamt på man-fre, same fordeling som prognosen) frå start til periodeslutt (akkumulert) og innanfor perioden. Raden gir to avvik: under «Påløpt akkumulert» (`palopTimar/palopKr`) og under «Påløpt i perioden» (`perTimar/perKr`), kvar med eigen farge (`farge`/`fargePer`). Kroner = timar × personens timerate.
+- **Inga rad utan planlagt forbruk**: manglar personen planlagde timar både akkumulert og i perioden, vert «+/- budsjett» ikkje laga.
+- Seksjonen «Påløpt totalt» heiter no **«Påløpt akkumulert»** (SEKSJONAR, toppteksten i PDF og vindauget).
+- Tynne månadsstrekar startar under den øvste overskriftsrada (`skiljeLinjer(…, yTynnTopp)`).
+- **Firmalogo** øvst til høgre i PDF-en (`norconsultLogo.js`, same logo som tegningslista).
+- **Lagre PDF → arkiv**: knappen «💾 Lagre PDF» lagrar i `<oppdragssti>\1 Oppdragsleiing\4 Rapportering` (mappa vert oppretta) via ny Electron-handler `framdrift:lagre-rapport` (preload: `framdriftLagreRapport`). Finst namnet frå før vert fila « (2)» osv. Uten skrivebordsapp/låst oppdragssti: vanleg nedlasting. «⬇ Last ned» er behalden for manuell lagring. **Krev omstart av Electron** (ny preload/main).
+- **Filnamn** (`rapportArkivNamn`): `<oppdragsnr> <oppdragsnamn> rapport (M09 - M10)`; veke-visning gir `V37 - V40`. Tosifra nummer so mappa sorterer rett. Intern rapport får `rapport intern` for at ho ikkje skal kollidere med kunderapporten.

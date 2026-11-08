@@ -1475,6 +1475,25 @@ ipcMain.handle('riss:lagre-inn', async (event, { oppdragsSti, filnamn, data }) =
   }
 })
 
+// Prosjektplan → Rapport: lagrar den ferdige rapport-PDF-en direkte i «<oppdragsSti>\1 Oppdragsleiing\4 Rapportering» (mappa vert oppretta ved behov).
+// Skriv alltid ei NY fil: finst namnet frå før får fila « (2)», « (3)» … — ei eksisterande rapport vert aldri overskriven.
+ipcMain.handle('framdrift:lagre-rapport', async (event, { oppdragsSti, filnamn, data }) => {
+  if (!oppdragsSti || !filnamn || !data) return { ok: false, melding: 'Manglar oppdragssti, filnamn eller data.' }
+  try {
+    const mappe = path.join(oppdragsSti, '1 Oppdragsleiing', '4 Rapportering')
+    fs.mkdirSync(mappe, { recursive: true })
+    const trygt = path.basename(String(filnamn)).replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
+    const ext = path.extname(trygt)
+    const grunn = trygt.slice(0, trygt.length - ext.length)
+    let sti = path.join(mappe, trygt)
+    for (let i = 2; fs.existsSync(sti); i++) sti = path.join(mappe, `${grunn} (${i})${ext}`)
+    fs.writeFileSync(sti, Buffer.from(data))
+    return { ok: true, sti, mappe }
+  } catch (e) {
+    return { ok: false, melding: e.message }
+  }
+})
+
 // Opnar eit bilete i systemet sitt standardprogram (klikk på Filnamn-kolonna).
 ipcMain.handle('bilete:apne-fil', async (event, { oppdragsSti, filnamn }) => {
   if (!oppdragsSti || !filnamn) return false

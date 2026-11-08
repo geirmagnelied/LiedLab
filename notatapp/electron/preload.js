@@ -155,6 +155,10 @@ contextBridge.exposeInMainWorld('resultatdokumentAPI', {
 
   // Riss (skisseverktøyet) — lagrar ei generert fil (situasjonskart-PDF) i
   // «<oppdragsSti>\2 Informasjonsflyt\Inn». `data` er ein Uint8Array.
+  // Prosjektplan → Rapport: lagrar rapport-PDF i «<oppdragsSti>\1 Oppdragsleiing\4 Rapportering». `data` er ein Uint8Array.
+  framdriftLagreRapport: (oppdragsSti, filnamn, data) =>
+    ipcRenderer.invoke('framdrift:lagre-rapport', { oppdragsSti, filnamn, data }),
+
   rissLagreInn: (oppdragsSti, filnamn, data) =>
     ipcRenderer.invoke('riss:lagre-inn', { oppdragsSti, filnamn, data }),
 })

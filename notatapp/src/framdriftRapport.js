@@ -4,12 +4,13 @@ import { visingsrader, harBorn, etterkommarar } from './framdriftLogikk'
 import { fordelTimar, personDelar, prisKartFra, snittpris, prisFor } from './framdriftTimar'
 import { kopleForbruk, nokkelNamn } from './framdriftForbruk'
 import { normAktType } from './framdriftVerdiar'
+import { NORCONSULT_LOGO_BASE64 } from './norconsultLogo'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Rapportar frå Prosjektplan (Framdrift) → PDF. Reine funksjonar: utrekning av rapportdata og teikning av PDF (pdf-lib, lasta ved bruk).
 //  Ein rapport er delt i fire seksjonar (kolonnegrupper):
 //    info     — aktivitet: nummer, namn, ansvarleg, budsjett …
-//    total    — påløpt TIL OG MED periodeslutten (timar/kroner) og gjenståande
+//    total    — påløpt akkumulert TIL OG MED periodeslutten (timar/kroner) og gjenståande
 //    periode  — påløpt i den valde perioden (standard: førre månad)
 //    prognose — planlagde timar frå dagen ETTER periodeslutten og ut aktiviteten (kroner = timar × timerate)
 //  Standardrapportane (kunde/intern) er faste; brukaren lagar eigne (framdrift_rapportar) ved å velje seksjonar og kolonnar.
@@ -18,7 +19,7 @@ import { normAktType } from './framdriftVerdiar'
 // ── Kolonnekatalog ──────────────────────────────────────────────────
 export const SEKSJONAR = [
   { key: 'info', namn: 'Aktivitet og budsjett' },
-  { key: 'total', namn: 'Påløpt totalt' },
+  { key: 'total', namn: 'Påløpt akkumulert' },
   { key: 'periode', namn: 'Påløpt i perioden' },
   { key: 'prognose', namn: 'Prognose resterande arbeid' },
 ]
@@ -111,6 +112,23 @@ function prognoseFordelt(e, kal, tilIso) {
   return { veke, manad, sum: [...veke.values()].reduce((a, b) => a + b, 0) }
 }
 
+// Planlagde timar i tidsrommet [fraIso, tilIso] (fraIso = null: frå starten av aktiviteten). Same fordeling som prognoseFordelt, so
+// planlagd-til-no + prognose = alle planlagde timar.
+function planlagdIntervall(e, kal, fraIso, tilIso) {
+  const fra = fraIso ? tilDato(fraIso) : null, til = tilDato(tilIso)
+  let sum = 0
+  for (const { veke, timar } of fordelTimar(e, kal)) {
+    const mandag = tilDato(veke), perDag = timar / 5
+    for (let i = 0; i < 5; i++) { const d = addDays(mandag, i); if (d > til) break; if (fra && d < fra) continue; sum += perDag }
+  }
+  return sum
+}
+// Avviksfarge: raud = over 20 % meir enn planlagd · blå = over 20 % under · gul = 10-20 % avvik · grå = under 10 %
+const avvikFarge = (faktisk, plan) => {
+  const d = faktisk / plan - 1
+  return d > 0.2 ? 'raud' : d < -0.2 ? 'blaa' : Math.abs(d) >= 0.1 ? 'gul' : 'graa'
+}
+
 // → { rader, sum, perioder }. rader: { id, nivaa, gruppe, delsum, utanTal, person, …felt }.
 // `elementer` = planen med effektive timar (medEffektiveTimar), `forbrukRader` = ALLE importerte timeføringar.
 export function byggRapportData({ elementer, forbrukRader, personell, kal, periode, oppsett }) {
@@ -169,13 +187,14 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
     for (const r of rader) { const n = radNamn(r); if (n && !namnListe.some(x => nokkelNamn(x.namn) === nokkelNamn(n))) namnListe.push({ namn: n, del: 0, d: null }) }
     const snitt = snittpris(e, prisar).pris
     const fordeltAkt = prognoseFordelt(e, kal, periode.til)
+    const planAkkAkt = planlagdIntervall(e, kal, null, periode.til), planPerAkt = planlagdIntervall(e, kal, periode.fra, periode.til)
     return namnListe.map(p => {
       const mine = rader.filter(r => nokkelNamn(radNamn(r)) === nokkelNamn(p.namn))
       const rate = (+e.timerate > 0 ? +e.timerate : 0) || (p.d ? prisFor(p.d, prisar) : (prisar.get(p.namn.toLowerCase()) || 0)) || snitt
       const kt = (liste) => ({ t: liste.reduce((a, r) => a + r.timar, 0), k: liste.reduce((a, r) => a + r.timar, 0) * rate })
       const skaler = (m) => new Map([...m].map(([k, h]) => [k, h * p.del]))
       const timarPlan = (t0.timarPlan || 0) * p.del
-      return { namn: p.namn, ...lagTal({
+      return { namn: p.namn, planAkkT: planAkkAkt * p.del, planPerT: planPerAkt * p.del, ...lagTal({
         budsjett: timarPlan * rate, timarPlan, timerate: rate,
         palop: kt(mine.filter(r => r.dato <= periode.til)), per: kt(mine.filter(r => r.dato >= periode.fra && r.dato <= periode.til)),
         fordelt: { veke: skaler(fordeltAkt.veke), manad: skaler(fordeltAkt.manad), sum: fordeltAkt.sum * p.del }, snitt: rate }) }
@@ -217,12 +236,15 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
         start: e.start ? datoNo(e.start) : '', slutt: e.slutt ? datoNo(e.slutt) : '', ...t })
       if (oppsett.perPerson) personTal(e, t).forEach((p, i) => {
         rader.push({ id: e.id + ':p' + i, nivaa: nivaa + 1, gruppe: false, person: true, kode: '', ansvarleg: '', budsjettType: '', start: '', slutt: '', ...medPct(p) })
-        // «+/- budsjett»: forbruk minus planlagd/budsjettert. Raud: over 20 % meir enn budsjett · gul: 10-20 % avvik · grå: under 10 % · blå: under 80 % av budsjett
-        if ((p.timarPlan || 0) > 0 || (p.palopTimar || 0) > 0) {
-          const d = (p.timarPlan || 0) > 0 ? p.palopTimar / p.timarPlan - 1 : Infinity
-          const farge = d > 0.2 ? 'raud' : d < -0.2 ? 'blaa' : Math.abs(d) >= 0.1 ? 'gul' : 'graa'
-          rader.push({ id: e.id + ':a' + i, nivaa: nivaa + 1, gruppe: false, person: true, avvikRad: true, farge, kode: '', namn: '+/- budsjett', ansvarleg: '', budsjettType: '', start: '', slutt: '',
-            palopTimar: p.palopTimar - (p.timarPlan || 0), palopKr: p.palopKr - (p.budsjett || 0) })
+        // «+/- budsjett»: faktisk forbruk minus planlagd for SAMME tidsrom — akkumulert (til og med periodeslutten) under «Påløpt akkumulert»,
+        // og i perioden under «Påløpt i perioden». Ingen rad når det ikkje er planlagt (budsjettert) forbruk å samanlikne med.
+        const harAkk = (p.planAkkT || 0) > 0.001, harPer = (p.planPerT || 0) > 0.001
+        if (harAkk || harPer) {
+          const rate = p.timerate || 0
+          rader.push({ id: e.id + ':a' + i, nivaa: nivaa + 1, gruppe: false, person: true, avvikRad: true, kode: '', namn: '+/- budsjett', ansvarleg: '', budsjettType: '', start: '', slutt: '',
+            farge: harAkk ? avvikFarge(p.palopTimar, p.planAkkT) : 'graa', fargePer: harPer ? avvikFarge(p.perTimar, p.planPerT) : 'graa',
+            ...(harAkk ? { palopTimar: p.palopTimar - p.planAkkT, palopKr: p.palopKr - p.planAkkT * rate } : {}),
+            ...(harPer ? { perTimar: p.perTimar - p.planPerT, perKr: p.perKr - p.planPerT * rate } : {}) })
         }
       })
     } else if (oppsett.fasar) {
@@ -301,7 +323,7 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
 
   const alle = [...data.rader.map(r => ({ r, sum: false })), ...(oppsett.sumrad ? [{ r: { ...data.sum, gruppe: false, nivaa: 0 }, sum: true }] : [])]
   const tekstAv = (r, k, sum) => {
-    if (r.avvikRad) return k.key === 'namn' ? r.namn : (k.key === 'palopTimar' || k.key === 'palopKr') ? medFortegn(r[k.key], k.type) : ''
+    if (r.avvikRad) return k.key === 'namn' ? r.namn : ['palopTimar', 'palopKr', 'perTimar', 'perKr'].includes(k.key) ? medFortegn(r[k.key], k.type) : ''
     if (sum) return k.key === 'namn' ? 'Sum' : k.type === 'tekst' ? '' : fmtVerdi(r[k.key], k.type)
     if (r.utanTal && k.type !== 'tekst') return ''
     return fmtVerdi(r[k.key], k.type)
@@ -343,10 +365,10 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
     while (t.length > 1 && font.widthOfTextAtSize(t + '..', size) > maks) t = t.slice(0, -1)
     return t + '..'
   }
-  const skiljeLinjer = (yTopp, yBotn) => {               // loddrette strekar: ytterkantane + starten på kvar seksjon (unntatt den fyrste)
+  const skiljeLinjer = (yTopp, yBotn, yTynnTopp = yTopp) => {               // loddrette strekar: ytterkantane + starten på kvar seksjon (unntatt den fyrste)
     const v = (x) => side.drawLine({ start: { x, y: yTopp }, end: { x, y: yBotn }, thickness: SKILJE, color: svart })
     v(M); v(M + bredd)
-    const tynn = (x) => side.drawLine({ start: { x, y: yTopp }, end: { x, y: yBotn }, thickness: 0.35, color: rgb(0.3, 0.3, 0.3) })
+    const tynn = (x) => side.drawLine({ start: { x, y: yTynnTopp }, end: { x, y: yBotn }, thickness: 0.35, color: rgb(0.3, 0.3, 0.3) })
     kol.forEach((k, i) => {
       if (k.forst && i > 0) v(X[i])
       else if (i > 0 && ((k.pkey && k.pkey !== kol[i - 1].pkey) || (!k.pkey && kol[i - 1].pkey))) tynn(X[i])      // tynn strek mellom prognoseperiodane
@@ -355,14 +377,23 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
 
   const sider = []
   let side, y
+  let logo = null
+  try {
+    const b64 = NORCONSULT_LOGO_BASE64.split(',')[1]
+    logo = await doc.embedPng(Uint8Array.from(atob(b64), c => c.charCodeAt(0)))
+  } catch { logo = null }
   const tekstTopp = () => {
+    if (logo) {
+      const lh2 = 24, lw = lh2 * logo.width / logo.height
+      side.drawImage(logo, { x: B - M - lw, y: H - M - lh2 + 4, width: lw, height: lh2 })
+    }
     side.drawText(rens(fb, oppsett.tittel || 'Rapport'), { x: M, y: H - M - 6, size: 16, font: fb, color: svart })
     let ty = H - M - 22
     const linje = (s) => { side.drawText(rens(fn, s), { x: M, y: ty, size: 8.5, font: fn, color: rgb(0.25, 0.25, 0.25) }); ty -= 11.5 }
     linje(`Prosjekt: ${[prosjektNr, prosjektNamn].filter(Boolean).join(' ')}`)
     if (oppsett.undertittel) linje(oppsett.undertittel)
     const t = []
-    if (oppsett.seksjonar?.total) t.push(`Påløpt totalt: til og med ${datoNo(periode.til)}`)
+    if (oppsett.seksjonar?.total) t.push(`Påløpt akkumulert: til og med ${datoNo(periode.til)}`)
     if (oppsett.seksjonar?.periode) t.push(`Periode: ${datoNo(periode.fra)} - ${datoNo(periode.til)}`)
     if (oppsett.seksjonar?.prognose) {
       const per = oppsett.prognoseModus === 'veke' ? ', per veke' : oppsett.prognoseModus === 'resterande' ? '' : ', per månad'
@@ -394,7 +425,7 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
     y -= hK
     side.drawLine({ start: { x: M, y }, end: { x: M + bredd, y }, thickness: 1.6, color: rgb(0.04, 0.17, 0.4) })      // mørkeblå strek under overskrifta
     side.drawLine({ start: { x: M, y: yTopp }, end: { x: M + bredd, y: yTopp }, thickness: SKILJE, color: svart })
-    skiljeLinjer(yTopp, y)
+    skiljeLinjer(yTopp, y, yTopp - hG)
   }
   const avslutt = () => side.drawLine({ start: { x: M, y }, end: { x: M + bredd, y }, thickness: SKILJE, color: svart })
   const nySide = () => { if (side) avslutt(); side = doc.addPage([B, H]); sider.push(side); y = tekstTopp(); tabellHovud() }
@@ -421,7 +452,7 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
         const fnt = r.avvikRad && k.type !== 'tekst' ? fb : font
         const t = k.type === 'tekst' ? l : kort(l, fnt, sz, W[i] - 2 * pad)
         const tw = fnt.widthOfTextAtSize(t, sz)
-        const farge = r.avvikRad && k.type !== 'tekst' ? rgb(...AVVIK_FARGE[r.farge]) : r.person ? grå : svart
+        const farge = r.avvikRad && k.type !== 'tekst' ? rgb(...AVVIK_FARGE[k.sek === 'periode' ? r.fargePer : r.farge]) : r.person ? grå : svart
         side.drawText(t, { x: k.type === 'tekst' ? X[i] + pad + innrykk : X[i] + W[i] - pad - tw, y: y - 8.6 * S - j * lh, size: sz, font: fnt, color: farge })
       })
     })
@@ -452,5 +483,12 @@ export function lastNedPdf(bytes, filnamn) {
   a.href = url; a.download = filnamn
   document.body.appendChild(a); a.click(); a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 10000)
+}
+// Arkivnamn: «<oppdragsnr> <oppdragsnamn> rapport (M09 - M10)» — månad (M) eller veke (V) etter prognose-visninga; to siffer so mappa sorterer rett
+export function rapportArkivNamn(oppsett, prosjektNr, prosjektNamn, periode) {
+  const veke = oppsett.prognoseModus === 'veke'
+  const nr = (key) => { const d = tilDato(key); return veke ? 'V' + String(getISOWeek(d)).padStart(2, '0') : 'M' + String(d.getMonth() + 1).padStart(2, '0') }
+  const namn = `${[prosjektNr, prosjektNamn].filter(Boolean).join(' ')} rapport${oppsett.perPerson ? ' intern' : ''} (${nr(periode.fra)} - ${nr(periode.til)})`
+  return namn.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim() + '.pdf'
 }
 export const rapportFilnamn = (oppsett, prosjektNr) => (`${prosjektNr ? prosjektNr + ' ' : ''}${oppsett.tittel || 'Rapport'}`.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Rapport') + '.pdf'
