@@ -310,7 +310,7 @@ const AVVIK_FARGE = { raud: [0.8, 0.1, 0.1], gul: [0.78, 0.52, 0], graa: [0.5, 0
 // Kolonnebreidder vert målte frå innhaldet: tal og overskrifter får alltid plass (aldri avkorta). Er det for lite plass, vert
 // heile tabellen (skrift, rader, breidder) forminska jamt. Lang tekst (aktivitetsnamn, ansvarleg) vert brotten over fleire linjer.
 // Resultatet har eigenskapen `skala` (1 = full storleik).
-export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, prosjektNr, brukar }) {
+export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, prosjektNr, brukar, kontor }) {
   const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib')
   const doc = await PDFDocument.create()
   const fn = await doc.embedFont(StandardFonts.Helvetica), fb = await doc.embedFont(StandardFonts.HelveticaBold)
@@ -465,7 +465,8 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
   avslutt()
 
   const no = new Date()
-  const stempel = `Generert av ${brukar || 'ukjend brukar'} · ${no.toLocaleDateString('nb-NO')} kl. ${no.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })} · LiedLab`
+  // Botntekst: kontornamn først, deretter «Utarbeida i LiedLab»
+  const stempel = `${kontor ? kontor + ' · ' : ''}Utarbeida i LiedLab · generert av ${brukar || 'ukjend brukar'} ${no.toLocaleDateString('nb-NO')} kl. ${no.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}`
   sider.forEach((s, k) => {
     s.drawText(rens(fn, stempel), { x: M, y: 18, size: 7.5, font: fn, color: rgb(0.4, 0.4, 0.4) })
     const st = `Side ${k + 1} av ${sider.length}`
@@ -488,7 +489,10 @@ export function lastNedPdf(bytes, filnamn) {
 export function rapportArkivNamn(oppsett, prosjektNr, prosjektNamn, periode) {
   const veke = oppsett.prognoseModus === 'veke'
   const nr = (key) => { const d = tilDato(key); return veke ? 'V' + String(getISOWeek(d)).padStart(2, '0') : 'M' + String(d.getMonth() + 1).padStart(2, '0') }
-  const namn = `${[prosjektNr, prosjektNamn].filter(Boolean).join(' ')} rapport${oppsett.perPerson ? ' intern' : ''} (${nr(periode.fra)} - ${nr(periode.til)})`
+  const aar = (key) => (veke ? getISOWeekYear(tilDato(key)) : tilDato(key).getFullYear())
+  // Årstal først (so mappa sorterer rett over årsskifte): «2026 M09 - M10», eller «2026 M12 - 2027 M01» når perioden går over årsskiftet
+  const per = aar(periode.fra) === aar(periode.til) ? `${aar(periode.fra)} ${nr(periode.fra)} - ${nr(periode.til)}` : `${aar(periode.fra)} ${nr(periode.fra)} - ${aar(periode.til)} ${nr(periode.til)}`
+  const namn = `${[prosjektNr, prosjektNamn].filter(Boolean).join(' ')} rapport${oppsett.perPerson ? ' intern' : ''} (${per})`
   return namn.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim() + '.pdf'
 }
 export const rapportFilnamn = (oppsett, prosjektNr) => (`${prosjektNr ? prosjektNr + ' ' : ''}${oppsett.tittel || 'Rapport'}`.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Rapport') + '.pdf'

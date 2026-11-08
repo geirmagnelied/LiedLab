@@ -499,7 +499,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
         {activeModule === 'bilete' && <BileteModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId}/>}
         {['kontordrift', 'ansatte', 'kontorkalender'].includes(activeModule) && <KontordriftModule side={activeModule === 'kontorkalender' ? 'kalender' : 'ansatte'} userId={userId} userEmail={userEmail} visNamn={brukar.visNamn}/>}
         {INNST_SIDER[activeModule] && <SettingsPanel innbygd side={INNST_SIDER[activeModule]} offices={offices} activeOfficeId={activeOfficeId} userId={userId} userEmail={userEmail} onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}/>}
-        {activeModule === 'framdrift' && <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} brukarNamn={brukar.visNamn || userEmail}/>}
+        {activeModule === 'framdrift' && <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} kontorNamn={offices.find(o => o.id === activeOfficeId)?.name || ''} brukarNamn={brukar.visNamn || userEmail}/>}
       </div>
 
       {/* Flytande knappar (berre mobil): kamera → vel/ta bilete direkte, pluss → meny med notattypar */}
@@ -653,7 +653,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
       ) : INNST_SIDER[activeModule] ? (
         <SettingsPanel innbygd side={INNST_SIDER[activeModule]} offices={offices} activeOfficeId={activeOfficeId} userId={userId} userEmail={userEmail} onAddOffice={addOffice} onUpdateOffice={updateOffice} onDeleteOffice={deleteOffice}/>
       ) : activeModule === 'framdrift' ? (
-        <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} brukarNamn={brukar.visNamn || userEmail}/>
+        <FramdriftModule userId={userId} projects={officeProjects} notes={modeNotes} activeProjectId={selectedProjectId} kontorNamn={offices.find(o => o.id === activeOfficeId)?.name || ''} brukarNamn={brukar.visNamn || userEmail}/>
       ) : (
       /* ── Notatar module (original layout) ── */
       <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minWidth:0 }}>

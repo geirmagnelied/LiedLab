@@ -90,7 +90,7 @@ function TekstFelt({ verdi, onLagre, type = 'text', ...rest }) {
     onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} {...rest}/>
 }
 
-export default function FramdriftModule({ userId, projects, notes, activeProjectId, brukarNamn }) {
+export default function FramdriftModule({ userId, projects, notes, activeProjectId, brukarNamn, kontorNamn }) {
   const [elementer, setElementer] = useState([])
   const [lastar, setLastar] = useState(true)
   const [lagringStatus, setLagringStatus] = useState('') // '' | 'lagrar' | 'lagra' | 'feil'
@@ -130,6 +130,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const aktivtProsjekt = projects.find(p => p.id === activeProjectId)
   const elRef = useRef([])           // siste plan (for lagring/angre utan stale closure)
   const historikk = useRef([])
+  const batchRef = useRef(false)     // fleire endringar i rad (t.d. fyll nedover) vert eitt angresteg
   const lagreTimer = useRef(null)
   const skitten = useRef(false)
   const prosjektRef = useRef(null)
@@ -209,7 +210,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
 
   // ── Oppdatering (med angre-historikk) ──
   const oppdater = useCallback((ny, { utanHistorikk = false } = {}) => {
-    if (!utanHistorikk) {
+    if (!utanHistorikk && !batchRef.current) {
       historikk.current = [...historikk.current.slice(-29), elRef.current]
       setAngreAntal(historikk.current.length)
     }
@@ -303,11 +304,15 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     const s = iso(forrigeArbeidsdag(tilDato(sluttIso)))
     oppdater(settElement(elementer, id, e.start, s < e.start ? e.start : s))
   }
-  const settFelter = (id, patch) => oppdater(elementer.map(e => (e.id === id ? { ...e, ...patch } : e)))
-  const settFelt = (id, felt, verdi) => oppdater(elementer.map(e => (e.id === id ? { ...e, [felt]: verdi } : e)))
+  const settFelter = (id, patch) => oppdater(elRef.current.map(e => (e.id === id ? { ...e, ...patch } : e)))
+  const settFelt = (id, felt, verdi) => oppdater(elRef.current.map(e => (e.id === id ? { ...e, [felt]: verdi } : e)))
 
   // ── Endringar (endringsmeldingar): lagra på aktiviteten (e.endringar), vist i «Endringar»-registeret under tabellen ──
-  const [endrMeny, setEndrMeny] = useState(null)   // { x, y, id } — høgreklikk-meny på aktivitet
+  const [radMeny, setRadMeny] = useState(null)   // { x, y, id } — høgreklikk-meny på rad (alle visingar)
+  const [papirkorg, setPapirkorg] = useState([])  // sletta rader: [{ tid, namn, el:[…] }] — hugsa på denne maskina, per prosjekt
+  const papirNokkel = 'liedlab-framdrift-papirkorg-' + activeProjectId
+  useEffect(() => { try { setPapirkorg(JSON.parse(localStorage.getItem(papirNokkel)) || []) } catch { setPapirkorg([]) } }, [papirNokkel])
+  const lagrePapir = (liste) => { setPapirkorg(liste); try { localStorage.setItem(papirNokkel, JSON.stringify(liste)) } catch { /* privat modus */ } }
   const [fanePuls, setFanePuls] = useState(null)   // ber registeret under tabellen om å opne ei bestemt fane
   const aktivitetarFlat = useMemo(() => elementer.filter(e => e.type === 'aktivitet' && !erSumm(elementer, e)), [elementer])
   const endringsliste = useMemo(() => aktivitetarFlat.flatMap(a => (a.endringar || []).map(en => ({ ...en, akt: a.id })))
@@ -355,15 +360,29 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     const forr = Object.fromEntries(['timar', 'budsjett', 'timerate', 'modus'].map(k => [k, e[k]]))
     settFelter(aktId, { ...patch, endringar: merk(true, { for: forr, overfortDato: new Date().toISOString().slice(0, 10) }) })
   }
+  // Påløpte/importerte timar på raden eller underaktivitetane: rada kan då verken slettast eller gjerast om til summasjonsaktivitet
+  const harPaalopt = (id) => [id, ...etterkommarar(elementer, id).map(c => c.id)].some(i => { const e = elementer.find(x => x.id === i); return +e?.palopTimar > 0 || +e?.palopHonorar > 0 || !!forbrukKart?.has(i) })
   const kontekstRad = (ev) => {
     const rad = ev.target.closest?.('[data-fd-id], tr[data-radid]'); if (!rad) return
     const raa = rad.getAttribute('data-fd-id') ?? rad.getAttribute('data-radid')
-    const akt = aktivitetarFlat.find(a => String(a.id) === String(raa)); if (!akt) return
-    ev.preventDefault(); setEndrMeny({ x: ev.clientX, y: ev.clientY, id: akt.id })
+    const el = elementer.find(a => String(a.id) === String(raa)); if (!el) return
+    ev.preventDefault(); setRadMeny({ x: ev.clientX, y: ev.clientY, id: el.id })
   }
   const leggTilEndringFraMeny = () => {
-    const id = endrMeny.id; setEndrMeny(null)
+    const id = radMeny.id; setRadMeny(null)
     nyEndring(id); setValgt(id); setBemOpen(true); setFanePuls({ fane: 'endringar', n: Date.now() })
+  }
+  const nySummFraMeny = () => {
+    const id = radMeny.id; setRadMeny(null)
+    const e = elementer.find(x => x.id === id); if (!e) return
+    const nytt = { ...nyttElement('aktivitet', { start: tilDato(e.slutt), forelder: e.forelder ?? null }), summ: true, namn: 'Ny summasjonsaktivitet' }
+    oppdater(rullOpp(flyttNode([...elementer, nytt], nytt.id, id, 'etter'))); setValgt(nytt.id)
+  }
+  const summFraMeny = (pa) => { const id = radMeny.id; setRadMeny(null); veksleSumm(id, pa) }
+  const gjenopprett = (post) => {
+    const ids = new Set(elementer.map(x => x.id)), med = new Set(post.el.map(x => x.id))
+    const nye = post.el.filter(x => !ids.has(x.id)).map(x => (x.forelder != null && !ids.has(x.forelder) && !med.has(x.forelder) ? { ...x, forelder: null } : x))
+    oppdater(rullOpp([...elementer, ...nye])); lagrePapir(papirkorg.filter(p => p.tid !== post.tid))
   }
 
   const endreFraTabell = (id, key, verdi) => {
@@ -419,6 +438,15 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     oppdater(settSumm(elementer, id, pa))
   }
 
+  const endreRef = useRef(null)
+  endreRef.current = endreFraTabell
+  const fyllKolonne = (key, ids, verdi) => {
+    if (!ids.length) return
+    historikk.current = [...historikk.current.slice(-29), elRef.current]; setAngreAntal(historikk.current.length)
+    batchRef.current = true
+    ids.forEach((id, i) => setTimeout(() => { endreRef.current(id, key, verdi); if (i === ids.length - 1) batchRef.current = false }, i * 30))
+  }
+
   const eksporter = async (medTidslinje) => {
     setEksporterer(true)
     try {
@@ -433,7 +461,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     const forelder = type === 'fase' ? null : valdFase
     const søsken = elementer.filter(e => (e.forelder ?? null) === (forelder ?? null) && (type === 'fase' ? e.type === 'fase' : true))
     if (søsken.length) start = addDays(tilDato(søsken.reduce((m, e) => (e.slutt > m ? e.slutt : m), søsken[0].slutt)), 1)
-    const nytt = nyttElement(type, { start, forelder })
+    const nytt = nyttElement(type === 'summasjon' ? 'aktivitet' : type, { start, forelder })
+    if (type === 'summasjon') { nytt.summ = true; nytt.namn = 'Ny summasjonsaktivitet' }
     oppdater(rullOpp([...elementer, nytt]))
     setValgt(nytt.id)
     if (forelder != null) setLukka(l => { const n = new Set(l); n.delete(forelder); return n })
@@ -482,10 +511,12 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     if (ny !== elementer) { oppdater(ny); opneForelder(malId) }
   }
   const slettValde = () => {
-    if (!window.confirm('Slette dei ' + valdeIds.length + ' valde radene (med underaktivitetar)?')) return
-    let ny = elementer
-    for (const id of valdeIds) if (ny.some(x => x.id === id)) ny = slettElement(ny, id)
-    oppdater(ny); setValde(new Set()); setValgt(null)
+    const ok = valdeIds.filter(id => !harPaalopt(id)), blokkert = valdeIds.length - ok.length
+    if (!ok.length) { window.alert('Ingen av dei valde radene kan slettast: det er ført timar på dei.'); return }
+    if (!window.confirm('Slette ' + ok.length + ' valde rader (med underaktivitetar)?' + (blokkert ? '\n\n' + blokkert + ' rader med påløpte timar vert ikkje sletta.' : '') + '\n\nSlettinga kan gjenopprettast med «Angre» eller frå «Sletta»-lista.')) return
+    let ny = elementer; const post = []
+    for (const id of ok) { const e = ny.find(x => x.id === id); if (e) { post.push({ tid: Date.now() + post.length, namn: e.namn, el: [e, ...etterkommarar(ny, id)] }); ny = slettElement(ny, id) } }
+    lagrePapir([...post, ...papirkorg].slice(0, 30)); oppdater(ny); setValde(new Set()); setValgt(null)
   }
   useEffect(() => {
     const esc = (e) => { if (e.key === 'Escape' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) setValde(new Set()) }
@@ -495,8 +526,10 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const slett = (id) => {
     const e = elementer.find(x => x.id === id)
     if (!e) return
-    const antall = etterkommarar(elementer, id).length
-    if (!window.confirm(`Slette «${e.namn}»${antall ? ` og dei ${antall} underaktivitetane` : ''}?`)) return
+    if (harPaalopt(id)) { window.alert('«' + e.namn + '» kan ikkje slettast: det er ført timar (påløpt eller importert) på aktiviteten eller underaktivitetane.'); return }
+    const under = etterkommarar(elementer, id)
+    if (!window.confirm('Slette «' + e.namn + '»' + (under.length ? ' og dei ' + under.length + ' underaktivitetane' : '') + '?\n\nSlettinga kan gjenopprettast med «Angre» (Ctrl+Z) eller frå «Sletta»-lista.')) return
+    lagrePapir([{ tid: Date.now(), namn: e.namn, el: [e, ...under] }, ...papirkorg].slice(0, 30))
     oppdater(slettElement(elementer, id)); setValgt(null)
   }
 
@@ -546,13 +579,15 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <MenyPunkt tittel="Frå mal…" under="Start frå ein ferdig fasemal" onClick={() => { lukk(); setMalOpen(true) }}/>
             <MenySkilje/>
             <MenyPunkt tittel="Ny endring" under="Endringsvarsel med kostnader og vedlegg" onClick={() => { lukk(); setEndrVarselOpen(true) }}/>
+            <MenySkilje/>
+            <MenyPunkt tittel="∑ Ny summasjonsaktivitet" under="Aktivitet som summerer underaktivitetane sine" onClick={() => { lukk(); leggTil('summasjon') }}/>
           </>)}</FdMeny>
           <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
           <PalopInnanMeny verdi={palopInnan} onEndre={setPalopInnan}/>
           <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
           <div className="fd-seg">
             <button className={visning === 'tidslinje' ? 'pa' : ''} onClick={() => setVisning('tidslinje')}>Tidslinje</button>
-            <button className={visning === 'tabell' ? 'pa' : ''} onClick={() => setVisning('tabell')}>Tabell</button>
+            <button className={visning === 'tabell' ? 'pa' : ''} onClick={() => setVisning('tabell')}>Veke</button>
             <button className={visning === 'maaned' ? 'pa' : ''} onClick={() => setVisning('maaned')} title="Tabell med månadskolonnar (veker over månadsskifte vert fordelte etter arbeidstimar)">Månad</button>
           </div>
           <span style={{ width: 1, height: 22, background: 'var(--border)' }}/>
@@ -582,6 +617,10 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <MenyPunkt tittel="Alle nivå" under="Fold ut alt" onClick={() => { lukk(); setLukka(new Set()) }}/>
           </>)}</FdMeny>
           <button className="fd-knapp" onClick={angre} disabled={!angreAntal} title="Angre siste endring (Ctrl+Z)">↶ Angre</button>
+          <FdMeny etikett={'🗑 Sletta' + (papirkorg.length ? ' (' + papirkorg.length + ')' : '')} breidd={340} disabled={!papirkorg.length} tittel="Gjenopprett rader som er sletta">{lukk => (<>
+            <MenyTittel>Sletta rader (nyaste først)</MenyTittel>
+            {papirkorg.map(p => <MenyPunkt key={p.tid} tittel={p.namn + (p.el.length > 1 ? ' (+' + (p.el.length - 1) + ' under)' : '')} under={'Sletta ' + new Date(p.tid).toLocaleString('nb-NO') + ' · klikk for å gjenopprette'} onClick={() => { lukk(); gjenopprett(p) }}/>)}
+          </>)}</FdMeny>
         </>)}
         <div style={{ flex: 1 }}/>
         {aktivtProsjekt && visning === 'tidslinje' && (<>
@@ -763,7 +802,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
                 <FramdriftTidslinje delsummer={fdVis.delsummer} skala={skala} valde={valde} personell={personell} onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={velgRad}
                   onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
                   timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
-                  onKoble={koble} onFjernAvh={fjernAvh} onFlyttHierarki={flyttHierarki}
+                  onKoble={koble} onFjernAvh={fjernAvh} onFlyttHierarki={flyttHierarki} onFyll={fyllKolonne}
                   lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })}/>
               ) : (
                 <FramdriftTabell key={visning} valde={valde} onValde={setValde} periode={visning === 'maaned' ? 'manad' : 'veke'} onVis={setFdVis} eining={fdVis.eining} delsummer={fdVis.delsummer} personell={personell} forbrukKart={forbrukKart} fargeKart={fargeKart} dokMap={dokMap} elementer={elEff} kal={kal} lukka={lukka} onToggleLukka={id => setLukka(l => { const n = new Set(l); n.has(id) ? n.delete(id) : n.add(id); return n })} prisar={prisKartFra(personell)} valgt={valgt} onVelg={velgRad} onEndreFelt={endreFraTabell}/>
@@ -789,15 +828,27 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
           onModus={m => settFelt(sel.id, 'ferdigModus', m)} onFerdig={n => settFelt(sel.id, 'ferdig', n)}/>
       )}
       {malOpen && <MalVindauge harPlan={elementer.length > 0} onLukk={() => setMalOpen(false)} onBruk={brukMal}/>}
-      {endrMeny && (<>
-        <div onMouseDown={() => setEndrMeny(null)} onContextMenu={e => { e.preventDefault(); setEndrMeny(null) }} style={{ position: 'fixed', inset: 0, zIndex: 300 }}/>
-        <div style={{ position: 'fixed', left: Math.min(endrMeny.x, window.innerWidth - 220), top: Math.min(endrMeny.y, window.innerHeight - 70), zIndex: 301, minWidth: 200, padding: 5, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)' }}>
-          <button onClick={leggTilEndringFraMeny} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>＋ Legg til endring</button>
-        </div>
-      </>)}
+      {radMeny && (() => {
+        const el = elementer.find(x => x.id === radMeny.id); if (!el) return null
+        const akt = el.type === 'aktivitet', summ = erSumm(elementer, el), paalopt = harPaalopt(el.id)
+        const pkt = (tekst, onClick, { fare, disabled, tittel } = {}) => (
+          <button key={tekst} onClick={disabled ? undefined : onClick} title={tittel} onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = fare ? 'rgba(185,28,28,.10)' : 'var(--bg3)' }} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderRadius: 6, background: 'transparent', color: fare ? '#B91C1C' : 'var(--text)', opacity: disabled ? .45 : 1, fontSize: 13, fontWeight: 600, cursor: disabled ? 'default' : 'pointer', fontFamily: 'var(--font)' }}>{tekst}</button>
+        )
+        return (<>
+          <div onMouseDown={() => setRadMeny(null)} onContextMenu={e => { e.preventDefault(); setRadMeny(null) }} style={{ position: 'fixed', inset: 0, zIndex: 300 }}/>
+          <div style={{ position: 'fixed', left: Math.min(radMeny.x, window.innerWidth - 270), top: Math.min(radMeny.y, window.innerHeight - 250), zIndex: 301, minWidth: 250, padding: 5, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)' }}>
+            {akt && !summ && pkt('＋ Legg til endring', leggTilEndringFraMeny)}
+            {pkt('∑ Ny summasjonsaktivitet', nySummFraMeny)}
+            {akt && el.summ && pkt('∑ Opphev summasjonsaktivitet', () => summFraMeny(false))}
+            {akt && !summ && pkt('∑ Gjer om til summasjonsaktivitet', () => summFraMeny(true), { disabled: paalopt, tittel: paalopt ? 'Kan ikkje gjerast om: det er ført timar på aktiviteten' : undefined })}
+            <div style={{ height: 1, background: 'var(--border)', margin: '5px 4px' }}/>
+            {pkt('🗑 Slett «' + (el.namn.length > 28 ? el.namn.slice(0, 28) + '…' : el.namn) + '»', () => { setRadMeny(null); slett(el.id) }, { fare: true, disabled: paalopt, tittel: paalopt ? 'Kan ikkje slettast: det er ført timar på aktiviteten (eller underaktivitetane)' : 'Slettinga må stadfestast og kan gjenopprettast' })}
+          </div>
+        </>)
+      })()}
       {endrVarselOpen && aktivtProsjekt && <FramdriftEndringsvarsel onLukk={() => setEndrVarselOpen(false)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn} aktivitetar={aktivitetarFlat} endringar={endringsliste} onSettEndringar={settEndringarSamla}/>}
-      {rapportStart && aktivtProsjekt && <FramdriftRapportModal key={rapportStart} startValg={rapportStart} onLukk={() => setRapportStart(null)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn}
+      {rapportStart && aktivtProsjekt && <FramdriftRapportModal key={rapportStart} kontorNamn={kontorNamn} startValg={rapportStart} onLukk={() => setRapportStart(null)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn}
         elementer={elBase} forbrukRader={forbrukRader} personell={personell} kal={kal}/>}
       {forbrukOpen && aktivtProsjekt && <FramdriftForbrukModal userId={userId} prosjekt={aktivtProsjekt} elementer={elementer} onLukk={() => setForbrukOpen(false)} onFerdig={(r) => { setForbrukOpen(false); if (r?.nyeAktivitetar?.length) opprettAktivitetar(r.nyeAktivitetar); lastForbruk() }}/>}
       {importOpen && <FramdriftImportModal harPlan={elementer.length > 0} onLukk={() => setImportOpen(false)} onImporter={importer}/>}

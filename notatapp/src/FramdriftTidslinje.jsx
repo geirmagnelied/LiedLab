@@ -32,7 +32,7 @@ const MOTE_FARGE = '#1565C0'
 const VALG_FARGE = '#1E3A8A'
 
 export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde, verktoy, rader, elementer, valgt, onVelg, onEndre, hendingar, visHendingar,
-                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki, fargeKart, prisar, forbrukKart, onEndreFelt, personell }) {
+                                              zoom, lukka, onToggleLukka, timarKart, overlast, visTimar, dokMap, onKoble, onFjernAvh, kal, utvida, onToggleUtvida, onFlyttHierarki, fargeKart, prisar, forbrukKart, onEndreFelt, onFyll, personell }) {
   const manadSum = zoom === 'manadsum'   // «Månad»: tidslinje med månadssummar (timar og påløpt honorar) — «Månad+» er den gamle månadsvisinga med vekenummer
   const dagB = (DAGB[manadSum ? 'manad' : zoom] || DAGB.veke) * skala
   // Ekstrakolonnar i tabellen til venstre for tidslinja (høgreklikk på overskrifta). Val vert hugsa på denne maskina.
@@ -49,6 +49,18 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
   const kb = (d) => kolB[d.key] ?? d.w
   const VENSTRE = NAMN_B + kolDefs.reduce((a, d) => a + kb(d), 0)
   const [redigerer, setRedigerer] = useState(null) // { id, key } — celle i redigering (dobbeltklikk)
+  // Låste kolonnar: kan ikkje redigerast for hand (hindrar uønska tastetrykk). Import av timar o.l. går via andre vegar og vert ikkje stoppa. Hugsa på denne maskina.
+  const [laasa, setLaasa] = useState(() => { try { return JSON.parse(localStorage.getItem('liedlab-framdrift-laasa-kol')) || [] } catch { return [] } })
+  const veksleLaas = (key) => setLaasa(l => { const n = l.includes(key) ? l.filter(k => k !== key) : [...l, key]; try { localStorage.setItem('liedlab-framdrift-laasa-kol', JSON.stringify(n)) } catch { /* privat modus */ } return n })
+  const [celleVal, setCelleVal] = useState(null)     // { id, key } — vald celle (viser fyll-handtaket)
+  const [fyllMal, setFyllMal] = useState(null)       // { key, kilde, mal } — pågåande dra-og-fyll
+  const [radHover, setRadHover] = useState(null)     // rad musa er over (lyser opp i både tabell og tidslinje)
+  const [kolMeny2, setKolMeny2] = useState(null)     // { x, y, key } — høgreklikk på kolonneoverskrift
+  const kanRedRad = (r, key) => {
+    const erF = r.type === 'fase' || (r.type === 'aktivitet' && (r.summ || harBorn(elementer, r.id)))
+    return !!onEndreFelt && REDIGERBARE.has(key) && key !== 'namn' && key !== 'bemanning' && !laasa.includes(key)
+      && (!erF || ['kode', 'ansvarleg'].includes(key)) && !(r.type === 'milepael' && !['kode', 'start', 'ansvarleg'].includes(key))
+  }
   const startKolResize = (ev, key, bredde0) => {
     ev.preventDefault(); ev.stopPropagation()
     const x0 = ev.clientX
@@ -358,6 +370,23 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
   const idagSynleg = todayX >= 0 && todayX <= breiddTotal
   const topH = manadSum ? 36 : visDagar ? 62 : 52
 
+  // Dra-og-fyll (som i Excel/leveranseplanen): dra handtaket nede til høgre i ei vald celle opp eller ned — same verdi vert sett i radene som vert dekka
+  const startFyll = (ev, r, d) => {
+    ev.preventDefault(); ev.stopPropagation()
+    const kilde = radIndeks.get(r.id), topp = navnRef.current?.getBoundingClientRect().top
+    if (kilde == null || topp == null) return
+    let mal = kilde
+    const mv = (e2) => { mal = Math.max(0, Math.min(radar.length - 1, Math.floor((e2.clientY - topp) / RAD_H))); setFyllMal({ key: d.key, kilde, mal }) }
+    const opp = () => {
+      window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', opp); setFyllMal(null)
+      if (mal === kilde) return
+      const [a, b] = mal > kilde ? [kilde + 1, mal] : [mal, kilde - 1]
+      const ids = radar.slice(a, b + 1).filter(x => elementer.some(el => el.id === x.id) && kanRedRad(x, d.key)).map(x => x.id)
+      if (ids.length) onFyll?.(d.key, ids, String(verdiar.verdi(r, d.key)))
+    }
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', opp)
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
     {verktoy && <div style={{ height: 34, flexShrink: 0, display: 'flex', alignItems: 'center', paddingLeft: VENSTRE + 8, paddingBottom: 4 }}>{verktoy}</div>}
@@ -372,15 +401,15 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
             style={{ position: 'sticky', left: 0, zIndex: 9, width: VENSTRE, flexShrink: 0, background: 'var(--bg3)',
             borderRight: '1px solid var(--border)', display: 'flex', alignItems: 'flex-end',
             fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text3)' }}>
-            <div style={{ width: NAMN_B, flexShrink: 0, padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
+            <div onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setKolMeny2({ x: e.clientX, y: e.clientY, key: 'namn' }) }} style={{ width: NAMN_B, flexShrink: 0, padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
               {handtak('__namn', NAMN_B)}
-              Fase / aktivitet
+              {laasa.includes('namn') && <span title="Låst for redigering" style={{ fontSize: 9 }}>🔒</span>}Fase / aktivitet
               <button type="button" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setKolMeny({ x: r.left, y: r.bottom + 4 }) }} title="Vel kolonnar (kan òg opnast med høgreklikk)"
                 style={{ border: '1px solid var(--border)', background: 'var(--bg2)', borderRadius: 5, cursor: 'default', fontSize: 11, padding: '0 6px', color: 'var(--text2)', fontWeight: 800 }}>＋ Kolonnar</button>
             </div>
             {kolDefs.map(d => (
-              <div key={d.key} style={{ width: kb(d), flexShrink: 0, padding: '0 6px 8px', textAlign: d.hogre ? 'right' : 'left', whiteSpace: 'nowrap', position: 'relative' }} title={d.label}>
-                <span lang="nb" style={{ display: 'block', whiteSpace: 'normal', lineHeight: 1.18, wordBreak: 'normal' }}>{d.label.split(' ').length === 2 ? d.label.split(' ').map((w, wi) => <span key={wi} style={{ display: 'block' }}>{mjukBindestrek(w)}</span>) : d.label.split(' ').map(mjukBindestrek).join(' ')}</span>{handtak(d.key, kb(d))}
+              <div key={d.key} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setKolMeny2({ x: e.clientX, y: e.clientY, key: d.key }) }} style={{ width: kb(d), flexShrink: 0, padding: '0 6px 8px', textAlign: d.hogre ? 'right' : 'left', whiteSpace: 'nowrap', position: 'relative' }} title={d.label + ' — høgreklikk for å låse kolonnen'}>
+                <span lang="nb" style={{ display: 'block', whiteSpace: 'normal', lineHeight: 1.18, wordBreak: 'normal' }}>{laasa.includes(d.key) && <span title="Låst for redigering" style={{ fontSize: 9 }}>🔒 </span>}{d.label.split(' ').length === 2 ? d.label.split(' ').map((w, wi) => <span key={wi} style={{ display: 'block' }}>{mjukBindestrek(w)}</span>) : d.label.split(' ').map(mjukBindestrek).join(' ')}</span>{handtak(d.key, kb(d))}
               </div>
             ))}
           </div>
@@ -490,10 +519,10 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
               const erFase = r.type === 'fase' || (r.type === 'aktivitet' && (r.summ || harBorn(elementer, r.id))) // fase / summasjonsaktivitet
               const sel = valgt === r.id || !!valde?.has(r.id)
               return (
-                <div key={r.id} data-fd-id={r.id} onClick={e => onVelg(r.id, e)}
-                  style={{ height: RAD_H, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', cursor: 'default',
-                    background: sel ? 'var(--brandbg2)' : erFase ? 'var(--bg3)' : 'transparent',
-                    boxShadow: sel ? `inset 3px 0 0 ${VALG_FARGE}` : undefined }}
+                <div key={r.id} data-fd-id={r.id} onClick={e => onVelg(r.id, e)} onMouseEnter={() => setRadHover(r.id)} onMouseLeave={() => setRadHover(h => (h === r.id ? null : h))}
+                  style={{ height: RAD_H, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', cursor: 'default', transition: 'background .12s',
+                    background: sel ? 'var(--brandbg2)' : radHover === r.id ? 'var(--brandbg)' : erFase ? 'var(--bg3)' : 'transparent',
+                    boxShadow: sel ? `inset 3px 0 0 ${VALG_FARGE}` : radHover === r.id ? `inset 3px 0 0 var(--brand2)` : undefined }}
                   title={`${r.namn}\n${formaterDato(r.start)} – ${formaterDato(r.slutt)}`}>
                   <div style={{ width: NAMN_B, flexShrink: 0, height: '100%', display: 'flex', alignItems: 'center', gap: 7, paddingLeft: 10 + (r.nivå || 0) * 20, paddingRight: 8, overflow: 'hidden' }}>
                   {onFlyttHierarki && <span onMouseDown={e => startHDrag(e, r)} title="Dra for å flytte i hierarkiet (over/under ei rad = same nivå, midt på = underaktivitet)"
@@ -515,7 +544,7 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
                       onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.currentTarget.value = r.namn; setRedigerer(null) } }}
                       style={{ flex: 1, minWidth: 0, fontSize: 12.5, padding: '2px 5px', border: '1.5px solid var(--brand2)', borderRadius: 4, fontFamily: 'var(--font)', background: 'var(--bg2)', color: 'var(--text)' }}/>
                   ) : (
-                    <span onDoubleClick={e => { if (onEndreFelt) { e.stopPropagation(); setRedigerer({ id: r.id, key: 'namn' }) } }} title="Dobbeltklikk for å endre namn"
+                    <span onDoubleClick={e => { if (onEndreFelt && !laasa.includes('namn')) { e.stopPropagation(); setRedigerer({ id: r.id, key: 'namn' }) } }} title={laasa.includes('namn') ? 'Namn-kolonnen er låst' : 'Dobbeltklikk for å endre namn'}
                       style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         fontSize: erFase ? 13 : 12.5, fontWeight: erFase ? 800 : 500, color: 'var(--text)' }}>{r.namn}</span>
                   )}
@@ -526,17 +555,18 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
                   </div>
                   {kolDefs.map(d => {
                     const redig = redigerer && redigerer.id === r.id && redigerer.key === d.key
-                    const kanRed = !!onEndreFelt && REDIGERBARE.has(d.key) && d.key !== 'namn' && d.key !== 'bemanning'
-                      && (!erFase || ['kode', 'ansvarleg'].includes(d.key)) && !(r.type === 'milepael' && !['kode', 'start', 'ansvarleg'].includes(d.key))
+                    const kanRed = kanRedRad(r, d.key)
                     const v = verdiar.verdi(r, d.key)
                     const gaa = () => { setRedigerer(null) }
                     const lagre = (ny) => { gaa(); if (String(ny) !== String(v)) onEndreFelt(r.id, d.key, ny) }
+                    const valtCelle = !!celleVal && celleVal.id === r.id && celleVal.key === d.key
+                    const fyllTreff = !!fyllMal && fyllMal.key === d.key && (() => { const i = radIndeks.get(r.id); const [a, b] = fyllMal.mal > fyllMal.kilde ? [fyllMal.kilde + 1, fyllMal.mal] : [fyllMal.mal, fyllMal.kilde - 1]; return i >= a && i <= b })()
                     return (
-                      <div key={d.key} onDoubleClick={e => { if (kanRed) { e.stopPropagation(); setRedigerer({ id: r.id, key: d.key }) } }}
+                      <div key={d.key} onClick={() => { if (kanRed) setCelleVal({ id: r.id, key: d.key }) }} onDoubleClick={e => { if (kanRed) { e.stopPropagation(); setRedigerer({ id: r.id, key: d.key }) } }}
                         style={{ width: kb(d), flexShrink: 0, padding: redig ? '0 2px' : '0 6px', textAlign: d.hogre ? 'right' : 'left', fontSize: 12, color: 'var(--text2)', fontFamily: ['pns', 'kode', 'start', 'slutt'].includes(d.key) ? 'var(--mono)' : undefined,
-                          overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: erFase ? 700 : 400, cursor: kanRed ? 'text' : undefined,
-                          background: kanRed && !redig ? 'rgba(21,101,192,.04)' : undefined, height: '100%', display: 'flex', alignItems: 'center', justifyContent: d.hogre ? 'flex-end' : 'flex-start' }}
-                        title={kanRed ? 'Dobbeltklikk for å endre' : String(v)}>
+                          overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: erFase ? 700 : 400, cursor: kanRed ? 'text' : undefined, position: 'relative', outline: valtCelle ? '2px solid var(--brand)' : undefined, outlineOffset: -2,
+                          background: fyllTreff ? 'rgba(21,101,192,.18)' : kanRed && !redig ? 'rgba(21,101,192,.04)' : undefined, height: '100%', display: 'flex', alignItems: 'center', justifyContent: d.hogre ? 'flex-end' : 'flex-start' }}
+                        title={kanRed ? 'Dobbeltklikk for å endre' : laasa.includes(d.key) ? 'Kolonnen er låst (høgreklikk overskrifta for å låse opp)' : String(v)}>
                         {redig ? (d.key === 'ansvarleg' ? (
                           <select autoFocus defaultValue={String(v)} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onChange={e => lagre(e.target.value)} onBlur={gaa}
                             style={{ width: '100%', fontSize: 12, padding: '1px 2px', border: '1.5px solid var(--brand2)', borderRadius: 4, background: 'var(--bg2)', color: 'var(--text)' }}>
@@ -558,6 +588,7 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
                             onBlur={e => lagre(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.currentTarget.value = String(v); gaa() } }}
                             style={{ width: '100%', fontSize: 12, padding: '1px 4px', border: '1.5px solid var(--brand2)', borderRadius: 4, fontFamily: 'var(--font)', background: 'var(--bg2)', color: 'var(--text)', textAlign: d.hogre ? 'right' : 'left' }}/>
                         )) : (v === '' ? '' : d.key === 'kpi' ? <span style={{ fontWeight: 800, color: kpiFarge(v) }}>{typeof v === 'number' ? v.toFixed(2).replace('.', ',') : v}</span> : (typeof v === 'number' && d.hogre && d.key !== 'ferdig' && d.key !== 'varig' ? v.toLocaleString('nb-NO') : v))}
+                        {valtCelle && kanRed && !redig && <span onMouseDown={ev => startFyll(ev, r, d)} title="Dra opp eller ned for å fylle same verdi i radene" style={{ position: 'absolute', right: 0, bottom: 0, width: 9, height: 9, background: 'var(--brand)', border: '1px solid var(--bg2)', cursor: 'crosshair', zIndex: 3 }}/>}
                       </div>
                     )
                   })}
@@ -569,7 +600,9 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
 
           {/* ── Tidslinje-flate ── */}
           <div ref={flateRef} style={{ position: 'relative', width: breiddTotal, flexShrink: 0, height: Math.max(radar.length, 1) * RAD_H, cursor: 'default' }}
-            onMouseDown={startPan}>
+            onMouseDown={startPan}
+            onMouseMove={e => { const top = flateRef.current?.getBoundingClientRect().top; if (top == null) return; const rr = radar[Math.floor((e.clientY - top) / RAD_H)]; setRadHover(rr && elementer.some(el => el.id === rr.id) ? rr.id : null) }}
+            onMouseLeave={() => setRadHover(null)}>
             {bakgrunn.map((b, i) => (
               <div key={i} title={b.tittel} style={{ position: 'absolute', left: b.left, width: b.width, top: 0, bottom: 0,
                 background: b.helg ? 'rgba(185,28,28,.10)' : 'rgba(100,116,139,.09)' }}/>
@@ -581,6 +614,7 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
               <div key={r.id} style={{ position: 'absolute', left: 0, right: 0, top: (i + 1) * RAD_H - 1, height: 1, background: 'var(--border)', opacity: .7 }}/>
             ))}
 
+            {radHover != null && radIndeks.get(radHover) != null && <div style={{ position: 'absolute', left: 0, right: 0, top: radIndeks.get(radHover) * RAD_H, height: RAD_H - 1, background: 'rgba(21,101,192,.08)', pointerEvents: 'none', zIndex: 1, transition: 'top .08s' }}/>}
             {/* Fristar og møte frå notat/oppgåver (Kalender-modulen sine data) */}
             {visHendingar && hendingar.map(h => {
               const same = hendingar.filter(o => o.dato.getTime() === h.dato.getTime())
@@ -810,6 +844,16 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
           </div>
         </div>
 
+        {kolMeny2 && (<>
+          <div onMouseDown={() => setKolMeny2(null)} onContextMenu={e => { e.preventDefault(); setKolMeny2(null) }} style={{ position: 'fixed', inset: 0, zIndex: 399 }}/>
+          <div style={{ position: 'fixed', left: Math.min(kolMeny2.x, window.innerWidth - 270), top: Math.min(kolMeny2.y, window.innerHeight - 120), width: 260, zIndex: 400, padding: 5, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)' }}>
+            {[[laasa.includes(kolMeny2.key) ? '🔓 Lås opp kolonnen' : '🔒 Lås kolonnen for redigering', () => veksleLaas(kolMeny2.key)], ['＋ Vel kolonnar …', () => setKolMeny({ x: kolMeny2.x, y: kolMeny2.y })]].map(([t, fn]) => (
+              <button key={t} onClick={() => { fn(); setKolMeny2(null) }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg3)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>{t}</button>
+            ))}
+            <div style={{ fontSize: 11, color: 'var(--text3)', padding: '4px 12px 6px', lineHeight: 1.4 }}>Låsing hindrar redigering for hand i kolonnen. Import av timar og andre automatiske oppdateringar vert ikkje stoppa.</div>
+          </div>
+        </>)}
         {kolMeny && (
           <div data-kolmeny="1" style={{ position: 'fixed', left: Math.min(kolMeny.x, window.innerWidth - 230), top: Math.min(kolMeny.y, window.innerHeight - 440), width: 220, maxHeight: 430, overflow: 'auto', zIndex: 400,
             background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)', padding: 6 }}>

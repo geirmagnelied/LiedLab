@@ -18,7 +18,7 @@ const VINDU_NOKKEL = 'liedlab.rapportVindu'
 const MINB = 760, MINH = 460
 const STANDARD_UT = { prognoseModus: 'manad', ark: { storleik: 'A4', retning: 'landskap' } }
 
-export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukarNamn, elementer, forbrukRader, personell, kal, startValg = 'std-kunde' }) {
+export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukarNamn, kontorNamn, elementer, forbrukRader, personell, kal, startValg = 'std-kunde' }) {
   const [eigne, setEigne] = useState([])
   const startNy = startValg === 'ny'
   const [valt, setValt] = useState(startNy ? 'ny' : startValg)        // 'std-…' | rapport-id (tal)
@@ -101,7 +101,7 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
     setPdf(p => ({ ...p, lagar: true }))
     const t = setTimeout(async () => {
       try {
-        const bytes = await lagRapportPdf({ data, oppsett, periode, prosjektNamn: prosjekt.name, prosjektNr: prosjekt.projectNumber, brukar: brukarNamn })
+        const bytes = await lagRapportPdf({ data, oppsett, periode, prosjektNamn: prosjekt.name, prosjektNr: prosjekt.projectNumber, brukar: brukarNamn, kontor: kontorNamn })
         if (avbrutt) return
         const gammal = urlRef.current
         const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
@@ -111,7 +111,7 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
       } catch (e) { if (!avbrutt) setPdf(p => ({ ...p, feil: e.message, lagar: false })) }
     }, 350)
     return () => { avbrutt = true; clearTimeout(t) }
-  }, [data, oppsett, periode, antKol, prosjekt.name, prosjekt.projectNumber, brukarNamn])
+  }, [data, oppsett, periode, antKol, prosjekt.name, prosjekt.projectNumber, brukarNamn, kontorNamn])
 
   // Oppdragsstien (låst i prosjektet): rapporten vert lagra i «1 Oppdragsleiing\4 Rapportering» når skrivebordsappen og stien finst
   const [oppdragsSti, setOppdragsSti] = useState('')
@@ -244,11 +244,12 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
             </div>
             {pdf.skala < 0.85 && <div style={{ fontSize: 11.5, color: 'var(--danger)', marginTop: 6, lineHeight: 1.5 }}>Mange kolonnar: teksten er forminska til {Math.round(pdf.skala * 100)} % for å få plass på {ark.storleik} {ark.retning}. Vel eit større ark, portrett/landskap, eller færre kolonnar.</div>}
 
-            {!lasen && (<>
-              <div style={ETT}>Tittel</div>
-              <input value={oppsett.tittel || ''} onChange={e => endre({ tittel: e.target.value })} placeholder="Tittel" style={FELT}/>
-              <input value={oppsett.undertittel || ''} onChange={e => endre({ undertittel: e.target.value })} placeholder="Undertittel / merknad (valfri)" style={{ ...FELT, marginTop: 6 }}/>
+            <div style={ETT}>Overskrift</div>
+            <input value={oppsett.tittel || ''} onChange={e => (lasen ? setUt : endre)({ tittel: e.target.value })} placeholder="Overskrift på rapporten" style={FELT}/>
+            <input value={oppsett.undertittel || ''} onChange={e => (lasen ? setUt : endre)({ undertittel: e.target.value })} placeholder="Undertittel / merknad (valfri)" style={{ ...FELT, marginTop: 6 }}/>
+            {lasen && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 5, lineHeight: 1.5 }}>Overskrifta gjeld berre denne utskrifta av standardrapporten.</div>}
 
+            {!lasen && (<>
               <div style={ETT}>Innhald</div>
               {SEKSJONAR.map(s => (
                 <div key={s.key} style={{ marginBottom: 8 }}>

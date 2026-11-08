@@ -917,7 +917,8 @@ export default function DataTabell({
                 // informativt, kolonne-nivå (ikkje per celle), berre for
                 // tabellar med rutenettvisning (brukar sitt eige krav
                 // 30. sept. 2026).
-                const låst = rutenettRedigering && !kol.eigen && !kol.redigerbar && !erModusRedigerbar(kol)
+                const brukarLaast = (prefs.laasa || []).includes(k)
+                const låst = brukarLaast || (rutenettRedigering && !kol.eigen && !kol.redigerbar && !erModusRedigerbar(kol))
                 const erKlistra = klistreKolonnar.includes(k)
                 return (
                   <th key={k} data-key={k}
@@ -927,7 +928,8 @@ export default function DataTabell({
                     onDrop={() => slippKolonne(k)}>
                     <div className={'dt-th' + (bryttOverskrift ? ' brytt' : '')} draggable lang="nb"
                       onDragStart={() => { dragRef.current = k }}
-                      onClick={e => { if (!e.target.closest('.dt-caret')) sorter(k) }}>
+                      onClick={e => { if (!e.target.closest('.dt-caret')) sorter(k) }}
+                      onContextMenu={e => { e.preventDefault(); opneMeny('kolonne', k, e) }}>
                       <span className="dt-namn">
                         {kol.overskrift ? (<>
                           <span style={{ display:'block', fontSize:8, fontWeight:700, lineHeight:1.2, opacity:.8, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{kol.overskrift[0]}</span>
@@ -1005,7 +1007,7 @@ export default function DataTabell({
                   const erKlistra = klistreKolonnar.includes(k)
                   const alleredeRedigerbar = kol.redigerbar
                   const modusKanRedigere = erModusRedigerbar(kol)
-                  const kanRedigere = kol.eigen || alleredeRedigerbar || modusKanRedigere
+                  const kanRedigere = !(prefs.laasa || []).includes(k) && (kol.eigen || alleredeRedigerbar || modusKanRedigere)   // brukar kan låse kolonnen (kolonnemenyen)
                   // Tre-stegs klikk-modell (klikk→rad, dobbeltklikk→celle,
                   // tredje klikk→skriv) gjeld BERRE tabellar som har slege
                   // på rutenettRedigering — andre tabellar (Saker/Kvalitet)
@@ -1203,6 +1205,8 @@ export default function DataTabell({
           onSorter={dir => { sorter(meny.key, dir); setMeny(null) }}
           onFilter={v => veksleFilter(meny.key, v)}
           onTomFilter={() => tomFilter(meny.key)}
+          laast={(prefs.laasa || []).includes(meny.key)}
+          onLaas={() => { setPrefs(p => ({ ...p, laasa: (p.laasa || []).includes(meny.key) ? p.laasa.filter(x => x !== meny.key) : [...(p.laasa || []), meny.key] })); setMeny(null) }}
           onStandardBreidd={() => { setPrefs(p => ({ ...p, breidder: { ...p.breidder, [meny.key]: standardBreidder[meny.key] } })); setMeny(null) }}
           onSkjul={() => { skjul(meny.key); setMeny(null) }}
           onSlett={() => slettKolonne(meny.key)}
@@ -1467,7 +1471,7 @@ function Segment({ val, sett, val1, val2 }) {
 
 // ── Kolonnemeny ────────────────────────────────────────────────────
 function KolonneMeny({ kol, left, top, sortering, filter, rader, alle, tekst, sorteringsverdi, rangering,
-                       onSorter, onFilter, onTomFilter, onStandardBreidd, onSkjul, onSlett, onNyKolonne }) {
+                       onSorter, onFilter, onTomFilter, onStandardBreidd, onSkjul, onSlett, onNyKolonne, laast, onLaas }) {
   const [søk, setSøk] = useState('')
   const merkelappar = kol.art === 'tal' ? ['Lågast først', 'Høgast først']
     : kol.art === 'dato' ? ['Eldst først', 'Nyast først']
@@ -1547,6 +1551,11 @@ function KolonneMeny({ kol, left, top, sortering, filter, rader, alle, tekst, so
       </>)}
 
       <div className="dt-skilje"/>
+      {onLaas && (
+        <button type="button" className="dt-val" onClick={onLaas} title="Låsing hindrar redigering for hand i kolonnen (import og automatiske oppdateringar vert ikkje stoppa)">
+          <span className="hake">{laast ? '🔓' : '🔒'}</span><span>{laast ? 'Lås opp kolonnen' : 'Lås kolonnen for redigering'}</span>
+        </button>
+      )}
       <button type="button" className="dt-val" onClick={onStandardBreidd}>
         <span className="hake"/><span>Standard breidd</span>
       </button>
@@ -1685,7 +1694,9 @@ const CSS = `
 
 .dt-tabell td { border-bottom:1px solid var(--border); border-right:1px solid var(--border);
   font-size:13px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-.dt-tabell tbody tr:hover td { background:var(--bg3) }
+.dt-tabell tbody td { transition:background .12s }
+.dt-tabell tbody tr:hover td { background:var(--brandbg) }
+.dt-tabell tbody tr:hover td:first-child { box-shadow:inset 3px 0 0 var(--brand2) }
 .dt-tabell td.tal { text-align:right; font-variant-numeric:tabular-nums }
 .dt-tabell td.mono { font-family:var(--mono) }
 .dt-tabell td.eigen { cursor:text }
