@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from './supabase'
 import { TalFelt, INNFELT } from './FramdriftBemanning'
+import { ENDR_STATUSAR, ENDR_STATUS_FARGE } from './framdriftVerdiar'
+import { lagVarselPdf, varselFilnamn } from './framdriftVarselPdf'
+import { lastNedPdf } from './framdriftRapport'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Endringsvarsel (Prosjektplan → ＋ Ny → Ny endring). Flyttbart/skalerbart/maksimerbart vindauge.
@@ -16,7 +19,9 @@ const nyId = () => Math.random().toString(36).slice(2, 9)
 const tomt = (namn) => ({
   endringar: [], val: { budsjett: false, forslag: false, anna: false },
   punkt: { budsjett: { besk: '', framdrift: '' }, forslag: { besk: '', framdrift: '' }, anna: { besk: '', framdrift: '' } },
-  honorar: [], utgifter: [], utarbeidd: namn || '', dato: idag(), vedlegg: [], mappe: (crypto.randomUUID?.() || nyId() + nyId()),
+  honorar: [], utgifter: [], utarbeidd: namn || '', dato: idag(), vedlegg: [],
+  utsending: { status: 'Utkast', sendtDato: '', sendtTil: '', sendtMetode: 'E-post', svarDato: '', svarFra: '', merknad: '', logg: [] },
+  mappe: (crypto.randomUUID?.() || nyId() + nyId()),
 })
 const tilTal = (v) => { const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); return n > 0 ? n : null }
 const kr = (n) => Math.round(n || 0).toLocaleString('nb-NO')
@@ -27,7 +32,7 @@ const TD = { padding: '2px 5px', border: '1px solid var(--border)', fontSize: 12
 const knapp = (prim) => ({ padding: '8px 14px', borderRadius: 'var(--r)', border: prim ? 'none' : '1.5px solid var(--border)', background: prim ? 'var(--brand)' : 'var(--bg2)', color: prim ? '#fff' : 'var(--text2)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' })
 const rensNamn = (n) => n.replace(/[^\w.\-æøåÆØÅ]+/g, '_')
 
-export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, brukarNamn, aktivitetar, endringar }) {
+export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, brukarNamn, aktivitetar, endringar, onSettEndringar }) {
   const [liste, setListe] = useState([])
   const [id, setId] = useState(null)
   const [tittel, setTittel] = useState('')
@@ -42,9 +47,12 @@ export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, bruk
   const [dtmSok, setDtmSok] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const filRef = useRef(null)
+  const revRef = useRef(0)                          // teljar for ulagra endringar (lagring sluker ikkje det du skriv medan ho går)
+  const lagrarRef = useRef(false)
+  const merkEndra = () => { revRef.current++; setDirty(true) }
 
   const aktNamn = (aid) => { const a = aktivitetar.find(x => String(x.id) === String(aid)); return a ? (a.kode ? a.kode + ' ' : '') + a.namn : '(ukjend aktivitet)' }
-  const endr = (patch) => { setD(x => ({ ...x, ...patch })); setDirty(true) }
+  const endr = (patch) => { setD(x => ({ ...x, ...patch })); merkEndra() }
 
   // ── Vindauge ──
   const [geo, setGeo] = useState(() => {
@@ -82,7 +90,7 @@ export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, bruk
 
   // ── Lagra varsel ──
   const lastListe = async () => {
-    const { data, error } = await supabase.from('framdrift_endringsvarsel').select('id, tittel, status, updated_at').eq('project_id', prosjekt.id).order('updated_at', { ascending: false })
+    const { data, error } = await supabase.from('framdrift_endringsvarsel').select('id, tittel, status, updated_at, utsending:innhald->utsending->>status').eq('project_id', prosjekt.id).order('updated_at', { ascending: false })
     if (error) { setMelding('Klarte ikkje hente lagra varsel: ' + error.message + ' (er tabellen framdrift_endringsvarsel oppretta?)'); return }
     setListe(data || [])
   }
@@ -93,22 +101,45 @@ export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, bruk
     if (!valId) { setId(null); setTittel(''); setStatus('utkast'); setD(tomt(brukarNamn)); setDirty(false); setMelding(''); return }
     const { data, error } = await supabase.from('framdrift_endringsvarsel').select('*').eq('id', valId).single()
     if (error) { setMelding('Klarte ikkje opne varselet: ' + error.message); return }
-    setId(data.id); setTittel(data.tittel || ''); setStatus(data.status); setD({ ...tomt(brukarNamn), ...data.innhald }); setDirty(false); setMelding('')
+    setId(data.id); setTittel(data.tittel || ''); setStatus(data.status); setD({ ...tomt(brukarNamn), ...data.innhald, utsending: { ...tomt().utsending, ...(data.innhald?.utsending || {}) } }); setDirty(false); setMelding('')
   }
-  const lagre = async (nyStatus) => {
-    if (!tittel.trim()) { setMelding('Skriv ein tittel på endringa først.'); return false }
-    setOpptatt(true); setMelding('')
-    const rad = { tittel: tittel.trim(), status: nyStatus, innhald: d, updated_at: new Date().toISOString() }
-    let feil
+  const lagre = async (nyStatus, stille) => {
+    if (!tittel.trim()) { if (!stille) setMelding('Skriv ein tittel på endringa først.'); return false }
+    if (lagrarRef.current) return false
+    lagrarRef.current = true; setOpptatt(true); if (!stille) setMelding('')
+    const teljar = revRef.current
+    const lagraStatus = d.utsending?.status && d.utsending.status !== 'Utkast' ? 'ferdig' : nyStatus      // sendt/godkjent/avvist er alltid «ferdig»
+    const rad = { tittel: tittel.trim(), status: lagraStatus, innhald: d, updated_at: new Date().toISOString() }
+    let feil, varselId = id
     if (id) ({ error: feil } = await supabase.from('framdrift_endringsvarsel').update(rad).eq('id', id))
     else {
       const { data, error } = await supabase.from('framdrift_endringsvarsel').insert({ ...rad, project_id: prosjekt.id, created_by: userId }).select('id').single()
-      feil = error; if (data) setId(data.id)
+      feil = error; if (data) { setId(data.id); varselId = data.id }
     }
-    setOpptatt(false)
+    lagrarRef.current = false; setOpptatt(false)
     if (feil) { setMelding('Klarte ikkje lagre: ' + feil.message); return false }
-    setStatus(nyStatus); setDirty(false); setMelding(nyStatus === 'utkast' ? 'Utkast lagra.' : 'Varselet er lagra som ferdig.'); lastListe()
+    setStatus(lagraStatus); setDirty(revRef.current !== teljar)
+    setMelding(stille ? 'Lagra automatisk.' : lagraStatus === 'utkast' ? 'Utkast lagra.' : 'Varselet er lagra som ferdig.'); lastListe()
+    synkEndringar(varselId)
     return true
+  }
+  // Statusen i varselet vert førd til endringane det er kopla til (kolonnen «Status» i endringstabellen) — berre når varselet er nytt for endringa
+  // eller utsendingsstatusen har endra seg, slik at ei manuell endring i tabellen ikkje vert overskrive ved kvar lagring.
+  const synkEndringar = (varselId) => {
+    if (!onSettEndringar) return
+    const u = d.utsending || {}
+    const dato = u.status === 'Sendt til kunde' ? (u.sendtDato || idag()) : (u.status === 'Godkjent' || u.status === 'Avvist') ? (u.svarDato || idag()) : (d.dato || idag())
+    const harKost = (v) => !!(v && (v.timar || v.fastpris || v.timepris))
+    const patchar = []
+    for (const k of d.endringar) {
+      const en = endringar.find(x => x.id === k.id); if (!en) continue
+      if (en.varselId === varselId && en.varselStatus === u.status) { if (en.varselTittel !== tittel.trim()) patchar.push({ akt: en.akt, id: en.id, patch: { varselTittel: tittel.trim() } }); continue }
+      patchar.push({ akt: en.akt, id: en.id, patch: { status: u.status, statusDato: dato, varselId, varselStatus: u.status, varselTittel: tittel.trim() }, kanKopiere: u.status === 'Godkjent' && !harKost(en.god) && harKost(en.rev) ? en.rev : null })
+    }
+    if (!patchar.length) return
+    const kopi = patchar.filter(p => p.kanKopiere)
+    const kopier = kopi.length > 0 && window.confirm('Kunden har godkjent varselet. Skal dei reviderte kostnadene bli førte til «Godkjent av kunde» for ' + kopi.length + ' endring' + (kopi.length > 1 ? 'ar' : '') + ' der dette feltet er tomt?')
+    onSettEndringar(patchar.map(p => ({ akt: p.akt, id: p.id, patch: kopier && p.kanKopiere ? { ...p.patch, god: { ...p.kanKopiere } } : p.patch })))
   }
   const slettVarsel = async () => {
     if (!id || !window.confirm('Slette endringsvarselet «' + tittel + '»? Dette kan ikkje angrast.')) return
@@ -116,6 +147,12 @@ export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, bruk
     if (error) { setMelding('Klarte ikkje slette: ' + error.message); return }
     setId(null); setTittel(''); setD(tomt(brukarNamn)); setDirty(false); setMelding('Varselet er sletta.'); lastListe()
   }
+  // Autolagring: eit varsel som alt er lagra vert lagra på nytt 12 s etter siste endring (nye varsel må lagrast ein gong manuelt)
+  useEffect(() => {
+    if (!dirty || !id || !tittel.trim()) return
+    const t = setTimeout(() => { lagre(status, true) }, 12000)
+    return () => clearTimeout(t)
+  }, [d, tittel, dirty, id, status]) // eslint-disable-line react-hooks/exhaustive-deps
   const lukkKnapp = () => { if (dirty) setSpør(true); else onLukk() }
 
   // ── Koplingar til endringstabellen ──
@@ -134,6 +171,55 @@ export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, bruk
     }
     if (!nye.length) { setMelding('Ingen nye kostnader å hente (endringane er tomme eller alt henta).'); return }
     endr({ honorar: [...d.honorar, ...nye] }); setMelding(`${nye.length} honorarlinje(r) henta frå endringstabellen (reviderte verdiar).`)
+  }
+  // Før honorarlinjene tilbake til «Revidert»-kolonnene i endringstabellen (timar, fastpris, vekta timepris per endring)
+  const fyrTilbake = () => {
+    if (!onSettEndringar) return
+    const patchar = [], oppsum = [], hoppa = []
+    for (const k of kopla) {
+      const en = endringar.find(x => x.id === k.id); if (!en) continue
+      let linjer = d.honorar.filter(h => h.endring === k.id)
+      if (kopla.filter(x => String(x.akt) === String(k.akt)).length === 1) linjer = linjer.concat(d.honorar.filter(h => !h.endring && String(h.akt) === String(k.akt)))
+      if (!linjer.length) continue
+      if (en.overfort) { hoppa.push(en.nr || en.namn); continue }
+      const timar = linjer.reduce((a, h) => a + (h.timar || 0), 0), fast = linjer.reduce((a, h) => a + (h.fastpris || 0), 0)
+      const produkt = linjer.reduce((a, h) => a + (h.timar || 0) * (h.timepris || 0), 0)
+      const timepris = timar ? Math.round(produkt / timar * 100) / 100 || null : (linjer.find(h => h.timepris)?.timepris || null)
+      patchar.push({ akt: en.akt, id: en.id, patch: { rev: { ...(en.rev || {}), timar: timar || null, fastpris: fast || null, timepris } } })
+      oppsum.push((en.nr || en.namn || '?') + ': ' + (timar ? String(timar).replace('.', ',') + ' t' : '0 t') + (timepris ? ' à kr ' + kr(timepris) : '') + (fast ? ' + fastpris kr ' + kr(fast) : ''))
+    }
+    if (!patchar.length) { setMelding(hoppa.length ? 'Ingen endringar å føre tilbake: ' + hoppa.join(', ') + ' er alt lagt til aktiviteten.' : 'Ingen endringar å føre tilbake — kople honorarlinjene til ei endring (kolonnen «Endring»).'); return }
+    if (!window.confirm('Føre honorarlinjene tilbake til «Revidert» i endringstabellen? Eksisterande reviderte verdiar for desse endringane vert erstatta:\n\n' + oppsum.join('\n') + (hoppa.length ? '\n\nHoppar over (alt lagt til aktiviteten): ' + hoppa.join(', ') : '') + '\n\nUtgifter har ingen kolonne i endringstabellen og vert ikkje førte tilbake.')) return
+    onSettEndringar(patchar); setMelding(patchar.length + ' endring' + (patchar.length > 1 ? 'ar' : '') + ' oppdatert i endringstabellen.')
+  }
+  const settUtsending = (patch) => endr({ utsending: { ...d.utsending, ...patch } })
+  const byttStatus = (ny) => {
+    const u = d.utsending; if (ny === u.status) return
+    const patch = { status: ny }
+    if (ny === 'Sendt til kunde' && !u.sendtDato) patch.sendtDato = idag()
+    if ((ny === 'Godkjent' || ny === 'Avvist') && !u.svarDato) patch.svarDato = idag()
+    const dato = ny === 'Sendt til kunde' ? (patch.sendtDato || u.sendtDato) : (ny === 'Godkjent' || ny === 'Avvist') ? (patch.svarDato || u.svarDato) : idag()
+    patch.logg = [...(u.logg || []), { status: ny, dato, av: brukarNamn || '', tekst: '' }]
+    settUtsending(patch)
+  }
+  const byggPdf = () => lagVarselPdf({ innhald: d, tittel: tittel.trim(), prosjektNamn: prosjekt.name, prosjektNr: prosjekt.projectNumber, aktNamn, brukar: brukarNamn })
+  const lastNedVarsel = async () => {
+    setOpptatt(true)
+    try { const b = await byggPdf(); lastNedPdf(b, varselFilnamn(tittel.trim(), prosjekt.projectNumber)); setMelding('PDF laga.') }
+    catch (e) { setMelding('Klarte ikkje lage PDF: ' + e.message) }
+    setOpptatt(false)
+  }
+  const pdfSomVedlegg = async () => {
+    setOpptatt(true)
+    try {
+      const b = await byggPdf(), namn = varselFilnamn(tittel.trim(), prosjekt.projectNumber)
+      const sti = `${userId}/${prosjekt.id}/endringsvarsel/${d.mappe}/${Date.now().toString(36)}_${rensNamn(namn)}`
+      const { error } = await supabase.storage.from('dtm-resultatdokument').upload(sti, new Blob([b], { type: 'application/pdf' }), { contentType: 'application/pdf' })
+      if (error) throw error
+      setD(x => ({ ...x, vedlegg: [...x.vedlegg, { id: nyId(), kilde: 'fil', namn, sti, storleik: b.length }] })); merkEndra()
+      setMelding('PDF-en er lagt til som vedlegg (lagre varselet for å ta vare på det).')
+    } catch (e) { setMelding('Klarte ikkje lagre PDF som vedlegg: ' + (e.message || e)) }
+    setOpptatt(false)
   }
   const standardAkt = () => kopla[0]?.akt ?? aktivitetar[0]?.id ?? ''
 
@@ -164,7 +250,7 @@ export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, bruk
       if (error) { setMelding('Klarte ikkje laste opp «' + fil.name + '»: ' + error.message); continue }
       nye.push({ id: nyId(), kilde: 'fil', namn: fil.name, sti, storleik: fil.size })
     }
-    if (nye.length) setD(x => ({ ...x, vedlegg: [...x.vedlegg, ...nye] })), setDirty(true)
+    if (nye.length) setD(x => ({ ...x, vedlegg: [...x.vedlegg, ...nye] })), merkEndra()
   }
   const opneVedlegg = async (v) => {
     if (v.kilde !== 'fil') return
@@ -200,11 +286,11 @@ export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, bruk
           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px 11px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0, cursor: geo.maks ? 'default' : 'move', userSelect: 'none', background: 'var(--bg3)', borderRadius: geo.maks ? 0 : 'var(--r2) var(--r2) 0 0' }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             Endringsvarsel — {prosjekt.projectNumber ? prosjekt.projectNumber + ' ' : ''}{prosjekt.name}
-            <span style={{ fontSize: 11.5, fontWeight: 700, marginLeft: 10, padding: '2px 8px', borderRadius: 10, background: status === 'ferdig' ? 'var(--success)' : 'var(--bg4)', color: status === 'ferdig' ? '#fff' : 'var(--text2)' }}>{id ? (status === 'ferdig' ? 'Ferdig' : 'Utkast') : 'Nytt'}{dirty ? ' · ulagra' : ''}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, marginLeft: 10, padding: '2px 8px', borderRadius: 10, background: id ? (ENDR_STATUS_FARGE[d.utsending?.status] || 'var(--bg4)') : 'var(--bg4)', color: id ? '#fff' : 'var(--text2)' }}>{id ? (d.utsending?.status || 'Utkast') + (status === 'ferdig' && (d.utsending?.status || 'Utkast') === 'Utkast' ? ' · ferdig' : '') : 'Nytt'}{dirty ? ' · ulagra' : ''}</span>
           </div>
           <select value={id || ''} onChange={e => opne(e.target.value ? Number(e.target.value) : null)} style={{ ...INNFELT, width: 230 }} title="Opne eit lagra varsel">
             <option value="">＋ Nytt varsel</option>
-            {liste.map(v => <option key={v.id} value={v.id}>{v.tittel || '(utan tittel)'} · {v.status === 'ferdig' ? 'ferdig' : 'utkast'}</option>)}
+            {liste.map(v => <option key={v.id} value={v.id}>{v.tittel || '(utan tittel)'} · {v.utsending || (v.status === 'ferdig' ? 'ferdig' : 'utkast')}</option>)}
           </select>
           <button onClick={veksleMaks} title={geo.maks ? 'Gjenopprett storleik' : 'Maksimer'} style={{ background: 'none', border: 'none', fontSize: 17, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, padding: '2px 6px' }}>{geo.maks ? '❐' : '☐'}</button>
           <button onClick={lukkKnapp} title="Lukk" style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1, padding: '0 6px' }}>×</button>
@@ -212,7 +298,7 @@ export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, bruk
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 22px 22px', pointerEvents: dra ? 'none' : 'auto' }}>
           <div style={ETT}>Tittel på endringa</div>
-          <input value={tittel} onChange={e => { setTittel(e.target.value); setDirty(true) }} placeholder="Tittel" style={FELT}/>
+          <input value={tittel} onChange={e => { setTittel(e.target.value); merkEndra() }} placeholder="Tittel" style={FELT}/>
 
           <div style={ETT}>Endringsnummer (frå endringstabellen)</div>
           {endringar.length === 0 ? <div style={{ fontSize: 12.5, color: 'var(--text3)' }}>Ingen endringar er førte opp i endringstabellen enno. Legg dei til under «Endringar» nederst i Prosjektplan.</div> : (
@@ -247,17 +333,24 @@ export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, bruk
             <div style={{ ...ETT, display: 'flex', alignItems: 'center', gap: 10 }}>
               Honorar
               <button onClick={hentKostnader} disabled={!kopla.length} style={{ ...knapp(false), padding: '3px 10px', fontSize: 11.5, textTransform: 'none', letterSpacing: 0, opacity: kopla.length ? 1 : .5 }} title="Hentar reviderte verdiar frå valde endringar i endringstabellen">↓ Hent frå valde endringar</button>
+              <button onClick={fyrTilbake} disabled={!kopla.length || !d.honorar.length} style={{ ...knapp(false), padding: '3px 10px', fontSize: 11.5, textTransform: 'none', letterSpacing: 0, opacity: kopla.length && d.honorar.length ? 1 : .5 }} title="Skriv honorarlinjene tilbake til Revidert-kolonnene i endringstabellen">↑ Før tilbake til endringstabellen</button>
             </div>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ borderCollapse: 'collapse', minWidth: 900 }}>
+              <table style={{ borderCollapse: 'collapse', minWidth: 1040 }}>
                 <thead><tr>
-                  <th style={{ ...TH, textAlign: 'left' }}>Aktivitet</th><th style={{ ...TH, textAlign: 'left' }}>Beskriving</th>
+                  <th style={{ ...TH, textAlign: 'left' }}>Aktivitet</th><th style={{ ...TH, textAlign: 'left' }} title="Kva endring i endringstabellen linja høyrer til (brukt ved tilbakeføring)">Endring</th><th style={{ ...TH, textAlign: 'left' }}>Beskriving</th>
                   <th style={TH}>Timebudsjett (t)</th><th style={TH}>Timepris (kr/t)</th><th style={TH}>Timer × pris (kr)</th><th style={TH}>Endring fastpris (kr)</th><th style={TH}>Sum (kr)</th><th style={{ ...TH, width: 24 }}/>
                 </tr></thead>
                 <tbody>
                   {d.honorar.map(h => (
                     <tr key={h.id}>
                       <td style={{ ...TD, textAlign: 'left' }}>{aktVal(h.akt, v => settHon(h.id, { akt: v }))}</td>
+                      <td style={{ ...TD, textAlign: 'left' }}>
+                        <select value={h.endring || ''} onChange={e => settHon(h.id, { endring: e.target.value || null })} style={{ ...INNFELT, width: 120 }}>
+                          <option value="">(ingen)</option>
+                          {kopla.map(k => <option key={k.id} value={k.id}>{k.nr || k.namn || '?'}</option>)}
+                        </select>
+                      </td>
                       <td style={{ ...TD, textAlign: 'left' }}><input value={h.tekst || ''} onChange={e => settHon(h.id, { tekst: e.target.value })} style={{ ...INNFELT, width: 230, fontFamily: 'var(--font)' }}/></td>
                       <td style={TD}><TalFelt verdi={h.timar || ''} onLagre={v => settHon(h.id, { timar: tilTal(v) })}/></td>
                       <td style={TD}><TalFelt verdi={h.timepris || ''} onLagre={v => settHon(h.id, { timepris: tilTal(v) })}/></td>
@@ -349,11 +442,46 @@ export default function FramdriftEndringsvarsel({ onLukk, prosjekt, userId, bruk
             <input value={d.utarbeidd} onChange={e => endr({ utarbeidd: e.target.value })} placeholder="Namn" style={{ ...FELT, width: 280 }}/>
             <input type="date" value={d.dato} onChange={e => endr({ dato: e.target.value })} style={{ ...FELT, width: 170 }}/>
           </div>
+
+          <div style={ETT}>Utsending til kunde</div>
+          <div style={{ padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--bg)' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)' }}>Status</span>
+              <select value={d.utsending.status} onChange={e => byttStatus(e.target.value)} style={{ ...FELT, width: 190, fontWeight: 800, color: ENDR_STATUS_FARGE[d.utsending.status] }}>
+                {ENDR_STATUSAR.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <span style={{ fontSize: 11.5, color: 'var(--text3)' }}>Statusen vert førd til endringane varselet er kopla til (kolonnen «Status» i endringstabellen) når du lagrar.</span>
+            </div>
+            {d.utsending.status !== 'Utkast' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 10, marginTop: 10 }}>
+                <div><div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text3)', marginBottom: 3 }}>Sendt dato</div><input type="date" value={d.utsending.sendtDato || ''} onChange={e => settUtsending({ sendtDato: e.target.value })} style={FELT}/></div>
+                <div><div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text3)', marginBottom: 3 }}>Sendt til (kontaktperson)</div><input value={d.utsending.sendtTil || ''} onChange={e => settUtsending({ sendtTil: e.target.value })} placeholder="Namn / e-post" style={FELT}/></div>
+                <div><div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text3)', marginBottom: 3 }}>Sendt via</div>
+                  <select value={d.utsending.sendtMetode || 'E-post'} onChange={e => settUtsending({ sendtMetode: e.target.value })} style={FELT}>{['E-post', 'Post', 'Prosjektweb', 'Møte', 'Anna'].map(t => <option key={t}>{t}</option>)}</select></div>
+                {(d.utsending.status === 'Godkjent' || d.utsending.status === 'Avvist') && (<>
+                  <div><div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text3)', marginBottom: 3 }}>{d.utsending.status === 'Godkjent' ? 'Godkjent dato' : 'Avvist dato'}</div><input type="date" value={d.utsending.svarDato || ''} onChange={e => settUtsending({ svarDato: e.target.value })} style={FELT}/></div>
+                  <div><div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text3)', marginBottom: 3 }}>Svar frå</div><input value={d.utsending.svarFra || ''} onChange={e => settUtsending({ svarFra: e.target.value })} placeholder="Namn hos kunden" style={FELT}/></div>
+                </>)}
+              </div>
+            )}
+            {d.utsending.status !== 'Utkast' && (<>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text3)', margin: '10px 0 3px' }}>Merknad</div>
+              {tekstFelt(d.utsending.merknad || '', v => settUtsending({ merknad: v }), 2, 'Til dømes kva kunden svara …')}
+            </>)}
+            {(d.utsending.logg || []).length > 0 && (
+              <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--text2)' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text3)', marginBottom: 3 }}>Logg</div>
+                {d.utsending.logg.map((l, i) => <div key={i}><span style={{ fontFamily: 'var(--mono)' }}>{(l.dato || '').split('-').reverse().join('.')}</span> · <b style={{ color: ENDR_STATUS_FARGE[l.status] }}>{l.status}</b>{l.av ? ' · ' + l.av : ''}</div>)}
+              </div>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderTop: '1px solid var(--border)', flexShrink: 0, flexWrap: 'wrap' }}>
           {melding && <span style={{ fontSize: 12.5, color: /^Klarte|Skriv|Ingen/.test(melding) ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>{melding}</span>}
           <div style={{ flex: 1 }}/>
+          <button onClick={lastNedVarsel} disabled={opptatt} style={knapp(false)} title="Lag ein PDF av varselet slik det står no">⬇ PDF</button>
+          <button onClick={pdfSomVedlegg} disabled={opptatt} style={knapp(false)} title="Lag PDF og legg han til som vedlegg i varselet (t.d. versjonen som vart sendt)">PDF → vedlegg</button>
           {id && <button onClick={slettVarsel} style={{ ...knapp(false), color: 'var(--danger)', borderColor: 'var(--danger)' }}>Slett</button>}
           <button onClick={() => lagre('utkast')} disabled={opptatt} style={knapp(false)}>Lagre utkast</button>
           <button onClick={() => lagre('ferdig')} disabled={opptatt} style={knapp(true)}>Lagre som ferdig</button>

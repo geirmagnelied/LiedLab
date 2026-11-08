@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { likeDelar, fordelPaaUlaaste } from './FramdriftPersonarPanel'
 import { prisFor } from './framdriftTimar'
-import { BTYPAR, normAktType } from './framdriftVerdiar'
+import { BTYPAR, normAktType, ENDR_STATUSAR, ENDR_STATUS_FARGE } from './framdriftVerdiar'
 import { personerMedForbruk, faktiskFor, nokkelNamn } from './framdriftForbruk'
 import { personFarge } from './personFarge'
 
@@ -125,10 +125,10 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
   const produktCelle = (en, g) => <td style={{ ...TD, ...GRAA, minWidth: 84 }} title="Timebudsjett × timepris">{krTekst((en[g]?.timar || 0) * (en[g]?.timepris || 0))}</td>
   return (
     <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-      <table style={{ borderCollapse: 'collapse', minWidth: 1560, width: '100%' }}>
+      <table style={{ borderCollapse: 'collapse', minWidth: 1800, width: '100%' }}>
         <thead>
           <tr>
-            <th style={{ ...TH2, textAlign: 'left' }} colSpan={4}/>
+            <th style={{ ...TH2, textAlign: 'left' }} colSpan={6}/>
             <th style={GRP} colSpan={4}>Revidert (frå kontoret)</th>
             <th style={GRP} colSpan={4}>Godkjent av kunde</th>
             <th style={{ ...TH2, ...VENSTRE }} colSpan={2}/>
@@ -138,6 +138,8 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
             <th style={{ ...TH2, textAlign: 'left', width: 230 }}>Namn på endring</th>
             <th style={{ ...TH2, textAlign: 'left', width: 220 }}>Aktivitet</th>
             <th style={{ ...TH2, textAlign: 'left', width: 140 }}>Aktivitetstype</th>
+            <th style={{ ...TH2, textAlign: 'left', width: 140 }} title="Utkast → Sendt til kunde → Godkjent / Avvist. Vert sett automatisk frå endringsvarselet, men kan òg endrast her.">Status</th>
+            <th style={{ ...TH2, textAlign: 'left', width: 118 }}>Statusdato</th>
             {[0, 1].map(i => (
               <Fragment key={i}>
                 <th style={{ ...TH2, ...VENSTRE }}>Timebudsjett (t)</th>
@@ -166,6 +168,17 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
                   {BTYPAR.map(t => <option key={t} value={t}>{t || '(ikkje sett)'}</option>)}
                 </select>
               </td>
+              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
+                <select value={en.status || ''} title={en.varselTittel ? 'Endringsvarsel: ' + en.varselTittel : 'Ikkje kopla til eit endringsvarsel'}
+                  onChange={e => onSett(en.akt, en.id, { status: e.target.value, statusDato: e.target.value ? new Date().toISOString().slice(0, 10) : '' })}
+                  style={{ ...INNFELT, width: 130, fontWeight: 700, color: ENDR_STATUS_FARGE[en.status] || 'var(--text3)' }}>
+                  <option value="">(ingen)</option>
+                  {ENDR_STATUSAR.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </td>
+              <td style={{ ...TD, textAlign: 'left', fontFamily: 'var(--font)' }}>
+                <input type="date" value={en.statusDato || ''} disabled={!en.status} onChange={e => onSett(en.akt, en.id, { statusDato: e.target.value })} style={{ ...INNFELT, width: 112 }}/>
+              </td>
               {talCelle(en, 'rev', 'timar', VENSTRE)}{talCelle(en, 'rev', 'fastpris')}{talCelle(en, 'rev', 'timepris')}{produktCelle(en, 'rev')}
               {talCelle(en, 'god', 'timar', VENSTRE)}{talCelle(en, 'god', 'fastpris')}{talCelle(en, 'god', 'timepris')}{produktCelle(en, 'god')}
               <td style={{ ...TD, ...VENSTRE, textAlign: 'center', fontFamily: 'var(--font)' }}>
@@ -193,7 +206,7 @@ function EndringsRegister({ aktivitetar, endringar, valgtId, nesteNr, onNy, onSe
                 {aktivitetar.map(a => <option key={a.id} value={a.id}>{a.kode ? a.kode + ' ' : ''}{a.namn}</option>)}
               </select>
             </td>
-            {Array.from({ length: 9 }, (_, i) => <td key={i} style={{ ...TD, ...(i % 4 === 1 ? VENSTRE : {}) }}/>)}
+            {Array.from({ length: 11 }, (_, i) => <td key={i} style={{ ...TD, ...(i === 3 || i === 7 ? VENSTRE : {}) }}/>)}
             <td style={{ ...TD, ...VENSTRE, textAlign: 'center' }}>
               <button className="fd-knapp hovud" style={{ padding: '2px 10px', fontSize: 12 }} disabled={!aktId} onClick={legg} title="Legg til endringa — fyll deretter inn kostnadane i rada">＋ Legg til</button>
             </td>

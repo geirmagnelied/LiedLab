@@ -320,6 +320,14 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   }
   const settEndring = (aktId, id, patch) => settEndringar(aktId, l => l.map(x => (x.id === id ? { ...x, ...patch } : x)))
   const slettEndring = (aktId, id) => settEndringar(aktId, l => l.filter(x => x.id !== id))
+  // Fleire endringar (på ulike aktivitetar) i éin lagring — brukt av endringsvarselet (status, tilbakeføring av kostnader)
+  const settEndringarSamla = (liste) => {
+    if (!liste.length) return
+    oppdater(elementer.map(e => {
+      const mine = liste.filter(x => String(x.akt) === String(e.id)); if (!mine.length) return e
+      return { ...e, endringar: (e.endringar || []).map(en => { const m = mine.find(x => x.id === en.id); return m ? { ...en, ...m.patch } : en }) }
+    }))
+  }
   const flyttEndring = (fra, til, id) => {
     if (fra === til) return
     const en = (elementer.find(e => e.id === fra)?.endringar || []).find(x => x.id === id)
@@ -788,7 +796,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>＋ Legg til endring</button>
         </div>
       </>)}
-      {endrVarselOpen && aktivtProsjekt && <FramdriftEndringsvarsel onLukk={() => setEndrVarselOpen(false)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn} aktivitetar={aktivitetarFlat} endringar={endringsliste}/>}
+      {endrVarselOpen && aktivtProsjekt && <FramdriftEndringsvarsel onLukk={() => setEndrVarselOpen(false)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn} aktivitetar={aktivitetarFlat} endringar={endringsliste} onSettEndringar={settEndringarSamla}/>}
       {rapportStart && aktivtProsjekt && <FramdriftRapportModal key={rapportStart} startValg={rapportStart} onLukk={() => setRapportStart(null)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn}
         elementer={elBase} forbrukRader={forbrukRader} personell={personell} kal={kal}/>}
       {forbrukOpen && aktivtProsjekt && <FramdriftForbrukModal userId={userId} prosjekt={aktivtProsjekt} elementer={elementer} onLukk={() => setForbrukOpen(false)} onFerdig={(r) => { setForbrukOpen(false); if (r?.nyeAktivitetar?.length) opprettAktivitetar(r.nyeAktivitetar); lastForbruk() }}/>}

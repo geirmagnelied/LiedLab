@@ -39,6 +39,9 @@ const TYPE_NAMN = { fase: 'Fase', aktivitet: 'Aktivitet', milepael: 'Milepæl' }
 export const REDIGERBARE = new Set(['namn', 'kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'btype', 'budsjett', 'timerate', 'timar', 'palopTimar', 'palopHonorar'])
 // Aktivitetstype (lagra i e.budsjettType). Eldre verdiar (Budsjettpris, Ufakturerbart) vert vist som Budsjett / Ufakturerbar.
 export const BTYPAR = ['', 'Budsjett', 'Fastpris', 'Budsjett med tak', 'Ufakturerbar', 'Opplæring']
+// Status for endringar / endringsvarsel (lagra på endringa som `status` + `statusDato`, og i varselet under `utsending`).
+export const ENDR_STATUSAR = ['Utkast', 'Sendt til kunde', 'Godkjent', 'Avvist']
+export const ENDR_STATUS_FARGE = { 'Utkast': '#6b7280', 'Sendt til kunde': '#1d5fd1', 'Godkjent': '#15803d', 'Avvist': '#c0262d' }
 export const normAktType = (v) => {
   const t = String(v || '').trim().toLowerCase()
   if (!t) return ''
