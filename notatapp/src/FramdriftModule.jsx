@@ -14,6 +14,7 @@ import { personFargeKart } from './personFarge'
 import { eksporterExcel } from './framdriftEksport'
 import FramdriftRapportModal from './FramdriftRapportModal'
 import FramdriftEndringsvarsel from './FramdriftEndringsvarsel'
+import { LagreStatusVindauge, HentStatusVindauge } from './FramdriftStatusModal'
 import FramdriftForbrukModal from './FramdriftForbrukModal'
 import { FdMeny, MenyPunkt, MenyTittel, MenySkilje, PalopInnanMeny } from './FramdriftVerktoy'
 import { palopSlutt } from './framdriftPalop'
@@ -120,6 +121,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const [fdVis, setFdVisRaa] = useState(() => lsJson('liedlab-framdrift-vis', { eining: 'timar', delsummer: false }))   // Visning: eining i veke-kolonnane og delsummer
   const setFdVis = (patch) => setFdVisRaa(v => { const n = { ...v, ...patch }; try { localStorage.setItem('liedlab-framdrift-vis', JSON.stringify(n)) } catch { /* privat modus */ } return n })
   const [eksporterer, setEksporterer] = useState(false)
+  const [statusVindauge, setStatusVindauge] = useState(null)   // 'lagre' | 'hent' — Lagre status-menyen
   const [endrVarselOpen, setEndrVarselOpen] = useState(false)   // vindauget «Ny endring» (endringsvarsel)
   const [rapportStart, setRapportStart] = useState(null)   // null = lukka, elles kva rapport vindauget startar på
   const [koblingMelding, setKoblingMelding] = useState(null)
@@ -404,7 +406,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
       const n = parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.'))
       settFelt(id, key, n >= 0 ? (key === 'palopTimar' ? Math.round(n * 2) / 2 : Math.round(n)) : null); return
     }
-    if (key === 'fordeling') { const f = ['fast', 'start', 'midt', 'slutt'].find(k => k === String(verdi).toLowerCase()); if (f) settFelt(id, 'fordeling', f); return }
+    if (key === 'fordeling') { const f = ['fast', 'start', 'midt', 'slutt'].find(k => k === String(verdi).toLowerCase()); if (f) settFelter(id, { fordeling: f, fordelingSett: true }); return }
     if (key === 'ferdig') {
       // å skrive eit tal i tabellen er ei skjønnsmessig vurdering → overstyrer utrekning frå leveransar
       const n = Math.max(0, Math.min(100, parseInt(verdi, 10) || 0))
@@ -450,6 +452,37 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     historikk.current = [...historikk.current.slice(-29), elRef.current]; setAngreAntal(historikk.current.length)
     batchRef.current = true
     ids.forEach((id, i) => setTimeout(() => { endreRef.current(id, key, verdi); if (i === ids.length - 1) batchRef.current = false }, i * 30))
+  }
+
+  // Påløpt (timar og honorar per aktivitet) til og med `til`, for lagra status
+  const byggPalopBilete = (til) => {
+    const kart = bygForbrukKart(kopleForbruk(elementer, forbrukRader.filter(r => r.dato <= til)).perAkt)
+    const prisarMap = prisKartFra(personell), ut = {}
+    for (const e of elBase) {
+      const a = e.type === 'aktivitet' ? kart.get(e.id) : null
+      if (!a || harBorn(elBase, e.id)) continue
+      const delar = personDelar(e), snitt = snittpris(e, prisarMap).pris
+      let kost = 0
+      for (const [namn, p] of a.personer) { const d = delar.find(x => nokkelNamn(x.namn) === nokkelNamn(namn)); kost += p.total * ((d ? prisFor(d, prisarMap) : rateUtanPlan(e, namn, prisarMap)) || snitt || 0) }
+      ut[e.id] = { timar: Math.round(a.total * 100) / 100, honorar: Math.round(kost) }
+    }
+    return ut
+  }
+  const hentStatusPlan = (els, namn) => { oppdater(els); setValgt(null); setValde(new Set()); setStatusVindauge(null); setKoblingMelding('Status «' + namn + '» er henta fram (kan angrast med «Angre»).'); setTimeout(() => setKoblingMelding(null), 6000) }
+  // Faktisk framdrift (timevekta) = % av budsjett/fastpris som er brukt (påløpt honorar ÷ budsjett), for alle aktivitetar med budsjett
+  const justerFramdriftTilForbruk = () => {
+    const prisarMap = prisKartFra(personell), nye = new Map()
+    for (const e of elEff) {
+      if (e.type !== 'aktivitet' || erSumm(elementer, e)) continue
+      const snitt = snittpris(e, prisarMap).pris || 0
+      const bud = +e.budsjett > 0 ? +e.budsjett : Math.round((+e.timar || 0) * snitt)
+      if (!(bud > 0)) continue
+      const kr = e.palopHonorar != null && e.palopHonorar !== '' ? +e.palopHonorar : (+e.palopTimar || 0) * snitt
+      nye.set(e.id, Math.max(0, Math.min(100, Math.round((kr / bud) * 100))))
+    }
+    if (!nye.size) { window.alert('Ingen aktivitetar har budsjett eller fastpris å rekne prosent av.'); return }
+    if (!window.confirm('Sette faktisk framdrift for ' + nye.size + ' aktivitetar lik prosent av budsjett/fastpris som er brukt (påløpt honorar ÷ budsjett, maks 100 %)?\n\nDette overstyrer framdrift frå leveransar og skjønn. Du kan angre med «Angre».')) return
+    oppdater(elementer.map(e => (nye.has(e.id) ? { ...e, ferdig: nye.get(e.id), ferdigModus: 'skjonn' } : e)))
   }
 
   const eksporter = async (medTidslinje) => {
@@ -612,7 +645,12 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <MenyPunkt tittel="Rapport til kunde" under="Aktivitet, ansvarleg, budsjett · påløpt totalt · vald periode · prognose" onClick={() => { lukk(); setRapportStart('std-kunde') }}/>
             <MenyPunkt tittel="Intern rapport" under="Som kunderapporten, med timar, timerate, avvik og venta sluttkostnad" onClick={() => { lukk(); setRapportStart('std-intern') }}/>
             <MenySkilje/>
+            <MenyPunkt tittel="Sett framdrift = % brukt…" under="Faktisk framdrift timevekta lik prosent av budsjett/fastpris som er brukt" onClick={() => { lukk(); justerFramdriftTilForbruk() }}/>
             <MenyPunkt tittel="Eigne og delte rapportar…" under="Opne ein lagra rapport, eller lag ein ny" onClick={() => { lukk(); setRapportStart('std-kunde') }}/>
+          </>)}</FdMeny>
+          <FdMeny etikett="Lagre status" breidd={290} tittel="Lagre eit bilete av planen med påløpt, eller hent fram ein tidlegare status">{lukk => (<>
+            <MenyPunkt tittel="Lagre ny status…" under="Vel periode (rekneskapsmånad eller heile veker) og gje ei kort beskriving" onClick={() => { lukk(); setStatusVindauge('lagre') }}/>
+            <MenyPunkt tittel="Hent tidlegare lagra status…" under="Oversikt over lagra statusar og siste kladd" onClick={() => { lukk(); setStatusVindauge('hent') }}/>
           </>)}</FdMeny>
           <FdMeny etikett="PNS" breidd={270} disabled={!elementer.length} tittel="Prosjektnedbrytingsstruktur — vel kor mange nivå som skal vere opne">{lukk => (<>
             <MenyTittel>Vis til og med nivå</MenyTittel>
@@ -852,6 +890,9 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
           </div>
         </>)
       })()}
+      {statusVindauge === 'lagre' && aktivtProsjekt && <LagreStatusVindauge onLukk={() => setStatusVindauge(null)} prosjekt={aktivtProsjekt} userId={userId} elementer={elementer} byggPalop={byggPalopBilete}
+        onLagra={(m) => { setStatusVindauge(null); setKoblingMelding(m); setTimeout(() => setKoblingMelding(null), 6000) }}/>}
+      {statusVindauge === 'hent' && aktivtProsjekt && <HentStatusVindauge onLukk={() => setStatusVindauge(null)} prosjekt={aktivtProsjekt} userId={userId} elementer={elementer} onHent={hentStatusPlan}/>}
       {endrVarselOpen && aktivtProsjekt && <FramdriftEndringsvarsel onLukk={() => setEndrVarselOpen(false)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn} aktivitetar={aktivitetarFlat} endringar={endringsliste} onSettEndringar={settEndringarSamla}/>}
       {rapportStart && aktivtProsjekt && <FramdriftRapportModal key={rapportStart} kontorNamn={kontorNamn} dokMap={dokMap} startValg={rapportStart} onLukk={() => setRapportStart(null)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn}
         elementer={elBase} forbrukRader={forbrukRader} personell={personell} kal={kal}/>}

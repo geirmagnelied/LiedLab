@@ -99,7 +99,7 @@ export default function FramdriftTimarPanel({ el, kal, personell, onEndre }) {
         {FORDELINGAR.map(f => {
           const pa = fordeling === f.key
           return (
-            <button key={f.key} type="button" title={f.tips} onClick={() => onEndre({ fordeling: f.key })}
+            <button key={f.key} type="button" title={f.tips} onClick={() => onEndre({ fordeling: f.key, fordelingSett: true })}
               style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 8px', borderRadius: 7, cursor: 'pointer',
                 fontFamily: 'var(--font)', fontSize: 12, fontWeight: 700, textAlign: 'left',
                 border: `1.5px solid ${pa ? 'var(--brand)' : 'var(--border)'}`, background: pa ? 'var(--brandbg)' : 'var(--bg2)',
@@ -120,7 +120,7 @@ export default function FramdriftTimarPanel({ el, kal, personell, onEndre }) {
       )}
       {fordeling === 'eigen' && (
         <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>
-          Eigen fordeling — dra stolpane opp/ned. <button className="fd-knapp" style={{ padding: '1px 8px', fontSize: 11 }} onClick={() => onEndre({ fordeling: 'fast', eigenVekt: null })}>Nullstill</button>
+          Eigen fordeling — dra stolpane opp/ned. <button className="fd-knapp" style={{ padding: '1px 8px', fontSize: 11 }} onClick={() => onEndre({ fordeling: 'fast', eigenVekt: null, fordelingSett: false })}>Nullstill</button>
         </div>
       )}
 
