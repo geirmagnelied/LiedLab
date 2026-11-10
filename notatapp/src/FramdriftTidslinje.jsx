@@ -36,9 +36,9 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
   const manadSum = zoom === 'manadsum'   // «Månad»: tidslinje med månadssummar (timar og påløpt honorar) — «Månad+» er den gamle månadsvisinga med vekenummer
   const dagB = (DAGB[manadSum ? 'manad' : zoom] || DAGB.veke) * skala
   // Ekstrakolonnar i tabellen til venstre for tidslinja (høgreklikk på overskrifta). Val vert hugsa på denne maskina.
-  const STANDARD_KOL = ['kode', 'start', 'slutt', 'ansvarleg', 'btype', 'ferdig', 'kpi', 'timar', 'budsjett', 'timerate']
-  const [valgteKol, setValgteKol] = useState(() => { try { const v = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v4')) ?? JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v3')); return Array.isArray(v) ? (v.includes('btype') ? v : [...v, 'btype']) : STANDARD_KOL } catch { return STANDARD_KOL } })
-  const lagreKol = (n) => { setValgteKol(n); try { localStorage.setItem('liedlab-framdrift-tl-kol-v4', JSON.stringify(n)) } catch { /* privat modus */ } }
+  const STANDARD_KOL = ['kode', 'start', 'slutt', 'ansvarleg', 'btype', 'ferdig', 'kpi', 'timar', 'budsjett', 'fastpris', 'timerate']
+  const [valgteKol, setValgteKol] = useState(() => { try { const n = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v5')); if (Array.isArray(n)) return n; const v = JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v4')) ?? JSON.parse(localStorage.getItem('liedlab-framdrift-tl-kol-v3')); const m = Array.isArray(v) ? (v.includes('btype') ? v : [...v, 'btype']) : STANDARD_KOL; return m.includes('budsjett') && !m.includes('fastpris') ? m.flatMap(k => (k === 'budsjett' ? [k, 'fastpris'] : [k])) : m } catch { return STANDARD_KOL } })
+  const lagreKol = (n) => { setValgteKol(n); try { localStorage.setItem('liedlab-framdrift-tl-kol-v5', JSON.stringify(n)) } catch { /* privat modus */ } }
   const [kolMeny, setKolMeny] = useState(null) // { x, y }
   const [persTotOpen, setPersTotOpen] = useState(false)
   const kolDefs = valgteKol.map(k => KOLONNE_DEF.find(d => d.key === k)).filter(Boolean)
@@ -509,7 +509,7 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
                   <div key={r.id} onClick={() => onVelg(r.src.id)} style={{ height: RAD_H, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', borderTop: '1px solid var(--border)', background: 'var(--bg3)', cursor: 'default' }}>
                     <div style={{ width: NAMN_B, flexShrink: 0, paddingLeft: 36 + (r.nivå || 0) * 20, paddingRight: 8, fontSize: 12.5, fontWeight: 800, color: 'var(--brand)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>∑ Sum {r.src.namn}</div>
                     {kolDefs.map(d => {
-                      const v = ['budsjett', 'timerate', 'timar', 'palopTimar', 'palopHonorar', 'gjenTimar', 'gjenBudsjett', 'kpi', 'ferdig'].includes(d.key) ? verdiar.verdi(r.src, d.key) : ''
+                      const v = ['budsjett', 'fastpris', 'timerate', 'timar', 'palopTimar', 'palopHonorar', 'gjenTimar', 'gjenBudsjett', 'kpi', 'ferdig'].includes(d.key) ? verdiar.verdi(r.src, d.key) : ''
                       return <div key={d.key} style={{ width: kb(d), flexShrink: 0, padding: '0 6px', textAlign: d.hogre ? 'right' : 'left', fontSize: 12, fontWeight: 800, color: d.key === 'kpi' ? kpiFarge(v) : 'var(--text)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                         {v === '' ? '' : d.key === 'kpi' ? (typeof v === 'number' ? v.toFixed(2).replace('.', ',') : v) : (typeof v === 'number' && d.key !== 'ferdig' ? v.toLocaleString('nb-NO') : v)}</div>
                     })}

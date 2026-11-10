@@ -295,3 +295,11 @@ Bygger på «Endringsvarsel — 8. nov. 2026» (tabellen `framdrift_endringsvars
 Ressursar som har ført timar (import) men ikkje er med i aktivitetens bemanning (`utanPlan`-rader i bemanningsregisteret) har no eit redigerbart ratefelt. Raten ligg på aktiviteten som `e.utanPlanRate` (`{ <namn med små bokstavar>: kr/t }`) og vert lest via `rateUtanPlan()` i framdriftTimar.js (fell tilbake til Personell-rate, deretter aktivitetens rate). Brukt i påløpt kostnad i rapport, tabell, tidslinje og importert forbruk.
 
 - 10. nov. 2026: «+/- budsjett» vert ikkje laga for aktivitetar utan planlagde (fordelte) timar. Summasjonar tel då berre med underaktivitetane som har plan. (Aktivitetstype Fastpris vert IKKJE unnateke.)
+
+## Rapport: kolonnar for avvik, framdrift og fastpris — 10. nov. 2026 (kveld)
+
+- **«+/- budsjett» er no kolonnar**, ikkje eigne rader: «+/- budsjett (kr/timar)» bak påløpt under «Påløpt akkumulert» (`avvikAkkKr/Timar`) og under «Påløpt i perioden» (`avvikPerKr/Timar`), fargekoda per celle (`farge`/`fargePer`) på aktivitet, person, summasjon, delsum og totalrad. Avviket er rekna i `lagTal` (0 utan plan) og summerast oppover; fargen er avvik ÷ planlagd. Kolonnane er med i begge standardrapportane.
+- **Ingen samanlikning når berre budsjett er lagt inn**: `planlagdIntervall` gir 0 for `modus === 'budsjett'` (timane er utleidde frå budsjettet, ikkje fordelte på veker) og for aktivitetar utan fordelte timar.
+- Prognosen har grå (ikkje blå) overskrift (+ det svake grå sløret i radene).
+- **Intern rapport: «% faktisk framdrift (timevekta)»** (`ferdigPct`, seksjon Påløpt akkumulert): aktivitetens effektive ferdig-% (`effektivFerdig`), og for summasjonar/total vekta med planlagde timar (`ferdigVekt`). Kravde `dokMap` inn i `byggRapportData`.
+- **Fastpris vs. budsjett**: Fastpris (kontraktsbeløp) og Budsjett (medgått tid) ligg framleis i same felt `e.budsjett`, men vert viste i kvar si kolonne etter aktivitetstype (`erFastpris`). Ny kolonne «Fastpris kr» i tidslinjetabellen (localStorage-nøkkel v5), Veke/Månad og rapportane (`fastpris`, `budsjettVis`). Å skrive i Fastpris-kolonna set aktivitetstypa til Fastpris; å skrive i Budsjett-kolonna på ei Fastpris-aktivitet byter typa til Budsjett.

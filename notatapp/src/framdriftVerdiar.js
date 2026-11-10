@@ -23,6 +23,7 @@ export const KOLONNE_DEF = [
   { key: 'levnr',        label: 'Levering.',    w: 66, hogre: true },
   { key: 'btype',        label: 'Aktivitetstype',  w: 120 },
   { key: 'budsjett',     label: 'Budsjett kr',  w: 90, hogre: true },
+  { key: 'fastpris',     label: 'Fastpris kr',  w: 90, hogre: true },
   { key: 'timerate',     label: 'Timerate',     w: 76, hogre: true },
   { key: 'timar',        label: 'Timar',        w: 64, hogre: true },
   { key: 'palopTimar',   label: 'Påløpt t',     w: 72, hogre: true },
@@ -36,12 +37,14 @@ export const KOLONNE_DEF = [
 const TYPE_NAMN = { fase: 'Fase', aktivitet: 'Aktivitet', milepael: 'Milepæl' }
 
 // Kolonnar som kan redigerast direkte i tabellen (dobbeltklikk). Summasjonar/fasar: berre namn, kode og ansvarleg.
-export const REDIGERBARE = new Set(['namn', 'kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'btype', 'budsjett', 'timerate', 'timar', 'palopTimar', 'palopHonorar'])
+export const REDIGERBARE = new Set(['namn', 'kode', 'start', 'slutt', 'ansvarleg', 'ferdig', 'btype', 'budsjett', 'fastpris', 'timerate', 'timar', 'palopTimar', 'palopHonorar'])
 // Aktivitetstype (lagra i e.budsjettType). Eldre verdiar (Budsjettpris, Ufakturerbart) vert vist som Budsjett / Ufakturerbar.
 export const BTYPAR = ['', 'Budsjett', 'Fastpris', 'Budsjett med tak', 'Ufakturerbar', 'Opplæring']
 // Status for endringar / endringsvarsel (lagra på endringa som `status` + `statusDato`, og i varselet under `utsending`).
 export const ENDR_STATUSAR = ['Utkast', 'Sendt til kunde', 'Godkjent', 'Avvist']
 export const ENDR_STATUS_FARGE = { 'Utkast': '#6b7280', 'Sendt til kunde': '#1d5fd1', 'Godkjent': '#15803d', 'Avvist': '#c0262d' }
+// Fastpris (kontraktsbeløp) og budsjett (arbeid etter medgått tid) ligg begge i e.budsjett, men vert vist i kvar si kolonne etter aktivitetstype
+export const erFastpris = (e) => normAktType(e?.budsjettType) === 'Fastpris'
 export const normAktType = (v) => {
   const t = String(v || '').trim().toLowerCase()
   if (!t) return ''
@@ -95,7 +98,8 @@ export function bygVerdiar({ elementer, dokMap, prisar }) {
       }
       case 'levnr': return e.type === 'aktivitet' && !erSammen(e) ? ((e.leveransar || []).length || '') : ''
       case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? normAktType(e.budsjettType) : ''
-      case 'budsjett': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjett || '') : e.type !== 'milepael' ? (sumBlad(e, c => +c.budsjett || 0) || '') : ''
+      case 'budsjett': return e.type === 'aktivitet' && !erSammen(e) ? (erFastpris(e) ? '' : (e.budsjett || '')) : e.type !== 'milepael' ? (sumBlad(e, c => (erFastpris(c) ? 0 : +c.budsjett || 0)) || '') : ''
+      case 'fastpris': return e.type === 'aktivitet' && !erSammen(e) ? (erFastpris(e) ? (e.budsjett || '') : '') : e.type !== 'milepael' ? (sumBlad(e, c => (erFastpris(c) ? +c.budsjett || 0 : 0)) || '') : ''
       case 'timerate': {
         if (e.type === 'milepael') return ''
         if (!erSammen(e)) return rate(e) ? Math.round(rate(e)) : ''

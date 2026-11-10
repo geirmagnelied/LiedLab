@@ -8,7 +8,7 @@ import { personDelar, fordelTimar, snittpris, prisFor, rateUtanPlan } from './fr
 import { vekeStart } from './kontorkalender'
 import { personFarge } from './personFarge'
 import { personerMedForbruk, faktiskFor, nokkelNamn } from './framdriftForbruk'
-import { beregnKpi, kpiFarge, BTYPAR, normAktType } from './framdriftVerdiar'
+import { beregnKpi, kpiFarge, BTYPAR, normAktType, erFastpris } from './framdriftVerdiar'
 import { manadDelar, manadNamn } from './framdriftManad'
 import { FdMeny, MenyPunkt, MenyTittel, MenySkilje } from './FramdriftVerktoy'
 
@@ -38,6 +38,7 @@ const BASE_KOLONNAR = [
   { key: 'levnr',     label: 'Leveransar',  art: 'tal',   beregna: true, ikkjeSummer: true, w: 90 },
   { key: 'btype',     label: 'Aktivitetstype', art: 'val',   redigerbar: true, val: BTYPAR, w: 140 },
   { key: 'budsjett',  label: 'Budsjett kr', art: 'tal',   redigerbar: true, w: 110 },
+  { key: 'fastpris',  label: 'Fastpris kr', art: 'tal',   redigerbar: true, w: 110 },
   { key: 'timerate',  label: 'Timerate kr/t', art: 'tal', redigerbar: true, ikkjeSummer: true, w: 110 },
   { key: 'palopTimar', label: 'Påløpte timar', art: 'tal', redigerbar: true, w: 110 },
   { key: 'palopHonorar', label: 'Påløpt kostnad kr', art: 'tal', redigerbar: true, w: 140 },
@@ -204,7 +205,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
       if (key === 'namn') return e.namn
       if (key === 'type') return 'Delsum'
       if (key === 'pns') return pns.get(e.src.id) || ''
-      if (['timar', 'budsjett', 'timerate', 'palopTimar', 'palopHonorar', 'gjenTimar', 'gjenBudsjett', 'kpi'].includes(key)) return hentVerdi(e.src, key)
+      if (['timar', 'budsjett', 'fastpris', 'timerate', 'palopTimar', 'palopHonorar', 'gjenTimar', 'gjenBudsjett', 'kpi'].includes(key)) return hentVerdi(e.src, key)
       return ''
     }
     if (key.startsWith(UKE) || key.startsWith(MAN)) return vekeCelle(e, key)
@@ -246,7 +247,8 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
         })
       }
       case 'btype': return e.type === 'aktivitet' && !erSammen(e) ? normAktType(e.budsjettType) : ''
-      case 'budsjett': return e.type === 'aktivitet' && !erSammen(e) ? (e.budsjett || '') : e.type !== 'milepael' ? (bladUnder(e).reduce((a, c) => a + (+c.budsjett || 0), 0) || '') : ''
+      case 'budsjett': return e.type === 'aktivitet' && !erSammen(e) ? (erFastpris(e) ? '' : (e.budsjett || '')) : e.type !== 'milepael' ? (bladUnder(e).reduce((a, c) => a + (erFastpris(c) ? 0 : +c.budsjett || 0), 0) || '') : ''
+      case 'fastpris': return e.type === 'aktivitet' && !erSammen(e) ? (erFastpris(e) ? (e.budsjett || '') : '') : e.type !== 'milepael' ? (bladUnder(e).reduce((a, c) => a + (erFastpris(c) ? +c.budsjett || 0 : 0), 0) || '') : ''
       case 'timerate': {
         if (e.type === 'milepael') return ''
         if (!erSammen(e)) return rateFor(e) ? Math.round(rateFor(e)) : ''

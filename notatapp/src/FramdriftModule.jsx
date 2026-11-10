@@ -388,10 +388,15 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const endreFraTabell = (id, key, verdi) => {
     if (key === 'namn') { if (String(verdi).trim()) settFelt(id, 'namn', String(verdi).trim()); return }
     if (key === 'ansvarleg') { settFelt(id, 'ansvarleg', String(verdi).trim()); return }
-    if (['timar', 'budsjett', 'btype', 'timerate', 'palopTimar', 'palopHonorar', 'fordeling', 'ferdig'].includes(key) && erSumm(elementer, elementer.find(x => x.id === id))) return // summasjonsaktivitetar/fasar: summen kjem frå underaktivitetane
+    if (['timar', 'budsjett', 'fastpris', 'btype', 'timerate', 'palopTimar', 'palopHonorar', 'fordeling', 'ferdig'].includes(key) && erSumm(elementer, elementer.find(x => x.id === id))) return // summasjonsaktivitetar/fasar: summen kjem frå underaktivitetane
     if ((key === 'timar' || key === 'fordeling') && elementer.find(x => x.id === id)?.type !== 'aktivitet') return // timar høyrer til aktivitetar
     if (key === 'timar') { settFelter(id, { timar: Math.max(0, Math.round((parseFloat(String(verdi).replace(',', '.')) || 0) * 2) / 2), modus: 'timar' }); return }
-    if (key === 'budsjett') { if (elementer.find(x => x.id === id)?.type !== 'aktivitet') return; settFelter(id, { budsjett: Math.max(0, Math.round(parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.')) || 0)), modus: 'budsjett' }); return }
+    if (key === 'budsjett' || key === 'fastpris') {
+      // Fastpris (kontraktsbeløp) og budsjett (medgått tid) ligg i same felt, men skrivast i kvar si kolonne: kolonna set aktivitetstypa
+      const el = elementer.find(x => x.id === id); if (el?.type !== 'aktivitet') return
+      const typ = key === 'fastpris' ? 'Fastpris' : (normAktType(el.budsjettType) === 'Fastpris' ? 'Budsjett' : el.budsjettType)
+      settFelter(id, { budsjett: Math.max(0, Math.round(parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.')) || 0)), modus: 'budsjett', budsjettType: typ }); return
+    }
     if (key === 'kode') { settFelt(id, 'kode', String(verdi).trim()); return }
     if (key === 'btype') { const t = BTYPAR.find(k => k && k.toLowerCase() === normAktType(String(verdi).trim()).toLowerCase()); settFelt(id, 'budsjettType', t || ''); return }
     if (key === 'timerate') { const n = parseFloat(String(verdi).replace(/\s/g, '').replace(',', '.')); settFelt(id, 'timerate', n > 0 ? Math.round(n) : null); return }
@@ -848,7 +853,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
         </>)
       })()}
       {endrVarselOpen && aktivtProsjekt && <FramdriftEndringsvarsel onLukk={() => setEndrVarselOpen(false)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn} aktivitetar={aktivitetarFlat} endringar={endringsliste} onSettEndringar={settEndringarSamla}/>}
-      {rapportStart && aktivtProsjekt && <FramdriftRapportModal key={rapportStart} kontorNamn={kontorNamn} startValg={rapportStart} onLukk={() => setRapportStart(null)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn}
+      {rapportStart && aktivtProsjekt && <FramdriftRapportModal key={rapportStart} kontorNamn={kontorNamn} dokMap={dokMap} startValg={rapportStart} onLukk={() => setRapportStart(null)} prosjekt={aktivtProsjekt} userId={userId} brukarNamn={brukarNamn}
         elementer={elBase} forbrukRader={forbrukRader} personell={personell} kal={kal}/>}
       {forbrukOpen && aktivtProsjekt && <FramdriftForbrukModal userId={userId} prosjekt={aktivtProsjekt} elementer={elementer} onLukk={() => setForbrukOpen(false)} onFerdig={(r) => { setForbrukOpen(false); if (r?.nyeAktivitetar?.length) opprettAktivitetar(r.nyeAktivitetar); lastForbruk() }}/>}
       {importOpen && <FramdriftImportModal harPlan={elementer.length > 0} onLukk={() => setImportOpen(false)} onImporter={importer}/>}

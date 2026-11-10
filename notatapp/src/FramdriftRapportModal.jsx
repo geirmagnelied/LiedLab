@@ -18,7 +18,7 @@ const VINDU_NOKKEL = 'liedlab.rapportVindu'
 const MINB = 760, MINH = 460
 const STANDARD_UT = { prognoseModus: 'manad', ark: { storleik: 'A4', retning: 'landskap' } }
 
-export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukarNamn, kontorNamn, elementer, forbrukRader, personell, kal, startValg = 'std-kunde' }) {
+export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukarNamn, kontorNamn, dokMap, elementer, forbrukRader, personell, kal, startValg = 'std-kunde' }) {
   const [eigne, setEigne] = useState([])
   const startNy = startValg === 'ny'
   const [valt, setValt] = useState(startNy ? 'ny' : startValg)        // 'std-…' | rapport-id (tal)
@@ -86,7 +86,7 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
   }
 
   const periode = useMemo(() => periodeFra(oppsett), [oppsett])
-  const data = useMemo(() => byggRapportData({ elementer, forbrukRader, personell, kal, periode, oppsett }), [elementer, forbrukRader, personell, kal, periode, oppsett])
+  const data = useMemo(() => byggRapportData({ elementer, forbrukRader, personell, kal, periode, oppsett, dokMap }), [elementer, forbrukRader, personell, kal, periode, oppsett, dokMap])
   const antKol = useMemo(() => valdeKolonnar(oppsett, data.perioder).reduce((a, g) => a + g.kol.length, 0), [oppsett, data.perioder])
   const ark = oppsett.ark || STANDARD_UT.ark
   const prognoseModus = oppsett.prognoseModus || 'manad'
@@ -268,9 +268,9 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
                 </div>
               ))}
               <div style={ETT}>Rader</div>
-              {[['fasar', 'Vis fasar/delaktivitetar (hierarki)'], ['delsum', 'Sum-rad for kvar delaktivitet/fase'], ['perPerson', 'Vis kvar person under aktiviteten (forbruk og prognose)'], ['avvikAktivitet', '«+/- budsjett» på aktivitets- og summasjonsnivå (påløpt mot planlagd)'], ['sumrad', 'Sum-rad nedst'], ['berreMedTal', 'Skjul aktivitetar utan tal']].map(([k, t]) => (
+              {[['fasar', 'Vis fasar/delaktivitetar (hierarki)'], ['delsum', 'Sum-rad for kvar delaktivitet/fase'], ['perPerson', 'Vis kvar person under aktiviteten (forbruk og prognose)'], ['sumrad', 'Sum-rad nedst'], ['berreMedTal', 'Skjul aktivitetar utan tal']].map(([k, t]) => (
                 <label key={k} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 13, marginBottom: 3, cursor: 'pointer' }}>
-                  <input type="checkbox" style={{ marginTop: 3 }} checked={k === 'avvikAktivitet' ? oppsett[k] !== false : !!oppsett[k]} onChange={e => endre({ [k]: e.target.checked })}/> {t}
+                  <input type="checkbox" style={{ marginTop: 3 }} checked={!!oppsett[k]} onChange={e => endre({ [k]: e.target.checked })}/> {t}
                 </label>
               ))}
             </>)}
