@@ -4,7 +4,7 @@ import DataTabell from './DataTabell'
 import { formaterDato, tilDato } from './framdriftDato'
 import { antalArbeidsdagar, visingsrader, pnsKart, harBorn, etterkommarar, kanFlytteTil } from './framdriftLogikk'
 import { effektivFerdig, faseFerdig } from './framdriftFerdig'
-import { personDelar, fordelTimar, snittpris, prisFor } from './framdriftTimar'
+import { personDelar, fordelTimar, snittpris, prisFor, rateUtanPlan } from './framdriftTimar'
 import { vekeStart } from './kontorkalender'
 import { personFarge } from './personFarge'
 import { personerMedForbruk, faktiskFor, nokkelNamn } from './framdriftForbruk'
@@ -165,7 +165,7 @@ export default function FramdriftTabell({ dokMap, elementer, kal, valgt, onVelg,
   // ── Honorar (kr) per veke = timar × timerate. Planlagt: snittrate for aktiviteten (eller personen sin rate); påløpt: kvar person sin rate ──
   const personRate = useCallback((namn, akt) => {
     const d = personDelar(akt).find(x => nokkelNamn(x.namn) === nokkelNamn(namn))
-    return (d ? prisFor(d, prisar) : (prisar.get((namn || '').toLowerCase()) || 0)) || rateFor(akt)
+    return (d ? prisFor(d, prisar) : rateUtanPlan(akt, namn, prisar)) || rateFor(akt)
   }, [prisar, rateFor])
   const honorarPlan = useCallback((e, v) => {
     if (e.type === 'persontot') return (persTot.kart.get(e.namn)?.get(v) || 0) * (prisar.get((e.namn || '').toLowerCase()) || 0)

@@ -1,7 +1,7 @@
 import { addDays, format, getISOWeek, getISOWeekYear } from 'date-fns'
 import { tilDato } from './framdriftDato'
 import { visingsrader, harBorn, etterkommarar } from './framdriftLogikk'
-import { fordelTimar, personDelar, prisKartFra, snittpris, prisFor } from './framdriftTimar'
+import { fordelTimar, personDelar, prisKartFra, snittpris, prisFor, rateUtanPlan } from './framdriftTimar'
 import { kopleForbruk, nokkelNamn } from './framdriftForbruk'
 import { normAktType } from './framdriftVerdiar'
 import { NORCONSULT_LOGO_BASE64 } from './norconsultLogo'
@@ -143,7 +143,7 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
     for (const r of rader) {
       const namn = r.ansattNamn || r.ansatt || ''
       const d = delar.find(x => nokkelNamn(x.namn) === nokkelNamn(namn))
-      const rate = d ? prisFor(d, prisar) : (prisar.get(namn.toLowerCase()) || 0)
+      const rate = d ? prisFor(d, prisar) : rateUtanPlan(e, namn, prisar)
       t += r.timar; k += r.timar * (rate || snitt || 0)
     }
     return { t, k }
@@ -192,7 +192,7 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
     const planAkkAkt = planlagdIntervall(e, kal, null, periode.til), planPerAkt = planlagdIntervall(e, kal, periode.fra, periode.til)
     return namnListe.map(p => {
       const mine = rader.filter(r => nokkelNamn(radNamn(r)) === nokkelNamn(p.namn))
-      const rate = (+e.timerate > 0 ? +e.timerate : 0) || (p.d ? prisFor(p.d, prisar) : (prisar.get(p.namn.toLowerCase()) || 0)) || snitt
+      const rate = (+e.timerate > 0 ? +e.timerate : 0) || (p.d ? prisFor(p.d, prisar) : rateUtanPlan(e, p.namn, prisar)) || snitt
       const kt = (liste) => ({ t: liste.reduce((a, r) => a + r.timar, 0), k: liste.reduce((a, r) => a + r.timar, 0) * rate })
       const skaler = (m) => new Map([...m].map(([k, h]) => [k, h * p.del]))
       const timarPlan = (t0.timarPlan || 0) * p.del

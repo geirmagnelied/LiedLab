@@ -5,7 +5,7 @@ import { helligdagNamn } from './helligdagar'
 import { tilDato, formaterDato } from './framdriftDato'
 import { beregnDatoar, harBorn, avhengnadFeil, forfedrar, erSumm, kanFlytteTil } from './framdriftLogikk'
 import { effektivFerdig, faseFerdig } from './framdriftFerdig'
-import { fordelTimar, personDelar, snittpris, prisFor } from './framdriftTimar'
+import { fordelTimar, personDelar, snittpris, prisFor, rateUtanPlan } from './framdriftTimar'
 import { manadDelar } from './framdriftManad'
 import { personFarge } from './personFarge'
 import { personerMedForbruk, faktiskFor, nokkelNamn } from './framdriftForbruk'
@@ -183,7 +183,7 @@ export default function FramdriftTidslinje({ delsummer = false, skala = 1, valde
       const snitt = akt ? snittpris(akt, prisar || new Map()).pris : 0
       for (const [namn, p] of a.personer) {
         const d = delar.find(x => nokkelNamn(x.namn) === nokkelNamn(namn))
-        const rate = (d ? prisFor(d, prisar || new Map()) : ((prisar || new Map()).get((namn || '').toLowerCase()) || 0)) || snitt || 0
+        const rate = (d ? prisFor(d, prisar || new Map()) : rateUtanPlan(akt, namn, prisar || new Map())) || snitt || 0
         for (const [veke, t] of p.veke) for (const [mnd, fr] of manadDelar(veke, kal)) { add(mnd, 'fakt', t * fr); add(mnd, 'hon', t * fr * rate) }
       }
     }

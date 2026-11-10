@@ -21,7 +21,7 @@ import { kopleForbruk, bygForbrukKart, nokkelNamn } from './framdriftForbruk'
 import { leveransarFerdig, effektivFerdig, brukarAuto, faseFerdig } from './framdriftFerdig'
 import useKontorkalender from './useKontorkalender'
 import { BTYPAR, normAktType } from './framdriftVerdiar'
-import { timarPerVeke, overbelastning, medEffektiveTimar, personDelar, prisKartFra, snittpris, prisFor } from './framdriftTimar'
+import { timarPerVeke, overbelastning, medEffektiveTimar, personDelar, prisKartFra, snittpris, prisFor, rateUtanPlan } from './framdriftTimar'
 import { MALAR } from './framdriftMalar'
 import { iso, tilDato, parseDato, nesteArbeidsdag, forrigeArbeidsdag, formaterDato } from './framdriftDato'
 import {
@@ -266,7 +266,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     let kost = 0
     for (const [namn, p] of a.personer) {
       const d = delar.find(x => nokkelNamn(x.namn) === nokkelNamn(namn))
-      const r = d ? prisFor(d, prisarMap) : (prisarMap.get((namn || '').toLowerCase()) || 0)
+      const r = d ? prisFor(d, prisarMap) : rateUtanPlan(e, namn, prisarMap)
       kost += p.total * (r || snitt || 0)
     }
     return { ...e, palopTimar: Math.round(a.total * 100) / 100, palopKilde: 'forbruk', ...(kost > 0 ? { palopHonorar: Math.round(kost) } : {}) }

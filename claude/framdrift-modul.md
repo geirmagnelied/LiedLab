@@ -289,3 +289,7 @@ Bygger på «Endringsvarsel — 8. nov. 2026» (tabellen `framdrift_endringsvars
 
 - «+/- budsjett» (påløpt − planlagd for same tidsrom, akkumulert og i perioden, fargekoda) kjem no også under **kvar aktivitet**, **kvar summasjon/fase** (òg «Sum …»-radene med delsum) og under **totalsummen**, i tillegg til personradene. Planlagd er summert frå underaktivitetane (`planAkkT/planPerT/planAkkKr/planPerKr` i `lagTal`; felles `avvikRadFra`). Val «+/- budsjett på aktivitets- og summasjonsnivå» (`oppsett.avvikAktivitet`, standard på) i Rader-lista.
 - Prognosekolonnane har eit svakt grått slør (opacity 0,12) i PDF-en.
+
+## Rate for ressursar utanfor bemanninga — 10. nov. 2026
+
+Ressursar som har ført timar (import) men ikkje er med i aktivitetens bemanning (`utanPlan`-rader i bemanningsregisteret) har no eit redigerbart ratefelt. Raten ligg på aktiviteten som `e.utanPlanRate` (`{ <namn med små bokstavar>: kr/t }`) og vert lest via `rateUtanPlan()` i framdriftTimar.js (fell tilbake til Personell-rate, deretter aktivitetens rate). Brukt i påløpt kostnad i rapport, tabell, tidslinje og importert forbruk.

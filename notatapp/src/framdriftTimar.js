@@ -82,6 +82,8 @@ export function personDelar(e) {
 export const prisKartFra = (personell) => new Map((personell || []).filter(p => +p.timepris > 0).map(p => [p.namn.trim().toLowerCase(), +p.timepris]))
 
 // Timepris for ein person i DENNE aktiviteten: aktivitetens eigen pris (personar[].pris) går føre prosjektets timepris
+// Rate for ein ressurs som har ført timar men IKKJE er med i aktivitetens bemanning: rate skriven inn i bemanningsregisteret (e.utanPlanRate), elles Personell
+export const rateUtanPlan = (e, namn, prisar) => { const lc = (namn || '').trim().toLowerCase(); return +(e?.utanPlanRate?.[lc]) || (prisar?.get(lc) || 0) }
 export const prisFor = (d, prisar) => (+d.pris > 0 ? +d.pris : (prisar.get(d.namn.toLowerCase()) || 0))
 
 // `el.timerate` (kr/t, sett direkte på aktiviteten) OVERSTYRER utrekninga frå personane.

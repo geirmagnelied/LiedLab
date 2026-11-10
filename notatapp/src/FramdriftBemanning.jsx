@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { likeDelar, fordelPaaUlaaste } from './FramdriftPersonarPanel'
-import { prisFor } from './framdriftTimar'
+import { prisFor, rateUtanPlan } from './framdriftTimar'
 import { BTYPAR, normAktType, ENDR_STATUSAR, ENDR_STATUS_FARGE } from './framdriftVerdiar'
 import { personerMedForbruk, faktiskFor, nokkelNamn } from './framdriftForbruk'
 import { personFarge } from './personFarge'
@@ -339,7 +339,8 @@ export default function FramdriftBemanning({ endr, fanePuls, el, summ, personell
   const rader = useMemo(() => (el ? personerMedForbruk(personar.map(p => ({ ...p })), fk) : []), [el, personar, fk])
   const timar = +el?.timar || 0
   const fallbackRate = +el?.timerate || 0
-  const rateFor = (p) => prisFor(p, prisar) || fallbackRate
+  const rateFor = (p) => (p.utanPlan ? rateUtanPlan(el, p.namn, prisar) : prisFor(p, prisar)) || fallbackRate
+  const settUtanPlanRate = (namn, v) => { const n = parseFloat(String(v).replace(',', '.')); const lc = namn.trim().toLowerCase(); const ny = { ...(el.utanPlanRate || {}) }; if (n > 0) ny[lc] = n; else delete ny[lc]; onEndre({ utanPlanRate: ny }) }
   const settPersonar = (arr) => onEndre({ personar: arr })
 
   const sum = rader.reduce((a, p) => {
@@ -439,7 +440,8 @@ export default function FramdriftBemanning({ endr, fanePuls, el, summ, personell
                     <td style={TD}>{iPlan ? <Tal verdi={avr2(t) || ''} bredde={78} disabled={reg.laast('timer')} tittel="Planlagde timar for ressursen — aktivitetens timar vert summen av ressurstimane"
                       onLagre={h => settTimar(idx, h)}/> : ''}</td>
                     <td style={TD}>{iPlan ? <Tal verdi={p.pris || ''} placeholder={r ? String(Math.round(r)) : 'kr/t'} bredde={72} disabled={reg.laast('rate')} tittel={p.pris ? 'Eigen timerate i denne aktiviteten' : 'Tomt = timerate frå Personell (eller aktivitetens timerate)'}
-                      onLagre={v => { const n = parseFloat(v); settPersonar(personar.map((x, j) => (j === idx ? { ...x, pris: n > 0 ? n : null } : x))) }}/> : kr(r)}</td>
+                      onLagre={v => { const n = parseFloat(v); settPersonar(personar.map((x, j) => (j === idx ? { ...x, pris: n > 0 ? n : null } : x))) }}/>
+                      : <Tal verdi={el.utanPlanRate?.[p.namn.trim().toLowerCase()] || ''} placeholder={r ? String(Math.round(r)) : 'kr/t'} bredde={72} disabled={reg.laast('rate')} tittel="Rate for ressurs som har ført timar men ikkje er med i bemanninga — brukt til påløpt kostnad. Tomt = timerate frå Personell (eller aktivitetens timerate)" onLagre={v => settUtanPlanRate(p.namn, v)}/>}</td>
                     <td style={TD}>{iPlan ? <Tal verdi={p.fast || ''} bredde={84} disabled={reg.laast('fast')} tittel="Faste kostnader (utlegg o.l.) som kjem i tillegg til timer × rate"
                       onLagre={v => { const n = parseFloat(v); settPersonar(personar.map((x, j) => (j === idx ? { ...x, fast: n > 0 ? n : null } : x))) }}/> : ''}</td>
                     <td style={{ ...TD, ...GRAA }}>{kr(kost)}</td>
