@@ -151,13 +151,14 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
   const radNamn = (r) => r.ansattNamn || r.ansatt || ''
 
   // Felles utrekning av eit tal-sett (aktivitet eller person). `del` = andel av aktivitetens timar (1 for heile aktiviteten).
-  const lagTal = ({ budsjett, timarPlan, timerate, palop, per, fordelt, snitt }) => {
+  const lagTal = ({ budsjett, timarPlan, timerate, palop, per, fordelt, snitt, planAkk = 0, planPer = 0 }) => {
     const progT = fordelt.sum, progK = progT * snitt
     const t = {
       budsjett, timarPlan, timerate,
       palopKr: palop.k, palopTimar: palop.t, gjenKr: budsjett - palop.k, gjenTimar: timarPlan - palop.t,
       perKr: per.k, perTimar: per.t, progKr: progK, progTimar: progT,
       sluttKr: palop.k + progK, avvikKr: budsjett - (palop.k + progK),
+      planAkkT: planAkk, planPerT: planPer, planAkkKr: planAkk * snitt, planPerKr: planPer * snitt,      // planlagd til og med periodeslutten / i perioden (grunnlag for «+/- budsjett»)
     }
     if (modus !== 'resterande') {
       for (const [k, h] of (modus === 'veke' ? fordelt.veke : fordelt.manad)) { t['pt_' + k] = h; t['pk_' + k] = h * snitt }
@@ -176,7 +177,8 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
       palop = { t, k: e.palopHonorar != null && e.palopHonorar !== '' ? +e.palopHonorar : t * snitt }
     }
     const budsjett = +e.budsjett > 0 ? +e.budsjett : Math.round((+e.timar || 0) * snitt)
-    return lagTal({ budsjett, timarPlan: +e.timar || 0, timerate: snitt, palop, per: kostOgTimar(e, iPeriode), fordelt: prognoseFordelt(e, kal, periode.til), snitt })
+    return lagTal({ budsjett, timarPlan: +e.timar || 0, timerate: snitt, palop, per: kostOgTimar(e, iPeriode), fordelt: prognoseFordelt(e, kal, periode.til), snitt,
+      planAkk: planlagdIntervall(e, kal, null, periode.til), planPer: planlagdIntervall(e, kal, periode.fra, periode.til) })
   }
 
   // Per person i ein aktivitet: planlagd del, faktisk forbruk og prognose (aktivitetens prognose × personens del)
@@ -194,8 +196,8 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
       const kt = (liste) => ({ t: liste.reduce((a, r) => a + r.timar, 0), k: liste.reduce((a, r) => a + r.timar, 0) * rate })
       const skaler = (m) => new Map([...m].map(([k, h]) => [k, h * p.del]))
       const timarPlan = (t0.timarPlan || 0) * p.del
-      return { namn: p.namn, planAkkT: planAkkAkt * p.del, planPerT: planPerAkt * p.del, ...lagTal({
-        budsjett: timarPlan * rate, timarPlan, timerate: rate,
+      return { namn: p.namn, ...lagTal({
+        budsjett: timarPlan * rate, timarPlan, timerate: rate, planAkk: planAkkAkt * p.del, planPer: planPerAkt * p.del,
         palop: kt(mine.filter(r => r.dato <= periode.til)), per: kt(mine.filter(r => r.dato >= periode.fra && r.dato <= periode.til)),
         fordelt: { veke: skaler(fordeltAkt.veke), manad: skaler(fordeltAkt.manad), sum: fordeltAkt.sum * p.del }, snitt: rate }) }
     })
@@ -213,6 +215,17 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
   const harTal = (t) => ['budsjett', 'timarPlan', 'palopKr', 'palopTimar', 'perTimar', 'progTimar'].some(f => Math.abs(t[f] || 0) > 0.001)
   const medPct = (t) => { t.prosentBrukt = (t.budsjett || 0) > 0 ? (t.palopKr / t.budsjett) * 100 : null; return t }
 
+  // «+/- budsjett»: faktisk forbruk minus planlagd for SAMME tidsrom — akkumulert (til og med periodeslutten) under «Påløpt akkumulert», og i
+  // perioden under «Påløpt i perioden». Fargekoda (sjå avvikFarge). Ingen rad når det ikkje er planlagt (budsjettert) forbruk å samanlikne med.
+  const avvikRadFra = (id, nivaa, t) => {
+    const harAkk = (t.planAkkT || 0) > 0.001, harPer = (t.planPerT || 0) > 0.001
+    if (!harAkk && !harPer) return null
+    return { id, nivaa, gruppe: false, person: true, avvikRad: true, kode: '', namn: '+/- budsjett', ansvarleg: '', budsjettType: '', start: '', slutt: '',
+      farge: harAkk ? avvikFarge(t.palopTimar, t.planAkkT) : 'graa', fargePer: harPer ? avvikFarge(t.perTimar, t.planPerT) : 'graa',
+      ...(harAkk ? { palopTimar: t.palopTimar - t.planAkkT, palopKr: t.palopKr - t.planAkkKr } : {}),
+      ...(harPer ? { perTimar: t.perTimar - t.planPerT, perKr: t.perKr - t.planPerKr } : {}) }
+  }
+  const medAkt = oppsett.avvikAktivitet !== false       // avviksrad også på aktivitets- og summasjonsnivå (standard på)
   const bladTal = new Map()
   for (const e of elementer) if (erBlad(e)) bladTal.set(e.id, medPct(tal(e)))
   const bladUnder = (e) => etterkommarar(elementer, e.id).filter(erBlad)
@@ -223,6 +236,7 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
     while (apne.length && apne[apne.length - 1].nivaa >= nivaMin) {
       const g = apne.pop()
       rader.push({ id: g.id + ':sum', nivaa: g.nivaa, gruppe: true, delsum: true, kode: '', namn: 'Sum ' + g.namn, ansvarleg: '', budsjettType: '', start: '', slutt: '', ...g.sum })
+      const av = medAkt && avvikRadFra(g.id + ':sumavvik', g.nivaa + 1, g.sum); if (av) rader.push(av)
     }
   }
   for (const e of visingsrader(elementer, new Set())) {
@@ -234,18 +248,10 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
       const nivaa = oppsett.fasar ? e.nivå : 0
       rader.push({ id: e.id, nivaa, gruppe: false, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: normAktType(e.budsjettType),
         start: e.start ? datoNo(e.start) : '', slutt: e.slutt ? datoNo(e.slutt) : '', ...t })
+      { const av = medAkt && avvikRadFra(e.id + ':avvik', nivaa + 1, t); if (av) rader.push(av) }
       if (oppsett.perPerson) personTal(e, t).forEach((p, i) => {
         rader.push({ id: e.id + ':p' + i, nivaa: nivaa + 1, gruppe: false, person: true, kode: '', ansvarleg: '', budsjettType: '', start: '', slutt: '', ...medPct(p) })
-        // «+/- budsjett»: faktisk forbruk minus planlagd for SAMME tidsrom — akkumulert (til og med periodeslutten) under «Påløpt akkumulert»,
-        // og i perioden under «Påløpt i perioden». Ingen rad når det ikkje er planlagt (budsjettert) forbruk å samanlikne med.
-        const harAkk = (p.planAkkT || 0) > 0.001, harPer = (p.planPerT || 0) > 0.001
-        if (harAkk || harPer) {
-          const rate = p.timerate || 0
-          rader.push({ id: e.id + ':a' + i, nivaa: nivaa + 1, gruppe: false, person: true, avvikRad: true, kode: '', namn: '+/- budsjett', ansvarleg: '', budsjettType: '', start: '', slutt: '',
-            farge: harAkk ? avvikFarge(p.palopTimar, p.planAkkT) : 'graa', fargePer: harPer ? avvikFarge(p.perTimar, p.planPerT) : 'graa',
-            ...(harAkk ? { palopTimar: p.palopTimar - p.planAkkT, palopKr: p.palopKr - p.planAkkT * rate } : {}),
-            ...(harPer ? { perTimar: p.perTimar - p.planPerT, perKr: p.perKr - p.planPerT * rate } : {}) })
-        }
+        const av = avvikRadFra(e.id + ':a' + i, nivaa + 1, p); if (av) rader.push(av)
       })
     } else if (oppsett.fasar) {
       const barn = bladUnder(e).map(b => bladTal.get(b.id)).filter(t => t && (!oppsett.berreMedTal || harTal(t)))
@@ -254,7 +260,10 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
       if (oppsett.delsum) {
         rader.push({ id: e.id, nivaa: e.nivå, gruppe: true, utanTal: true, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: '', start: '', slutt: '' })
         apne.push({ id: e.id, nivaa: e.nivå, namn: e.namn, sum: s })
-      } else rader.push({ id: e.id, nivaa: e.nivå, gruppe: true, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: '', start: '', slutt: '', ...s })
+      } else {
+        rader.push({ id: e.id, nivaa: e.nivå, gruppe: true, kode: e.kode || '', namn: e.namn, ansvarleg: e.ansvarleg || '', budsjettType: '', start: '', slutt: '', ...s })
+        const av = medAkt && avvikRadFra(e.id + ':avvik', e.nivå + 1, s); if (av) rader.push(av)
+      }
     }
   }
   lukk(-1)
@@ -263,7 +272,8 @@ export function byggRapportData({ elementer, forbrukRader, personell, kal, perio
   const nøklar = new Set()
   for (const t of bladTal.values()) for (const k of Object.keys(t)) if (k.startsWith('pt_')) nøklar.add(k.slice(3))
   const perioder = [...nøklar].sort().map(k => ({ key: k, label: periodeNamn(k, modus) }))
-  return { rader, sum: summer(leggTil), perioder }
+  const sumTal = summer(leggTil)
+  return { rader, sum: sumTal, sumAvvik: medAkt ? avvikRadFra('sumavvik', 0, sumTal) : null, perioder }
 }
 
 // Kolonnene som faktisk vert vist (seksjon på + minst éi kolonne), i kjent rekkjefølgje.
@@ -321,7 +331,7 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
   if (!kol.length) throw new Error('Rapporten har ingen kolonnar. Vel minst ein seksjon og ei kolonne.')
   const bredd = B - 2 * M
 
-  const alle = [...data.rader.map(r => ({ r, sum: false })), ...(oppsett.sumrad ? [{ r: { ...data.sum, gruppe: false, nivaa: 0 }, sum: true }] : [])]
+  const alle = [...data.rader.map(r => ({ r, sum: false })), ...(oppsett.sumrad ? [{ r: { ...data.sum, gruppe: false, nivaa: 0 }, sum: true }, ...(data.sumAvvik ? [{ r: data.sumAvvik, sum: false }] : [])] : [])]
   const tekstAv = (r, k, sum) => {
     if (r.avvikRad) return k.key === 'namn' ? r.namn : ['palopTimar', 'palopKr', 'perTimar', 'perKr'].includes(k.key) ? medFortegn(r[k.key], k.type) : ''
     if (sum) return k.key === 'namn' ? 'Sum' : k.type === 'tekst' ? '' : fmtVerdi(r[k.key], k.type)
@@ -444,6 +454,7 @@ export async function lagRapportPdf({ data, oppsett, periode, prosjektNamn, pros
     const RH = Math.max(...cellelinjer.map(l => l.length)) * lh + 4 * S
     if (y - RH < M + 24) nySide()
     if (r.gruppe) side.drawRectangle({ x: M, y: y - RH, width: bredd, height: RH, color: lys })
+    kol.forEach((k, i) => { if (k.sek === 'prognose') side.drawRectangle({ x: X[i], y: y - RH, width: W[i], height: RH, color: rgb(0.45, 0.45, 0.5), opacity: 0.12 }) })      // svakt grått slør: prognosen
     if (sum || r.delsum) side.drawLine({ start: { x: M, y }, end: { x: M + bredd, y }, thickness: sum ? 0.9 : 0.5, color: svart })
     kol.forEach((k, i) => {
       const innrykk = k.key === 'namn' && !sum ? r.nivaa * 7 * S : 0

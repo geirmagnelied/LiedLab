@@ -268,9 +268,9 @@ export default function FramdriftRapportModal({ onLukk, prosjekt, userId, brukar
                 </div>
               ))}
               <div style={ETT}>Rader</div>
-              {[['fasar', 'Vis fasar/delaktivitetar (hierarki)'], ['delsum', 'Sum-rad for kvar delaktivitet/fase'], ['perPerson', 'Vis kvar person under aktiviteten (forbruk og prognose)'], ['sumrad', 'Sum-rad nedst'], ['berreMedTal', 'Skjul aktivitetar utan tal']].map(([k, t]) => (
+              {[['fasar', 'Vis fasar/delaktivitetar (hierarki)'], ['delsum', 'Sum-rad for kvar delaktivitet/fase'], ['perPerson', 'Vis kvar person under aktiviteten (forbruk og prognose)'], ['avvikAktivitet', '«+/- budsjett» på aktivitets- og summasjonsnivå (påløpt mot planlagd)'], ['sumrad', 'Sum-rad nedst'], ['berreMedTal', 'Skjul aktivitetar utan tal']].map(([k, t]) => (
                 <label key={k} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 13, marginBottom: 3, cursor: 'pointer' }}>
-                  <input type="checkbox" style={{ marginTop: 3 }} checked={!!oppsett[k]} onChange={e => endre({ [k]: e.target.checked })}/> {t}
+                  <input type="checkbox" style={{ marginTop: 3 }} checked={k === 'avvikAktivitet' ? oppsett[k] !== false : !!oppsett[k]} onChange={e => endre({ [k]: e.target.checked })}/> {t}
                 </label>
               ))}
             </>)}

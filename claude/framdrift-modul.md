@@ -284,3 +284,8 @@ Bygger på «Endringsvarsel — 8. nov. 2026» (tabellen `framdrift_endringsvars
 - **Endrings- og bemanningsregister**: delt `useRegister`/`REG_CSS` i FramdriftBemanning.jsx — justerbare kolonnebreidder (dra i overskrifta, dobbeltklikk = standard; localStorage), heile cella er innfelt, høgreklikk → lås/slett. Dra-og-fyll berre i endringsregisteret (ikkje i bemanningsregisteret).
 - Fana «Tabell» heiter no **«Veke»**.
 - **Rapport**: botntekst = `<kontornamn> · Utarbeida i LiedLab · generert av …` (kontornamn frå aktivt kontor, `kontorNamn` frå App.jsx); eigen **overskrift** (og undertittel) kan setjast også på standardrapportar (gjeld berre utskrifta); arkivnamn har **årstal** (`rapport (2026 M09 - M10)`, `(2026 M12 - 2027 M01)` over årsskifte).
+
+## Rapport: avvik på aktivitetsnivå og prognoseslør — 10. nov. 2026
+
+- «+/- budsjett» (påløpt − planlagd for same tidsrom, akkumulert og i perioden, fargekoda) kjem no også under **kvar aktivitet**, **kvar summasjon/fase** (òg «Sum …»-radene med delsum) og under **totalsummen**, i tillegg til personradene. Planlagd er summert frå underaktivitetane (`planAkkT/planPerT/planAkkKr/planPerKr` i `lagTal`; felles `avvikRadFra`). Val «+/- budsjett på aktivitets- og summasjonsnivå» (`oppsett.avvikAktivitet`, standard på) i Rader-lista.
+- Prognosekolonnane har eit svakt grått slør (opacity 0,12) i PDF-en.
