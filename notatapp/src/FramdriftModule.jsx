@@ -121,6 +121,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const [fdVis, setFdVisRaa] = useState(() => lsJson('liedlab-framdrift-vis', { eining: 'timar', delsummer: false }))   // Visning: eining i veke-kolonnane og delsummer
   const setFdVis = (patch) => setFdVisRaa(v => { const n = { ...v, ...patch }; try { localStorage.setItem('liedlab-framdrift-vis', JSON.stringify(n)) } catch { /* privat modus */ } return n })
   const [eksporterer, setEksporterer] = useState(false)
+  const [dialog, setDialog] = useState(null)   // { tekst, berreOk, res } — eigen stadfestingsdialog (i staden for window.confirm/alert)
+  const spor = (tekst, berreOk = false) => new Promise(res => setDialog({ tekst, berreOk, res }))
   const [statusVindauge, setStatusVindauge] = useState(null)   // 'lagre' | 'hent' — Lagre status-menyen
   const [endrVarselOpen, setEndrVarselOpen] = useState(false)   // vindauget «Ny endring» (endringsvarsel)
   const [rapportStart, setRapportStart] = useState(null)   // null = lukka, elles kva rapport vindauget startar på
@@ -349,7 +351,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     if (en.overfort) { settFelter(aktId, { ...(en.for || {}), endringar: merk(false, { for: null, overfortDato: null }) }); return }
     const v = (felt) => (en.god?.[felt] > 0 ? en.god[felt] : (en.rev?.[felt] > 0 ? en.rev[felt] : null))
     const timar = v('timar'), fast = v('fastpris'), rate = v('timepris')
-    if (!timar && !fast) { window.alert(rate ? 'Timepris gjeld berre timane i endringa — fyll inn timebudsjett (eller fastpris) òg.' : 'Fyll inn timebudsjett eller fastpris før du legg endringa til aktiviteten.'); return }
+    if (!timar && !fast) { spor(rate ? 'Timepris gjeld berre timane i endringa — fyll inn timebudsjett (eller fastpris) òg.' : 'Fyll inn timebudsjett eller fastpris før du legg endringa til aktiviteten.', true); return }
     // Endringa vert LAGD TIL aktiviteten: timane kjem i tillegg til dei gamle, og beløpet (fastpris + timar × timepris) i tillegg til budsjettet.
     // Timepris gjeld berre timane i endringa; tidlegare estimerte timar, timerate og summar er uendra.
     const eff = elBase.find(x => x.id === aktId) || e
@@ -438,10 +440,10 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   }
   const gjerInnrykk = (id) => { const ny = innrykk(elementer, id); if (ny !== elementer) { oppdater(ny); const f = ny.find(x => x.id === id)?.forelder; opneForelder(f) } }
   const gjerUtrykk = (id) => { const ny = utrykk(elementer, id); if (ny !== elementer) oppdater(ny) }
-  const veksleSumm = (id, pa) => {
+  const veksleSumm = async (id, pa) => {
     const e = elementer.find(x => x.id === id)
     if (!e) return
-    if (!pa && harBorn(elementer, id) && !window.confirm('Oppheve summasjonsaktiviteten «' + e.namn + '»? Underaktivitetane flyttar opp eitt nivå.')) return
+    if (!pa && harBorn(elementer, id) && !(await spor('Oppheve summasjonsaktiviteten «' + e.namn + '»? Underaktivitetane flyttar opp eitt nivå.'))) return
     oppdater(settSumm(elementer, id, pa))
   }
 
@@ -471,7 +473,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   const hentStatusPlan = (els, namn) => { oppdater(els); setValgt(null); setValde(new Set()); setStatusVindauge(null); setKoblingMelding('Status «' + namn + '» er henta fram (kan angrast med «Angre»).'); setTimeout(() => setKoblingMelding(null), 6000) }
   // Faktisk framdrift (timevekta) = % av budsjett/fastpris som er brukt (påløpt honorar ÷ budsjett), for alle aktivitetar med budsjett
   // rotId: berre aktivitetane under (eller på) dette elementet; null = heile planen
-  const justerFramdriftTilForbruk = (rotId = null) => {
+  const justerFramdriftTilForbruk = async (rotId = null) => {
     const prisarMap = prisKartFra(personell), nye = new Map()
     const omfang = rotId == null ? null : new Set([rotId, ...etterkommarar(elementer, rotId).map(c => c.id)])
     for (const e of elEff) {
@@ -483,8 +485,8 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
       const kr = e.palopHonorar != null && e.palopHonorar !== '' ? +e.palopHonorar : (+e.palopTimar || 0) * snitt
       nye.set(e.id, Math.max(0, Math.min(100, Math.round((kr / bud) * 100))))
     }
-    if (!nye.size) { window.alert('Ingen aktivitetar' + (rotId == null ? '' : ' her') + ' har budsjett eller fastpris å rekne prosent av.'); return }
-    if (!window.confirm('Sette faktisk framdrift for ' + nye.size + ' aktivitetar lik prosent av budsjett/fastpris som er brukt (påløpt honorar ÷ budsjett, maks 100 %)?\n\nDette overstyrer framdrift frå leveransar og skjønn. Du kan angre med «Angre».')) return
+    if (!nye.size) { spor('Ingen aktivitetar' + (rotId == null ? '' : ' her') + ' har budsjett eller fastpris å rekne prosent av.', true); return }
+    if (!(await spor('Sette faktisk framdrift for ' + nye.size + ' aktivitetar lik prosent av budsjett/fastpris som er brukt (påløpt honorar ÷ budsjett, maks 100 %)?\n\nDette overstyrer framdrift frå leveransar og skjønn. Du kan angre med «Angre».'))) return
     oppdater(elementer.map(e => (nye.has(e.id) ? { ...e, ferdig: nye.get(e.id), ferdigModus: 'skjonn' } : e)))
   }
 
@@ -551,10 +553,10 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     }
     if (ny !== elementer) { oppdater(ny); opneForelder(malId) }
   }
-  const slettValde = () => {
+  const slettValde = async () => {
     const ok = valdeIds.filter(id => !harPaalopt(id)), blokkert = valdeIds.length - ok.length
-    if (!ok.length) { window.alert('Ingen av dei valde radene kan slettast: det er ført timar på dei.'); return }
-    if (!window.confirm('Slette ' + ok.length + ' valde rader (med underaktivitetar)?' + (blokkert ? '\n\n' + blokkert + ' rader med påløpte timar vert ikkje sletta.' : '') + '\n\nSlettinga kan gjenopprettast med «Angre» eller frå «Sletta»-lista.')) return
+    if (!ok.length) { spor('Ingen av dei valde radene kan slettast: det er ført timar på dei.', true); return }
+    if (!(await spor('Slette ' + ok.length + ' valde rader (med underaktivitetar)?' + (blokkert ? '\n\n' + blokkert + ' rader med påløpte timar vert ikkje sletta.' : '') + '\n\nSlettinga kan gjenopprettast med «Angre» eller frå «Sletta»-lista.'))) return
     let ny = elementer; const post = []
     for (const id of ok) { const e = ny.find(x => x.id === id); if (e) { post.push({ tid: Date.now() + post.length, namn: e.namn, el: [e, ...etterkommarar(ny, id)] }); ny = slettElement(ny, id) } }
     lagrePapir([...post, ...papirkorg].slice(0, 30)); oppdater(ny); setValde(new Set()); setValgt(null)
@@ -564,12 +566,12 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
     window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc)
   }, [])
 
-  const slett = (id) => {
+  const slett = async (id) => {
     const e = elementer.find(x => x.id === id)
     if (!e) return
-    if (harPaalopt(id)) { window.alert('«' + e.namn + '» kan ikkje slettast: det er ført timar (påløpt eller importert) på aktiviteten eller underaktivitetane.'); return }
+    if (harPaalopt(id)) { spor('«' + e.namn + '» kan ikkje slettast: det er ført timar (påløpt eller importert) på aktiviteten eller underaktivitetane.', true); return }
     const under = etterkommarar(elementer, id)
-    if (!window.confirm('Slette «' + e.namn + '»' + (under.length ? ' og dei ' + under.length + ' underaktivitetane' : '') + '?\n\nSlettinga kan gjenopprettast med «Angre» (Ctrl+Z) eller frå «Sletta»-lista.')) return
+    if (!(await spor('Slette «' + e.namn + '»' + (under.length ? ' og dei ' + under.length + ' underaktivitetane' : '') + '?\n\nSlettinga kan gjenopprettast med «Angre» (Ctrl+Z) eller frå «Sletta»-lista.'))) return
     lagrePapir([{ tid: Date.now(), namn: e.namn, el: [e, ...under] }, ...papirkorg].slice(0, 30))
     oppdater(slettElement(elementer, id)); setValgt(null)
   }
@@ -894,6 +896,17 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
           </div>
         </>)
       })()}
+      {dialog && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(0,0,0,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseDown={() => { dialog.res(false); setDialog(null) }}>
+          <div onMouseDown={e => e.stopPropagation()} style={{ width: 420, maxWidth: '90vw', padding: 20, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)' }}>
+            <div style={{ fontSize: 13.5, color: 'var(--text)', lineHeight: 1.5, whiteSpace: 'pre-wrap', marginBottom: 16 }}>{dialog.tekst}</div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              {!dialog.berreOk && <button autoFocus onClick={() => { dialog.res(false); setDialog(null) }} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>Avbryt</button>}
+              <button autoFocus={dialog.berreOk} onClick={() => { dialog.res(true); setDialog(null) }} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'var(--brand)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
       {statusVindauge === 'lagre' && aktivtProsjekt && <LagreStatusVindauge onLukk={() => setStatusVindauge(null)} prosjekt={aktivtProsjekt} userId={userId} elementer={elementer} byggPalop={byggPalopBilete}
         onLagra={(m) => { setStatusVindauge(null); setKoblingMelding(m); setTimeout(() => setKoblingMelding(null), 6000) }}/>}
       {statusVindauge === 'hent' && aktivtProsjekt && <HentStatusVindauge onLukk={() => setStatusVindauge(null)} prosjekt={aktivtProsjekt} userId={userId} elementer={elementer} onHent={hentStatusPlan}/>}

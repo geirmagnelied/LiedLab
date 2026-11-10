@@ -315,3 +315,8 @@ Ressursar som har ført timar (import) men ikkje er med i aktivitetens bemanning
 - Nye kolonnar i tabellen ved sida av tidslinja: **Påløpt t** (fanst) og **Påløpt %** (`palopPct` i `framdriftVerdiar.js`: påløpt honorar ÷ budsjett/fastpris, utan budsjett planlagde timar × snittrate; summasjon/fase = sum av aktivitetane under). Begge er med i standardkolonnane; lagra kolonneval vert flytta til `liedlab-framdrift-tl-kol-v6`.
 - `justerFramdriftTilForbruk(rotId)` i `FramdriftModule.jsx`: set `ferdig` = påløpt % av budsjett/fastpris (maks 100) for aktivitetar. `rotId = null` = heile planen, elles aktiviteten/summasjonen/fasen og alt under.
 - Høgreklikk på overskrifta «Ferdig %» (heile planen) og høgreklikk på ei rad (aktivitet, summasjon, fase) gir valet «Sett faktisk framdrift lik påløpt av budsjett/fastpris». Stadfesting og «Angre» som før.
+
+## 11. nov. 2026 (kveld) — Felt tok ikkje imot tastetrykk etter stadfestingsdialog
+
+- Symptom: etter «Sett faktisk framdrift lik påløpt…» (og andre `window.confirm/alert`) kunne ingen tal/tekstfelt endrast (tidslinjetabell, rapportoverskrift). Årsak (truleg): Electron/Windows-feilen der den innebygde dialogen held att tastaturfokuset; `fokusFiks` (preload) var ikkje nok.
+- Fiks: `FramdriftModule.jsx` har no ein eigen, asynkron `spor(tekst, berreOk)`-dialog (state `dialog`) i staden for `window.confirm/alert` (justering av framdrift, sletting, opphev summasjon, endringsvarsel-feilmelding). `fokus-fiks` i `electron/main.js` prøver no tre gonger (0/80/300 ms). **main.js-endringa krev omstart av skrivebordsappen.** Dei andre Framdrift-filene (Bemanning, Endringsvarsel, Rapport, Timar-/Personpanel, Status) brukar framleis `window.confirm` og kan byttast til same mønster ved behov.

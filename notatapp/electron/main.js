@@ -101,7 +101,8 @@ function loadWithFallback(win, urls) {
 ipcMain.on('fokus-fiks', (event) => {
   const w = BrowserWindow.fromWebContents(event.sender)
   if (!w || w.isDestroyed()) return
-  w.blur(); w.focus(); event.sender.focus()
+  const fiks = () => { if (w.isDestroyed()) return; w.blur(); w.focus(); event.sender.focus() }
+  fiks(); setTimeout(fiks, 80); setTimeout(fiks, 300)
 })
 
 function createWindow() {
