@@ -294,4 +294,4 @@ Bygger på «Endringsvarsel — 8. nov. 2026» (tabellen `framdrift_endringsvars
 
 Ressursar som har ført timar (import) men ikkje er med i aktivitetens bemanning (`utanPlan`-rader i bemanningsregisteret) har no eit redigerbart ratefelt. Raten ligg på aktiviteten som `e.utanPlanRate` (`{ <namn med små bokstavar>: kr/t }`) og vert lest via `rateUtanPlan()` i framdriftTimar.js (fell tilbake til Personell-rate, deretter aktivitetens rate). Brukt i påløpt kostnad i rapport, tabell, tidslinje og importert forbruk.
 
-- 10. nov. 2026: «+/- budsjett» vert ikkje laga for aktivitetar utan fordelte planlagde timar (ingen timar planlagt), og heller ikkje for aktivitetstype **Fastpris** (`planlagdIntervall` gir 0). Summasjonar tel då berre med dei underaktivitetane som har fordelt plan.
+- 10. nov. 2026: «+/- budsjett» vert ikkje laga for aktivitetar utan planlagde (fordelte) timar. Summasjonar tel då berre med underaktivitetane som har plan. (Aktivitetstype Fastpris vert IKKJE unnateke.)

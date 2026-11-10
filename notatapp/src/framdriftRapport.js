@@ -115,7 +115,6 @@ function prognoseFordelt(e, kal, tilIso) {
 // Planlagde timar i tidsrommet [fraIso, tilIso] (fraIso = null: frå starten av aktiviteten). Same fordeling som prognoseFordelt, so
 // planlagd-til-no + prognose = alle planlagde timar.
 function planlagdIntervall(e, kal, fraIso, tilIso) {
-  if (normAktType(e.budsjettType) === 'Fastpris') return 0      // fastpris: timane er ikkje fordelt/styrande — ingen samanlikning av timeforbruk mot plan
   const fra = fraIso ? tilDato(fraIso) : null, til = tilDato(tilIso)
   let sum = 0
   for (const { veke, timar } of fordelTimar(e, kal)) {
