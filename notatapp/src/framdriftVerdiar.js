@@ -28,6 +28,7 @@ export const KOLONNE_DEF = [
   { key: 'timar',        label: 'Timar',        w: 64, hogre: true },
   { key: 'palopTimar',   label: 'Påløpt t',     w: 72, hogre: true },
   { key: 'palopHonorar', label: 'Påløpt kostnad', w: 100, hogre: true },
+  { key: 'palopPct',     label: 'Påløpt %',     w: 76, hogre: true },
   { key: 'gjenTimar',    label: 'Gjenst. timar', w: 90, hogre: true },
   { key: 'gjenBudsjett', label: 'Gjenst. budsjett', w: 110, hogre: true },
   { key: 'avh',          label: 'Forgjengere',  w: 150 },
@@ -109,6 +110,13 @@ export function bygVerdiar({ elementer, dokMap, prisar }) {
       case 'timar': return e.type === 'milepael' ? '' : !erSammen(e) ? (e.timar || 0) : sumBlad(e, c => +c.timar || 0)
       case 'palopTimar': return e.type === 'milepael' ? '' : !erSammen(e) ? (e.palopTimar ?? '') : (sumBlad(e, c => +c.palopTimar || 0) || '')
       case 'palopHonorar': return e.type === 'milepael' ? '' : !erSammen(e) ? (palopHon(e) || '') : (sumBlad(e, palopHon) || '')
+      case 'palopPct': {
+        // Påløpt honorar i % av budsjett/fastpris (utan budsjett: planlagde timar × snittrate). Summasjon/fase: summen av aktivitetane under.
+        if (e.type === 'milepael') return ''
+        const bud = (c) => (+c.budsjett > 0 ? +c.budsjett : Math.round((+c.timar || 0) * rate(c)))
+        const b = !erSammen(e) ? bud(e) : sumBlad(e, bud), p = !erSammen(e) ? palopHon(e) : sumBlad(e, palopHon)
+        return b > 0 ? Math.round((p / b) * 100) : ''
+      }
       case 'gjenTimar': {
         if (e.type === 'milepael') return ''
         const g = (c) => (+c.timar || 0) - (+c.palopTimar || 0)

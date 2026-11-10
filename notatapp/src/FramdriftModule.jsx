@@ -470,9 +470,12 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
   }
   const hentStatusPlan = (els, namn) => { oppdater(els); setValgt(null); setValde(new Set()); setStatusVindauge(null); setKoblingMelding('Status «' + namn + '» er henta fram (kan angrast med «Angre»).'); setTimeout(() => setKoblingMelding(null), 6000) }
   // Faktisk framdrift (timevekta) = % av budsjett/fastpris som er brukt (påløpt honorar ÷ budsjett), for alle aktivitetar med budsjett
-  const justerFramdriftTilForbruk = () => {
+  // rotId: berre aktivitetane under (eller på) dette elementet; null = heile planen
+  const justerFramdriftTilForbruk = (rotId = null) => {
     const prisarMap = prisKartFra(personell), nye = new Map()
+    const omfang = rotId == null ? null : new Set([rotId, ...etterkommarar(elementer, rotId).map(c => c.id)])
     for (const e of elEff) {
+      if (omfang && !omfang.has(e.id)) continue
       if (e.type !== 'aktivitet' || erSumm(elementer, e)) continue
       const snitt = snittpris(e, prisarMap).pris || 0
       const bud = +e.budsjett > 0 ? +e.budsjett : Math.round((+e.timar || 0) * snitt)
@@ -480,7 +483,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
       const kr = e.palopHonorar != null && e.palopHonorar !== '' ? +e.palopHonorar : (+e.palopTimar || 0) * snitt
       nye.set(e.id, Math.max(0, Math.min(100, Math.round((kr / bud) * 100))))
     }
-    if (!nye.size) { window.alert('Ingen aktivitetar har budsjett eller fastpris å rekne prosent av.'); return }
+    if (!nye.size) { window.alert('Ingen aktivitetar' + (rotId == null ? '' : ' her') + ' har budsjett eller fastpris å rekne prosent av.'); return }
     if (!window.confirm('Sette faktisk framdrift for ' + nye.size + ' aktivitetar lik prosent av budsjett/fastpris som er brukt (påløpt honorar ÷ budsjett, maks 100 %)?\n\nDette overstyrer framdrift frå leveransar og skjønn. Du kan angre med «Angre».')) return
     oppdater(elementer.map(e => (nye.has(e.id) ? { ...e, ferdig: nye.get(e.id), ferdigModus: 'skjonn' } : e)))
   }
@@ -645,7 +648,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
             <MenyPunkt tittel="Rapport til kunde" under="Aktivitet, ansvarleg, budsjett · påløpt totalt · vald periode · prognose" onClick={() => { lukk(); setRapportStart('std-kunde') }}/>
             <MenyPunkt tittel="Intern rapport" under="Som kunderapporten, med timar, timerate, avvik og venta sluttkostnad" onClick={() => { lukk(); setRapportStart('std-intern') }}/>
             <MenySkilje/>
-            <MenyPunkt tittel="Sett framdrift = % brukt…" under="Faktisk framdrift timevekta lik prosent av budsjett/fastpris som er brukt" onClick={() => { lukk(); justerFramdriftTilForbruk() }}/>
+            <MenyPunkt tittel="Sett framdrift = % brukt…" under="Faktisk framdrift timevekta lik prosent av budsjett/fastpris som er brukt" onClick={() => { lukk(); justerFramdriftTilForbruk(null) }}/>
             <MenyPunkt tittel="Eigne og delte rapportar…" under="Opne ein lagra rapport, eller lag ein ny" onClick={() => { lukk(); setRapportStart('std-kunde') }}/>
           </>)}</FdMeny>
           <FdMeny etikett="Lagre status" breidd={290} tittel="Lagre eit bilete av planen med påløpt, eller hent fram ein tidlegare status">{lukk => (<>
@@ -842,7 +845,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
               <div onContextMenu={kontekstRad} style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
               <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
               {visning === 'tidslinje' ? (
-                <FramdriftTidslinje delsummer={fdVis.delsummer} skala={skala} valde={valde} personell={personell} onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={velgRad}
+                <FramdriftTidslinje onSettFramdriftPalopt={justerFramdriftTilForbruk} delsummer={fdVis.delsummer} skala={skala} valde={valde} personell={personell} onEndreFelt={endreFraTabell} forbrukKart={forbrukKart} fargeKart={fargeKart} prisar={prisKartFra(personell)} rader={rader} elementer={elEff} kal={kal} utvida={utvida} onToggleUtvida={toggleUtvida} valgt={valgt} onVelg={velgRad}
                   onEndre={endreFraTidslinje} hendingar={hendingar} visHendingar={visHendingar} zoom={zoom}
                   timarKart={timarKart} overlast={overlast} visTimar={visTimar} dokMap={dokMap}
                   onKoble={koble} onFjernAvh={fjernAvh} onFlyttHierarki={flyttHierarki} onFyll={fyllKolonne}
@@ -882,6 +885,7 @@ export default function FramdriftModule({ userId, projects, notes, activeProject
           <div onMouseDown={() => setRadMeny(null)} onContextMenu={e => { e.preventDefault(); setRadMeny(null) }} style={{ position: 'fixed', inset: 0, zIndex: 300 }}/>
           <div style={{ position: 'fixed', left: Math.min(radMeny.x, window.innerWidth - 270), top: Math.min(radMeny.y, window.innerHeight - 250), zIndex: 301, minWidth: 250, padding: 5, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', boxShadow: 'var(--shadow-lg)' }}>
             {akt && !summ && pkt('＋ Legg til endring', leggTilEndringFraMeny)}
+            {el.type !== 'milepael' && pkt('📈 Sett faktisk framdrift lik påløpt av budsjett/fastpris', () => { setRadMeny(null); justerFramdriftTilForbruk(el.id) })}
             {pkt('∑ Ny summasjonsaktivitet', nySummFraMeny)}
             {akt && el.summ && pkt('∑ Opphev summasjonsaktivitet', () => summFraMeny(false))}
             {akt && !summ && pkt('∑ Gjer om til summasjonsaktivitet', () => summFraMeny(true), { disabled: paalopt, tittel: paalopt ? 'Kan ikkje gjerast om: det er ført timar på aktiviteten' : undefined })}
