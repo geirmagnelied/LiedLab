@@ -320,3 +320,7 @@ Ressursar som har ført timar (import) men ikkje er med i aktivitetens bemanning
 
 - Symptom: etter «Sett faktisk framdrift lik påløpt…» (og andre `window.confirm/alert`) kunne ingen tal/tekstfelt endrast (tidslinjetabell, rapportoverskrift). Årsak (truleg): Electron/Windows-feilen der den innebygde dialogen held att tastaturfokuset; `fokusFiks` (preload) var ikkje nok.
 - Fiks: `FramdriftModule.jsx` har no ein eigen, asynkron `spor(tekst, berreOk)`-dialog (state `dialog`) i staden for `window.confirm/alert` (justering av framdrift, sletting, opphev summasjon, endringsvarsel-feilmelding). `fokus-fiks` i `electron/main.js` prøver no tre gonger (0/80/300 ms). **main.js-endringa krev omstart av skrivebordsappen.** Dei andre Framdrift-filene (Bemanning, Endringsvarsel, Rapport, Timar-/Personpanel, Status) brukar framleis `window.confirm` og kan byttast til same mønster ved behov.
+
+## 12. nov. 2026 — Rapport: samanlikning mot plan kjem tilbake for aktivitetar med timar
+
+- Spreiingsregelen frå 10. nov. (`fordelingSett`) var for streng: aktivitetar med timar i plana og standard «Fast»-fordeling (jamn fordeling over tidsrommet) mista +/- budsjett. `planlagdIntervall` i `framdriftRapport.js` stoppar no berre for `modus === 'budsjett'` (berre budsjett/fastpris, ingen timar). `fordelingSett` er ikkje lenger kravd (feltet ligg att, harmlaust).
