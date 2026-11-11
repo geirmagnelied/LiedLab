@@ -122,9 +122,10 @@ function prognoseFordelt(e, kal, tilIso) {
 // Planlagde timar i tidsrommet [fraIso, tilIso] (fraIso = null: frå starten av aktiviteten). Same fordeling som prognoseFordelt, so
 // planlagd-til-no + prognose = alle planlagde timar.
 function planlagdIntervall(e, kal, fraIso, tilIso) {
-  // Ingen samanlikning av forbruk mot plan for aktivitetar med berre budsjett (modus 'budsjett'). Timane i planen (modus 'timar') er fordelte på veker i tidsrommet
-  // til aktiviteten (standard «Fast» er jamn fordeling; Start/Midt/Slutt/eigen er justeringar), og tel som innlagd spreiing.
-  if (e.modus === 'budsjett') return 0
+  // Samanlikning mot plan berre når brukaren har LAGT INN spreiing av timane over tidsrommet: valt Start/Midt/Slutt/eigen fordeling, eller sjølv trykt på fordelingsvalet
+  // (e.fordelingSett, også «Fast»). Uavhengig av modus: ein aktivitet med fastpris/budsjett kan ha timar som er fordelte. Standardfordeling utan val = ingen avvik.
+  const spreidd = (e.fordeling && e.fordeling !== 'fast') || !!e.fordelingSett
+  if (!spreidd) return 0
   const fra = fraIso ? tilDato(fraIso) : null, til = tilDato(tilIso)
   let sum = 0
   for (const { veke, timar } of fordelTimar(e, kal)) {

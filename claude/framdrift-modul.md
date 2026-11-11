@@ -324,3 +324,7 @@ Ressursar som har ført timar (import) men ikkje er med i aktivitetens bemanning
 ## 12. nov. 2026 — Rapport: samanlikning mot plan kjem tilbake for aktivitetar med timar
 
 - Spreiingsregelen frå 10. nov. (`fordelingSett`) var for streng: aktivitetar med timar i plana og standard «Fast»-fordeling (jamn fordeling over tidsrommet) mista +/- budsjett. `planlagdIntervall` i `framdriftRapport.js` stoppar no berre for `modus === 'budsjett'` (berre budsjett/fastpris, ingen timar). `fordelingSett` er ikkje lenger kravd (feltet ligg att, harmlaust).
+
+## 12. nov. 2026 (seinare) — Rapport: avvik berre ved innlagd spreiing, uavhengig av modus
+
+- Rettar føregåande punkt. Avvik mot plan skal berre reknast for aktivitetar/personell der brukaren har lagt inn spreiing av timane (Start/Midt/Slutt/eigen fordeling, eller trykt på fordelingsvalet → `fordelingSett`). Fastpris-/budsjettaktivitetar (`modus 'budsjett'`) kan ha fordelte timar og skal då ha avvik; `modus`-sjekken i `planlagdIntervall` er fjerna. Standardfordeling utan val (som SØK, BIMKO, LARK m.fl.) gir ingen avvik.
