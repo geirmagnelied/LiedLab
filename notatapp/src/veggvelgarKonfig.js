@@ -44,3 +44,21 @@ export const FAMILIE_ROBUSTHEIT_TILLEGG = { NailItIndoor: 1, NailItSafety: 2 }
 export const FAMILIE_KORT = { Trestender: 'Tre', TrestenderUB: 'Tre UB', NailItIndoor: 'Nail It', NailItSafety: 'Nail It S' }
 // Profilnamn i resultat (nøkkel = profil i `hogde`)
 export const PROFILNAMN = { dB: 'dB+', CF: 'CF', Tre: 'Tre', N: 'Nail It', CFN: 'Nail It CF' }
+
+// ── Stenderbreidd: val i skjemaet. 95 og 100 mm vert slått saman (entreprenøren reknar dei som same stenderdimensjon). ──
+export const BREDDEGRUPPER = [
+  { namn: '45', verdiar: [45] }, { namn: '48', verdiar: [48] }, { namn: '68', verdiar: [68] }, { namn: '70', verdiar: [70] },
+  { namn: '95/100', verdiar: [95, 100] }, { namn: '98', verdiar: [98] }, { namn: '120', verdiar: [120] }, { namn: '123', verdiar: [123] },
+]
+
+// ── Typiske lydkrav (luftlydisolasjon R'w, dB) etter NS 8175 lydklasse C (minstekrav i TEK17). VEILEDANDE: kontroller mot standarden og prosjektet sine krav. ──
+// Brukaren kan alltid skrive inn eit eige krav. Rediger lista her ved behov.
+export const LYDKRAV_STANDARD = [
+  { id: 'bustad-bustad', namn: 'Mellom bustader', rw: 55 },
+  { id: 'bustad-fellesareal', namn: 'Bustad mot trapperom/korridor', rw: 55 },
+  { id: 'innanfor-bustad', namn: 'Innanfor bustad (t.d. soverom)', rw: 40 },
+  { id: 'hotell', namn: 'Mellom hotellrom/overnatting', rw: 52 },
+  { id: 'klasserom', namn: 'Mellom klasserom/undervisning', rw: 44 },
+  { id: 'moterom', namn: 'Møterom / kontor mot møterom', rw: 44 },
+  { id: 'cellekontor', namn: 'Mellom cellekontor', rw: 37 },
+]

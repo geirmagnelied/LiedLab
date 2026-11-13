@@ -1,5 +1,5 @@
 import data from './data/norgipsVeggtabell.json'
-import { PLATE_ROBUSTHEIT, TILLEGG_FLEIRE_LAG, FUKTPLATER, RIB_GRENSE_MM, FAMILIE_ROBUSTHEIT_TILLEGG, PROFILNAMN } from './veggvelgarKonfig'
+import { PLATE_ROBUSTHEIT, TILLEGG_FLEIRE_LAG, FUKTPLATER, RIB_GRENSE_MM, FAMILIE_ROBUSTHEIT_TILLEGG, PROFILNAMN, BREDDEGRUPPER } from './veggvelgarKonfig'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Veggvelgar — rein logikk (ingen React): filtrerer og rangerer Norgips-radene mot krava.
@@ -55,6 +55,8 @@ export function evaluerRad(r, krav, hopp = null) {
   const feil = []
   if (hopp !== 'materiale' && krav.materiale && krav.materiale !== 'alle' && r.materiale !== krav.materiale) feil.push('materiale')
   if (hopp !== 'romtype' && !romtypeOk(r, krav.romtype)) feil.push('romtype')
+  if (hopp !== 'bredde' && krav.bredder?.length && !krav.bredder.some(n => BREDDEGRUPPER.find(g => g.namn === n)?.verdiar.includes(r.stenderBredde))) feil.push('bredde')
+  if (hopp !== 'stender' && krav.stender && krav.stender !== 'alle' && (krav.stender === 'enkel') !== /E$/.test(r.loysing)) feil.push('stender')
   if (hopp !== 'robust' && robustPoeng(r) < (krav.robust || 0)) feil.push('robust')
   if (hopp !== 'lyd' && krav.lyd > 0 && !((krav.lydMaal === 'rwC' ? r.rwC : r.rw) >= krav.lyd)) feil.push('lyd')
   if (hopp !== 'brann' && krav.brann > 0 && !brannKandidatar(r, krav.brann).length) feil.push('brann')
@@ -99,8 +101,26 @@ export function foreslaVeggar(krav, rader = ALLE_RADER) {
 
 // Flaskehals: kor mange rader hadde vore med om eitt krav vart ignorert (for «ingen treff»-hjelp)
 export function flaskehalsar(krav, rader = ALLE_RADER) {
-  const namn = { materiale: 'Veggtype', romtype: 'Romtype', robust: 'Robustheit', lyd: 'Lydkrav', brann: 'Brannkrav', hogde: 'Romhøgde' }
+  const namn = { materiale: 'Veggtype', bredde: 'Stenderbreidd', stender: 'Enkel/dobbel stender', romtype: 'Romtype', robust: 'Robustheit', lyd: 'Lydkrav', brann: 'Brannkrav', hogde: 'Romhøgde' }
   return Object.keys(namn).map(k => ({ krav: k, namn: namn[k], antal: rader.filter(r => evaluerRad(r, krav, k).ok).length })).filter(x => x.antal > 0).sort((a, b) => b.antal - a.antal)
+}
+
+// ── Vurdering av ein vegg lagra på prosjekt mot krava brukaren har skrive inn (pk = { tjukkleik (maks), brann, lyd, hogde, robust }) ──
+export const maksEI = (r) => r.brann.reduce((m, b) => Math.max(m, b.ei), 0)
+export function vurderVegg(r, pk = {}, variant = null) {
+  const brann = +pk.brann || 0
+  let v = null
+  if (variant) { const m = maksHogde(r, variant.profil, variant.cc, brann); if (m) v = { ...variant, maks: m.mm } }
+  if (!v) v = varianter(r, { brann, cf: true, cc: 'auto' }).sort((a, b) => b.maks - a.maks)[0] || null
+  const verdi = { tjukkleik: r.veggTjukkleik, brann: maksEI(r), rw: r.rw, hogde: v ? v.maks : null, robust: robustPoeng(r), variant: v }
+  const adv = [], felt = {}
+  const slaa = (k, tekst) => { adv.push(tekst); felt[k] = true }
+  if (+pk.tjukkleik > 0 && r.veggTjukkleik > +pk.tjukkleik) slaa('tjukkleik', 'Veggen er ' + r.veggTjukkleik + ' mm, krav maks ' + pk.tjukkleik + ' mm.')
+  if (brann > 0 && maksEI(r) < brann) slaa('brann', 'Krav EI ' + brann + ' er strengare enn veggen (EI ' + maksEI(r) + ').')
+  if (+pk.lyd > 0 && !(r.rw >= +pk.lyd)) slaa('rw', "Krav R'w " + pk.lyd + ' dB er strengare enn veggen (' + (r.rw ?? '–') + ' dB).')
+  if (+pk.hogde > 0 && !(brann > 0 && maksEI(r) < brann) && (!v || v.maks < +pk.hogde)) slaa('hogde', 'Krav romhøgde ' + pk.hogde + ' mm er over maks høgde' + (v ? ' (' + v.maks + ' mm)' : '') + (brann > 0 ? ' med EI ' + brann : '') + '.')
+  if (+pk.robust > 0 && verdi.robust < +pk.robust) slaa('robust', 'Krav til robustheit er strengare enn veggen.')
+  return { verdi, adv, felt }
 }
 
 export { PROFILNAMN }

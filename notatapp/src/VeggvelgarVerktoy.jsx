@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabase'
 import VeggvalTabell from './VeggvalTabell'
 import { foreslaVeggar, flaskehalsar, VEGGDATA } from './veggvelgarLogikk'
-import { BRANNKLASSAR, ROBUSTHEITSNIVA, ROMTYPAR, MATERIALAR, FAMILIE_KORT, PROFILNAMN } from './veggvelgarKonfig'
+import { BRANNKLASSAR, ROBUSTHEITSNIVA, ROMTYPAR, MATERIALAR, FAMILIE_KORT, PROFILNAMN, BREDDEGRUPPER, LYDKRAV_STANDARD } from './veggvelgarKonfig'
+import { ProsjektVeggarTabell, PrintArk } from './ProsjektVeggar'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Veggvelgar — foreslår innvendige stenderveggar frå Norgips sin veggtabell ut frå krav (brann, lyd, høgde, robustheit, romtype).
 //  Data: data/norgipsVeggtabell.json (lese frå nettsida, sjå claude/verktoy-modul.md). Val kan lagrast per prosjekt (verktoy_veggval).
 // ═══════════════════════════════════════════════════════════════════
 
-const STANDARD_KRAV = { materiale: 'alle', romtype: 'innvendig', brann: 0, lyd: 0, lydMaal: 'rw', hogde: 2700, robust: 0, cf: true, cc: 'auto' }
+const STANDARD_KRAV = { materiale: 'alle', romtype: 'innvendig', brann: 0, lyd: 0, lydMaal: 'rw', hogde: 2700, robust: 0, cf: true, cc: 'auto', stender: 'enkel', bredder: [], lydPreset: 'ingen' }
+const SQL_MELDING = 'Databasen manglar kolonnar/tabell for veggval. Køyr SQL-filene supabase-verktoy-veggval.sql og supabase-verktoy-veggval-2.sql i Supabase SQL Editor.'
+const sqlFeil = (e) => (/verktoy_veggval|relation|schema cache|lopenr|prosjektkrav|column/i.test(e.message) ? SQL_MELDING : e.message)
 const KRAV_KEY = 'liedlab-veggvelgar-krav-v1'
 const NORGIPS_URL = 'https://byggeteknikk.norgips.no/prosjektering/innervegger/veggtabell/'
 
@@ -24,7 +27,7 @@ const tilTabellRad = (t, krav) => {
   return {
     id: r.id, rad: r, familie: FAMILIE_KORT[r.familie] || r.familie, kode: r.kode, tjukkleik: r.veggTjukkleik, plater: r.plateTjukkleik + ' mm', isolasjon: r.isolasjon,
     brann: best?.ei ?? null, rw: r.rw, rwC: r.rwC, maksHogde: v?.maks ?? null, oppsett: v ? (PROFILNAMN[v.profil] || v.profil) + (v.profil === 'N' || v.profil === 'CFN' ? '' : ' c/c ' + v.cc) : '',
-    margin: t.margin, robust: t.robust, merknad: t.merknader.join(' '), treff: t,
+    variant: v ? { profil: v.profil, cc: v.cc } : null, margin: t.margin, robust: t.robust, merknad: t.merknader.join(' '), treff: t,
   }
 }
 
@@ -51,28 +54,39 @@ export default function VeggvelgarVerktoy({ userId, projects = [], activeProject
     setFeil('')
     if (!pid) { setLagra([]); return }
     const { data, error } = await supabase.from('verktoy_veggval').select('*').eq('project_id', pid).order('created_at', { ascending: false })
-    if (error) { setFeil(/verktoy_veggval|relation|schema cache/i.test(error.message) ? 'Tabellen «verktoy_veggval» finst ikkje enno. Køyr SQL-fila supabase-verktoy-veggval.sql i Supabase SQL Editor.' : error.message); setLagra([]); return }
+    if (error) { setFeil(sqlFeil(error)); setLagra([]); return }
     setLagra(data || [])
   }
   useEffect(() => { last(prosjektId) }, [prosjektId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const lagre = async () => {
-    if (!valgt || !prosjektId) return
+  // Legg ei tabellrad til prosjektet. Krava frå skjemaet vert føreslåtte som prosjektkrav (kan endrast i prosjekttabellen).
+  const leggTil = async (tr, rom = '', mrk = '') => {
+    if (!tr || !prosjektId) return
     setFeil(''); setMelding('')
-    const t = valgt.treff
+    const lopenr = lagra.reduce((m, x) => Math.max(m, x.lopenr || 0), 0) + 1
     const { error } = await supabase.from('verktoy_veggval').insert({
-      project_id: prosjektId, veggkode: valgt.kode, familie: valgt.familie, romnamn: romnamn.trim(), merknad: merknad.trim(), datakjelde_dato: VEGGDATA.henta,
-      krav, resultat: { tjukkleik: valgt.tjukkleik, brann: valgt.brann, rw: valgt.rw, rwC: valgt.rwC, maksHogde: valgt.maksHogde, oppsett: valgt.oppsett, margin: valgt.margin, robust: valgt.robust, merknader: t.merknader, rad_id: valgt.id },
+      project_id: prosjektId, veggkode: tr.kode, familie: tr.rad.familie, romnamn: rom.trim(), merknad: mrk.trim(), datakjelde_dato: VEGGDATA.henta, lopenr,
+      krav, prosjektkrav: { brann: krav.brann || 0, lyd: krav.lyd || 0, hogde: krav.hogde || 0, robust: krav.robust || 0 },
+      resultat: { tjukkleik: tr.tjukkleik, brann: tr.brann, rw: tr.rw, rwC: tr.rwC, maksHogde: tr.maksHogde, oppsett: tr.oppsett, margin: tr.margin, robust: tr.robust, merknader: tr.treff.merknader, rad_id: tr.id, variant: tr.variant },
     })
-    if (error) { setFeil(/verktoy_veggval|relation|schema cache/i.test(error.message) ? 'Tabellen «verktoy_veggval» finst ikkje enno. Køyr SQL-fila supabase-verktoy-veggval.sql i Supabase SQL Editor.' : error.message); return }
-    setMelding('Veggvalet er lagra på prosjektet.'); setRomnamn(''); setMerknad(''); last(prosjektId)
-    setTimeout(() => setMelding(''), 5000)
+    if (error) { setFeil(sqlFeil(error)); return }
+    setMelding('Lagt til som ID ' + String(lopenr).padStart(2, '0') + '.'); setRomnamn(''); setMerknad(''); last(prosjektId)
+    setTimeout(() => setMelding(''), 4000)
+  }
+  const lagre = () => leggTil(valgt, romnamn, merknad)
+  const endre = async (id, patch) => {
+    setLagra(l => l.map(x => (x.id === id ? { ...x, ...patch } : x)))
+    const { error } = await supabase.from('verktoy_veggval').update(patch).eq('id', id)
+    if (error) { setFeil(sqlFeil(error)); last(prosjektId) }
   }
   const slett = async (rad) => {
-    if (!window.confirm('Slette det lagra veggvalet «' + rad.veggkode + '»?')) return
+    if (!window.confirm('Fjerne veggen «' + rad.veggkode + '» frå prosjektet?')) return
     const { error } = await supabase.from('verktoy_veggval').delete().eq('id', rad.id)
     if (error) setFeil(error.message); else last(prosjektId)
   }
+  const [skrivUt, setSkrivUt] = useState(false)
+  const erLagt = useCallback((tr) => lagra.some(x => x.resultat?.rad_id === tr.id), [lagra])
+  const sorterte = useMemo(() => [...lagra].sort((a, b) => (a.lopenr || 0) - (b.lopenr || 0)), [lagra])
 
   const prosjektNamn = (id) => { const p = projects.find(x => x.id === id); return p ? ((p.projectNumber || p.project_number || '') + ' ' + (p.name || '')).trim() : '' }
   const TAB = (a) => ({ padding: '6px 14px', border: '1.5px solid ' + (a ? '#0A0A0A' : 'transparent'), borderRadius: 8, background: a ? '#0A0A0A' : 'rgba(255,255,255,.5)', color: a ? '#fff' : 'var(--text2)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' })
@@ -86,6 +100,18 @@ export default function VeggvelgarVerktoy({ userId, projects = [], activeProject
         <label style={{ ...LBL, marginTop: 6 }}>Veggtype</label>
         <select value={krav.materiale} onChange={e => sett('materiale', e.target.value)} style={INN}>{MATERIALAR.map(m => <option key={m.verdi} value={m.verdi}>{m.namn}</option>)}</select>
 
+        <label style={LBL}>Stenderbreidd (mm)</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {BREDDEGRUPPER.map(g => {
+            const pa = krav.bredder.includes(g.namn)
+            return <button key={g.namn} onClick={() => sett('bredder', pa ? krav.bredder.filter(x => x !== g.namn) : [...krav.bredder, g.namn])} style={{ padding: '4px 10px', borderRadius: 14, border: '1.5px solid ' + (pa ? '#0A0A0A' : 'var(--border)'), background: pa ? '#0A0A0A' : 'transparent', color: pa ? '#fff' : 'var(--text2)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>{g.namn}</button>
+          })}
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 4 }}>{krav.bredder.length ? 'Berre valde stenderbreidder. 95 og 100 mm vert rekna som same stender.' : 'Ingen valde = alle breidder.'}</div>
+
+        <label style={LBL}>Enkle eller doble stendarar</label>
+        <select value={krav.stender} onChange={e => sett('stender', e.target.value)} style={INN}><option value="enkel">Enkle (standard)</option><option value="dobbel">Doble</option><option value="alle">Begge</option></select>
+
         <label style={LBL}>Romtype</label>
         <select value={krav.romtype} onChange={e => sett('romtype', e.target.value)} style={INN}>{ROMTYPAR.map(r => <option key={r.verdi} value={r.verdi}>{r.namn}</option>)}</select>
         <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 4 }}>{ROMTYPAR.find(r => r.verdi === krav.romtype)?.hjelp}</div>
@@ -94,8 +120,17 @@ export default function VeggvelgarVerktoy({ userId, projects = [], activeProject
         <select value={krav.brann} onChange={e => sett('brann', +e.target.value)} style={INN}>{BRANNKLASSAR.map(b => <option key={b} value={b}>{b === 0 ? 'Ingen brannkrav' : 'EI ' + b}</option>)}</select>
 
         <label style={LBL}>Lydkrav (dB, minst)</label>
+        <select value={krav.lydPreset} style={{ ...INN, marginBottom: 6 }} onChange={e => {
+          const p = e.target.value, f = LYDKRAV_STANDARD.find(x => x.id === p)
+          setKrav(x => { const n = { ...x, lydPreset: p, lyd: f ? f.rw : p === 'ingen' ? 0 : x.lyd, lydMaal: f ? 'rw' : x.lydMaal }; try { localStorage.setItem(KRAV_KEY, JSON.stringify(n)) } catch { /* */ } return n })
+        }}>
+          <option value="ingen">Ingen lydkrav</option>
+          {LYDKRAV_STANDARD.map(f => <option key={f.id} value={f.id}>{f.namn} — R'w ≥ {f.rw}</option>)}
+          <option value="manuell">Eige krav (skriv inn)</option>
+        </select>
+        <div style={{ fontSize: 11, color: 'var(--text3)', margin: '-2px 0 6px', lineHeight: 1.4 }}>Typiske krav etter NS 8175 klasse C (veiledande — kontroller mot standarden og prosjektet).</div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <input type="number" min="0" max="90" value={krav.lyd || ''} placeholder="Ingen" onChange={e => sett('lyd', Math.max(0, parseInt(e.target.value, 10) || 0))} style={{ ...INN, flex: 1 }}/>
+          <input type="number" min="0" max="90" value={krav.lyd || ''} placeholder="Ingen" onChange={e => { const v = Math.max(0, parseInt(e.target.value, 10) || 0); setKrav(x => { const n = { ...x, lyd: v, lydPreset: v ? 'manuell' : 'ingen' }; try { localStorage.setItem(KRAV_KEY, JSON.stringify(n)) } catch { /* */ } return n }) }} style={{ ...INN, flex: 1 }}/>
           <select value={krav.lydMaal} onChange={e => sett('lydMaal', e.target.value)} style={{ ...INN, width: 110 }}><option value="rw">R'w</option><option value="rwC">R'w + C</option></select>
         </div>
 
@@ -123,7 +158,11 @@ export default function VeggvelgarVerktoy({ userId, projects = [], activeProject
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: smal ? 420 : 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', height: 46, flexShrink: 0, background: 'var(--bg3)', borderBottom: '1px solid var(--border)' }}>
           <button onClick={() => setFane('forslag')} style={TAB(fane === 'forslag')}>Forslag ({treff.length})</button>
-          <button onClick={() => setFane('lagra')} style={TAB(fane === 'lagra')}>Lagra på prosjekt ({lagra.length})</button>
+          <button onClick={() => setFane('lagra')} style={TAB(fane === 'lagra')}>Veggar på prosjektet ({lagra.length})</button>
+          <select value={prosjektId} onChange={e => setProsjektId(e.target.value ? +e.target.value || e.target.value : '')} style={{ ...INN, width: 240, marginLeft: 'auto', padding: '5px 8px' }} title="Prosjekt som veggar vert lagde til">
+            <option value="">Vel prosjekt…</option>{projects.map(p => <option key={p.id} value={p.id}>{prosjektNamn(p.id)}</option>)}
+          </select>
+          {melding && <span style={{ fontSize: 12.5, color: '#166534', fontWeight: 700 }}>{melding}</span>}
         </div>
 
         {fane === 'forslag' && (
@@ -135,7 +174,7 @@ export default function VeggvelgarVerktoy({ userId, projects = [], activeProject
                 {krav.brann > 0 && krav.hogde > 4000 && <div style={{ marginTop: 8 }}>Høgder over 4 m med brannkrav skal prosjekterast særskilt av RIB.</div>}
               </div>
             )}
-            {treff.length > 0 && <div style={{ flex: 1, minHeight: 0, display: 'flex' }}><VeggvalTabell rader={rader} onVelg={setValgt}/></div>}
+            {treff.length > 0 && <div style={{ flex: 1, minHeight: 0, display: 'flex' }}><VeggvalTabell rader={rader} onVelg={setValgt} onLeggTil={leggTil} erLagt={erLagt} kanLeggeTil={!!prosjektId}/></div>}
 
             {valgt && (
               <div style={{ flexShrink: 0, maxHeight: smal ? 'none' : '42%', overflowY: 'auto', borderTop: '2px solid var(--brand)', background: 'var(--bg2)', padding: '12px 18px 16px' }}>
@@ -172,28 +211,13 @@ export default function VeggvelgarVerktoy({ userId, projects = [], activeProject
         )}
 
         {fane === 'lagra' && (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-            <select value={prosjektId} onChange={e => setProsjektId(e.target.value ? +e.target.value || e.target.value : '')} style={{ ...INN, width: 320, marginBottom: 14 }}>
-              <option value="">Vel prosjekt…</option>{projects.map(p => <option key={p.id} value={p.id}>{prosjektNamn(p.id)}</option>)}
-            </select>
-            {feil && <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(185,28,28,.08)', border: '1.5px solid var(--danger)', borderRadius: 8, fontSize: 13, color: 'var(--danger)' }}>{feil}</div>}
-            {!feil && prosjektId && lagra.length === 0 && <div style={{ fontSize: 13.5, color: 'var(--text3)' }}>Ingen lagra veggval på dette prosjektet enno.</div>}
-            {lagra.map(r => (
-              <div key={r.id} style={{ padding: '10px 14px', marginBottom: 8, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg2)' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, color: 'var(--brand)' }}>{r.veggkode}</span>
-                  <span style={{ fontWeight: 700, color: 'var(--text)', fontSize: 13.5 }}>{r.romnamn}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text3)' }}>{r.familie} · {new Date(r.created_at).toLocaleDateString('nb-NO')} · Norgips-data {r.datakjelde_dato}</span>
-                  <button onClick={() => slett(r)} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--danger)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}>Slett</button>
-                </div>
-                <div style={{ fontSize: 12.5, color: 'var(--text2)', marginTop: 4 }}>
-                  {r.resultat?.tjukkleik} mm · EI {r.resultat?.brann ?? '–'} · R'w {r.resultat?.rw} dB · maks {r.resultat?.maksHogde} mm ({r.resultat?.oppsett}) · Krav: {r.krav?.brann ? 'EI ' + r.krav.brann : 'ingen brann'}, {r.krav?.lyd ? r.krav.lyd + ' dB' : 'ingen lyd'}, {r.krav?.hogde ? r.krav.hogde + ' mm' : 'høgde ikkje oppgitt'}
-                </div>
-                {r.merknad && <div style={{ fontSize: 12.5, color: 'var(--text3)', marginTop: 3 }}>{r.merknad}</div>}
-              </div>
-            ))}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {feil && <div style={{ margin: 10, padding: '8px 12px', background: 'rgba(185,28,28,.08)', border: '1.5px solid var(--danger)', borderRadius: 8, fontSize: 13, color: 'var(--danger)' }}>{feil}</div>}
+            {!prosjektId && <div style={{ padding: '18px 20px', fontSize: 13.5, color: 'var(--text3)' }}>Vel eit prosjekt øvst til høgre.</div>}
+            {prosjektId && <ProsjektVeggarTabell veggar={sorterte} onEndre={endre} onSlett={slett} onSkrivUt={() => setSkrivUt(true)}/>}
           </div>
         )}
+        {skrivUt && <PrintArk veggar={sorterte} prosjekt={{ id: prosjektId, nr: (projects.find(p => p.id === prosjektId)?.projectNumber || ''), namn: projects.find(p => p.id === prosjektId)?.name || '' }} onLukk={() => setSkrivUt(false)}/>}
       </div>
     </div>
   )
