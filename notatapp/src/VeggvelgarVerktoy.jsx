@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabase'
 import VeggvalTabell from './VeggvalTabell'
 import { foreslaVeggar, flaskehalsar, VEGGDATA } from './veggvelgarLogikk'
-import { BRANNKLASSAR, ROBUSTHEITSNIVA, ROMTYPAR } from './veggvelgarKonfig'
+import { BRANNKLASSAR, ROBUSTHEITSNIVA, ROMTYPAR, MATERIALAR, FAMILIE_KORT, PROFILNAMN } from './veggvelgarKonfig'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Veggvelgar — foreslår innvendige stenderveggar frå Norgips sin veggtabell ut frå krav (brann, lyd, høgde, robustheit, romtype).
 //  Data: data/norgipsVeggtabell.json (lese frå nettsida, sjå claude/verktoy-modul.md). Val kan lagrast per prosjekt (verktoy_veggval).
 // ═══════════════════════════════════════════════════════════════════
 
-const STANDARD_KRAV = { romtype: 'innvendig', brann: 0, lyd: 0, lydMaal: 'rw', hogde: 2700, robust: 0, cf: true, cc: 'auto' }
+const STANDARD_KRAV = { materiale: 'alle', romtype: 'innvendig', brann: 0, lyd: 0, lydMaal: 'rw', hogde: 2700, robust: 0, cf: true, cc: 'auto' }
 const KRAV_KEY = 'liedlab-veggvelgar-krav-v1'
 const NORGIPS_URL = 'https://byggeteknikk.norgips.no/prosjektering/innervegger/veggtabell/'
 
@@ -22,8 +22,8 @@ const tilTabellRad = (t, krav) => {
   const r = t.rad, v = t.variant
   const best = krav.brann > 0 ? r.brann.filter(b => b.ei >= krav.brann).sort((a, b) => a.ei - b.ei)[0] : r.brann.slice().sort((a, b) => b.ei - a.ei)[0]
   return {
-    id: r.id, rad: r, familie: r.familie, kode: r.kode, tjukkleik: r.veggTjukkleik, plater: r.plateTjukkleik + ' mm', isolasjon: r.isolasjon,
-    brann: best?.ei ?? null, rw: r.rw, rwC: r.rwC, maksHogde: v?.maks ?? null, oppsett: v ? (v.profil === 'CF' ? 'CF' : 'dB+') + ' c/c ' + v.cc : '',
+    id: r.id, rad: r, familie: FAMILIE_KORT[r.familie] || r.familie, kode: r.kode, tjukkleik: r.veggTjukkleik, plater: r.plateTjukkleik + ' mm', isolasjon: r.isolasjon,
+    brann: best?.ei ?? null, rw: r.rw, rwC: r.rwC, maksHogde: v?.maks ?? null, oppsett: v ? (PROFILNAMN[v.profil] || v.profil) + (v.profil === 'N' || v.profil === 'CFN' ? '' : ' c/c ' + v.cc) : '',
     margin: t.margin, robust: t.robust, merknad: t.merknader.join(' '), treff: t,
   }
 }
@@ -83,6 +83,9 @@ export default function VeggvelgarVerktoy({ userId, projects = [], activeProject
     <div style={{ display: 'flex', flex: 1, flexDirection: smal ? 'column' : 'row', minHeight: 0, minWidth: 0, overflow: smal ? 'auto' : 'hidden' }}>
       {/* Krav */}
       <div style={{ width: smal ? 'auto' : 300, flexShrink: 0, overflowY: smal ? 'visible' : 'auto', padding: '8px 16px 24px', borderRight: smal ? 'none' : '1px solid var(--border)', borderBottom: smal ? '1px solid var(--border)' : 'none', background: 'var(--bg2)' }}>
+        <label style={{ ...LBL, marginTop: 6 }}>Veggtype</label>
+        <select value={krav.materiale} onChange={e => sett('materiale', e.target.value)} style={INN}>{MATERIALAR.map(m => <option key={m.verdi} value={m.verdi}>{m.namn}</option>)}</select>
+
         <label style={LBL}>Romtype</label>
         <select value={krav.romtype} onChange={e => sett('romtype', e.target.value)} style={INN}>{ROMTYPAR.map(r => <option key={r.verdi} value={r.verdi}>{r.namn}</option>)}</select>
         <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 4 }}>{ROMTYPAR.find(r => r.verdi === krav.romtype)?.hjelp}</div>
@@ -143,14 +146,14 @@ export default function VeggvelgarVerktoy({ userId, projects = [], activeProject
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '6px 22px', marginTop: 10, fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.5 }}>
                   <div><b style={{ color: 'var(--text)' }}>Veggløysing:</b> {forklar.veggloysing[valgt.rad.loysing] || valgt.rad.loysing}</div>
-                  <div><b style={{ color: 'var(--text)' }}>Stender:</b> C{valgt.rad.stenderBredde} {valgt.oppsett.startsWith('CF') ? '(CF forsterkingsprofil)' : '(dB+)'}</div>
-                  <div><b style={{ color: 'var(--text)' }}>Platelag:</b> {valgt.rad.lagKode}, {valgt.plater}</div>
+                  <div><b style={{ color: 'var(--text)' }}>Stender:</b> {valgt.rad.materiale === 'tre' ? 'Trestender ' + valgt.rad.stenderBredde + ' mm' : valgt.rad.profilKode + ' ' + valgt.rad.stenderBredde + (forklar.stalprofil[valgt.rad.profilKode] ? ' (' + forklar.stalprofil[valgt.rad.profilKode] + ')' : '')}</div>
+                  <div><b style={{ color: 'var(--text)' }}>Platelag:</b> {valgt.rad.lagKode}{valgt.plater !== ' mm' ? ', ' + valgt.plater : ''}</div>
                   <div><b style={{ color: 'var(--text)' }}>Isolasjon:</b> {valgt.isolasjon}</div>
                   <div><b style={{ color: 'var(--text)' }}>Plater som kan brukast:</b> {valgt.rad.tillattePlater.map(p => forklar.platetypar[p] || p).join('; ')}</div>
                   <div><b style={{ color: 'var(--text)' }}>Brann:</b> {valgt.rad.brann.map(b => 'EI ' + b.ei + ' opp til ' + b.maks + ' mm' + (b.stjerne ? '*' : '')).join(' / ')}</div>
-                  <div><b style={{ color: 'var(--text)' }}>Høgde utan brannkrav (dB+):</b> c/c 450: {valgt.rad.hogde.dB.c450} mm · c/c 600: {valgt.rad.hogde.dB.c600} mm</div>
-                  <div><b style={{ color: 'var(--text)' }}>Høgde utan brannkrav (CF):</b> c/c 450: {valgt.rad.hogde.CF.c450} mm · c/c 600: {valgt.rad.hogde.CF.c600} mm</div>
-                  <div><b style={{ color: 'var(--text)' }}>Lydreduksjon:</b> R'w {valgt.rw} dB · R'w+C {valgt.rwC} dB</div>
+                  {Object.entries(valgt.rad.hogde).map(([pr, h]) => <div key={pr}><b style={{ color: 'var(--text)' }}>Høgde utan brannkrav ({PROFILNAMN[pr] || pr}):</b> {[h.c450 != null && 'c/c 450: ' + h.c450 + ' mm', h.c600 != null && 'c/c 600: ' + h.c600 + ' mm'].filter(Boolean).join(' · ')}</div>)}
+                  {valgt.rad.baerende && (valgt.rad.baerende.b1 != null || valgt.rad.baerende.b2 != null) && <div><b style={{ color: 'var(--text)' }}>Bærande (brannklasse B1/B2):</b> {valgt.rad.baerende.b1 ?? '–'} / {valgt.rad.baerende.b2 ?? '–'} min, maks høgde {valgt.rad.baerende.hogde ?? '–'} mm</div>}
+                  <div><b style={{ color: 'var(--text)' }}>Lydreduksjon:</b> R'w {valgt.rw ?? '–'} dB · R'w+C {valgt.rwC ?? '–'} dB</div>
                 </div>
                 {valgt.merknad && <div style={{ marginTop: 8, fontSize: 12.5, color: '#B45309' }}>⚠ {valgt.merknad}</div>}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 12 }}>

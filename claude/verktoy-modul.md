@@ -53,3 +53,15 @@ Planlagd oppgåve måndagar kl. 12 (sjå nedst i denne fila for status). Samanli
 - Stadfest robustheit- og romtype-tolkingane.
 - Trestender/Nail It ikkje med (andre tabellar, må tilpassast parsaren).
 - `verktoy_veggval`-SQL må køyrast manuelt.
+
+## 13. nov. 2026 (seinare) — Trestender og Nail It med
+- Nye råfiler i `notatapp/scripts/norgips-raw/`: `tre.txt` (Trestender), `treub.txt` (Trestender med Ultra Board), `nailit.txt` (Nail It Indoor), `nailit-safety.txt` (Nail It Safety). Totalt 483 rader (W111 70, W112 95, W115 104, W628B 96, Trestender 18, TrestenderUB 39, NailItIndoor 38, NailItSafety 23). Råformata `stal|tre|treub|nailit` er dokumenterte øvst i `scripts/bygg-norgips.js`; format og familie står i fyrste linje i kvar råfil.
+- **Oppdatert uttrekksskript** (erstattar det over; tek alle format): same som i den vekentlege kontrollen. Finn `plater=` frå siste hovudrad (kodane STD/HRD/HB/LB/BRN/UB13/UB15/SIB/SAB/AQ før fyrste «maks/c/c/R'w/B1 / B2»-celle) og hoppar over forklaringstabellar (rader der fyrste celle ikkje er eit tal).
+- **Kryssjekk mot PDF** (`Underlag/NORGIPS_Veggtabell_WEB.pdf`, 58 sider, tekst henta med `pdfjs-dist`): 477 av 483 rader stemmer. Seks avvik mellom PDF og nettside, alle i stålfamiliane:
+  - W628B, C120 `0/UB15+1` (S/M0 og S120): c/c 600 = 4550 på nettsida, 4800 i PDF-en. Nettsida (lågaste verdi) er brukt til avklaring.
+  - W115 `2xAQ/2xAQ 2xS45/2xS70/2xS95/2xS120`: PDF-en skriv `S45` osb. utan «2x»; verdiane er like.
+- **Trestender:** kolonnane «IB» = EI for ikkje-bærande vegg, «B1/B2» = bærande brannklasse. Høgdene er anbefalte for ikkje-bærande vegger. Same høgd for c/c 450 og c/c 600. Bærande verdiar vert vist i detaljen, men filtrerer ikkje.
+- **Trestender med Ultra Board:** to tabellar (89, 91) har overskrifta «c/c 450 R'w / c/c 600 R'w» (same i PDF) med verdiar som 30/33; vi bruker lågaste som R'w (`rwModus=cc` i råfila) og R'w+C manglar. Kan vere skrivefeil hos Norgips; verifiser ved behov.
+- **Nail It:** høgde finst berre for c/c 600 (kode «N 600») eller utan c/c (Safety, `CF N`). «N»-profil vert ikkje styrt av «Tillat CF»-valet. Robustheit: Indoor +1, Safety +2 poeng (Safety = sikkerheitsklasse 3 / RC4) — eiga tolking i `veggvelgarKonfig.js`.
+- Sjakt = rader med `0/`-oppbygging i alle familiar (ikkje berre W628B). UI har fått filter «Veggtype» (Alle/Stål/Trestender/Nail It).
+- Den vekentlege kontrollen les no alle råfilene (oppdatert oppgåve).

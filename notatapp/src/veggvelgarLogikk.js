@@ -1,5 +1,5 @@
 import data from './data/norgipsVeggtabell.json'
-import { PLATE_ROBUSTHEIT, TILLEGG_FLEIRE_LAG, FUKTPLATER, SJAKT_FAMILIE, RIB_GRENSE_MM } from './veggvelgarKonfig'
+import { PLATE_ROBUSTHEIT, TILLEGG_FLEIRE_LAG, FUKTPLATER, RIB_GRENSE_MM, FAMILIE_ROBUSTHEIT_TILLEGG, PROFILNAMN } from './veggvelgarKonfig'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Veggvelgar — rein logikk (ingen React): filtrerer og rangerer Norgips-radene mot krava.
@@ -10,13 +10,13 @@ import { PLATE_ROBUSTHEIT, TILLEGG_FLEIRE_LAG, FUKTPLATER, SJAKT_FAMILIE, RIB_GR
 export const VEGGDATA = data
 export const ALLE_RADER = data.rader
 
-export const robustPoeng = (r) => Math.min(3, (PLATE_ROBUSTHEIT[r.hovudplate] ?? 1) + (r.lagPerSide >= 2 ? TILLEGG_FLEIRE_LAG : 0))
+export const robustPoeng = (r) => Math.min(3, (PLATE_ROBUSTHEIT[r.hovudplate] ?? 1) + (r.lagPerSide >= 2 ? TILLEGG_FLEIRE_LAG : 0) + (FAMILIE_ROBUSTHEIT_TILLEGG[r.familie] || 0))
 export const erVatromRad = (r) => r.tillattePlater.some(p => FUKTPLATER.includes(p)) || FUKTPLATER.includes(r.hovudplate)
 
 function romtypeOk(r, romtype) {
-  if (romtype === 'sjakt') return r.familie === SJAKT_FAMILIE
-  if (romtype === 'vatrom') return r.familie !== SJAKT_FAMILIE && erVatromRad(r)
-  return r.familie !== SJAKT_FAMILIE   // innvendig
+  if (romtype === 'sjakt') return !!r.sjakt                       // plater berre på éi side (0/x)
+  if (romtype === 'vatrom') return !r.sjakt && erVatromRad(r)
+  return !r.sjakt                                                // innvendig
 }
 
 // Brannklasse-oppføringar som oppfyller kravet. Raden kan ha to (t.d. EI 60 opp til 5000 mm, EI 30 opp til 6000 mm).
@@ -36,9 +36,11 @@ function maksHogde(r, profil, cc, brann) {
 }
 
 // Alle (profil, c/c)-variantar for ei rad, i prioritert rekkjefølgje: dB+ c/c 600, dB+ c/c 450, CF c/c 600, CF c/c 450
+const PROFILREKKJE = ['dB', 'CF', 'Tre', 'N', 'CFN']
 function varianter(r, krav) {
   const ut = []
-  for (const profil of krav.cf ? ['dB', 'CF'] : ['dB']) {
+  for (const profil of PROFILREKKJE) {
+    if (!r.hogde[profil] || (profil === 'CF' && !krav.cf)) continue
     for (const cc of [600, 450]) {
       if (krav.cc && krav.cc !== 'auto' && +krav.cc !== cc) continue
       const m = maksHogde(r, profil, cc, krav.brann)
@@ -51,6 +53,7 @@ function varianter(r, krav) {
 // Sjekkar éi rad. `hopp` = namn på eit krav som skal ignorerast (til flaskehals-analyse).
 export function evaluerRad(r, krav, hopp = null) {
   const feil = []
+  if (hopp !== 'materiale' && krav.materiale && krav.materiale !== 'alle' && r.materiale !== krav.materiale) feil.push('materiale')
   if (hopp !== 'romtype' && !romtypeOk(r, krav.romtype)) feil.push('romtype')
   if (hopp !== 'robust' && robustPoeng(r) < (krav.robust || 0)) feil.push('robust')
   if (hopp !== 'lyd' && krav.lyd > 0 && !((krav.lydMaal === 'rwC' ? r.rwC : r.rw) >= krav.lyd)) feil.push('lyd')
@@ -68,8 +71,11 @@ export function evaluerRad(r, krav, hopp = null) {
 function merknader(r, krav, v) {
   const m = []
   if (v?.profil === 'CF') m.push('Krev forsterkingsprofil (CF).')
+  if (r.materiale === 'tre') m.push('Trestender: høgdene er anbefalte for ikkje-bærande vegger.')
+  if (r.familie === 'NailItSafety') m.push('Nail It Safety: sikkerheitsklasse 3 (RC4).')
+  if (r.rwMerknad) m.push(r.rwMerknad)
   if (v && v.cc === 450) m.push('Krev stenderavstand c/c 450.')
-  if (krav.brann > 0 && krav.hogde > RIB_GRENSE_MM && (r.familie === 'W115' || r.familie === SJAKT_FAMILIE)) m.push('Høgde med brannkrav over 4 m: skal prosjekterast særskilt av RIB (Norgips).')
+  if (krav.brann > 0 && krav.hogde > RIB_GRENSE_MM && (r.familie === 'W115' || r.sjakt)) m.push('Høgde med brannkrav over 4 m: skal prosjekterast særskilt av RIB (Norgips).')
   else if (krav.brann > 0 && v?.stjerne) m.push('Høgda er avgrensa av NS-EN 15254-3 (merka * i Norgips-tabellen).')
   if (krav.brann > 0 && v?.maks && krav.hogde > 0 && v.profil === 'CF' && Math.ceil(v.maks / 1000) * 1000 !== v.maks) m.push('CF: EI-høgda er runda opp til hel meter (Norgips).')
   if (r.brann.length > 1) m.push('Radda har to brannklasse/høgde-par: ' + r.brann.map(b => 'EI ' + b.ei + ' opp til ' + b.maks + ' mm').join(', ') + '.')
@@ -93,8 +99,9 @@ export function foreslaVeggar(krav, rader = ALLE_RADER) {
 
 // Flaskehals: kor mange rader hadde vore med om eitt krav vart ignorert (for «ingen treff»-hjelp)
 export function flaskehalsar(krav, rader = ALLE_RADER) {
-  const namn = { romtype: 'Romtype', robust: 'Robustheit', lyd: 'Lydkrav', brann: 'Brannkrav', hogde: 'Romhøgde' }
+  const namn = { materiale: 'Veggtype', romtype: 'Romtype', robust: 'Robustheit', lyd: 'Lydkrav', brann: 'Brannkrav', hogde: 'Romhøgde' }
   return Object.keys(namn).map(k => ({ krav: k, namn: namn[k], antal: rader.filter(r => evaluerRad(r, krav, k).ok).length })).filter(x => x.antal > 0).sort((a, b) => b.antal - a.antal)
 }
 
+export { PROFILNAMN }
 export const kortKode = (r) => r.kode.replace(/\s+/g, ' ')
