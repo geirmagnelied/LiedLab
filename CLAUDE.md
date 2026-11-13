@@ -61,6 +61,8 @@ den relevante fila når ei oppgåve gjeld eit tema han dekkjer:
   kontoret delta via ein eksplisitt deltakarliste, uavhengig av
   `office_members`/`project_members`. Les denne FØR du byggjer noko
   chat-/meldingsrelatert
+- `claude/verktoy-modul.md` — Verktøy-modulen (13. nov. 2026) med Veggvelgar: foreslår stenderveggar frå Norgips veggtabell
+  (brann, lyd, høgde, robustheit, romtype), data frå nettsida via `notatapp/scripts/`, val lagra per prosjekt (`verktoy_veggval`)
 
 Same innhald finst òg (kan verte forelda over tid) som eigne dokument i
 Claude-prosjektet **"Digitale verktøy"** på claude.ai — `claude/`-mappa her

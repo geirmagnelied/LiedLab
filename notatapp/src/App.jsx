@@ -33,6 +33,7 @@ const lat = (last) => {
 const BrukarModule = lat(() => import('./BrukarModule'))
 const SketchPad = lat(() => import('./SketchPad'))
 const MalarModule = lat(() => import('./MalarModule'))
+const VerktoyModule = lat(() => import('./VerktoyModule'))
 const KontordriftModule = lat(() => import('./KontordriftModule'))
 const FramdriftModule = lat(() => import('./FramdriftModule'))
 const BileteModule = lat(() => import('./BileteModule'))
@@ -461,6 +462,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
       {/* Mobile content */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px' }}>
         {activeModule === 'bruker' && <BrukarModule userId={userId} userEmail={userEmail} brukar={brukar}/>}
+        {activeModule === 'verktoy' && <VerktoyModule userId={userId} projects={officeProjects} activeProjectId={selectedProjectId}/>}
         {activeModule === 'malar' && <MalarModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId} brukar={brukar} offices={offices} activeOfficeId={activeOfficeId}/>}
         {activeModule === 'skisse' && <div style={{ height:'calc(100vh - 190px)', display:'flex', position:'relative' }}><SketchPad innbygd existingDataUrl={null} onClose={() => setActiveModule('dashboard')} onSave={lagreSkisse}/></div>}
         {activeModule === 'dashboard' && <Dashboard userId={userId} userEmail={userEmail} activeOfficeId={activeOfficeId} projects={officeProjects} notes={modeNotes} onOpneModul={setActiveModule} onVelgProsjekt={setSelectedProjectId} activeProjectId={selectedProjectId}/>}
@@ -615,6 +617,8 @@ function AppInnhald({ userId, userEmail, brukar }) {
           <SketchPad innbygd existingDataUrl={null} onClose={() => setActiveModule('dashboard')} onSave={lagreSkisse}/>
           {skisseMelding && <div style={{ position:'absolute', left:'50%', bottom:24, transform:'translateX(-50%)', zIndex:50, background:'#1B2A3A', color:'#fff', padding:'10px 18px', borderRadius:10, fontSize:13, fontWeight:600, boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}>{skisseMelding}</div>}
         </div>
+      ) : activeModule === 'verktoy' ? (
+        <VerktoyModule userId={userId} projects={officeProjects} activeProjectId={selectedProjectId}/>
       ) : activeModule === 'malar' ? (
         <MalarModule userId={userId} userEmail={userEmail} projects={officeProjects} activeProjectId={selectedProjectId} brukar={brukar} offices={offices} activeOfficeId={activeOfficeId}/>
       ) : activeModule === 'bruker' ? (
@@ -778,7 +782,7 @@ function AppInnhald({ userId, userEmail, brukar }) {
 // Innstillingane er ein del av Kontordrift (vert viste i hovudvindauget, ikkje som panel)
 const INNST_SIDER = { innst_kontor: 'office', innst_medlemmar: 'members', innst_kontaktar: 'kontaktar' }
 
-const MODULE_LABELS = { prosjektdok:'Prosjektdokumenter', prosjektdash:'Prosjekt-dashboard', innst_kontor:'Kontor', innst_medlemmar:'Medlemmar', innst_kontaktar:'Kontaktar', skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Kanban', saker:'Saksbehandling', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', farge:'Farge', dtm:'Dokumenter', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Prosjektplan' }
+const MODULE_LABELS = { prosjektdok:'Prosjektdokumenter', prosjektdash:'Prosjekt-dashboard', innst_kontor:'Kontor', innst_medlemmar:'Medlemmar', innst_kontaktar:'Kontaktar', skisse:'Skisse', bruker:'Brukar', dashboard:'Dashboard', notatar:'Notatar', prosjekt:'Prosjekt', kunde:'Kundar', oppgaver:'Kanban', saker:'Saksbehandling', timar:'Timar', kvalitet:'Kvalitetssystem', kalender:'Kalender', malar:'Malar', verktoy:'Verktøy', farge:'Farge', dtm:'Dokumenter', bilete:'Bilete', kontordrift:'Kontordrift', ansatte:'Ansatte', kontorkalender:'Kontorkalender', framdrift:'Prosjektplan' }
 
 function StatusBar({ activeModule }) {
   const [now, setNow] = useState(new Date())

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useT } from './sprak'
-import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, ChevronsLeft, ChevronsRight, UserRound, PenTool, FileText, FolderKanban, Building2, Users } from 'lucide-react'
+import { LayoutDashboard, FolderTree, ListChecks, Clock, ShieldCheck, Palette, Image as BileteIkon, ChevronsLeft, ChevronsRight, UserRound, PenTool, FileText, FolderKanban, Building2, Users, Wrench } from 'lucide-react'
 
 // ── Paraply-struktur (brukar sitt eige krav 30. sept. 2026) ──────────
 // «Admin» og «Gjeremål» er reine NAVIGASJONS-paraplyar utan eigen
@@ -16,6 +16,7 @@ const MODULES = [
   { key: 'bilete', ikon: BileteIkon,    letter: 'B',   label: 'Bilete',   color: '#F4A261' },
   { key: 'skisse',    ikon: PenTool, letter: 'Sk', label: 'Skisse', color: '#F59E0B' },
   { key: 'malar', ikon: FileText, letter: 'Ml', label: 'Malar', color: '#38BDF8' },
+  { key: 'verktoy', ikon: Wrench, letter: 'Vk', label: 'Verktøy', color: '#2DD4BF' },
   { key: 'admin', ikon: Building2, letter: 'Kd', label: 'Kontordrift', color: '#9CA3AF', born: ['kunde', 'ansatte', 'kontorkalender', 'innst_kontor', 'innst_medlemmar', 'innst_kontaktar'] },
 ]
 
